@@ -1,0 +1,13 @@
+*.pyc
+*__pycache__/
+*.sqlite3
+*.egg-info/
+dist/
+build/
+.venv/
+.DS_Store
+*.json
+.coverage
+*.ipynb
+rename_project.py
+publish_project.py
