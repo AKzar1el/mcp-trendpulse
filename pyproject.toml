@@ -49,9 +49,9 @@ asyncio_mode = "auto"
 pythonpath = "src"
 
 [project.urls]
-Homepage = "https://github.com/jmanek/mcp-trendpulse"
-Repository = "https://github.com/jmanek/mcp-trendpulse"
-Issues = "https://github.com/jmanek/mcp-trendpulse/issues"
+Homepage = "https://github.com/AKzar1el/mcp-trendpulse"
+Repository = "https://github.com/AKzar1el/mcp-trendpulse"
+Issues = "https://github.com/AKzar1el/mcp-trendpulse/issues"
 
 [tool.black]
 line-length = 120
