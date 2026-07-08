@@ -79,10 +79,16 @@ class BrowserManager(AsyncContextDecorator):
     async def _shutdown(cls):
         logger.info("Shutting down browser...")
         if cls._browser:
-            await cls._browser.close()
+            try:
+                await cls._browser.close()
+            except Exception:
+                pass
             cls._browser = None
         if cls._playwright:
-            await cls._playwright.stop()
+            try:
+                await cls._playwright.stop()
+            except Exception:
+                pass
             cls._playwright = None
 
     @classmethod
@@ -108,7 +114,8 @@ class BrowserManager(AsyncContextDecorator):
 
     async def __aexit__(self, *exc):
         type(self)._class_contexts -= 1
-        await self._shutdown()
+        if type(self)._class_contexts == 0:
+            await self._shutdown()
         return False
 
 
@@ -166,8 +173,10 @@ async def download_article(url: str) -> newspaper.Article | None:
     """
     Download an article from a given URL using newspaper4k and cloudscraper (async).
     """
-    if not (url := decode_url(url)):
-        return None
+    if url.startswith("https://news.google.com/rss/"):
+        url = decode_url(url)
+        if not url:
+            return None
     article = download_article_with_scraper(url)
     if article is None or not article.text:
         logger.debug("Attempting to download article with playwright")
@@ -594,3 +603,156 @@ async def get_top_trends(
             "news": news_out
         })
     return results
+
+
+async def get_news_by_site(
+    site: str,
+    period: int = 7,
+    max_results: int = 10,
+    nlp: bool = True,
+    report_progress: Optional[ProgressCallback] = None,
+) -> list[newspaper.Article]:
+    """Find articles from a specific publisher site using Google News."""
+    google_news.period = f"{period}d"
+    google_news.max_results = max_results
+    gnews_articles = google_news.get_news_by_site(site)
+    if not gnews_articles:
+        logger.debug(f"No articles found for site '{site}' in the last {period} days.")
+        return []
+    return await process_gnews_articles(gnews_articles, nlp=nlp, report_progress=report_progress)
+
+
+async def get_interest_by_region(
+    keywords: str | list[str],
+    timeframe: str = "today 12-m",
+    geo: str = "US",
+    cat: int = 0,
+    gprop: str = "",
+    resolution: str = "REGION",
+    inc_low_vol: bool = False,
+) -> list[dict]:
+    """Retrieves geographical interest data based on keywords and other parameters."""
+    kw_list = [keywords] if isinstance(keywords, str) else keywords
+    loop = asyncio.get_running_loop()
+    df = await loop.run_in_executor(
+        None,
+        lambda: tr.interest_by_region(
+            keywords=kw_list,
+            timeframe=timeframe,
+            geo=geo,
+            cat=cat,
+            gprop=gprop,
+            resolution=resolution,
+            inc_low_vol=inc_low_vol,
+        )
+    )
+    if df.empty:
+        return []
+    results = []
+    for _, row in df.iterrows():
+        values = {}
+        for kw in kw_list:
+            if kw in df.columns:
+                values[kw] = float(row[kw])
+        results.append({
+            "geoName": str(row["geoName"]),
+            "geoCode": str(row["geoCode"]),
+            "values": values
+        })
+    return results
+
+
+async def get_related_queries(
+    keyword: str,
+    timeframe: str = "today 12-m",
+    geo: str = "US",
+    cat: int = 0,
+    gprop: str = "",
+) -> dict[str, list[dict]]:
+    """Retrieves related queries for a single search term."""
+    loop = asyncio.get_running_loop()
+    res = await loop.run_in_executor(
+        None,
+        lambda: tr.related_queries(
+            keyword=keyword,
+            timeframe=timeframe,
+            geo=geo,
+            cat=cat,
+            gprop=gprop,
+            headers={"referer": "https://www.google.com/"}
+        )
+    )
+    out = {"top": [], "rising": []}
+    for key in ("top", "rising"):
+        df = res.get(key)
+        if df is not None and not df.empty:
+            for _, row in df.iterrows():
+                out[key].append({
+                    "query": str(row["query"]),
+                    "value": float(row["value"])
+                })
+    return out
+
+
+async def get_related_topics(
+    keyword: str,
+    timeframe: str = "today 12-m",
+    geo: str = "US",
+    cat: int = 0,
+    gprop: str = "",
+) -> dict[str, list[dict]]:
+    """Retrieves related topics for a single search term."""
+    loop = asyncio.get_running_loop()
+    res = await loop.run_in_executor(
+        None,
+        lambda: tr.related_topics(
+            keyword=keyword,
+            timeframe=timeframe,
+            geo=geo,
+            cat=cat,
+            gprop=gprop,
+            headers={"referer": "https://www.google.com/"}
+        )
+    )
+    out = {"top": [], "rising": []}
+    for key in ("top", "rising"):
+        df = res.get(key)
+        if df is not None and not df.empty:
+            for _, row in df.iterrows():
+                out[key].append({
+                    "mid": str(row["mid"]),
+                    "title": str(row["title"]),
+                    "type": str(row["type"]),
+                    "value": float(row["value"])
+                })
+    return out
+
+
+async def get_suggestions(keyword: str, language: Optional[str] = None) -> list[dict]:
+    """Retrieves autocomplete suggestions for a search term."""
+    loop = asyncio.get_running_loop()
+    df = await loop.run_in_executor(
+        None,
+        lambda: tr.suggestions(keyword=keyword, language=language)
+    )
+    if df.empty:
+        return []
+    results = []
+    for _, row in df.iterrows():
+        results.append({
+            "mid": str(row["mid"]),
+            "title": str(row["title"]),
+            "type": str(row["type"])
+        })
+    return results
+
+
+async def get_categories() -> list[dict]:
+    """Retrieves category list from Google Trends."""
+    loop = asyncio.get_running_loop()
+    cats = await loop.run_in_executor(
+        None,
+        lambda: tr.categories()
+    )
+    return cats
+

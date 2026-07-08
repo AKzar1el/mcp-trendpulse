@@ -106,6 +106,45 @@ class TopTrendOut(BaseModelClean):
     news: Annotated[Optional[list[TrendingTermArticleOut]], Field(description="Related news articles.")] = None
 
 
+class RegionInterestOut(BaseModelClean):
+    geo_name: Annotated[str, Field(description="Name of the geographic region.")]
+    geo_code: Annotated[str, Field(description="ISO code of the region.")]
+    values: Annotated[dict[str, float], Field(description="Search interest score (0-100) per keyword.")]
+
+
+class RelatedQueryItem(BaseModelClean):
+    query: Annotated[str, Field(description="The related search term.")]
+    value: Annotated[float, Field(description="Relative search value (0-100) or growth percentage.")]
+
+
+class RelatedQueriesOut(BaseModelClean):
+    top: Annotated[list[RelatedQueryItem], Field(description="Top related queries.")]
+    rising: Annotated[list[RelatedQueryItem], Field(description="Rising related queries.")]
+
+
+class RelatedTopicItem(BaseModelClean):
+    mid: Annotated[str, Field(description="Google Trends topic entity ID (e.g. /m/05z1_).")]
+    title: Annotated[str, Field(description="Display title of the topic.")]
+    type: Annotated[str, Field(description="Type of the topic entity.")]
+    value: Annotated[float, Field(description="Relative search value (0-100) or growth percentage.")]
+
+
+class RelatedTopicsOut(BaseModelClean):
+    top: Annotated[list[RelatedTopicItem], Field(description="Top related topics.")]
+    rising: Annotated[list[RelatedTopicItem], Field(description="Rising related topics.")]
+
+
+class SuggestionItem(BaseModelClean):
+    mid: Annotated[str, Field(description="Google Trends topic entity ID (e.g. /m/05z1_).")]
+    title: Annotated[str, Field(description="Display title of the entity.")]
+    type: Annotated[str, Field(description="Type of the entity.")]
+
+
+class CategoryItem(BaseModelClean):
+    id: Annotated[int, Field(description="Category ID to be used in queries.")]
+    name: Annotated[str, Field(description="Display name of the category.")]
+
+
 @asynccontextmanager
 async def lifespan(app: FastMCP):
     async with BrowserManager():
@@ -509,6 +548,196 @@ async def get_top_trends(
         if "news" in r and r["news"]:
             r["news"] = [TrendingTermArticleOut(**art) for art in r["news"]]
     return [TopTrendOut(**item) for item in results]
+
+
+@mcp.tool(
+    description=news.get_news_by_site.__doc__,
+    tags={"news", "articles", "site"},
+)
+async def get_news_by_site(
+    ctx: Context,
+    site: Annotated[str, Field(description="Domain of the news site, e.g. 'cnn.com'.")],
+    period: Annotated[int, Field(description="Number of days to look back for articles.", ge=1)] = 7,
+    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
+    full_data: Annotated[
+        bool,
+        Field(
+            description="Return full data for each article. If False a summary should be created by setting the summarize flag"
+        ),
+    ] = False,
+    summarize: Annotated[
+        bool,
+        Field(
+            description="Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp"
+        ),
+    ] = True,
+) -> list[ArticleOut]:
+    set_newspaper_article_fields(full_data)
+
+    async def progress_callback(progress: float, total: Optional[float]):
+        if is_session_active(ctx):
+            try:
+                await ctx.report_progress(progress, total)
+            except Exception:
+                pass
+
+    articles = await news.get_news_by_site(
+        site=site,
+        period=period,
+        max_results=max_results,
+        nlp=False,
+        report_progress=progress_callback,
+    )
+    if summarize:
+        await summarize_articles(articles, ctx)
+    if is_session_active(ctx):
+        try:
+            await ctx.report_progress(progress=len(articles), total=len(articles))
+        except Exception:
+            pass
+    return [ArticleOut(**a.to_json(False)) for a in articles]
+
+
+@mcp.tool(
+    description="Download, scrape and parse the content of a specific news article from a given URL.",
+    tags={"news", "articles", "scrape"},
+)
+async def get_article_content(
+    ctx: Context,
+    url: Annotated[str, Field(description="The URL of the news article to download and parse.")],
+    full_data: Annotated[
+        bool,
+        Field(
+            description="Return full data for the article. If False a summary should be created by setting the summarize flag"
+        ),
+    ] = False,
+    summarize: Annotated[
+        bool,
+        Field(
+            description="Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp"
+        ),
+    ] = True,
+) -> Optional[ArticleOut]:
+    set_newspaper_article_fields(full_data)
+    article = await news.download_article(url)
+    if not article:
+        return None
+    article.parse()
+    if summarize:
+        await summarize_articles([article], ctx)
+    else:
+        try:
+            article.nlp()
+        except Exception:
+            try:
+                import nltk
+                nltk.download('punkt', quiet=True)
+                nltk.download('punkt_tab', quiet=True)
+                article.nlp()
+            except Exception:
+                pass
+    return ArticleOut(**article.to_json(False))
+
+
+@mcp.tool(
+    description=news.get_interest_by_region.__doc__,
+    tags={"trends", "google", "region"},
+)
+async def get_interest_by_region(
+    keywords: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
+    timeframe: Annotated[str, Field(description="Timeframe for search volume analysis (e.g., 'today 12-m').")] = "today 12-m",
+    geo: Annotated[str, Field(description="Geographic region code (e.g. 'US' or empty '' for worldwide).")] = "US",
+    cat: Annotated[int, Field(description="Category ID (default: 0 for all).")] = 0,
+    gprop: Annotated[str, Field(description="Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').")] = "",
+    resolution: Annotated[str, Field(description="Geographic resolution: 'COUNTRY', 'REGION', 'CITY', or 'DMA'.")] = "REGION",
+    inc_low_vol: Annotated[bool, Field(description="Include regions with low search volume.")] = False,
+) -> list[RegionInterestOut]:
+    results = await news.get_interest_by_region(
+        keywords=keywords,
+        timeframe=timeframe,
+        geo=geo,
+        cat=cat,
+        gprop=gprop,
+        resolution=resolution,
+        inc_low_vol=inc_low_vol,
+    )
+    return [RegionInterestOut(
+        geo_name=item["geoName"],
+        geo_code=item["geoCode"],
+        values=item["values"]
+    ) for item in results]
+
+
+@mcp.tool(
+    description=news.get_related_queries.__doc__,
+    tags={"trends", "google", "queries"},
+)
+async def get_related_queries(
+    keyword: Annotated[str, Field(description="Search keyword to analyze.")],
+    timeframe: Annotated[str, Field(description="Timeframe for search volume analysis (e.g., 'today 12-m').")] = "today 12-m",
+    geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
+    cat: Annotated[int, Field(description="Category ID (default: 0 for all).")] = 0,
+    gprop: Annotated[str, Field(description="Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').")] = "",
+) -> RelatedQueriesOut:
+    results = await news.get_related_queries(
+        keyword=keyword,
+        timeframe=timeframe,
+        geo=geo,
+        cat=cat,
+        gprop=gprop,
+    )
+    return RelatedQueriesOut(
+        top=[RelatedQueryItem(**item) for item in results["top"]],
+        rising=[RelatedQueryItem(**item) for item in results["rising"]],
+    )
+
+
+@mcp.tool(
+    description=news.get_related_topics.__doc__,
+    tags={"trends", "google", "topics"},
+)
+async def get_related_topics(
+    keyword: Annotated[str, Field(description="Search keyword to analyze.")],
+    timeframe: Annotated[str, Field(description="Timeframe for search volume analysis (e.g., 'today 12-m').")] = "today 12-m",
+    geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
+    cat: Annotated[int, Field(description="Category ID (default: 0 for all).")] = 0,
+    gprop: Annotated[str, Field(description="Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').")] = "",
+) -> RelatedTopicsOut:
+    results = await news.get_related_topics(
+        keyword=keyword,
+        timeframe=timeframe,
+        geo=geo,
+        cat=cat,
+        gprop=gprop,
+    )
+    return RelatedTopicsOut(
+        top=[RelatedTopicItem(**item) for item in results["top"]],
+        rising=[RelatedTopicItem(**item) for item in results["rising"]],
+    )
+
+
+@mcp.tool(
+    description=news.get_suggestions.__doc__,
+    tags={"trends", "google", "suggestions"},
+)
+async def get_suggestions(
+    keyword: Annotated[str, Field(description="Query string to autocomplete.")],
+    language: Annotated[Optional[str], Field(description="Language code, e.g. 'en'.")] = None,
+) -> list[SuggestionItem]:
+    results = await news.get_suggestions(
+        keyword=keyword,
+        language=language,
+    )
+    return [SuggestionItem(**item) for item in results]
+
+
+@mcp.tool(
+    description=news.get_categories.__doc__,
+    tags={"trends", "google", "categories"},
+)
+async def get_categories() -> list[CategoryItem]:
+    results = await news.get_categories()
+    return [CategoryItem(**item) for item in results]
 
 
 def main():

@@ -144,6 +144,34 @@ class MockTrendKeywordLite:
         self.news = news or []
 
 
+class MockArticle:
+    def __init__(self, title="Mock Title", url="https://mock.com", text="Mock body content.", summary="Mock summary."):
+        self.title = title
+        self.original_url = url
+        self.text = text
+        self.summary = summary
+        self.authors = ["Mock Author"]
+        self.publish_date = None
+        self.top_image = None
+        self.images = []
+        self.tags = []
+
+    def parse(self):
+        pass
+
+    def nlp(self):
+        pass
+
+    def to_json(self, *args, **kwargs):
+        return {
+            "title": self.title,
+            "url": self.original_url,
+            "text": self.text,
+            "summary": self.summary,
+            "authors": self.authors,
+        }
+
+
 async def test_get_trends(mcp_server):
     dates = pd.date_range(start='2021-07-11', periods=5, freq='W')
     mock_df = pd.DataFrame({
@@ -258,4 +286,129 @@ async def test_get_top_trends(mcp_server):
             daily_trends = _articles(result)
             assert len(daily_trends) == 1
             assert daily_trends[0]["keyword"] == "switzerland vs colombia"
+
+
+async def test_get_news_by_site(mcp_server):
+    mock_articles = [MockArticle(title="Site News 1", url="https://nytimes.com/1")]
+    with patch("mcp_trendpulse.news.get_news_by_site") as mock_get:
+        mock_get.return_value = mock_articles
+        async with Client(mcp_server) as client:
+            params = {"site": "nytimes.com", "period": 3, "max_results": 2}
+            result = await client.call_tool("get_news_by_site", params)
+            articles = _articles(result)
+            assert isinstance(articles, list)
+            assert len(articles) == 1
+            assert articles[0]["title"] == "Site News 1"
+            assert articles[0]["url"] == "https://nytimes.com/1"
+
+
+async def test_get_article_content(mcp_server):
+    mock_art = MockArticle(title="Article content title", text="Body text of the article.")
+    with patch("mcp_trendpulse.news.download_article") as mock_download:
+        mock_download.return_value = mock_art
+        async with Client(mcp_server) as client:
+            params = {
+                "url": "https://nytimes.com/1",
+                "summarize": False,
+                "full_data": True
+            }
+            result = await client.call_tool("get_article_content", params)
+            article = result.structured_content.get("result")
+            assert article is not None
+            assert article["title"] == "Article content title"
+            assert article["text"] == "Body text of the article."
+
+
+async def test_get_interest_by_region(mcp_server):
+    mock_df = pd.DataFrame({
+        "geoName": ["California", "Texas"],
+        "geoCode": ["US-CA", "US-TX"],
+        "python": [100.0, 80.0]
+    })
+    with patch('mcp_trendpulse.news.tr') as mock_tr:
+        mock_tr.interest_by_region.return_value = mock_df
+        async with Client(mcp_server) as client:
+            params = {
+                "keywords": "python",
+                "geo": "US",
+                "resolution": "REGION"
+            }
+            result = await client.call_tool("get_interest_by_region", params)
+            regions = _articles(result)
+            assert isinstance(regions, list)
+            assert len(regions) == 2
+            assert regions[0]["geo_name"] == "California"
+            assert regions[0]["geo_code"] == "US-CA"
+            assert regions[0]["values"]["python"] == 100.0
+
+
+async def test_get_related_queries(mcp_server):
+    mock_res = {
+        "top": pd.DataFrame({"query": ["python download", "python tutorial"], "value": [100, 50]}),
+        "rising": pd.DataFrame({"query": ["python 3.12", "python pillow"], "value": [120, 80]})
+    }
+    with patch('mcp_trendpulse.news.tr') as mock_tr:
+        mock_tr.related_queries.return_value = mock_res
+        async with Client(mcp_server) as client:
+            params = {"keyword": "python"}
+            result = await client.call_tool("get_related_queries", params)
+            res_dict = result.structured_content
+            assert res_dict is not None
+            assert len(res_dict["top"]) == 2
+            assert res_dict["top"][0]["query"] == "python download"
+            assert res_dict["top"][0]["value"] == 100.0
+            assert len(res_dict["rising"]) == 2
+            assert res_dict["rising"][0]["query"] == "python 3.12"
+            assert res_dict["rising"][0]["value"] == 120.0
+
+
+async def test_get_related_topics(mcp_server):
+    mock_res = {
+        "top": pd.DataFrame({"mid": ["/m/05z1_", "/m/020s1"], "title": ["Python", "Programming language"], "type": ["Language", "Field"], "value": [100, 80]}),
+        "rising": pd.DataFrame({"mid": ["/g/11bc5zy143"], "title": ["FastAPI"], "type": ["Web framework"], "value": [50000]})
+    }
+    with patch('mcp_trendpulse.news.tr') as mock_tr:
+        mock_tr.related_topics.return_value = mock_res
+        async with Client(mcp_server) as client:
+            params = {"keyword": "python"}
+            result = await client.call_tool("get_related_topics", params)
+            res_dict = result.structured_content
+            assert res_dict is not None
+            assert len(res_dict["top"]) == 2
+            assert res_dict["top"][0]["title"] == "Python"
+            assert res_dict["top"][0]["mid"] == "/m/05z1_"
+            assert len(res_dict["rising"]) == 1
+            assert res_dict["rising"][0]["title"] == "FastAPI"
+
+
+async def test_get_suggestions(mcp_server):
+    mock_df = pd.DataFrame({
+        "mid": ["/m/05z1_"],
+        "title": ["Python"],
+        "type": ["Programming language"]
+    })
+    with patch('mcp_trendpulse.news.tr') as mock_tr:
+        mock_tr.suggestions.return_value = mock_df
+        async with Client(mcp_server) as client:
+            params = {"keyword": "python"}
+            result = await client.call_tool("get_suggestions", params)
+            suggestions = _articles(result)
+            assert isinstance(suggestions, list)
+            assert len(suggestions) == 1
+            assert suggestions[0]["mid"] == "/m/05z1_"
+            assert suggestions[0]["title"] == "Python"
+
+
+async def test_get_categories(mcp_server):
+    mock_cats = [{"name": "All categories", "id": 0}, {"name": "Arts & Entertainment", "id": 3}]
+    with patch('mcp_trendpulse.news.tr') as mock_tr:
+        mock_tr.categories.return_value = mock_cats
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("get_categories", {})
+            cats = _articles(result)
+            assert isinstance(cats, list)
+            assert len(cats) == 2
+            assert cats[0]["name"] == "All categories"
+            assert cats[0]["id"] == 0
+
 

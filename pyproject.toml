@@ -26,7 +26,7 @@ dependencies = [
 
 [project.scripts]
 mcp-trendpulse = "mcp_trendpulse.server:main"
-mcp-trendpulse = "mcp_trendpulse.cli:cli"
+mcp-trendpulse-cli = "mcp_trendpulse.cli:cli"
 
 
 [build-system]
