@@ -3,54 +3,574 @@
   "name": "io.github.AKzar1el/mcp-trendpulse",
   "title": "Google News & Trends MCP",
   "description": "MCP server to query Google News RSS feeds, analyze keyword search interest over time via Google Trends, and calculate keyword velocity metrics.",
-  "tools": [
-    {
-      "name": "get_news_by_keyword",
-      "description": "Search for news using specific keywords."
-    },
-    {
-      "name": "get_news_by_location",
-      "description": "Retrieve news relevant to a particular location."
-    },
-    {
-      "name": "get_news_by_topic",
-      "description": "Get news based on a chosen topic."
-    },
-    {
-      "name": "get_top_news",
-      "description": "Fetch the top news stories from Google News."
-    },
-    {
-      "name": "get_trending_terms",
-      "description": "Return trending keywords from Google Trends for a specified location."
-    },
-    {
-      "name": "get_trends",
-      "description": "Pull 5 years of weekly Google Search interest for a keyword to inspect growth/seasonality curves."
-    },
-    {
-      "name": "get_growth",
-      "description": "Measure how much search interest changed over custom periods (e.g. 3M, 1Y) and compare growth side-by-side."
-    },
-    {
-      "name": "get_ranked_trends",
-      "description": "Get a ranked list of the highest-volume or fastest-growing keywords on Google Search right now."
-    },
-    {
-      "name": "get_top_trends",
-      "description": "Discover top trending topics on Google Trends right now without requiring a keyword query."
-    }
-  ],
   "version": "0.2.9",
   "repository": {
     "url": "https://github.com/AKzar1el/mcp-trendpulse",
     "source": "github"
   },
   "websiteUrl": "https://github.com/AKzar1el/mcp-trendpulse#readme",
+  "tools": [
+    {
+      "name": "get_news_by_keyword",
+      "description": "\n    Find articles by keyword using Google News.\n    ",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "keyword": {
+            "description": "Search term to find articles.",
+            "type": "string"
+          },
+          "period": {
+            "default": 7,
+            "description": "Number of days to look back for articles.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_results": {
+            "default": 10,
+            "description": "Maximum number of results to return.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "full_data": {
+            "default": false,
+            "description": "Return full data for each article. If False a summary should be created by setting the summarize flag",
+            "type": "boolean"
+          },
+          "summarize": {
+            "default": true,
+            "description": "Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "keyword"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_news_by_location",
+      "description": "Find articles by location using Google News.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "location": {
+            "description": "Name of city/state/country.",
+            "type": "string"
+          },
+          "period": {
+            "default": 7,
+            "description": "Number of days to look back for articles.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_results": {
+            "default": 10,
+            "description": "Maximum number of results to return.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "full_data": {
+            "default": false,
+            "description": "Return full data for each article. If False a summary should be created by setting the summarize flag",
+            "type": "boolean"
+          },
+          "summarize": {
+            "default": true,
+            "description": "Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "location"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_news_by_topic",
+      "description": "Find articles by topic using Google News.\n    topic is one of\n    WORLD, NATION, BUSINESS, TECHNOLOGY, ENTERTAINMENT, SPORTS, SCIENCE, HEALTH,\n    POLITICS, CELEBRITIES, TV, MUSIC, MOVIES, THEATER, SOCCER, CYCLING, MOTOR SPORTS,\n    TENNIS, COMBAT SPORTS, BASKETBALL, BASEBALL, FOOTBALL, SPORTS BETTING, WATER SPORTS,\n    HOCKEY, GOLF, CRICKET, RUGBY, ECONOMY, PERSONAL FINANCE, FINANCE, DIGITAL CURRENCIES,\n    MOBILE, ENERGY, GAMING, INTERNET SECURITY, GADGETS, VIRTUAL REALITY, ROBOTICS, NUTRITION,\n    PUBLIC HEALTH, MENTAL HEALTH, MEDICINE, SPACE, WILDLIFE, ENVIRONMENT, NEUROSCIENCE, PHYSICS,\n    GEOLOGY, PALEONTOLOGY, SOCIAL SCIENCES, EDUCATION, JOBS, ONLINE EDUCATION, HIGHER EDUCATION,\n    VEHICLES, ARTS-DESIGN, BEAUTY, FOOD, TRAVEL, SHOPPING, HOME, OUTDOORS, FASHION.\n    ",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "topic": {
+            "description": "Topic to search for articles.",
+            "type": "string"
+          },
+          "period": {
+            "default": 7,
+            "description": "Number of days to look back for articles.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_results": {
+            "default": 10,
+            "description": "Maximum number of results to return.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "full_data": {
+            "default": false,
+            "description": "Return full data for each article. If False a summary should be created by setting the summarize flag",
+            "type": "boolean"
+          },
+          "summarize": {
+            "default": true,
+            "description": "Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "topic"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_top_news",
+      "description": "\n    Get top news stories from Google News.\n    ",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "period": {
+            "default": 3,
+            "description": "Number of days to look back for top articles.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_results": {
+            "default": 10,
+            "description": "Maximum number of results to return.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "full_data": {
+            "default": false,
+            "description": "Return full data for each article. If False a summary should be created by setting the summarize flag",
+            "type": "boolean"
+          },
+          "summarize": {
+            "default": true,
+            "description": "Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_trending_terms",
+      "description": "\n    Returns google trends for a specific geo location.\n    ",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "geo": {
+            "default": "US",
+            "description": "Geographic target for trending terms. Supports four levels of granularity:\n- Worldwide: empty string ''\n- Country: ISO 3166-1 alpha-2 code, e.g. 'US', 'GB', 'CA'\n- Subdivision (state/province/region): ISO 3166-2 format 'CC-XX' or 'CC-XXX', e.g. 'US-CA' (California), 'BE-BRU' (Brussels)\n- US metro area: bare Nielsen DMA code (numeric string), e.g. '807' (San Francisco Bay Area), '501' (New York City)",
+            "type": "string"
+          },
+          "full_data": {
+            "default": false,
+            "description": "Return full data for each trend including related news stories.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_trends",
+      "description": "\n    Pull search interest over time for keywords.\n    ",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "description": "Search keyword(s) to analyze."
+          },
+          "source": {
+            "default": "google search",
+            "description": "Search source: 'google search', 'youtube search', 'news search', 'image search', 'google shopping'.",
+            "type": "string"
+          },
+          "data_mode": {
+            "default": "weekly",
+            "description": "Resolution of data: 'weekly', 'daily', 'monthly'.",
+            "type": "string"
+          },
+          "geo": {
+            "default": "US",
+            "description": "Geographic region code (e.g. 'US').",
+            "type": "string"
+          }
+        },
+        "required": [
+          "keyword"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_growth",
+      "description": "\n    Measure interest growth over specified windows.\n    ",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "description": "Search keyword(s) to analyze."
+          },
+          "source": {
+            "default": "google search",
+            "description": "Search source: 'google search', 'youtube search', etc.",
+            "type": "string"
+          },
+          "percent_growth": {
+            "default": null,
+            "description": "Timeframes to calculate growth (e.g. ['3M', '1Y']).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "geo": {
+            "default": "US",
+            "description": "Geographic region code (e.g. 'US').",
+            "type": "string"
+          }
+        },
+        "required": [
+          "keyword"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_ranked_trends",
+      "description": "\n    Get ranked trending keywords on Google Search.\n    ",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "default": "google search",
+            "description": "Search source: 'google search'.",
+            "type": "string"
+          },
+          "sort": {
+            "default": "wow_pct_change",
+            "description": "Field to sort by: 'wow_pct_change', 'volume'.",
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "description": "Maximum number of trends to return.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "geo": {
+            "default": "US",
+            "description": "Geographic region code (e.g. 'US').",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_top_trends",
+      "description": "\n    Get top trends using RSS trending feeds.\n    ",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "default": "Google Trends",
+            "description": "Type of trends: 'Google Trends' (realtime), 'Daily Trends' (daily).",
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "description": "Maximum number of trends to return.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "geo": {
+            "default": "US",
+            "description": "Geographic region code (e.g. 'US').",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_news_by_site",
+      "description": "Find articles from a specific publisher site using Google News.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "site": {
+            "description": "Domain of the news site, e.g. 'cnn.com'.",
+            "type": "string"
+          },
+          "period": {
+            "default": 7,
+            "description": "Number of days to look back for articles.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_results": {
+            "default": 10,
+            "description": "Maximum number of results to return.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "full_data": {
+            "default": false,
+            "description": "Return full data for each article. If False a summary should be created by setting the summarize flag",
+            "type": "boolean"
+          },
+          "summarize": {
+            "default": true,
+            "description": "Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "site"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_article_content",
+      "description": "Download, scrape and parse the content of a specific news article from a given URL.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "description": "The URL of the news article to download and parse.",
+            "type": "string"
+          },
+          "full_data": {
+            "default": false,
+            "description": "Return full data for the article. If False a summary should be created by setting the summarize flag",
+            "type": "boolean"
+          },
+          "summarize": {
+            "default": true,
+            "description": "Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_interest_by_region",
+      "description": "Retrieves geographical interest data based on keywords and other parameters.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "keywords": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "description": "Search keyword(s) to analyze."
+          },
+          "timeframe": {
+            "default": "today 12-m",
+            "description": "Timeframe for search volume analysis (e.g., 'today 12-m').",
+            "type": "string"
+          },
+          "geo": {
+            "default": "US",
+            "description": "Geographic region code (e.g. 'US' or empty '' for worldwide).",
+            "type": "string"
+          },
+          "cat": {
+            "default": 0,
+            "description": "Category ID (default: 0 for all).",
+            "type": "integer"
+          },
+          "gprop": {
+            "default": "",
+            "description": "Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').",
+            "type": "string"
+          },
+          "resolution": {
+            "default": "REGION",
+            "description": "Geographic resolution: 'COUNTRY', 'REGION', 'CITY', or 'DMA'.",
+            "type": "string"
+          },
+          "inc_low_vol": {
+            "default": false,
+            "description": "Include regions with low search volume.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "keywords"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_related_queries",
+      "description": "Retrieves related queries for a single search term.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "keyword": {
+            "description": "Search keyword to analyze.",
+            "type": "string"
+          },
+          "timeframe": {
+            "default": "today 12-m",
+            "description": "Timeframe for search volume analysis (e.g., 'today 12-m').",
+            "type": "string"
+          },
+          "geo": {
+            "default": "US",
+            "description": "Geographic region code (e.g. 'US').",
+            "type": "string"
+          },
+          "cat": {
+            "default": 0,
+            "description": "Category ID (default: 0 for all).",
+            "type": "integer"
+          },
+          "gprop": {
+            "default": "",
+            "description": "Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').",
+            "type": "string"
+          }
+        },
+        "required": [
+          "keyword"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_related_topics",
+      "description": "Retrieves related topics for a single search term.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "keyword": {
+            "description": "Search keyword to analyze.",
+            "type": "string"
+          },
+          "timeframe": {
+            "default": "today 12-m",
+            "description": "Timeframe for search volume analysis (e.g., 'today 12-m').",
+            "type": "string"
+          },
+          "geo": {
+            "default": "US",
+            "description": "Geographic region code (e.g. 'US').",
+            "type": "string"
+          },
+          "cat": {
+            "default": 0,
+            "description": "Category ID (default: 0 for all).",
+            "type": "integer"
+          },
+          "gprop": {
+            "default": "",
+            "description": "Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').",
+            "type": "string"
+          }
+        },
+        "required": [
+          "keyword"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_suggestions",
+      "description": "Retrieves autocomplete suggestions for a search term.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "keyword": {
+            "description": "Query string to autocomplete.",
+            "type": "string"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Language code, e.g. 'en'."
+          }
+        },
+        "required": [
+          "keyword"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_categories",
+      "description": "Retrieves category list from Google Trends.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      }
+    }
+  ],
   "_meta": {
     "io.modelcontextprotocol.registry/publisher-provided": {
       "license": "MIT",
-      "tags": ["google-news", "google-trends", "rss-reader", "nlp", "llm-sampling", "trends", "news"]
+      "tags": [
+        "google-news",
+        "google-trends",
+        "rss-reader",
+        "nlp",
+        "llm-sampling",
+        "trends",
+        "news"
+      ]
     }
   }
 }
