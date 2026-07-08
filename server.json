@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.AKzar1el/mcp-trendpulse",
+  "title": "Google News & Trends MCP",
+  "description": "MCP server to query Google News RSS feeds, analyze keyword search interest over time via Google Trends, and calculate keyword velocity metrics.",
+  "version": "0.2.9",
+  "repository": {
+    "url": "https://github.com/AKzar1el/mcp-trendpulse",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/AKzar1el/mcp-trendpulse#readme",
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "license": "MIT",
+      "tags": ["google-news", "google-trends", "rss-reader", "nlp", "llm-sampling", "trends", "news"]
+    }
+  }
+}
