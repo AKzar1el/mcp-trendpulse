@@ -1,0 +1,59 @@
+{
+  "manifest_version": "0.2",
+  "name": "mcp-trendpulse",
+  "display_name": "Google News & Trends MCP",
+  "version": "0.2.9",
+  "description": "MCP server to query Google News RSS feeds, analyze keyword search interest over time via Google Trends, and calculate keyword velocity metrics.",
+  "author": {
+    "name": "AKzar1el",
+    "url": "https://github.com/AKzar1el"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AKzar1el/mcp-trendpulse"
+  },
+  "homepage": "https://github.com/AKzar1el/mcp-trendpulse",
+  "license": "MIT",
+  "server": {
+    "type": "python",
+    "entry_point": "src/mcp_trendpulse/server.py"
+  },
+  "tools": [
+    {
+      "name": "get_news_by_keyword",
+      "description": "Search for news using specific keywords."
+    },
+    {
+      "name": "get_news_by_location",
+      "description": "Retrieve news relevant to a particular location."
+    },
+    {
+      "name": "get_news_by_topic",
+      "description": "Get news based on a chosen topic."
+    },
+    {
+      "name": "get_top_news",
+      "description": "Fetch the top news stories from Google News."
+    },
+    {
+      "name": "get_trending_terms",
+      "description": "Return trending keywords from Google Trends for a specified location."
+    },
+    {
+      "name": "get_trends",
+      "description": "Pull 5 years of weekly Google Search interest for a keyword to inspect growth/seasonality curves."
+    },
+    {
+      "name": "get_growth",
+      "description": "Measure how much search interest changed over custom periods (e.g. 3M, 1Y) and compare growth side-by-side."
+    },
+    {
+      "name": "get_ranked_trends",
+      "description": "Get a ranked list of the highest-volume or fastest-growing keywords on Google Search right now."
+    },
+    {
+      "name": "get_top_trends",
+      "description": "Discover top trending topics on Google Trends right now without requiring a keyword query."
+    }
+  ]
+}
