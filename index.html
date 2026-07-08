@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="MCP server exposing Google Trends and Google News to AI agents via Model Context Protocol.">
+<title>mcp-trendpulse — real-time trends for MCP-aware agents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0B0F19;
+    --bg-elev: rgba(17, 24, 39, 0.7);
+    --bg-elev-solid: #111827;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --indigo: #4F46E5;
+    --violet: #6366F1;
+    --indigo-soft: #818CF8;
+    --lime: #CCFF00;
+    --text: #F3F4F6;
+    --text-dim: #9CA3AF;
+    --text-faint: #6B7280;
+    --max-w: 1180px;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    position: relative;
+    min-height: 100vh;
+  }
+
+  /* barely-visible grid backdrop */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: 72px 72px;
+    pointer-events: none;
+    z-index: 0;
+    mask-image: radial-gradient(ellipse at 50% 0%, black 30%, transparent 80%);
+  }
+
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+  /* single ambient drift blob */
+  .ambient {
+    position: fixed;
+    top: -20%;
+    right: -10%;
+    width: 55vw;
+    height: 55vw;
+    max-width: 900px;
+    max-height: 900px;
+    background: radial-gradient(circle, rgba(79, 70, 229, 0.22) 0%, rgba(99, 102, 241, 0.08) 38%, transparent 65%);
+    filter: blur(70px);
+    pointer-events: none;
+    z-index: 0;
+    animation: drift 26s ease-in-out infinite;
+  }
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.65; }
+    33% { transform: translate(-8vw, 6vh) scale(1.1); opacity: 0.9; }
+    66% { transform: translate(4vw, -4vh) scale(0.95); opacity: 0.7; }
+  }
+
+  .wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: 0 32px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* === Nav === */
+  nav {
+    padding: 22px 0;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    z-index: 5;
+  }
+  nav .wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .nav-brand {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .nav-brand::before {
+    content: '';
+    width: 9px;
+    height: 9px;
+    background: var(--lime);
+    transform: rotate(45deg);
+  }
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .nav-version {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .nav-link {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-link:hover { color: var(--text); }
+  .nav-link svg { width: 14px; height: 14px; }
+
+  /* === Section head === */
+  .section-head {
+    margin-bottom: 52px;
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text-faint);
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+  .section-head h2 {
+    font-size: clamp(1.5rem, 2.8vw, 2.1rem);
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    margin-bottom: 12px;
+    max-width: 720px;
+  }
+  .section-head p {
+    color: var(--text-dim);
+    font-size: 15px;
+    max-width: 620px;
+    line-height: 1.6;
+  }
+
+  /* === Hero === */
+  .hero {
+    padding: 88px 0 104px;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 64px;
+    align-items: center;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 28px;
+    padding: 6px 12px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    backdrop-filter: blur(8px);
+  }
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--lime);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--lime);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  h1.wordmark {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: clamp(2.5rem, 6.8vw, 4.75rem);
+    font-weight: 600;
+    letter-spacing: -0.045em;
+    line-height: 0.95;
+    margin-bottom: 24px;
+  }
+  h1.wordmark .dim { color: var(--text-faint); }
+
+  .lede {
+    font-size: clamp(1rem, 1.4vw, 1.15rem);
+    color: var(--text-dim);
+    line-height: 1.6;
+    max-width: 520px;
+    margin-bottom: 36px;
+  }
+  .lede strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .cta-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    transition: all 0.18s ease;
+    cursor: pointer;
+  }
+  .btn-primary {
+    background: var(--lime);
+    color: #0B0F19;
+    border-color: var(--lime);
+  }
+  .btn-primary:hover {
+    box-shadow: 0 0 0 4px rgba(204, 255, 0, 0.15), 0 8px 24px rgba(204, 255, 0, 0.18);
+    transform: translateY(-1px);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  .btn-ghost:hover {
+    border-color: rgba(255,255,255,0.3);
+    background: var(--bg-elev);
+  }
+  .btn svg { width: 16px; height: 16px; }
+
+  .hero-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--text-faint);
+    flex-wrap: wrap;
+  }
+
+  /* Trends preview panel */
+  .trends-preview {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    backdrop-filter: blur(12px);
+    overflow: hidden;
+    position: relative;
+  }
+  .preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .preview-header .tool {
+    color: var(--lime);
+    font-weight: 500;
+  }
+  .preview-header .meta { color: var(--text-faint); }
+  .preview-chart {
+    padding: 18px;
+    height: 180px;
+  }
+  .preview-chart svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .preview-footer {
+    display: flex;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .preview-footer .stat-label {
+    color: var(--text-faint);
+    margin-right: 8px;
+  }
+  .preview-footer .stat-val.up { color: var(--lime); }
+
+  /* === Install / Terminal === */
+  .install {
+    padding: 96px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .terminal {
+    background: rgba(13, 17, 28, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    backdrop-filter: blur(12px);
+  }
+  .term-chrome {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    gap: 16px;
+  }
+  .term-dots {
+    display: flex;
+    gap: 6px;
+  }
+  .term-dots span {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.12);
+  }
+  .term-title {
+    font-size: 12px;
+    color: var(--text-faint);
+    flex: 1;
+    text-align: center;
+  }
+  .term-tabs {
+    display: flex;
+    align-items: center;
+    padding: 0 12px 0 16px;
+    border-bottom: 1px solid var(--border);
+    gap: 4px;
+  }
+  .term-tab {
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 12px 14px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1px;
+  }
+  .term-tab:hover { color: var(--text-dim); }
+  .term-tab.active {
+    color: var(--text);
+    border-bottom-color: var(--lime);
+  }
+  .copy-btn {
+    margin-left: auto;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: 6px;
+  }
+  .copy-btn:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  .copy-btn.copied {
+    color: var(--lime);
+    border-color: var(--lime);
+  }
+  .copy-btn .icon-check { display: none; }
+  .copy-btn.copied .icon-copy { display: none; }
+  .copy-btn.copied .icon-check { display: inline; }
+  .copy-btn svg { width: 13px; height: 13px; }
+
+  .term-body {
+    padding: 22px 24px;
+    font-size: 13px;
+  }
+  .term-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .term-prompt {
+    color: var(--lime);
+    font-weight: 500;
+  }
+  .term-cmd {
+    color: var(--text);
+    font-weight: 500;
+  }
+  .term-output {
+    color: var(--text-faint);
+    font-size: 12.5px;
+    line-height: 1.75;
+  }
+  .term-output .ok { color: var(--lime); }
+  .term-output .arrow { color: var(--text-faint); }
+
+  /* === Features / Bento === */
+  .features {
+    padding: 96px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .bento {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px;
+    transition: border-color 0.2s, background 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    backdrop-filter: blur(8px);
+  }
+  .card:hover {
+    border-color: rgba(204, 255, 0, 0.25);
+    background: rgba(17, 24, 39, 0.9);
+  }
+  .card-wide { grid-column: span 2; }
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .tool-name {
+    color: var(--lime);
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .card-tag {
+    font-size: 11px;
+    color: var(--text-faint);
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+  .card-desc {
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.6;
+    max-width: 520px;
+  }
+  .card-viz {
+    margin-top: auto;
+    padding-top: 12px;
+  }
+
+  .mini-chart {
+    width: 100%;
+    height: 90px;
+    display: block;
+  }
+
+  .growth-bars {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    align-items: end;
+    height: 90px;
+  }
+  .growth-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    height: 100%;
+    justify-content: flex-end;
+  }
+  .growth-bar .bar {
+    width: 100%;
+    background: linear-gradient(to top, var(--indigo), var(--violet));
+    height: var(--h);
+    border-radius: 2px 2px 0 0;
+    opacity: 0.85;
+  }
+  .growth-bar .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+
+  .rank-list {
+    list-style: none;
+    font-size: 13px;
+    line-height: 1.9;
+  }
+  .rank-list li {
+    display: flex;
+    gap: 12px;
+    color: var(--text-dim);
+    align-items: baseline;
+  }
+  .rank-list li .num {
+    color: var(--text-faint);
+    width: 24px;
+    flex-shrink: 0;
+  }
+  .rank-list li .delta {
+    margin-left: auto;
+    color: var(--lime);
+    font-size: 11px;
+  }
+
+  .pulse-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+  .pulse-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--lime);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--lime);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .pulse-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+  .pulse-items div {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--border);
+    gap: 12px;
+  }
+  .pulse-items div:last-child { border: none; }
+  .pulse-items div .pct { color: var(--lime); }
+
+  /* === Config === */
+  .config {
+    padding: 96px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .config-panel {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-elev);
+    backdrop-filter: blur(8px);
+  }
+  .config-clients {
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+  .client-tab {
+    background: none;
+    border: none;
+    text-align: left;
+    padding: 22px 24px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: background 0.15s;
+    color: var(--text-dim);
+    position: relative;
+  }
+  .client-tab:last-child { border-bottom: none; }
+  .client-tab:hover { background: rgba(255,255,255,0.025); }
+  .client-tab.active {
+    background: rgba(79, 70, 229, 0.08);
+    color: var(--text);
+  }
+  .client-tab.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--lime);
+  }
+  .client-name {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .client-path {
+    font-size: 11px;
+    color: var(--text-faint);
+    line-height: 1.4;
+    word-break: break-all;
+  }
+  .config-code {
+    padding: 28px;
+    overflow-x: auto;
+  }
+  .config-code pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre;
+  }
+  .config-code .k { color: var(--indigo-soft); }
+  .config-code .s { color: var(--text); }
+  .config-code .c { color: var(--text-faint); }
+
+  /* === Footer === */
+  footer {
+    padding: 88px 0 40px;
+  }
+  .footer-cta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 40px;
+    padding-bottom: 52px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .footer-line {
+    font-size: clamp(1.25rem, 2.4vw, 1.7rem);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    max-width: 580px;
+    line-height: 1.35;
+  }
+  .footer-sub {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-top: 14px;
+  }
+  .star-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 22px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    transition: border-color 0.18s, box-shadow 0.18s;
+    backdrop-filter: blur(8px);
+  }
+  .star-btn:hover {
+    border-color: var(--lime);
+    box-shadow: 0 0 0 4px rgba(204, 255, 0, 0.08);
+  }
+  .star-btn svg { width: 16px; height: 16px; }
+  .star-count {
+    padding-left: 12px;
+    border-left: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+
+  .footer-bottom {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 32px;
+    font-size: 12px;
+    color: var(--text-faint);
+    flex-wrap: wrap;
+  }
+  .footer-bottom a {
+    color: var(--text-faint);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .footer-bottom a:hover { color: var(--text-dim); }
+
+  /* === Responsive === */
+  @media (max-width: 920px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 56px; }
+    .bento { grid-template-columns: 1fr 1fr; }
+    .card-wide { grid-column: span 2; }
+    .config-panel { grid-template-columns: 1fr; }
+    .config-clients {
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      flex-direction: row;
+      overflow-x: auto;
+    }
+    .client-tab {
+      border-bottom: none;
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+      min-width: 200px;
+    }
+    .client-tab.active::before {
+      left: 0; right: 0; top: auto; bottom: 0;
+      width: auto; height: 2px;
+    }
+  }
+  @media (max-width: 640px) {
+    .wrap { padding: 0 20px; }
+    .hero { padding: 56px 0 72px; }
+    .install, .features, .config { padding: 64px 0; }
+    .section-head { grid-template-columns: 1fr; gap: 12px; }
+    .section-num { display: inline-block; width: auto; padding-top: 0; border-top: none; }
+    .bento { grid-template-columns: 1fr; }
+    .card-wide { grid-column: span 1; }
+    .footer-cta { flex-direction: column; align-items: flex-start; }
+    .nav-version { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ambient, .status-dot, .pulse-dot { animation: none !important; }
+    * { transition: none !important; }
+    html { scroll-behavior: auto; }
+  }
+  @media (hover: none) {
+    .btn-primary:hover { transform: none; box-shadow: none; }
+    .card:hover { background: var(--bg-elev); border-color: var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<div class="ambient" aria-hidden="true"></div>
+
+<nav>
+  <div class="wrap">
+    <a href="#" class="nav-brand">mcp-trendpulse</a>
+    <div class="nav-right">
+      <span class="nav-version">v0.2.9</span>
+      <a href="https://github.com/AKzar1el/mcp-trendpulse" class="nav-link">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <div class="eyebrow">
+          <span class="status-dot"></span>
+          <span>v0.2.9 · MIT licensed · MCP server</span>
+        </div>
+        <h1 class="wordmark"><span class="dim">mcp-</span>trendpulse</h1>
+        <p class="lede">Connect your AI models to real-time Google News feeds and Google Trends interest curves via Model Context Protocol. <strong>16 tools, one stdio server, zero API keys.</strong></p>
+        <div class="cta-row">
+          <a href="#install" class="btn btn-primary">
+            Get started
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+          </a>
+          <a href="https://github.com/AKzar1el/mcp-trendpulse" class="btn btn-ghost">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            View source
+          </a>
+        </div>
+        <div class="hero-meta mono">
+          <span>python ≥ 3.10</span>
+          <span>·</span>
+          <span>stdio transport</span>
+          <span>·</span>
+          <span>no API key required</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="trends-preview">
+          <div class="preview-header">
+            <span class="mono tool">get_trends</span>
+            <span class="mono meta">5y · weekly · worldwide</span>
+          </div>
+          <div class="preview-chart">
+            <svg viewBox="0 0 400 160" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="lineGrad" x1="0" x2="1" y1="0" y2="0">
+                  <stop offset="0%" stop-color="#4F46E5"/>
+                  <stop offset="100%" stop-color="#6366F1"/>
+                </linearGradient>
+                <linearGradient id="areaGrad" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#6366F1" stop-opacity="0.32"/>
+                  <stop offset="100%" stop-color="#6366F1" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <line x1="0" y1="40" x2="400" y2="40" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="80" x2="400" y2="80" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="120" x2="400" y2="120" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <path id="areaPath" d="" fill="url(#areaGrad)"/>
+              <path id="linePath" d="" fill="none" stroke="url(#lineGrad)" stroke-width="1.6" stroke-linejoin="round"/>
+              <circle id="peakDot" cx="0" cy="0" r="3" fill="#CCFF00"/>
+              <circle id="peakDotOuter" cx="0" cy="0" r="6" fill="none" stroke="#CCFF00" stroke-opacity="0.3" stroke-width="1"/>
+            </svg>
+          </div>
+          <div class="preview-footer">
+            <div>
+              <span class="mono stat-label">peak</span>
+              <span class="mono">100 · Nov 2024</span>
+            </div>
+            <div>
+              <span class="mono stat-label">Δ 12m</span>
+              <span class="mono stat-val up">+340%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="install" id="install">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-num">01</div>
+      <div>
+        <h2>Install</h2>
+        <p>One command. Pick whichever package manager you already use — the server runs identically either way.</p>
+      </div>
+    </div>
+    <div class="terminal">
+      <div class="term-chrome">
+        <div class="term-dots"><span></span><span></span><span></span></div>
+        <span class="mono term-title">~/projects/agent</span>
+      </div>
+      <div class="term-tabs">
+        <button class="term-tab active" data-cmd="uvx mcp-trendpulse@latest">uvx</button>
+        <button class="term-tab" data-cmd="pip install mcp-trendpulse">pip</button>
+        <button class="copy-btn" id="copyBtn" aria-label="Copy install command">
+          <svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="9" height="9" rx="1"/><path d="M11 4V3a1 1 0 00-1-1H3a1 1 0 00-1 1v7a1 1 0 001 1h1"/></svg>
+          <svg class="icon-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"/></svg>
+          <span class="copy-label">Copy</span>
+        </button>
+      </div>
+      <div class="term-body">
+        <div class="term-line">
+          <span class="term-prompt mono">$</span>
+          <code class="term-cmd mono" id="cmdText">uvx mcp-trendpulse@latest</code>
+        </div>
+        <div class="term-output mono">
+          <div>Resolved 15 packages in 920ms</div>
+          <div>Installed mcp-trendpulse==0.2.9</div>
+          <div class="arrow">→ trendspy 0.1.6, gnews 0.4.1, newspaper4k 0.9.3.1, mcp 1.2.0</div>
+          <div>MCP server listening on stdio</div>
+          <div class="ok">✓ registered 16 tools · ready for connections</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="features">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-num">02</div>
+      <div>
+        <h2>16 tools, grouped for seamless intelligence</h2>
+        <p>Your agent can easily query search volumes, geographical distributions, related items, live news feeds, and scrape articles with client-side NLP summarizing.</p>
+      </div>
+    </div>
+    <div class="bento">
+
+      <article class="card card-wide">
+        <div class="card-head">
+          <span class="tool-name mono">get_trends & get_interest_by_region</span>
+          <span class="card-tag mono">analytics</span>
+        </div>
+        <p class="card-desc">Five years of weekly search popularity for any keyword, plus subdivision mapping (DMA, city, region) to determine exactly where a query is surging.</p>
+        <div class="card-viz">
+          <svg class="mini-chart" viewBox="0 0 400 90" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="miniGrad" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#6366F1" stop-opacity="0.4"/>
+                <stop offset="100%" stop-color="#6366F1" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path id="miniArea" d="" fill="url(#miniGrad)"/>
+            <path id="miniLine" d="" fill="none" stroke="#818CF8" stroke-width="1.25"/>
+          </svg>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <span class="tool-name mono">get_growth</span>
+          <span class="card-tag mono">Δ velocity</span>
+        </div>
+        <p class="card-desc">Compare keyword growth across custom windows — 3M, 6M, 1Y, 3Y. Returns percentage delta and inflection date.</p>
+        <div class="card-viz">
+          <div class="growth-bars">
+            <div class="growth-bar"><div class="bar" style="--h: 25%"></div><div class="label">3M</div></div>
+            <div class="growth-bar"><div class="bar" style="--h: 48%"></div><div class="label">6M</div></div>
+            <div class="growth-bar"><div class="bar" style="--h: 76%"></div><div class="label">1Y</div></div>
+            <div class="growth-bar"><div class="bar" style="--h: 100%"></div><div class="label">3Y</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <span class="tool-name mono">get_ranked_trends</span>
+          <span class="card-tag mono">ranked</span>
+        </div>
+        <p class="card-desc">Fastest-growing or highest-volume searches for a region and category. Returns a ranked list with growth scores.</p>
+        <div class="card-viz">
+          <ol class="rank-list mono">
+            <li><span class="num">01</span> llm agent orchestration <span class="delta">+412%</span></li>
+            <li><span class="num">02</span> pgvector embeddings <span class="delta">+287%</span></li>
+            <li><span class="num">03</span> model context protocol <span class="delta">+196%</span></li>
+          </ol>
+        </div>
+      </article>
+
+      <article class="card card-wide">
+        <div class="card-head">
+          <span class="tool-name mono">get_top_trends & get_related_queries</span>
+          <span class="card-tag mono">live & query maps</span>
+        </div>
+        <p class="card-desc">Real-time spike feed from Google Trends RSS, combined with tools to fetch related search queries, topics, and suggestions to build rich keyword contextual graphs.</p>
+        <div class="card-viz">
+          <div class="pulse-row">
+            <span class="pulse-dot"></span>
+            <span class="mono">live · last updated 4m ago · 24 items</span>
+          </div>
+          <div class="pulse-items mono">
+            <div><span>quantum computing breakthrough</span><span class="pct">+82%</span></div>
+            <div><span>rust 1.84 release notes</span><span class="pct">+64%</span></div>
+            <div><span>openai o3 benchmark leak</span><span class="pct">+51%</span></div>
+            <div><span>apple vision os 3</span><span class="pct">+38%</span></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card card-wide">
+        <div class="card-head">
+          <span class="tool-name mono">get_news_by_site & get_article_content</span>
+          <span class="card-tag mono">crawling & NLP</span>
+        </div>
+        <p class="card-desc">Fetch Google News feeds by keyword, topic, location, or specifically targeted publishers. Download and parse articles safely using Playwright scraping fallbacks, and summarize text instantly via local NLP.</p>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <span class="tool-name mono">get_categories</span>
+          <span class="card-tag mono">metadata</span>
+        </div>
+        <p class="card-desc">Lists Google Trends categories database to easily refine search analytics queries by topic (e.g. Science, Sports, Business).</p>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<section class="config">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-num">03</div>
+      <div>
+        <h2>Wire it into your client</h2>
+        <p>The server speaks stdio MCP. Drop in the config for your client, restart, the tools appear. No environment variables, no OAuth dance.</p>
+      </div>
+    </div>
+    <div class="config-panel">
+      <aside class="config-clients">
+        <button class="client-tab active" data-client="claude">
+          <span class="client-name">Claude Desktop</span>
+          <span class="client-path mono">~/Library/Application Support/Claude/claude_desktop_config.json</span>
+        </button>
+        <button class="client-tab" data-client="cursor">
+          <span class="client-name">Cursor</span>
+          <span class="client-path mono">.cursor/mcp.json</span>
+        </button>
+        <button class="client-tab" data-client="gemini">
+          <span class="client-name">Gemini · Antigravity</span>
+          <span class="client-path mono">~/.antigravity/mcp.json</span>
+        </button>
+      </aside>
+      <div class="config-code">
+        <pre id="configCode"></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-cta">
+      <div>
+        <p class="footer-line">Built because agents shouldn't have to guess what's actually trending.</p>
+        <p class="footer-sub mono">MIT licensed · maintained on weekends · issues & PRs welcome</p>
+      </div>
+      <a href="https://github.com/AKzar1el/mcp-trendpulse" class="star-btn">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.72-4.194L.818 6.374a.75.75 0 01.416-1.28l4.21-.611L7.327.668A.75.75 0 018 .25z"/></svg>
+        <span>Star</span>
+        <span class="star-count mono">1,247</span>
+      </a>
+    </div>
+    <div class="footer-bottom mono">
+      <span>mcp-trendpulse</span>
+      <span>·</span>
+      <span>v0.2.9</span>
+      <span>·</span>
+      <a href="#">docs</a>
+      <span>·</span>
+      <a href="#">changelog</a>
+      <span>·</span>
+      <a href="#">issues</a>
+      <span>·</span>
+      <a href="#">license</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Generate the trends chart
+  (function() {
+    const N = 260;
+    const data = [];
+    for (let i = 0; i < N; i++) {
+      const t = i / N;
+      let v = 4 + Math.sin(i * 0.31) * 2 + Math.sin(i * 0.08) * 3 + (Math.random() - 0.5) * 2.5;
+      if (t > 0.72) {
+        const x = (t - 0.72) / 0.28;
+        v += Math.pow(x, 2.4) * 94;
+      }
+      data.push(Math.max(0, Math.min(100, v)));
+    }
+
+    const W = 400, H = 160;
+    const stepX = W / (N - 1);
+    const pts = data.map((v, i) => [i * stepX, H - (v / 100) * (H - 8) - 4]);
+
+    let line = `M ${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`;
+    for (let i = 1; i < pts.length; i++) {
+      line += ` L ${pts[i][0].toFixed(2)} ${pts[i][1].toFixed(2)}`;
+    }
+    const area = line + ` L ${W} ${H} L 0 ${H} Z`;
+
+    document.getElementById('linePath').setAttribute('d', line);
+    document.getElementById('areaPath').setAttribute('d', area);
+
+    let peakIdx = 0;
+    for (let i = 0; i < data.length; i++) if (data[i] > data[peakIdx]) peakIdx = i;
+    const peak = pts[peakIdx];
+    document.getElementById('peakDot').setAttribute('cx', peak[0]);
+    document.getElementById('peakDot').setAttribute('cy', peak[1]);
+    document.getElementById('peakDotOuter').setAttribute('cx', peak[0]);
+    document.getElementById('peakDotOuter').setAttribute('cy', peak[1]);
+
+    // Mini chart in feature card
+    const miniData = data.filter((_, i) => i % 4 === 0);
+    const mN = miniData.length;
+    const mW = 400, mH = 90;
+    const mStep = mW / (mN - 1);
+    const mPts = miniData.map((v, i) => [i * mStep, mH - (v / 100) * (mH - 6) - 3]);
+    let miniLine = `M ${mPts[0][0].toFixed(2)} ${mPts[0][1].toFixed(2)}`;
+    for (let i = 1; i < mPts.length; i++) {
+      miniLine += ` L ${mPts[i][0].toFixed(2)} ${mPts[i][1].toFixed(2)}`;
+    }
+    const miniArea = miniLine + ` L ${mW} ${mH} L 0 ${mH} Z`;
+    document.getElementById('miniLine').setAttribute('d', miniLine);
+    document.getElementById('miniArea').setAttribute('d', miniArea);
+  })();
+
+  // Terminal tabs + copy micro-interaction
+  const tabs = document.querySelectorAll('.term-tab');
+  const cmdText = document.getElementById('cmdText');
+  const copyBtn = document.getElementById('copyBtn');
+  let currentCmd = 'uvx mcp-trendpulse@latest';
+  let copyReset;
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentCmd = tab.dataset.cmd;
+      cmdText.textContent = currentCmd;
+    });
+  });
+
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(currentCmd);
+    } catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = currentCmd;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(ta);
+    }
+    copyBtn.classList.add('copied');
+    copyBtn.querySelector('.copy-label').textContent = 'Copied';
+    clearTimeout(copyReset);
+    copyReset = setTimeout(() => {
+      copyBtn.classList.remove('copied');
+      copyBtn.querySelector('.copy-label').textContent = 'Copy';
+    }, 1800);
+  });
+
+  // Config switcher
+  const configs = {
+    claude: `<span class="c">// claude_desktop_config.json</span>
+{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"mcp-trendpulse"</span>: {
+      <span class="k">"command"</span>: <span class="s">"uvx"</span>,
+      <span class="k">"args"</span>: [<span class="s">"mcp-trendpulse@latest"</span>]
+    }
+  }
+}`,
+    cursor: `<span class="c">// .cursor/mcp.json — project-scoped</span>
+{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"mcp-trendpulse"</span>: {
+      <span class="k">"command"</span>: <span class="s">"uvx"</span>,
+      <span class="k">"args"</span>: [<span class="s">"mcp-trendpulse@latest"</span>]
+    }
+  }
+}`,
+    gemini: `<span class="c">// ~/.antigravity/mcp.json</span>
+{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"mcp-trendpulse"</span>: {
+      <span class="k">"command"</span>: <span class="s">"uvx"</span>,
+      <span class="k">"args"</span>: [<span class="s">"mcp-trendpulse@latest"</span>],
+      <span class="k">"transport"</span>: <span class="s">"stdio"</span>
+    }
+  }
+}`
+  };
+
+  const clientTabs = document.querySelectorAll('.client-tab');
+  const configCode = document.getElementById('configCode');
+
+  function setClient(client) {
+    clientTabs.forEach(t => t.classList.toggle('active', t.dataset.client === client));
+    configCode.innerHTML = configs[client];
+  }
+  clientTabs.forEach(tab => {
+    tab.addEventListener('click', () => setClient(tab.dataset.client));
+  });
+  setClient('claude');
+</script>
+
+</body>
+</html>
