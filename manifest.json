@@ -16,7 +16,11 @@
   "license": "MIT",
   "server": {
     "type": "python",
-    "entry_point": "src/mcp_trendpulse/server.py"
+    "entry_point": "src/mcp_trendpulse/server.py",
+    "mcp_config": {
+      "command": "python",
+      "args": ["-m", "mcp_trendpulse"]
+    }
   },
   "tools": [
     {
