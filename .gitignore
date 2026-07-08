@@ -11,3 +11,4 @@ build/
 *.ipynb
 rename_project.py
 publish_project.py
+push_repo.py

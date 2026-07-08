@@ -101,6 +101,57 @@ Add to your Claude settings:
   }
 }
 ```
+</details>
+
+### Configure for Cursor Editor
+
+Cursor supports MCP configuration globally or per-project:
+
+- **Global Config**: Edit `%USERPROFILE%\.cursor\mcp.json` (Windows) or `~/.cursor/mcp.json` (macOS/Linux).
+- **Project Config**: Create a `.cursor/mcp.json` file inside your project root.
+
+Add the following to the `mcpServers` object:
+
+```json
+{
+  "mcpServers": {
+    "mcp-trendpulse": {
+      "command": "python",
+      "args": ["-m", "mcp_trendpulse"]
+    }
+  }
+}
+```
+*(Alternatively, you can open Cursor Settings -> Features -> MCP, and click "Add New Global MCP Server" to set it up via the UI).*
+
+
+### Configure for Gemini / Antigravity IDE
+
+If you are pair programming with Gemini in Antigravity IDE, add the server to your settings file at `%APPDATA%\.gemini\antigravity-ide\mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "mcp-trendpulse": {
+      "command": "python",
+      "args": ["-m", "mcp_trendpulse"]
+    }
+  }
+}
+```
+
+
+### Configure for ChatGPT (OpenAI)
+
+Because ChatGPT resides in the cloud, it requires your local MCP server to be exposed via a secure HTTPS tunnel (e.g., using `ngrok` or similar):
+
+1. **Expose Server via Tunnel**:
+   Start your local MCP server using an HTTP/SSE bridge or expose its stdio endpoint using a secure tunnel tool.
+2. **Enable Developer Mode in ChatGPT**:
+   Open the ChatGPT desktop app, go to **Settings → Apps & Connectors**, and toggle on **Developer Mode**.
+3. **Register the Connector**:
+   Click **+ New Server** (or "Create Connector") and paste the public HTTPS URL where your tunnel is hosted.
+
 ### Environment Variables and Proxies
 
 If you experience rate limits (`429 Client Error`) from Google Trends, or if your server is running in an environment without direct internet access, you can configure environment variables and proxies in one of two ways:
