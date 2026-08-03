@@ -358,9 +358,16 @@ async def get_trends(
     source: str = "google search",
     data_mode: str = "weekly",
     geo: str = "US",
+    timeframe: Optional[str] = None,
+    cat: int = 0,
 ) -> list[dict]:
     """
     Pull search interest over time for keywords.
+
+    ``timeframe`` accepts the ranges supported by TrendsPy, including ``today
+    12-m``, ``today 5-y``, ``all``, custom relative windows such as ``today
+    90-d``, and ``YYYY-MM-DD YYYY-MM-DD``. When it is omitted, the legacy
+    ``data_mode`` defaults are retained for backwards compatibility.
     """
     source_map = {
         "google search": "",
@@ -371,18 +378,19 @@ async def get_trends(
     }
     gprop = source_map.get(source.lower(), "")
 
-    timeframe = "today 5-y"
-    if data_mode.lower() == "daily":
-        timeframe = "today 3-m"
-    elif data_mode.lower() == "monthly":
-        timeframe = "all"
+    if timeframe is None:
+        timeframe = "today 5-y"
+        if data_mode.lower() == "daily":
+            timeframe = "today 3-m"
+        elif data_mode.lower() == "monthly":
+            timeframe = "all"
 
     keywords = [keyword] if isinstance(keyword, str) else keyword
 
     loop = asyncio.get_running_loop()
     df = await loop.run_in_executor(
         None,
-        lambda: tr.interest_over_time(keywords, timeframe=timeframe, geo=geo, gprop=gprop)
+        lambda: tr.interest_over_time(keywords, timeframe=timeframe, geo=geo, cat=cat, gprop=gprop)
     )
 
     if df.empty:
