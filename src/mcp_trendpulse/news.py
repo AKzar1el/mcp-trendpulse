@@ -156,7 +156,7 @@ def download_article_with_scraper(url) -> newspaper.Article | None:
     return article
 
 
-def decode_url(url: str) -> str:
+def decode_url(url: str) -> Optional[str]:
     if url.startswith("https://news.google.com/rss/"):
         try:
             decoded_url = gnewsdecoder(url)
@@ -166,7 +166,7 @@ def decode_url(url: str) -> str:
                 logger.debug("Failed to decode Google News RSS link:")
         except Exception as err:
             logger.warning(f"Error while decoding url {url}\n {err.args}")
-    return ""
+    return None
 
 
 async def download_article(url: str) -> newspaper.Article | None:
@@ -174,9 +174,10 @@ async def download_article(url: str) -> newspaper.Article | None:
     Download an article from a given URL using newspaper4k and cloudscraper (async).
     """
     if url.startswith("https://news.google.com/rss/"):
-        url = decode_url(url)
-        if not url:
+        decoded = decode_url(url)
+        if decoded is None:
             return None
+        url = decoded
     article = download_article_with_scraper(url)
     if article is None or not article.text:
         logger.debug("Attempting to download article with playwright")
