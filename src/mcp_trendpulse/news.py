@@ -29,23 +29,32 @@ for logname in logging.root.manager.loggerDict:
     if logname.startswith("newspaper"):
         logging.getLogger(logname).setLevel(logging.ERROR)
 
-google_trends_delay = float(os.environ.get("GOOGLE_TRENDS_DELAY", "2.0"))
+try:
+    google_trends_delay = float(os.environ.get("GOOGLE_TRENDS_DELAY", "2.0"))
+except ValueError:
+    logger.warning("Invalid GOOGLE_TRENDS_DELAY environment variable, using default 2.0")
+    google_trends_delay = 2.0
+
 tr = Trends(request_delay=google_trends_delay)
 
-scraper = cloudscraper.create_scraper(
-    interpreter="js2py",  # Best compatibility for v3 challenges
-    delay=5,  # Extra time for complex challenges
-    # enable_stealth=True,
-    # stealth_options={
-    #     'min_delay': 2.0,
-    #     'max_delay': 6.0,
-    #     'human_like_delays': True,
-    #     'randomize_headers': True,
-    #     'browser_quirks': True
-    # },
-    browser="chrome",
-    debug=False,
-)
+_scraper_instance = None
+
+def get_scraper():
+    global _scraper_instance
+    if _scraper_instance is None:
+        try:
+            _scraper_instance = cloudscraper.create_scraper(
+                interpreter="js2py",
+                delay=5,
+                browser="chrome",
+                debug=False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize cloudscraper: {e}")
+            return None
+    return _scraper_instance
+
+scraper = None
 
 google_news = GNews(
     language="en",
@@ -143,8 +152,10 @@ def download_article_with_scraper(url) -> newspaper.Article | None:
     except Exception as e:
         logger.debug(f"Error downloading article with newspaper from {url}\n {e.args}")
         try:
-            # Retry with cloudscraper
-            response = scraper.get(url, timeout=10)
+            scraper_inst = get_scraper()
+            if scraper_inst is None:
+                return None
+            response = scraper_inst.get(url, timeout=10)
             if response.status_code < 400:
                 article = newspaper.article(url, input_html=response.text)
             else:
@@ -156,7 +167,7 @@ def download_article_with_scraper(url) -> newspaper.Article | None:
     return article
 
 
-def decode_url(url: str) -> str:
+def decode_url(url: str) -> Optional[str]:
     if url.startswith("https://news.google.com/rss/"):
         try:
             decoded_url = gnewsdecoder(url)
@@ -166,7 +177,7 @@ def decode_url(url: str) -> str:
                 logger.debug("Failed to decode Google News RSS link:")
         except Exception as err:
             logger.warning(f"Error while decoding url {url}\n {err.args}")
-    return ""
+    return None
 
 
 async def download_article(url: str) -> newspaper.Article | None:
@@ -174,9 +185,10 @@ async def download_article(url: str) -> newspaper.Article | None:
     Download an article from a given URL using newspaper4k and cloudscraper (async).
     """
     if url.startswith("https://news.google.com/rss/"):
-        url = decode_url(url)
-        if not url:
+        decoded = decode_url(url)
+        if decoded is None:
             return None
+        url = decoded
     article = download_article_with_scraper(url)
     if article is None or not article.text:
         logger.debug("Attempting to download article with playwright")
@@ -302,9 +314,20 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
     """
     Returns google trends for a specific geo location.
     """
+    def get_volume_key(tt: TrendKeywordLite) -> int:
+        if tt.volume is None:
+            return -1
+        vol_str = str(tt.volume)
+        if not vol_str or not vol_str[:-1].replace('.', '', 1).isdigit():
+            return -1
+        try:
+            return int(vol_str[:-1]) if vol_str[-1].isalpha() else int(vol_str)
+        except (ValueError, IndexError):
+            return -1
+
     try:
         trends = cast(list[TrendKeywordLite], tr.trending_now_by_rss(geo=geo))
-        trends = sorted(trends, key=lambda tt: int(tt.volume[:-1]), reverse=True)
+        trends = sorted(trends, key=get_volume_key, reverse=True)
         if not full_data:
             return [{"keyword": trend.keyword, "volume": trend.volume} for trend in trends]
         return trends
@@ -313,21 +336,19 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
         return []
 
 
-def save_article_to_json(article: newspaper.Article, filename: str = "") -> None:
+def save_article_to_json(article: newspaper.Article, filename: Optional[str] = None) -> None:
+    """Save an article to a JSON file."""
     def sanitize_filename(title: str) -> str:
-        """
-        # save Article to json file
-        # filename is based on the article title
-        # if the title is too long, it will be truncated to 50 characters
-        # and replaced with underscores if it contains any special characters
-        """
-        # Replace special characters and spaces with underscores, then truncate to 50 characters
+        """Generate safe filename from article title (max 50 chars, no special chars)."""
         sanitized_title = re.sub(r'[\\/*?:"<>|\s]', "_", title)[:50]
         return sanitized_title + ".json"
 
-    """
-    Save an article to a JSON file.
-    """
+    if not filename:
+        if not article.title:
+            logger.warning("Cannot save article: no title or filename provided")
+            return
+        filename = sanitize_filename(article.title)
+
     article_data = {
         "title": article.title,
         "authors": article.authors,
@@ -348,9 +369,12 @@ def save_article_to_json(article: newspaper.Article, filename: str = "") -> None
         "source_url": article.source_url,
     }
 
-    with open(filename, "w") as f:
-        json.dump(article_data, f, indent=4)
-    logger.debug(f"Article saved to {filename}")
+    try:
+        with open(filename, "w") as f:
+            json.dump(article_data, f, indent=4)
+        logger.debug(f"Article saved to {filename}")
+    except (OSError, IOError) as e:
+        logger.error(f"Failed to save article to {filename}: {e}")
 
 
 async def get_trends(
@@ -465,31 +489,35 @@ async def get_growth(
             if pg.endswith("M"):
                 try:
                     months = int(pg[:-1])
-                except Exception:
+                except ValueError:
                     months = 3
                 days_offset = months * 30
             elif pg.endswith("Y"):
                 try:
                     years = int(pg[:-1])
-                except Exception:
+                except ValueError:
                     years = 1
                 days_offset = years * 365
             elif pg.endswith("W"):
                 try:
                     weeks = int(pg[:-1])
-                except Exception:
+                except ValueError:
                     weeks = 1
                 days_offset = weeks * 7
             elif pg.endswith("D"):
                 try:
                     days_offset = int(pg[:-1])
-                except Exception:
+                except ValueError:
                     days_offset = 90
             else:
                 days_offset = 90
 
             target_date = latest_date - pandas.Timedelta(days=days_offset)
-            idx = df.index.get_indexer([target_date], method='nearest')[0]
+            indices = df.index.get_indexer([target_date], method='nearest')
+            if len(indices) == 0 or indices[0] < 0:
+                idx = len(df) - 1
+            else:
+                idx = indices[0]
 
             start_idx = max(0, idx - 2)
             end_idx = min(len(df), idx + 2)

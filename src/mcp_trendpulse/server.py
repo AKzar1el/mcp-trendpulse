@@ -20,9 +20,9 @@ class BaseModelClean(BaseModel):
     @model_serializer
     def serializer(self, **kwargs) -> dict[str, Any]:
         return {
-            field: self.__getattribute__(field)
+            field: getattr(self, field)
             for field in self.model_fields_set
-            if self.__getattribute__(field) is not None
+            if getattr(self, field, None) is not None
         }
 
     if TYPE_CHECKING:
@@ -500,7 +500,7 @@ async def get_trends(
 async def get_growth(
     keyword: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
     source: Annotated[str, Field(description="Search source: 'google search', 'youtube search', etc.")] = "google search",
-    percent_growth: Annotated[list[str], Field(description="Timeframes to calculate growth (e.g. ['3M', '1Y']).")] = None,
+    percent_growth: Annotated[Optional[list[str]], Field(description="Timeframes to calculate growth (e.g. ['3M', '1Y']).")] = None,
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
 ) -> list[KeywordGrowthOut]:
     results = await news.get_growth(
