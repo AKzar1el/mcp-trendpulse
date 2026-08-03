@@ -318,10 +318,13 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
         if tt.volume is None:
             return -1
         vol_str = str(tt.volume)
-        if not vol_str or not vol_str[:-1].replace('.', '', 1).isdigit():
+        if not vol_str:
             return -1
         try:
-            return int(vol_str[:-1]) if vol_str[-1].isalpha() else int(vol_str)
+            if vol_str[-1].isalpha():
+                return int(float(vol_str[:-1]))
+            else:
+                return int(float(vol_str))
         except (ValueError, IndexError):
             return -1
 
