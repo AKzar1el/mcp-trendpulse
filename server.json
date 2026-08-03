@@ -3,7 +3,7 @@
   "name": "io.github.AKzar1el/mcp-trendpulse",
   "title": "Google News & Trends MCP",
   "description": "Query Google News RSS feeds and search interest over time via Google Trends.",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "repository": {
     "url": "https://github.com/AKzar1el/mcp-trendpulse",
     "source": "github"
@@ -206,13 +206,26 @@
           },
           "data_mode": {
             "default": "weekly",
-            "description": "Resolution of data: 'weekly', 'daily', 'monthly'.",
+            "description": "Legacy resolution hint used only when timeframe is omitted: 'weekly', 'daily', 'monthly'.",
             "type": "string"
           },
           "geo": {
             "default": "US",
             "description": "Geographic region code (e.g. 'US').",
             "type": "string"
+          },
+          "timeframe": {
+            "anyOf": [
+              { "type": "string" },
+              { "type": "null" }
+            ],
+            "default": null,
+            "description": "Explicit TrendsPy range, for example 'today 12-m', 'today 90-d', 'all', or 'YYYY-MM-DD YYYY-MM-DD'. Overrides data_mode when supplied."
+          },
+          "cat": {
+            "default": 0,
+            "description": "Google Trends category ID; use 0 for all categories or a value from get_categories.",
+            "type": "integer"
           }
         },
         "required": [

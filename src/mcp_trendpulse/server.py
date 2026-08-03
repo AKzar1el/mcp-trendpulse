@@ -477,14 +477,18 @@ async def get_trending_terms(
 async def get_trends(
     keyword: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
     source: Annotated[str, Field(description="Search source: 'google search', 'youtube search', 'news search', 'image search', 'google shopping'.")] = "google search",
-    data_mode: Annotated[str, Field(description="Resolution of data: 'weekly', 'daily', 'monthly'.")] = "weekly",
+    data_mode: Annotated[str, Field(description="Legacy resolution hint used only when timeframe is omitted: 'weekly', 'daily', 'monthly'.")] = "weekly",
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
+    timeframe: Annotated[Optional[str], Field(description="Explicit TrendsPy range, for example 'today 12-m', 'today 90-d', 'all', or 'YYYY-MM-DD YYYY-MM-DD'. Overrides data_mode when supplied.")] = None,
+    cat: Annotated[int, Field(description="Google Trends category ID; use 0 for all categories or a value from get_categories.")] = 0,
 ) -> list[TrendPoint]:
     results = await news.get_trends(
         keyword=keyword,
         source=source,
         data_mode=data_mode,
-        geo=geo
+        geo=geo,
+        timeframe=timeframe,
+        cat=cat,
     )
     return [TrendPoint(**item) for item in results]
 

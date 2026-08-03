@@ -9,7 +9,7 @@ A powerful, robust Model Context Protocol (MCP) server that connects AI models t
 ## Features
 
 - **Google News Integration**: Trawl feeds for articles by keyword, location, or topic, and fetch top news stories.
-- **Advanced Trends Analysis**: Pull 5 years of weekly interest history, calculate growth velocities over custom windows, and retrieve real-time trending keywords.
+- **Advanced Trends Analysis**: Pull interest history for explicit Google Trends windows (such as 12 months, five years, or an exact date range), calculate growth velocities over custom windows, and retrieve real-time trending keywords.
 - **NLP & LLM Summarization**: Summarize article payloads and extract key concepts using client-side LLM sampling or local NLP.
 - **Windows-Safe & Robust**: Fully handles local session state, rates limits, and includes a fallback mechanism for sites that are difficult to scrape.
 
@@ -225,12 +225,28 @@ The following MCP tools are available:
 | **get_news_by_topic**| Get news based on a chosen topic.                                                                    |
 | **get_top_news**     | Fetch the top news stories from Google News.                                                         |
 | **get_trending_terms**| Return trending keywords from Google Trends for a specified location.                                |
-| **get_trends**       | Pull 5 years of weekly Google Search interest for a keyword to inspect growth/seasonality curves.   |
+| **get_trends**       | Pull Google Search interest over an explicit window to inspect growth and seasonality curves.   |
 | **get_growth**       | Measure how much search interest changed over custom periods (e.g. 3M, 1Y) and compare growth side-by-side.|
 | **get_ranked_trends**| Get a ranked list of the highest-volume or fastest-growing keywords on Google Search right now.      |
 | **get_top_trends**   | Discover top trending topics on Google Trends right now without requiring a keyword query.           |
 
 All of the news related tools have an option to summarize the text of the article using LLM Sampling (if supported) or NLP
+
+### Choosing a useful Trends window
+
+`get_trends` accepts an explicit `timeframe` and an optional Google Trends category ID (`cat`). Use `get_categories` to discover category IDs. An explicit `timeframe` overrides the legacy `data_mode` hint.
+
+```json
+{
+  "keyword": ["technical SEO audit", "AI SEO audit"],
+  "geo": "US",
+  "source": "google search",
+  "timeframe": "today 12-m",
+  "cat": 0
+}
+```
+
+Supported ranges include standard windows such as `today 12-m` and `today 5-y`, custom intervals such as `today 90-d`, `all`, and exact date ranges such as `2021-01-01 2026-01-01`. Use an explicit range whenever you need reproducible comparisons; do not infer absolute search volume from normalized 0–100 values.
 
 
 ## CLI
