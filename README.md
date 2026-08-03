@@ -17,8 +17,18 @@ A powerful, robust Model Context Protocol (MCP) server that connects AI models t
 
 ### Using uv/uvx (recommended)
 
-When using [`uv`](https://docs.astral.sh/uv/) no specific installation is needed. We will
-use [`uvx`](https://docs.astral.sh/uv/guides/tools/) to directly run *mcp-trendpulse*.
+When using [`uv`](https://docs.astral.sh/uv/) no specific installation is needed. The
+project is currently run directly from GitHub because it is not yet published to PyPI:
+
+```bash
+uvx --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse
+```
+
+Once a release is published to PyPI, the shorter command will also work:
+
+```bash
+uvx mcp-trendpulse
+```
 
 ### Using PIP
 
@@ -45,7 +55,7 @@ Add to your Claude settings:
   "mcpServers": {
     "mcp-trendpulse": {
       "command": "uvx",
-      "args": ["mcp-trendpulse@latest"]
+      "args": ["--from", "git+https://github.com/AKzar1el/mcp-trendpulse.git", "mcp-trendpulse"]
     }
   }
 }
@@ -78,7 +88,7 @@ Add to your Claude settings:
     "servers": {
       "mcp-trendpulse": {
         "command": "uvx",
-        "args": ["mcp-trendpulse@latest"]
+        "args": ["--from", "git+https://github.com/AKzar1el/mcp-trendpulse.git", "mcp-trendpulse"]
       }
     }
   }
@@ -230,7 +240,7 @@ Commands:
 ## Debugging
 
 ```bash
-npx @modelcontextprotocol/inspector uvx mcp-trendpulse
+npx @modelcontextprotocol/inspector uvx --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse
 ```
 
 To run from within locally installed project:
