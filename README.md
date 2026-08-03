@@ -30,6 +30,22 @@ Once a release is published to PyPI, the shorter command will also work:
 uvx mcp-trendpulse
 ```
 
+#### Publishing to PyPI
+
+The included GitHub Actions workflow uses PyPI Trusted Publishing, so no API token
+is stored in GitHub. Before the first release, the PyPI project owner must add a
+pending publisher at [PyPI publishing settings](https://pypi.org/manage/account/publishing/):
+
+- Owner: `AKzar1el`
+- Repository: `mcp-trendpulse`
+- Workflow: `publish.yml`
+- Environment: leave blank
+
+After that one-time setup, create and publish a GitHub release. The workflow builds
+and publishes the package automatically. If the owner cannot use PyPI Trusted
+Publishing, a PyPI API token can be stored as the `PYPI_API_TOKEN` repository secret
+and passed to the publishing action instead.
+
 ### Using PIP
 
 ```bash
