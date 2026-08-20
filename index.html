@@ -914,7 +914,7 @@
           <span class="tool-name mono">get_trends & get_interest_by_region</span>
           <span class="card-tag mono">analytics</span>
         </div>
-        <p class="card-desc">Five years of weekly search popularity for any keyword, plus subdivision mapping (DMA, city, region) to determine exactly where a query is surging.</p>
+        <p class="card-desc">Search interest over time (five years weekly by default), plus geographic interest scores (0–100 per keyword) by country, region, city, or DMA.</p>
         <div class="card-viz">
           <svg class="mini-chart" viewBox="0 0 400 90" preserveAspectRatio="none">
             <defs>
@@ -934,7 +934,7 @@
           <span class="tool-name mono">get_growth</span>
           <span class="card-tag mono">Δ velocity</span>
         </div>
-        <p class="card-desc">Compare keyword growth across custom windows — 3M, 6M, 1Y, 3Y. Returns percentage delta and inflection date.</p>
+        <p class="card-desc">Compare keyword growth across custom windows — 3M, 6M, 1Y, 3Y. Returns a growth-percentage mapping for each requested window.</p>
         <div class="card-viz">
           <div class="growth-bars">
             <div class="growth-bar"><div class="bar" style="--h: 25%"></div><div class="label">3M</div></div>
@@ -950,7 +950,7 @@
           <span class="tool-name mono">get_ranked_trends</span>
           <span class="card-tag mono">ranked</span>
         </div>
-        <p class="card-desc">Fastest-growing or highest-volume searches for a region and category. Returns a ranked list with growth scores.</p>
+        <p class="card-desc">Rank Google Search trends from the last 24 hours by growth percentage or volume for a region. Returns keywords with optional volume, growth percentage, start time, and related news.</p>
         <div class="card-viz">
           <ol class="rank-list mono">
             <li><span class="num">01</span> llm agent orchestration <span class="delta">+412%</span></li>
