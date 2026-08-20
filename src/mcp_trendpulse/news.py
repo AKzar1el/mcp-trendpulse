@@ -68,6 +68,19 @@ ProgressCallback = Callable[[float, Optional[float]], Awaitable[None]]
 
 _ALLOWED_ARTICLE_URL_SCHEMES = {"http", "https"}
 _MAX_ARTICLE_REDIRECTS = 10
+ARTICLE_HTTP_TIMEOUT_SECONDS = 12
+ARTICLE_BROWSER_NAVIGATION_TIMEOUT_MS = 15_000
+ARTICLE_MAX_HTML_BYTES = 5 * 1024 * 1024
+_ARTICLE_RESPONSE_CHUNK_SIZE = 64 * 1024
+_UNSUPPORTED_ARTICLE_CONTENT_TYPES = {
+    "application/gzip",
+    "application/json",
+    "application/octet-stream",
+    "application/pdf",
+    "application/x-gzip",
+    "application/zip",
+}
+_UNSUPPORTED_ARTICLE_CONTENT_TYPE_PREFIXES = ("audio/", "image/", "video/")
 
 
 def validate_article_url(url: str) -> str:
@@ -260,13 +273,20 @@ async def download_article_with_playwright(
         try:
             await context.route("**/*", route_handler)
             page = await context.new_page()
-            await page.goto(url, wait_until="domcontentloaded")
+            await page.goto(
+                url,
+                wait_until="domcontentloaded",
+                timeout=ARTICLE_BROWSER_NAVIGATION_TIMEOUT_MS,
+            )
             if blocked_target_error:
                 raise blocked_target_error
             await asyncio.sleep(2)  # Wait for the page to load completely
             if blocked_target_error:
                 raise blocked_target_error
             content = await page.content()
+            if len(content.encode("utf-8")) > ARTICLE_MAX_HTML_BYTES:
+                logger.warning("Rejected browser article content from %s because it exceeds the HTML size limit", url)
+                return None
             article = newspaper.article(url, input_html=content)
             return article
         except ValueError:
@@ -274,6 +294,38 @@ async def download_article_with_playwright(
         except Exception as e:
             logger.warning(f"Error downloading article with Playwright from {url}\n {e.args}")
             return None
+
+
+def _is_unsupported_article_response(response) -> bool:
+    content_type = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
+    return content_type in _UNSUPPORTED_ARTICLE_CONTENT_TYPES or content_type.startswith(
+        _UNSUPPORTED_ARTICLE_CONTENT_TYPE_PREFIXES
+    )
+
+
+def _read_article_response(response, url: str) -> Optional[str]:
+    content_length = response.headers.get("Content-Length")
+    try:
+        if content_length is not None and int(content_length) > ARTICLE_MAX_HTML_BYTES:
+            logger.warning("Rejected article response from %s because its declared size exceeds the HTML size limit", url)
+            return None
+    except ValueError:
+        pass
+
+    if _is_unsupported_article_response(response):
+        logger.warning("Rejected non-HTML article response from %s", url)
+        return None
+
+    body = bytearray()
+    for chunk in response.iter_content(chunk_size=_ARTICLE_RESPONSE_CHUNK_SIZE):
+        if not chunk:
+            continue
+        body.extend(chunk)
+        if len(body) > ARTICLE_MAX_HTML_BYTES:
+            logger.warning("Rejected article response from %s because it exceeds the HTML size limit", url)
+            return None
+
+    return body.decode(response.encoding or "utf-8", errors="replace")
 
 
 def download_article_with_scraper(
@@ -290,19 +342,30 @@ def download_article_with_scraper(
             return None
 
         for _ in range(_MAX_ARTICLE_REDIRECTS):
-            response = scraper_inst.get(url, timeout=10, allow_redirects=False)
-            if 300 <= response.status_code < 400:
-                location = response.headers.get("Location")
-                if not location:
-                    return None
-                url = target_validator.validate_url(urljoin(url, location))
-                continue
+            response = scraper_inst.get(
+                url,
+                timeout=ARTICLE_HTTP_TIMEOUT_SECONDS,
+                allow_redirects=False,
+                stream=True,
+            )
+            try:
+                if 300 <= response.status_code < 400:
+                    location = response.headers.get("Location")
+                    if not location:
+                        return None
+                    url = target_validator.validate_url(urljoin(url, location))
+                    continue
 
-            if response.status_code < 400:
-                return newspaper.article(url, input_html=response.text)
+                if response.status_code < 400:
+                    html = _read_article_response(response, url)
+                    if html is None:
+                        return None
+                    return newspaper.article(url, input_html=html)
 
-            logger.debug(f"Failed to download article with cloudscraper from {url}, status code: {response.status_code}")
-            return None
+                logger.debug(f"Failed to download article with cloudscraper from {url}, status code: {response.status_code}")
+                return None
+            finally:
+                response.close()
     except Exception as e:
         if isinstance(e, ValueError):
             raise
