@@ -185,14 +185,11 @@ If you are pair programming with Gemini in Antigravity IDE, add the server to yo
 
 ### Configure for ChatGPT (OpenAI)
 
-Because ChatGPT resides in the cloud, it requires your local MCP server to be exposed via a secure HTTPS tunnel (e.g., using `ngrok` or similar):
+This repository currently runs as a local stdio MCP server: `mcp.run()` uses FastMCP's default stdio transport. ChatGPT cannot connect directly to that local process.
 
-1. **Expose Server via Tunnel**:
-   Start your local MCP server using an HTTP/SSE bridge or expose its stdio endpoint using a secure tunnel tool.
-2. **Enable Developer Mode in ChatGPT**:
-   Open the ChatGPT desktop app, go to **Settings → Apps & Connectors**, and toggle on **Developer Mode**.
-3. **Register the Connector**:
-   Click **+ New Server** (or "Create Connector") and paste the public HTTPS URL where your tunnel is hosted.
+To test a private local MCP server with ChatGPT, use [OpenAI Secure MCP Tunnel](https://developers.openai.com/blog/connect-private-mcp-servers-to-openai-products) where it is available. It connects ChatGPT to an approved local stdio or HTTP MCP server without exposing that server publicly. In ChatGPT, enable **Developer mode** in **Settings → Security and login**, then add the connection from [ChatGPT Plugins](https://chatgpt.com/). Developer mode availability can depend on account and workspace policy.
+
+For a direct remote connection, deploy a real MCP [Streamable HTTP](https://gofastmcp.com/deployment/running-server) endpoint (typically `/mcp`) with appropriate authentication and security controls. Simply placing an HTTPS tunnel in front of this repository's stdio process does not create a compatible remote MCP endpoint.
 
 ### Environment Variables and Proxies
 
