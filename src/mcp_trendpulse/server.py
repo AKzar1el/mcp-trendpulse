@@ -2,6 +2,7 @@ import asyncio
 from datetime import date, datetime
 from typing import Annotated, Optional, Any, TYPE_CHECKING
 from dotenv import load_dotenv
+from mcp.types import ToolAnnotations
 load_dotenv()
 
 from fastmcp import FastMCP, Context
@@ -165,6 +166,7 @@ mcp.add_middleware(LoggingMiddleware())  # Log everything
 
 
 _COMPACT_ARTICLE_OUTPUT_FIELDS = ("url", "title", "publish_date", "summary")
+READ_ONLY_OPEN_WORLD_ANNOTATIONS = ToolAnnotations(readOnlyHint=True, openWorldHint=True)
 
 
 def article_to_output(article: Article, full_data: bool) -> ArticleOut:
@@ -267,6 +269,7 @@ async def summarize_articles(articles: list[Article], ctx: Context) -> None:
 @mcp.tool(
     description=news.get_news_by_keyword.__doc__,
     tags={"news", "articles", "keyword"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_news_by_keyword(
     ctx: Context,
@@ -313,6 +316,7 @@ async def get_news_by_keyword(
 @mcp.tool(
     description=news.get_news_by_location.__doc__,
     tags={"news", "articles", "location"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_news_by_location(
     ctx: Context,
@@ -356,7 +360,11 @@ async def get_news_by_location(
     return [article_to_output(article, full_data) for article in articles]
 
 
-@mcp.tool(description=news.get_news_by_topic.__doc__, tags={"news", "articles", "topic"})
+@mcp.tool(
+    description=news.get_news_by_topic.__doc__,
+    tags={"news", "articles", "topic"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
+)
 async def get_news_by_topic(
     ctx: Context,
     topic: Annotated[str, Field(description="Topic to search for articles.")],
@@ -399,7 +407,11 @@ async def get_news_by_topic(
     return [article_to_output(article, full_data) for article in articles]
 
 
-@mcp.tool(description=news.get_top_news.__doc__, tags={"news", "articles", "top"})
+@mcp.tool(
+    description=news.get_top_news.__doc__,
+    tags={"news", "articles", "top"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
+)
 async def get_top_news(
     ctx: Context,
     period: Annotated[int, Field(description="Number of days to look back for top articles.", ge=1)] = 3,
@@ -440,7 +452,11 @@ async def get_top_news(
     return [article_to_output(article, full_data) for article in articles]
 
 
-@mcp.tool(description=news.get_trending_terms.__doc__, tags={"trends", "google", "trending"})
+@mcp.tool(
+    description=news.get_trending_terms.__doc__,
+    tags={"trends", "google", "trending"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
+)
 async def get_trending_terms(
     geo: Annotated[
         str,
@@ -475,6 +491,7 @@ async def get_trending_terms(
 @mcp.tool(
     description=news.get_trends.__doc__,
     tags={"trends", "google", "history"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_trends(
     keyword: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
@@ -498,6 +515,7 @@ async def get_trends(
 @mcp.tool(
     description=news.get_growth.__doc__,
     tags={"trends", "google", "growth"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_growth(
     keyword: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
@@ -517,6 +535,7 @@ async def get_growth(
 @mcp.tool(
     description=news.get_ranked_trends.__doc__,
     tags={"trends", "google", "ranked"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_ranked_trends(
     source: Annotated[str, Field(description="Search source: 'google search'.")] = "google search",
@@ -539,6 +558,7 @@ async def get_ranked_trends(
 @mcp.tool(
     description=news.get_top_trends.__doc__,
     tags={"trends", "google", "top"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_top_trends(
     type: Annotated[str, Field(description="Type of trends: 'Google Trends' (realtime), 'Daily Trends' (daily).")] = "Google Trends",
@@ -559,6 +579,7 @@ async def get_top_trends(
 @mcp.tool(
     description=news.get_news_by_site.__doc__,
     tags={"news", "articles", "site"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_news_by_site(
     ctx: Context,
@@ -605,6 +626,7 @@ async def get_news_by_site(
 @mcp.tool(
     description="Download, scrape and parse the content of a specific news article from a given URL.",
     tags={"news", "articles", "scrape"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_article_content(
     ctx: Context,
@@ -634,6 +656,7 @@ async def get_article_content(
 @mcp.tool(
     description=news.get_interest_by_region.__doc__,
     tags={"trends", "google", "region"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_interest_by_region(
     keywords: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
@@ -663,6 +686,7 @@ async def get_interest_by_region(
 @mcp.tool(
     description=news.get_related_queries.__doc__,
     tags={"trends", "google", "queries"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_related_queries(
     keyword: Annotated[str, Field(description="Search keyword to analyze.")],
@@ -687,6 +711,7 @@ async def get_related_queries(
 @mcp.tool(
     description=news.get_related_topics.__doc__,
     tags={"trends", "google", "topics"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_related_topics(
     keyword: Annotated[str, Field(description="Search keyword to analyze.")],
@@ -711,6 +736,7 @@ async def get_related_topics(
 @mcp.tool(
     description=news.get_suggestions.__doc__,
     tags={"trends", "google", "suggestions"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_suggestions(
     keyword: Annotated[str, Field(description="Query string to autocomplete.")],
@@ -726,6 +752,7 @@ async def get_suggestions(
 @mcp.tool(
     description=news.get_categories.__doc__,
     tags={"trends", "google", "categories"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_categories() -> list[CategoryItem]:
     results = await news.get_categories()

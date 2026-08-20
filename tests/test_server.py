@@ -10,6 +10,25 @@ from mcp_trendpulse import server
 
 mcp = server.mcp
 
+EXPECTED_TOOL_NAMES = {
+    "get_article_content",
+    "get_categories",
+    "get_growth",
+    "get_interest_by_region",
+    "get_news_by_keyword",
+    "get_news_by_location",
+    "get_news_by_site",
+    "get_news_by_topic",
+    "get_ranked_trends",
+    "get_related_queries",
+    "get_related_topics",
+    "get_suggestions",
+    "get_top_news",
+    "get_top_trends",
+    "get_trending_terms",
+    "get_trends",
+}
+
 
 @pytest.fixture
 def mcp_server():
@@ -20,6 +39,17 @@ async def test_smoke(mcp_server):
     async with Client(mcp_server) as client:
         tools = await client.list_tools()
         assert isinstance(tools, list)
+
+
+async def test_all_tools_are_annotated_as_read_only_open_world_operations(mcp_server):
+    async with Client(mcp_server) as client:
+        tools = await client.list_tools()
+
+    assert {tool.name for tool in tools} == EXPECTED_TOOL_NAMES
+    for tool in tools:
+        assert tool.annotations is not None
+        assert tool.annotations.readOnlyHint is True
+        assert tool.annotations.openWorldHint is True
 
 
 def _articles(result):
