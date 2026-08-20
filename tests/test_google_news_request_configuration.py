@@ -66,13 +66,19 @@ async def test_news_operations_use_a_client_with_their_requested_settings(
     monkeypatch, operation, value, method_name
 ):
     created_clients = []
+    thread_calls = []
 
     def create_fake_client(period, max_results):
         client = FakeGNews(language="en", period=f"{period}d", max_results=max_results)
         created_clients.append(client)
         return client
 
+    async def run_in_thread(function, *args, **kwargs):
+        thread_calls.append((function, args, kwargs))
+        return function(*args, **kwargs)
+
     monkeypatch.setattr(news, "create_google_news_client", create_fake_client)
+    monkeypatch.setattr(news.asyncio, "to_thread", run_in_thread)
     monkeypatch.setattr(news, "process_gnews_articles", AsyncMock(return_value=[]))
 
     if operation == "keyword":
@@ -93,6 +99,11 @@ async def test_news_operations_use_a_client_with_their_requested_settings(
         "max_results": 12,
     }
     assert created_clients[0].calls == [(method_name, value)]
+    function, args, kwargs = thread_calls[0]
+    assert function.__self__ is created_clients[0]
+    assert function.__name__ == method_name
+    assert args == (() if operation == "top" else (value,))
+    assert kwargs == {}
 
 
 async def test_concurrent_news_requests_do_not_share_configuration(monkeypatch):

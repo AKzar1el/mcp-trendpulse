@@ -293,7 +293,7 @@ async def download_article_with_playwright(
     Download an article using Playwright to handle complex websites (async).
     """
     target_validator = target_validator or ArticleTargetValidator()
-    url = target_validator.validate_url(url)
+    url = await asyncio.to_thread(target_validator.validate_url, url)
     blocked_target_error: Optional[ValueError] = None
 
     async def route_handler(route) -> None:
@@ -320,7 +320,7 @@ async def download_article_with_playwright(
             if len(content.encode("utf-8")) > ARTICLE_MAX_HTML_BYTES:
                 logger.warning("Rejected browser article content from %s because it exceeds the HTML size limit", url)
                 return None
-            article = newspaper.article(url, input_html=content)
+            article = await asyncio.to_thread(newspaper.article, url, input_html=content)
             return article
         except ValueError:
             raise
@@ -424,13 +424,13 @@ async def download_article(url: str) -> newspaper.Article | None:
     Download an article from a given URL using newspaper4k and cloudscraper (async).
     """
     target_validator = ArticleTargetValidator()
-    url = target_validator.validate_url(url)
+    url = await asyncio.to_thread(target_validator.validate_url, url)
     if url.startswith("https://news.google.com/rss/"):
-        decoded = decode_url(url)
+        decoded = await asyncio.to_thread(decode_url, url)
         if decoded is None:
             return None
-        url = target_validator.validate_url(decoded)
-    article = download_article_with_scraper(url, target_validator)
+        url = await asyncio.to_thread(target_validator.validate_url, decoded)
+    article = await asyncio.to_thread(download_article_with_scraper, url, target_validator)
     if article is None or not article.text:
         logger.debug("Attempting to download article with playwright")
         article = await download_article_with_playwright(url, target_validator)
@@ -454,7 +454,7 @@ async def process_gnews_articles(
             logger.debug(f"Failed to download article from {gnews_article['url']}:\n{article}")
             continue
         if nlp:
-            article.nlp()
+            await asyncio.to_thread(article.nlp)
         articles.append(article)
         if report_progress:
             await report_progress(idx, total)
@@ -472,7 +472,7 @@ async def get_news_by_keyword(
     Find articles by keyword using Google News.
     """
     google_news = create_google_news_client(period, max_results)
-    gnews_articles = google_news.get_news(keyword)
+    gnews_articles = await asyncio.to_thread(google_news.get_news, keyword)
     if not gnews_articles:
         logger.debug(f"No articles found for keyword '{keyword}' in the last {period} days.")
         return []
@@ -489,7 +489,7 @@ async def get_top_news(
     Get top news stories from Google News.
     """
     google_news = create_google_news_client(period, max_results)
-    gnews_articles = google_news.get_top_news()
+    gnews_articles = await asyncio.to_thread(google_news.get_top_news)
     if not gnews_articles:
         logger.debug("No top news articles found.")
         return []
@@ -505,7 +505,7 @@ async def get_news_by_location(
 ) -> list[newspaper.Article]:
     """Find articles by location using Google News."""
     google_news = create_google_news_client(period, max_results)
-    gnews_articles = google_news.get_news_by_location(location)
+    gnews_articles = await asyncio.to_thread(google_news.get_news_by_location, location)
     if not gnews_articles:
         logger.debug(f"No articles found for location '{location}' in the last {period} days.")
         return []
@@ -531,7 +531,7 @@ async def get_news_by_topic(
     VEHICLES, ARTS-DESIGN, BEAUTY, FOOD, TRAVEL, SHOPPING, HOME, OUTDOORS, FASHION.
     """
     google_news = create_google_news_client(period, max_results)
-    gnews_articles = google_news.get_news_by_topic(topic)
+    gnews_articles = await asyncio.to_thread(google_news.get_news_by_topic, topic)
     if not gnews_articles:
         logger.debug(f"No articles found for topic '{topic}' in the last {period} days.")
         return []
@@ -890,7 +890,7 @@ async def get_news_by_site(
 ) -> list[newspaper.Article]:
     """Find articles from a specific publisher site using Google News."""
     google_news = create_google_news_client(period, max_results)
-    gnews_articles = google_news.get_news_by_site(site)
+    gnews_articles = await asyncio.to_thread(google_news.get_news_by_site, site)
     if not gnews_articles:
         logger.debug(f"No articles found for site '{site}' in the last {period} days.")
         return []

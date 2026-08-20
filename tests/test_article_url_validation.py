@@ -277,6 +277,11 @@ async def test_playwright_navigation_uses_explicit_timeout():
     context.route = AsyncMock()
     context.new_page = AsyncMock(return_value=page)
     article = MagicMock()
+    thread_calls = []
+
+    async def run_in_thread(function, *args, **kwargs):
+        thread_calls.append((function, args, kwargs))
+        return function(*args, **kwargs)
 
     @asynccontextmanager
     async def browser_context():
@@ -285,7 +290,8 @@ async def test_playwright_navigation_uses_explicit_timeout():
     with (
         patch("mcp_trendpulse.news.BrowserManager.browser_context", return_value=browser_context()),
         patch("mcp_trendpulse.news.asyncio.sleep", new_callable=AsyncMock),
-        patch("mcp_trendpulse.news.newspaper.article", return_value=article),
+        patch("mcp_trendpulse.news.asyncio.to_thread", new=run_in_thread),
+        patch("mcp_trendpulse.news.newspaper.article", return_value=article) as parse_article,
     ):
         assert await news.download_article_with_playwright("https://93.184.216.34/article") is article
 
@@ -294,6 +300,7 @@ async def test_playwright_navigation_uses_explicit_timeout():
         wait_until="domcontentloaded",
         timeout=news.ARTICLE_BROWSER_NAVIGATION_TIMEOUT_MS,
     )
+    assert any(function is parse_article for function, _, _ in thread_calls)
 
 
 async def test_playwright_rejects_oversized_html():

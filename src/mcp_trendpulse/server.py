@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, datetime
 from typing import Annotated, Optional, Any, TYPE_CHECKING
 from dotenv import load_dotenv
@@ -222,7 +223,7 @@ async def summarize_articles(articles: list[Article], ctx: Context) -> None:
     for idx, article in enumerate(articles):
         if not await llm_summarize_article(article, ctx):
             try:
-                article.nlp()
+                await asyncio.to_thread(article.nlp)
                 if not article.summary or not article.summary.strip():
                     article.summary = "No summary available."
             except Exception:
