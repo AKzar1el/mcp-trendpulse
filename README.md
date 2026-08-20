@@ -232,21 +232,35 @@ On Windows, it is also recommended to pass system environment variables like `PA
 
 ## Tools
 
-The following MCP tools are available:
+The MCP server exposes the following tools.
 
-| Tool Name            | Description                                                                                          |
-|----------------------|------------------------------------------------------------------------------------------------------|
-| **get_news_by_keyword**| Search for news using specific keywords.                                                             |
-| **get_news_by_location**| Retrieve news relevant to a particular location.                                                   |
-| **get_news_by_topic**| Get news based on a chosen topic.                                                                    |
-| **get_top_news**     | Fetch the top news stories from Google News.                                                         |
-| **get_trending_terms**| Return trending keywords from Google Trends for a specified location.                                |
-| **get_trends**       | Pull Google Search interest over an explicit window to inspect growth and seasonality curves.   |
-| **get_growth**       | Measure how much search interest changed over custom periods (e.g. 3M, 1Y) and compare growth side-by-side.|
-| **get_ranked_trends**| Get a ranked list of the highest-volume or fastest-growing keywords on Google Search right now.      |
-| **get_top_trends**   | Discover top trending topics on Google Trends right now without requiring a keyword query.           |
+### News and article tools
 
-All of the news related tools have an option to summarize the text of the article using LLM Sampling (if supported) or NLP
+| Tool Name | Description |
+|---|---|
+| **get_news_by_keyword** | Find Google News articles matching a keyword. |
+| **get_news_by_location** | Find Google News articles relevant to a location. |
+| **get_news_by_topic** | Find Google News articles for a supported topic. |
+| **get_top_news** | Get top Google News stories. |
+| **get_news_by_site** | Find Google News articles from a publisher domain. |
+| **get_article_content** | Download, scrape, and parse a specific article URL. |
+
+Article-returning tools can optionally summarize article text with client LLM sampling or local NLP.
+
+### Google Trends tools
+
+| Tool Name | Description |
+|---|---|
+| **get_trending_terms** | Get trending terms for a geographic target. |
+| **get_trends** | Get search-interest-over-time data for one or more keywords. |
+| **get_growth** | Measure search-interest growth over requested periods. |
+| **get_ranked_trends** | Get ranked Google Search trends by growth or volume. |
+| **get_top_trends** | Get top trends from Google Trends RSS feeds. |
+| **get_interest_by_region** | Get keyword interest by geographic region. |
+| **get_related_queries** | Get related queries for a keyword. |
+| **get_related_topics** | Get related topics for a keyword. |
+| **get_suggestions** | Get Google Trends autocomplete suggestions. |
+| **get_categories** | Get available Google Trends categories. |
 
 ### Choosing a useful Trends window
 
