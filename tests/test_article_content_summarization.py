@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock, patch
 
-from mcp_trendpulse import server
+from mcp_trendpulse import news, server
 
 
 class ArticleWithForbiddenNlp:
@@ -46,8 +46,10 @@ async def test_get_article_content_skips_summarization_when_disabled():
 
     assert result is not None
     assert result.title == "Article title"
+    assert result.url == article.original_url
     assert result.text == "Article body content."
-    assert article.parse_calls == 1
+    assert result.authors == ["Article author"]
+    assert article.parse_calls == 0
     assert article.nlp_calls == 0
     summarize_articles.assert_not_awaited()
     download_nltk_resource.assert_not_called()
@@ -67,6 +69,25 @@ async def test_get_article_content_uses_summarization_when_enabled():
 
     assert result is not None
     assert result.title == "Article title"
-    assert article.parse_calls == 1
+    assert result.url == article.original_url
+    assert result.text == "Article body content."
+    assert result.authors == ["Article author"]
+    assert article.parse_calls == 0
     assert article.nlp_calls == 0
     summarize_articles.assert_awaited_once_with([article], None)
+
+
+async def test_process_gnews_articles_does_not_reparse_downloaded_article():
+    article = ArticleWithForbiddenNlp()
+    with patch("mcp_trendpulse.news.download_article", new=AsyncMock(return_value=article)):
+        articles = await news.process_gnews_articles(
+            [{"url": "https://93.184.216.34/article"}],
+            nlp=False,
+        )
+
+    assert articles == [article]
+    assert article.title == "Article title"
+    assert article.original_url == "https://93.184.216.34/article"
+    assert article.text == "Article body content."
+    assert article.authors == ["Article author"]
+    assert article.parse_calls == 0

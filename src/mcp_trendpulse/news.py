@@ -450,7 +450,6 @@ async def process_gnews_articles(
         if article is None or not article.text:
             logger.debug(f"Failed to download article from {gnews_article['url']}:\n{article}")
             continue
-        article.parse()
         if nlp:
             article.nlp()
         articles.append(article)

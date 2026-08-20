@@ -623,7 +623,6 @@ async def get_article_content(
     article = await news.download_article(url)
     if not article:
         return None
-    article.parse()
     if summarize:
         await summarize_articles([article], ctx)
     return ArticleOut(**article.to_json(False))
