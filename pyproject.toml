@@ -46,6 +46,9 @@ dev = [
 addopts = ["--import-mode=importlib"]
 asyncio_mode = "auto"
 pythonpath = "src"
+markers = [
+    "integration: tests that exercise live external providers.",
+]
 
 [project.urls]
 Homepage = "https://github.com/AKzar1el/mcp-trendpulse"
