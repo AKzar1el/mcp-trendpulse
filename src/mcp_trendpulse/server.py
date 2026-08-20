@@ -626,17 +626,6 @@ async def get_article_content(
     article.parse()
     if summarize:
         await summarize_articles([article], ctx)
-    else:
-        try:
-            article.nlp()
-        except Exception:
-            try:
-                import nltk
-                nltk.download('punkt', quiet=True)
-                nltk.download('punkt_tab', quiet=True)
-                article.nlp()
-            except Exception:
-                pass
     return ArticleOut(**article.to_json(False))
 
 
