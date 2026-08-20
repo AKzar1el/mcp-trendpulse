@@ -554,6 +554,21 @@ def save_article_to_json(article: newspaper.Article, filename: Optional[str] = N
         sanitized_title = re.sub(r'[\\/*?:"<>|\s]', "_", title)[:50]
         return sanitized_title + ".json"
 
+    def normalize_collections(value):
+        if isinstance(value, (set, frozenset)):
+            try:
+                value = sorted(value)
+            except TypeError:
+                value = list(value)
+            return [normalize_collections(item) for item in value]
+        if isinstance(value, list):
+            return [normalize_collections(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(normalize_collections(item) for item in value)
+        if isinstance(value, dict):
+            return {key: normalize_collections(item) for key, item in value.items()}
+        return value
+
     if not filename:
         if not article.title:
             logger.warning("Cannot save article: no title or filename provided")
@@ -582,7 +597,7 @@ def save_article_to_json(article: newspaper.Article, filename: Optional[str] = N
 
     try:
         with open(filename, "w") as f:
-            json.dump(article_data, f, indent=4)
+            json.dump(normalize_collections(article_data), f, indent=4)
         logger.debug(f"Article saved to {filename}")
     except (OSError, IOError) as e:
         logger.error(f"Failed to save article to {filename}: {e}")
