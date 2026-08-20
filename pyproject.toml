@@ -43,11 +43,13 @@ dev = [
 
 
 [tool.pytest.ini_options]
-addopts = ["--import-mode=importlib"]
+addopts = ["--import-mode=importlib", "-m", "not integration"]
 asyncio_mode = "auto"
 pythonpath = "src"
 markers = [
     "integration: tests that exercise live external providers.",
+    "network: tests that require public internet access.",
+    "browser: tests that require Playwright and Chromium.",
 ]
 
 [project.urls]

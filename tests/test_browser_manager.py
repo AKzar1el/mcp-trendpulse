@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from mcp_trendpulse.news import BrowserManager
+from mcp_trendpulse.news import BrowserManager, download_article_with_playwright
 
 
 def reset_browser_manager_state():
@@ -76,3 +76,8 @@ async def test_browser_manager_successful_start_is_reused():
 
     runner.start.assert_awaited_once()
     playwright.chromium.launch.assert_awaited_once_with(headless=True)
+
+
+async def test_playwright_download_requires_browser_context():
+    with pytest.raises(RuntimeError, match="BrowserManager used without context"):
+        await download_article_with_playwright("https://93.184.216.34/article")
