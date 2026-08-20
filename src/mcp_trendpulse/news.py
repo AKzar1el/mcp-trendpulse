@@ -10,6 +10,8 @@ import os
 import re
 import json
 import asyncio
+import ipaddress
+import socket
 from datetime import datetime
 import pandas
 from gnews import GNews
@@ -22,7 +24,7 @@ from typing import Optional, cast, overload, Literal, Awaitable
 from contextlib import asynccontextmanager, AsyncContextDecorator
 import logging
 from collections.abc import Callable
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +67,7 @@ google_news = GNews(
 ProgressCallback = Callable[[float, Optional[float]], Awaitable[None]]
 
 _ALLOWED_ARTICLE_URL_SCHEMES = {"http", "https"}
+_MAX_ARTICLE_REDIRECTS = 10
 
 
 def validate_article_url(url: str) -> str:
@@ -88,6 +91,76 @@ def validate_article_url(url: str) -> str:
         raise ValueError("Article URL must be a valid HTTP(S) URL.")
 
     return url
+
+
+class ArticleTargetValidator:
+    """Validate article hosts resolve exclusively to globally routable addresses."""
+
+    def __init__(self):
+        self._resolved_hosts: dict[str, tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]] = {}
+
+    @staticmethod
+    def _normalize_hostname(hostname: str) -> str:
+        normalized = hostname.rstrip(".").lower()
+        if not normalized:
+            raise ValueError("Article URL must include a hostname.")
+        try:
+            return normalized.encode("idna").decode("ascii")
+        except UnicodeError as exc:
+            raise ValueError("Article URL hostname is invalid.") from exc
+
+    @staticmethod
+    def _require_public_address(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> None:
+        if (
+            not address.is_global
+            or address.is_loopback
+            or address.is_link_local
+            or address.is_multicast
+            or address.is_unspecified
+            or address.is_reserved
+            or getattr(address, "is_site_local", False)
+        ):
+            raise ValueError("Article URL target must resolve to globally routable IP addresses.")
+
+    def _resolve_hostname(self, hostname: str) -> tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]:
+        if hostname in self._resolved_hosts:
+            return self._resolved_hosts[hostname]
+
+        try:
+            address_info = socket.getaddrinfo(
+                hostname,
+                None,
+                family=socket.AF_UNSPEC,
+                type=socket.SOCK_STREAM,
+            )
+            addresses = tuple({ipaddress.ip_address(info[4][0]) for info in address_info})
+        except (OSError, ValueError) as exc:
+            raise ValueError("Article URL hostname could not be resolved safely.") from exc
+
+        if not addresses:
+            raise ValueError("Article URL hostname could not be resolved safely.")
+
+        for address in addresses:
+            self._require_public_address(address)
+
+        self._resolved_hosts[hostname] = addresses
+        return addresses
+
+    def validate_url(self, url: str) -> str:
+        """Validate a syntactically valid article URL and its outbound network target."""
+        url = validate_article_url(url)
+        hostname = self._normalize_hostname(urlsplit(url).hostname or "")
+        if hostname == "localhost" or hostname.endswith(".localhost"):
+            raise ValueError("Article URL must not target localhost.")
+
+        try:
+            address = ipaddress.ip_address(hostname)
+        except ValueError:
+            self._resolve_hostname(hostname)
+        else:
+            self._require_public_address(address)
+
+        return url
 
 
 class BrowserManager(AsyncContextDecorator):
@@ -133,7 +206,7 @@ class BrowserManager(AsyncContextDecorator):
             if cls._class_contexts == 0:
                 raise RuntimeError("BrowserManager used without context. Wrap in 'async with BrowserManager()'.")
             browser_inst = await cls._get_browser()
-            context = await browser_inst.new_context()
+            context = await browser_inst.new_context(service_workers="block")
             logger.debug("Created browser context...")
             try:
                 yield context
@@ -154,43 +227,87 @@ class BrowserManager(AsyncContextDecorator):
         return False
 
 
-async def download_article_with_playwright(url) -> newspaper.Article | None:
+async def guard_playwright_route(route, target_validator: ArticleTargetValidator) -> Optional[ValueError]:
+    """Allow only browser requests whose targets passed article network validation."""
+    try:
+        await asyncio.to_thread(target_validator.validate_url, route.request.url)
+    except ValueError as exc:
+        await route.abort("blockedbyclient")
+        return exc
+    else:
+        await route.continue_()
+        return None
+
+
+async def download_article_with_playwright(
+    url: str,
+    target_validator: Optional[ArticleTargetValidator] = None,
+) -> newspaper.Article | None:
     """
     Download an article using Playwright to handle complex websites (async).
     """
+    target_validator = target_validator or ArticleTargetValidator()
+    url = target_validator.validate_url(url)
+    blocked_target_error: Optional[ValueError] = None
+
+    async def route_handler(route) -> None:
+        nonlocal blocked_target_error
+        error = await guard_playwright_route(route, target_validator)
+        if error is not None:
+            blocked_target_error = error
+
     async with BrowserManager.browser_context() as context:
         try:
+            await context.route("**/*", route_handler)
             page = await context.new_page()
             await page.goto(url, wait_until="domcontentloaded")
+            if blocked_target_error:
+                raise blocked_target_error
             await asyncio.sleep(2)  # Wait for the page to load completely
+            if blocked_target_error:
+                raise blocked_target_error
             content = await page.content()
             article = newspaper.article(url, input_html=content)
             return article
+        except ValueError:
+            raise
         except Exception as e:
             logger.warning(f"Error downloading article with Playwright from {url}\n {e.args}")
             return None
 
 
-def download_article_with_scraper(url) -> newspaper.Article | None:
-    article = None
+def download_article_with_scraper(
+    url: str,
+    target_validator: Optional[ArticleTargetValidator] = None,
+) -> newspaper.Article | None:
+    """Download an article while validating every redirect target before requesting it."""
+    target_validator = target_validator or ArticleTargetValidator()
+    url = target_validator.validate_url(url)
+
     try:
-        article = newspaper.article(url)
-    except Exception as e:
-        logger.debug(f"Error downloading article with newspaper from {url}\n {e.args}")
-        try:
-            scraper_inst = get_scraper()
-            if scraper_inst is None:
-                return None
-            response = scraper_inst.get(url, timeout=10)
+        scraper_inst = get_scraper()
+        if scraper_inst is None:
+            return None
+
+        for _ in range(_MAX_ARTICLE_REDIRECTS):
+            response = scraper_inst.get(url, timeout=10, allow_redirects=False)
+            if 300 <= response.status_code < 400:
+                location = response.headers.get("Location")
+                if not location:
+                    return None
+                url = target_validator.validate_url(urljoin(url, location))
+                continue
+
             if response.status_code < 400:
-                article = newspaper.article(url, input_html=response.text)
-            else:
-                logger.debug(
-                    f"Failed to download article with cloudscraper from {url}, status code: {response.status_code}"
-                )
-        except Exception as e:
-            logger.debug(f"Error downloading article with cloudscraper from {url}\n {e.args}")
-    return article
+                return newspaper.article(url, input_html=response.text)
+
+            logger.debug(f"Failed to download article with cloudscraper from {url}, status code: {response.status_code}")
+            return None
+    except Exception as e:
+        if isinstance(e, ValueError):
+            raise
+        logger.debug(f"Error downloading article with cloudscraper from {url}\n {e.args}")
+        return None
 
 
 def decode_url(url: str) -> Optional[str]:
@@ -210,16 +327,17 @@ async def download_article(url: str) -> newspaper.Article | None:
     """
     Download an article from a given URL using newspaper4k and cloudscraper (async).
     """
-    url = validate_article_url(url)
+    target_validator = ArticleTargetValidator()
+    url = target_validator.validate_url(url)
     if url.startswith("https://news.google.com/rss/"):
         decoded = decode_url(url)
         if decoded is None:
             return None
-        url = validate_article_url(decoded)
-    article = download_article_with_scraper(url)
+        url = target_validator.validate_url(decoded)
+    article = download_article_with_scraper(url, target_validator)
     if article is None or not article.text:
         logger.debug("Attempting to download article with playwright")
-        article = await download_article_with_playwright(url)
+        article = await download_article_with_playwright(url, target_validator)
     return article
 
 
