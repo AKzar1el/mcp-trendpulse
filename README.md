@@ -250,7 +250,7 @@ Supported ranges include standard windows such as `today 12-m` and `today 5-y`, 
 
 
 ## CLI
-The Click CLI commands can be accessed from the command line using `uv`.
+MCP tools are exposed through the MCP server. The separate Click CLI currently exposes only the commands shown below, which can be run from the command line using `uv`.
 
 ```bash
 uv run mcp-trendpulse-cli
