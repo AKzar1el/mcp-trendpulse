@@ -7,7 +7,6 @@ from fastmcp.server.middleware.timing import TimingMiddleware
 from fastmcp.server.middleware.logging import LoggingMiddleware
 from fastmcp.server.middleware.rate_limiting import RateLimitingMiddleware
 from fastmcp.server.middleware.error_handling import ErrorHandlingMiddleware
-from mcp.types import TextContent
 from pydantic import BaseModel, Field, model_serializer
 from mcp_trendpulse import news
 from mcp_trendpulse.news import BrowserManager
@@ -214,15 +213,12 @@ async def llm_summarize_article(article: Article, ctx: Context) -> None:
         prompt = f"Please provide a concise summary of the following news article:\n\n{article.text}"
         try:
             response = await ctx.sample(prompt)
-            if isinstance(response, TextContent):
-                if not response.text:
-                    await ctx.warning("LLM Sampling response is empty. Unable to summarize article.")
-                    article.summary = "No summary available."
-                else:
-                    article.summary = response.text
-            else:
-                await ctx.warning("LLM Sampling response is not a TextContent object. Unable to summarize article.")
+            summary = getattr(response, "text", None)
+            if not summary or not summary.strip():
+                await ctx.warning("LLM Sampling response is empty. Unable to summarize article.")
                 article.summary = "No summary available."
+            else:
+                article.summary = summary
         except Exception:
             article.summary = "No summary available."
     else:

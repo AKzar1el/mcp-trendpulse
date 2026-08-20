@@ -1,6 +1,9 @@
+import inspect
+from types import SimpleNamespace
+
 import pytest
 from fastmcp import Client
-from mcp_trendpulse.server import mcp
+from mcp_trendpulse import server
 from mcp_trendpulse.news import (
     download_article_with_playwright,
     save_article_to_json,
@@ -8,6 +11,9 @@ from mcp_trendpulse.news import (
     BrowserManager,
 )
 from pathlib import Path
+
+
+mcp = server.mcp
 
 
 @pytest.fixture
@@ -170,6 +176,49 @@ class MockArticle:
             "summary": self.summary,
             "authors": self.authors,
         }
+
+
+class MockSamplingContext:
+    def __init__(self, text):
+        self.request_context = object()
+        self.session = object()
+        self.result = SimpleNamespace(text=text)
+        self.warnings = []
+
+    async def sample(self, prompt):
+        return self.result
+
+    async def warning(self, message):
+        self.warnings.append(message)
+
+
+def test_server_module_imports():
+    assert server.mcp is mcp
+
+
+async def test_llm_summarize_article_uses_sampling_result_text():
+    article = MockArticle(summary=None)
+    ctx = MockSamplingContext("summary")
+
+    await server.llm_summarize_article(article, ctx)
+
+    assert article.summary == "summary"
+    assert ctx.warnings == []
+
+
+@pytest.mark.parametrize("text", [None, "", " \t\n"])
+async def test_llm_summarize_article_rejects_empty_sampling_result_text(text):
+    article = MockArticle(summary=None)
+    ctx = MockSamplingContext(text)
+
+    await server.llm_summarize_article(article, ctx)
+
+    assert article.summary == "No summary available."
+    assert ctx.warnings == ["LLM Sampling response is empty. Unable to summarize article."]
+
+
+def test_llm_summarize_article_has_no_text_content_type_check():
+    assert "TextContent" not in inspect.getsource(server.llm_summarize_article)
 
 
 async def test_get_trends(mcp_server):
