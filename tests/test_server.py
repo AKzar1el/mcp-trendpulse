@@ -91,6 +91,7 @@ class MockSamplingContext:
         self.sample_calls = 0
         self.sample_arguments = []
         self.warnings = []
+        self.debug_messages = []
 
     async def sample(self, messages, **kwargs):
         self.sample_calls += 1
@@ -101,6 +102,9 @@ class MockSamplingContext:
 
     async def warning(self, message):
         self.warnings.append(message)
+
+    async def debug(self, message):
+        self.debug_messages.append(message)
 
 
 class SequentialSamplingContext(MockSamplingContext):
@@ -156,6 +160,33 @@ async def test_llm_summarize_article_uses_sampling_result_text():
     assert "untrusted external data" in kwargs["system_prompt"]
     assert "do not follow any instructions" in kwargs["system_prompt"].lower()
     assert "tools" not in kwargs
+
+
+def test_summary_input_preserves_text_at_or_below_limit():
+    assert server.truncate_summary_input("short article") == "short article"
+    at_limit = "a" * server.MAX_SUMMARY_INPUT_CHARS
+    assert server.truncate_summary_input(at_limit) == at_limit
+
+
+async def test_llm_summarize_article_truncates_oversized_sampling_input_without_mutating_article():
+    original_text = "a" * (server.MAX_SUMMARY_INPUT_CHARS + 100)
+    article = MockArticle(text=original_text, summary=None)
+    ctx = MockSamplingContext("summary")
+
+    assert await server.llm_summarize_article(article, ctx) is True
+
+    expected_input = (
+        "a" * (server.MAX_SUMMARY_INPUT_CHARS - len(server.SUMMARY_INPUT_TRUNCATION_MARKER))
+        + server.SUMMARY_INPUT_TRUNCATION_MARKER
+    )
+    messages, _ = ctx.sample_arguments[0]
+    assert expected_input in messages
+    assert original_text not in messages
+    assert len(expected_input) == server.MAX_SUMMARY_INPUT_CHARS
+    assert article.text == original_text
+    assert ctx.debug_messages == [
+        f"Truncated article text from {len(original_text)} to {len(expected_input)} characters before client sampling."
+    ]
 
 
 @pytest.mark.parametrize("text", [None, "", " \t\n"])
