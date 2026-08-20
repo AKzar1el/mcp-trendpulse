@@ -39,7 +39,43 @@ except ValueError:
     logger.warning("Invalid GOOGLE_TRENDS_DELAY environment variable, using default 2.0")
     google_trends_delay = 2.0
 
-tr = Trends(request_delay=google_trends_delay)
+TRENDS_HTTP_TIMEOUT_SECONDS = 12
+
+
+class TimeoutSession:
+    """Apply a default timeout to an existing Requests-compatible session."""
+
+    def __init__(self, session: Any, timeout: float):
+        self._session = session
+        self.timeout = timeout
+
+    @property
+    def proxies(self) -> Any:
+        return self._session.proxies
+
+    @proxies.setter
+    def proxies(self, value: Any) -> None:
+        self._session.proxies = value
+
+    def get(self, url: str, **kwargs: Any) -> Any:
+        kwargs.setdefault("timeout", self.timeout)
+        return self._session.get(url, **kwargs)
+
+    def post(self, url: str, *args: Any, **kwargs: Any) -> Any:
+        kwargs.setdefault("timeout", self.timeout)
+        return self._session.post(url, *args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._session, name)
+
+
+def configure_trends_request_timeout(trends_client: Trends, timeout: float = TRENDS_HTTP_TIMEOUT_SECONDS) -> Trends:
+    """Configure a TrendsPy client to pass a timeout to every session request."""
+    trends_client.session = TimeoutSession(trends_client.session, timeout)
+    return trends_client
+
+
+tr = configure_trends_request_timeout(Trends(request_delay=google_trends_delay))
 
 _scraper_instance = None
 
