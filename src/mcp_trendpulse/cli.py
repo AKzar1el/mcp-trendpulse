@@ -9,9 +9,6 @@ from mcp_trendpulse.news import (
     save_article_to_json,
     BrowserManager,
 )
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -35,7 +32,7 @@ def keyword(keyword, period, max_results, no_nlp):
     async def _keyword():
         articles = await get_news_by_keyword(keyword, period=period, max_results=max_results, nlp=not no_nlp)
         print_articles(articles)
-        logger.info(f"Found {len(articles)} articles for keyword '{keyword}'.")
+        click.echo(f"Found {len(articles)} articles for keyword '{keyword}'.")
 
     asyncio.run(_keyword())
 
@@ -56,7 +53,7 @@ def location(location, period, max_results, no_nlp):
     async def _location():
         articles = await get_news_by_location(location, period=period, max_results=max_results, nlp=not no_nlp)
         print_articles(articles)
-        logger.info(f"Found {len(articles)} articles for location '{location}'.")
+        click.echo(f"Found {len(articles)} articles for location '{location}'.")
 
     asyncio.run(_location())
 
@@ -77,7 +74,7 @@ def topic(topic, period, max_results, no_nlp):
     async def _topic():
         articles = await get_news_by_topic(topic, period=period, max_results=max_results, nlp=not no_nlp)
         print_articles(articles)
-        logger.info(f"Found {len(articles)} articles for topic '{topic}'.")
+        click.echo(f"Found {len(articles)} articles for topic '{topic}'.")
 
     asyncio.run(_topic())
 
@@ -90,14 +87,14 @@ def trending(geo, full_data):
     async def _trending():
         trending_terms = await get_trending_terms(geo=geo, full_data=full_data)
         if trending_terms:
-            logger.info("Trending terms:")
+            click.echo("Trending terms:")
             for term in trending_terms:
                 if isinstance(term, dict):
-                    logger.info(f"{term['keyword']:<40} - {term['volume']}")
+                    click.echo(f"{term['keyword']:<40} - {term['volume']}")
                 else:
-                    logger.info(term)
+                    click.echo(term)
         else:
-            logger.info("No trending terms found.")
+            click.echo("No trending terms found.")
 
     asyncio.run(_trending())
 
@@ -117,19 +114,19 @@ def top(period, max_results, no_nlp):
     async def _top():
         articles = await get_top_news(max_results=max_results, period=period, nlp=not no_nlp)
         print_articles(articles)
-        logger.info(f"Found {len(articles)} top articles.")
+        click.echo(f"Found {len(articles)} top articles.")
 
     asyncio.run(_top())
 
 
 def print_articles(articles):
     for article in articles:
-        logger.info(f"Title: {article.title}")
-        logger.info(f"URL: {article.original_url}")
-        logger.info(f"Authors: {article.authors}")
-        logger.info(f"Publish Date: {article.publish_date}")
-        logger.info(f"Top Image: {article.top_image}")
-        logger.info(f"Summary: {article.summary}\n")
+        click.echo(f"Title: {article.title}")
+        click.echo(f"URL: {article.original_url}")
+        click.echo(f"Authors: {article.authors}")
+        click.echo(f"Publish Date: {article.publish_date}")
+        click.echo(f"Top Image: {article.top_image}")
+        click.echo(f"Summary: {article.summary}\n")
         save_article_to_json(article)
 
 
