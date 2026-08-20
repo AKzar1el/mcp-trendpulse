@@ -221,9 +221,13 @@ class BrowserManager(AsyncContextDecorator):
                     try:
                         cls._playwright = await async_playwright().start()
                         cls._browser = await cls._playwright.chromium.launch(headless=True)
-                    except Exception as e:
-                        logger.critical("Browser startup failed", exc_info=e)
-                        raise SystemExit(1)
+                    except Exception as exc:
+                        logger.critical("Browser startup failed", exc_info=exc)
+                        await cls._shutdown()
+                        raise RuntimeError(
+                            "Unable to start Playwright Chromium. Ensure Playwright browser binaries are installed "
+                            "(run 'playwright install chromium')."
+                        ) from exc
         return cast(Browser, cls._browser)
 
     @classmethod
