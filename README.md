@@ -57,6 +57,22 @@ After installation, you can run it as a script using:
 python -m mcp_trendpulse
 ```
 
+### Browser fallback setup
+
+Article scraping can fall back to Playwright/Chromium when the normal downloader cannot retrieve an article. Installing the Python `playwright` package does not install the Chromium browser binary; for a local installation, run:
+
+```bash
+playwright install chromium
+```
+
+For Linux or CI environments that also need system dependencies, use:
+
+```bash
+playwright install --with-deps chromium
+```
+
+Google Trends-only operations do not inherently launch Chromium.
+
 ## Configuration
 
 ### Configure for Claude.app
