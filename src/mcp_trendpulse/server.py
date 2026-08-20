@@ -204,10 +204,10 @@ def is_session_active(ctx: Context) -> bool:
         return False
 
 
-async def llm_summarize_article(article: Article, ctx: Context) -> None:
+async def llm_summarize_article(article: Article, ctx: Context) -> bool:
     if not is_session_active(ctx):
         article.summary = "No summary available."
-        return
+        return False
 
     if article.text:
         prompt = f"Please provide a concise summary of the following news article:\n\n{article.text}"
@@ -217,37 +217,37 @@ async def llm_summarize_article(article: Article, ctx: Context) -> None:
             if not summary or not summary.strip():
                 await ctx.warning("LLM Sampling response is empty. Unable to summarize article.")
                 article.summary = "No summary available."
+                return False
             else:
                 article.summary = summary
-        except Exception:
+                return True
+        except Exception as err:
             article.summary = "No summary available."
-    else:
-        article.summary = "No summary available."
-
-
-async def summarize_articles(articles: list[Article], ctx: Context) -> None:
-    total_articles = len(articles)
-    try:
-        for idx, article in enumerate(articles):
-            await llm_summarize_article(article, ctx)
-            if is_session_active(ctx):
-                try:
-                    await ctx.report_progress(idx, total_articles)
-                except Exception:
-                    pass
-    except Exception as err:
-        if is_session_active(ctx):
             try:
                 await ctx.debug(f"Failed to use LLM sampling for article summary:\n{err.args}")
             except Exception:
                 pass
-        for idx, article in enumerate(articles):
-            article.nlp()
-            if is_session_active(ctx):
-                try:
-                    await ctx.report_progress(idx, total_articles)
-                except Exception:
-                    pass
+            return False
+    else:
+        article.summary = "No summary available."
+        return False
+
+
+async def summarize_articles(articles: list[Article], ctx: Context) -> None:
+    total_articles = len(articles)
+    for idx, article in enumerate(articles):
+        if not await llm_summarize_article(article, ctx):
+            try:
+                article.nlp()
+                if not article.summary or not article.summary.strip():
+                    article.summary = "No summary available."
+            except Exception:
+                article.summary = "No summary available."
+        if is_session_active(ctx):
+            try:
+                await ctx.report_progress(idx, total_articles)
+            except Exception:
+                pass
 
 
 @mcp.tool(

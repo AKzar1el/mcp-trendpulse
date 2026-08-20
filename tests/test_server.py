@@ -179,17 +179,54 @@ class MockArticle:
 
 
 class MockSamplingContext:
-    def __init__(self, text):
+    def __init__(self, text=None, error=None):
         self.request_context = object()
         self.session = object()
         self.result = SimpleNamespace(text=text)
+        self.error = error
+        self.sample_calls = 0
         self.warnings = []
 
     async def sample(self, prompt):
+        self.sample_calls += 1
+        if self.error:
+            raise self.error
         return self.result
 
     async def warning(self, message):
         self.warnings.append(message)
+
+
+class SequentialSamplingContext(MockSamplingContext):
+    def __init__(self, outcomes):
+        super().__init__()
+        self.outcomes = iter(outcomes)
+
+    async def sample(self, prompt):
+        self.sample_calls += 1
+        outcome = next(self.outcomes)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return SimpleNamespace(text=outcome)
+
+
+class BrokenProgressSamplingContext(MockSamplingContext):
+    async def report_progress(self, progress, total):
+        raise RuntimeError("progress unavailable")
+
+
+class SummarizableMockArticle(MockArticle):
+    def __init__(self, nlp_summary="NLP summary", nlp_error=None):
+        super().__init__(summary=None)
+        self.nlp_summary = nlp_summary
+        self.nlp_error = nlp_error
+        self.nlp_calls = 0
+
+    def nlp(self):
+        self.nlp_calls += 1
+        if self.nlp_error:
+            raise self.nlp_error
+        self.summary = self.nlp_summary
 
 
 def test_server_module_imports():
@@ -200,7 +237,7 @@ async def test_llm_summarize_article_uses_sampling_result_text():
     article = MockArticle(summary=None)
     ctx = MockSamplingContext("summary")
 
-    await server.llm_summarize_article(article, ctx)
+    assert await server.llm_summarize_article(article, ctx) is True
 
     assert article.summary == "summary"
     assert ctx.warnings == []
@@ -211,7 +248,7 @@ async def test_llm_summarize_article_rejects_empty_sampling_result_text(text):
     article = MockArticle(summary=None)
     ctx = MockSamplingContext(text)
 
-    await server.llm_summarize_article(article, ctx)
+    assert await server.llm_summarize_article(article, ctx) is False
 
     assert article.summary == "No summary available."
     assert ctx.warnings == ["LLM Sampling response is empty. Unable to summarize article."]
@@ -219,6 +256,76 @@ async def test_llm_summarize_article_rejects_empty_sampling_result_text(text):
 
 def test_llm_summarize_article_has_no_text_content_type_check():
     assert "TextContent" not in inspect.getsource(server.llm_summarize_article)
+
+
+async def test_summarize_articles_skips_nlp_after_successful_sampling():
+    article = SummarizableMockArticle()
+
+    await server.summarize_articles([article], MockSamplingContext("LLM summary"))
+
+    assert article.summary == "LLM summary"
+    assert article.nlp_calls == 0
+
+
+async def test_summarize_articles_uses_nlp_after_sampling_exception():
+    article = SummarizableMockArticle()
+
+    await server.summarize_articles([article], MockSamplingContext(error=RuntimeError("sampling unavailable")))
+
+    assert article.summary == "NLP summary"
+    assert article.nlp_calls == 1
+
+
+async def test_summarize_articles_uses_nlp_after_empty_sampling_response():
+    article = SummarizableMockArticle()
+
+    await server.summarize_articles([article], MockSamplingContext(""))
+
+    assert article.summary == "NLP summary"
+    assert article.nlp_calls == 1
+
+
+async def test_summarize_articles_uses_nlp_without_an_active_sampling_session():
+    article = SummarizableMockArticle()
+    ctx = MockSamplingContext("LLM summary")
+    ctx.request_context = None
+
+    await server.summarize_articles([article], ctx)
+
+    assert article.summary == "NLP summary"
+    assert article.nlp_calls == 1
+    assert ctx.sample_calls == 0
+
+
+async def test_summarize_articles_sets_safe_summary_when_sampling_and_nlp_fail():
+    article = SummarizableMockArticle(nlp_error=RuntimeError("NLP unavailable"))
+
+    await server.summarize_articles([article], MockSamplingContext(error=RuntimeError("sampling unavailable")))
+
+    assert article.summary == "No summary available."
+    assert article.nlp_calls == 1
+
+
+async def test_summarize_articles_falls_back_per_article():
+    sampled_article = SummarizableMockArticle(nlp_summary="NLP summary A")
+    fallback_article = SummarizableMockArticle(nlp_summary="NLP summary B")
+    ctx = SequentialSamplingContext(["LLM summary A", RuntimeError("sampling unavailable")])
+
+    await server.summarize_articles([sampled_article, fallback_article], ctx)
+
+    assert sampled_article.summary == "LLM summary A"
+    assert sampled_article.nlp_calls == 0
+    assert fallback_article.summary == "NLP summary B"
+    assert fallback_article.nlp_calls == 1
+
+
+async def test_summarize_articles_tolerates_progress_reporting_failure():
+    article = SummarizableMockArticle()
+
+    await server.summarize_articles([article], BrokenProgressSamplingContext("LLM summary"))
+
+    assert article.summary == "LLM summary"
+    assert article.nlp_calls == 0
 
 
 async def test_get_trends(mcp_server):
