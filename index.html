@@ -865,7 +865,7 @@
       <div class="section-num">01</div>
       <div>
         <h2>Install</h2>
-        <p>One command. Pick whichever package manager you already use — the server runs identically either way.</p>
+        <p>Run the current development version directly from GitHub with uvx.</p>
       </div>
     </div>
     <div class="terminal">
@@ -874,8 +874,7 @@
         <span class="mono term-title">~/projects/agent</span>
       </div>
       <div class="term-tabs">
-        <button class="term-tab active" data-cmd="uvx mcp-trendpulse@latest">uvx</button>
-        <button class="term-tab" data-cmd="pip install mcp-trendpulse">pip</button>
+        <button class="term-tab active" data-cmd="uvx --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse">uvx</button>
         <button class="copy-btn" id="copyBtn" aria-label="Copy install command">
           <svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="9" height="9" rx="1"/><path d="M11 4V3a1 1 0 00-1-1H3a1 1 0 00-1 1v7a1 1 0 001 1h1"/></svg>
           <svg class="icon-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"/></svg>
@@ -885,7 +884,7 @@
       <div class="term-body">
         <div class="term-line">
           <span class="term-prompt mono">$</span>
-          <code class="term-cmd mono" id="cmdText">uvx mcp-trendpulse@latest</code>
+          <code class="term-cmd mono" id="cmdText">uvx --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse</code>
         </div>
         <div class="term-output mono">
           <div>Resolved 15 packages in 920ms</div>
@@ -1114,11 +1113,11 @@
     document.getElementById('miniArea').setAttribute('d', miniArea);
   })();
 
-  // Terminal tabs + copy micro-interaction
+  // Terminal command + copy micro-interaction
   const tabs = document.querySelectorAll('.term-tab');
   const cmdText = document.getElementById('cmdText');
   const copyBtn = document.getElementById('copyBtn');
-  let currentCmd = 'uvx mcp-trendpulse@latest';
+  let currentCmd = 'uvx --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse';
   let copyReset;
 
   tabs.forEach(tab => {
@@ -1159,7 +1158,7 @@
   <span class="k">"mcpServers"</span>: {
     <span class="k">"mcp-trendpulse"</span>: {
       <span class="k">"command"</span>: <span class="s">"uvx"</span>,
-      <span class="k">"args"</span>: [<span class="s">"mcp-trendpulse@latest"</span>]
+      <span class="k">"args"</span>: [<span class="s">"--from"</span>, <span class="s">"git+https://github.com/AKzar1el/mcp-trendpulse.git"</span>, <span class="s">"mcp-trendpulse"</span>]
     }
   }
 }`,
@@ -1168,7 +1167,7 @@
   <span class="k">"mcpServers"</span>: {
     <span class="k">"mcp-trendpulse"</span>: {
       <span class="k">"command"</span>: <span class="s">"uvx"</span>,
-      <span class="k">"args"</span>: [<span class="s">"mcp-trendpulse@latest"</span>]
+      <span class="k">"args"</span>: [<span class="s">"--from"</span>, <span class="s">"git+https://github.com/AKzar1el/mcp-trendpulse.git"</span>, <span class="s">"mcp-trendpulse"</span>]
     }
   }
 }`,
@@ -1177,7 +1176,7 @@
   <span class="k">"mcpServers"</span>: {
     <span class="k">"mcp-trendpulse"</span>: {
       <span class="k">"command"</span>: <span class="s">"uvx"</span>,
-      <span class="k">"args"</span>: [<span class="s">"mcp-trendpulse@latest"</span>],
+      <span class="k">"args"</span>: [<span class="s">"--from"</span>, <span class="s">"git+https://github.com/AKzar1el/mcp-trendpulse.git"</span>, <span class="s">"mcp-trendpulse"</span>],
       <span class="k">"transport"</span>: <span class="s">"stdio"</span>
     }
   }
