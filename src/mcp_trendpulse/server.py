@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from typing import Annotated, Optional, Any, TYPE_CHECKING
 from dotenv import load_dotenv
 load_dotenv()
@@ -10,7 +11,6 @@ from fastmcp.server.middleware.error_handling import ErrorHandlingMiddleware
 from pydantic import BaseModel, Field, model_serializer
 from mcp_trendpulse import news
 from mcp_trendpulse.news import BrowserManager
-from newspaper import settings as newspaper_settings
 from newspaper.article import Article
 from contextlib import asynccontextmanager
 
@@ -49,7 +49,7 @@ class ArticleOut(BaseModelClean):
     meta_keywords: Annotated[Optional[list[str]], Field(description="Meta keywords from the article.")] = None
     meta_description: Annotated[Optional[str], Field(description="Meta description from the article.")] = None
     canonical_link: Annotated[Optional[str], Field(description="Canonical link for the article.")] = None
-    meta_data: Annotated[Optional[dict[str, str | int]], Field(description="Meta data dictionary.")] = None
+    meta_data: Annotated[Optional[dict[str, Any]], Field(description="Meta data dictionary.")] = None
     meta_lang: Annotated[Optional[str], Field(description="Language of the article.")] = None
     source_url: Annotated[Optional[str], Field(description="Source URL if different from original.")] = None
 
@@ -163,38 +163,22 @@ mcp.add_middleware(TimingMiddleware())  # Time actual execution
 mcp.add_middleware(LoggingMiddleware())  # Log everything
 
 
-def set_newspaper_article_fields(full_data: bool = False):
-    if full_data:
-        newspaper_settings.article_json_fields = [
-            "url",
-            "read_more_link",
-            "language",
-            "title",
-            "top_image",
-            "meta_img",
-            "images",
-            "movies",
-            "keywords",
-            "keyword_scores",
-            "meta_keywords",
-            "tags",
-            "authors",
-            "publish_date",
-            "summary",
-            "meta_description",
-            "meta_lang",
-            "meta_favicon",
-            "meta_site_name",
-            "canonical_link",
-            "text",
-        ]
-    else:
-        newspaper_settings.article_json_fields = [
-            "url",
-            "title",
-            "publish_date",
-            "summary",
-        ]
+_COMPACT_ARTICLE_OUTPUT_FIELDS = ("url", "title", "publish_date", "summary")
+
+
+def article_to_output(article: Article, full_data: bool) -> ArticleOut:
+    """Convert a parsed Newspaper article to the requested MCP output shape."""
+    fields = ArticleOut.model_fields if full_data else _COMPACT_ARTICLE_OUTPUT_FIELDS
+    article_data = {}
+    for field in fields:
+        if field == "url":
+            value = getattr(article, "url", None) or getattr(article, "original_url", "")
+        else:
+            value = getattr(article, field, None)
+        if field == "publish_date" and isinstance(value, (date, datetime)):
+            value = value.isoformat()
+        article_data[field] = news.normalize_json_collections(value)
+    return ArticleOut(**article_data)
 
 
 def is_session_active(ctx: Context) -> bool:
@@ -272,8 +256,6 @@ async def get_news_by_keyword(
         ),
     ] = True,
 ) -> list[ArticleOut]:
-    set_newspaper_article_fields(full_data)
-
     async def progress_callback(progress: float, total: Optional[float]):
         if is_session_active(ctx):
             try:
@@ -295,7 +277,7 @@ async def get_news_by_keyword(
             await ctx.report_progress(progress=len(articles), total=len(articles))
         except Exception:
             pass
-    return [ArticleOut(**a.to_json(False)) for a in articles]
+    return [article_to_output(article, full_data) for article in articles]
 
 
 @mcp.tool(
@@ -320,8 +302,6 @@ async def get_news_by_location(
         ),
     ] = True,
 ) -> list[ArticleOut]:
-    set_newspaper_article_fields(full_data)
-
     async def progress_callback(progress: float, total: Optional[float]):
         if is_session_active(ctx):
             try:
@@ -343,7 +323,7 @@ async def get_news_by_location(
             await ctx.report_progress(progress=len(articles), total=len(articles))
         except Exception:
             pass
-    return [ArticleOut(**a.to_json(False)) for a in articles]
+    return [article_to_output(article, full_data) for article in articles]
 
 
 @mcp.tool(description=news.get_news_by_topic.__doc__, tags={"news", "articles", "topic"})
@@ -365,8 +345,6 @@ async def get_news_by_topic(
         ),
     ] = True,
 ) -> list[ArticleOut]:
-    set_newspaper_article_fields(full_data)
-
     async def progress_callback(progress: float, total: Optional[float]):
         if is_session_active(ctx):
             try:
@@ -388,7 +366,7 @@ async def get_news_by_topic(
             await ctx.report_progress(progress=len(articles), total=len(articles))
         except Exception:
             pass
-    return [ArticleOut(**a.to_json(False)) for a in articles]
+    return [article_to_output(article, full_data) for article in articles]
 
 
 @mcp.tool(description=news.get_top_news.__doc__, tags={"news", "articles", "top"})
@@ -409,8 +387,6 @@ async def get_top_news(
         ),
     ] = True,
 ) -> list[ArticleOut]:
-    set_newspaper_article_fields(full_data)
-
     async def progress_callback(progress: float, total: Optional[float]):
         if is_session_active(ctx):
             try:
@@ -431,7 +407,7 @@ async def get_top_news(
             await ctx.report_progress(progress=len(articles), total=len(articles))
         except Exception:
             pass
-    return [ArticleOut(**a.to_json(False)) for a in articles]
+    return [article_to_output(article, full_data) for article in articles]
 
 
 @mcp.tool(description=news.get_trending_terms.__doc__, tags={"trends", "google", "trending"})
@@ -572,8 +548,6 @@ async def get_news_by_site(
         ),
     ] = True,
 ) -> list[ArticleOut]:
-    set_newspaper_article_fields(full_data)
-
     async def progress_callback(progress: float, total: Optional[float]):
         if is_session_active(ctx):
             try:
@@ -595,7 +569,7 @@ async def get_news_by_site(
             await ctx.report_progress(progress=len(articles), total=len(articles))
         except Exception:
             pass
-    return [ArticleOut(**a.to_json(False)) for a in articles]
+    return [article_to_output(article, full_data) for article in articles]
 
 
 @mcp.tool(
@@ -619,13 +593,12 @@ async def get_article_content(
     ] = True,
 ) -> Optional[ArticleOut]:
     url = news.validate_article_url(url)
-    set_newspaper_article_fields(full_data)
     article = await news.download_article(url)
     if not article:
         return None
     if summarize:
         await summarize_articles([article], ctx)
-    return ArticleOut(**article.to_json(False))
+    return article_to_output(article, full_data)
 
 
 @mcp.tool(

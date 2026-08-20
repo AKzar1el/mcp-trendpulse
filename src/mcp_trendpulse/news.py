@@ -21,7 +21,7 @@ from googlenewsdecoder import gnewsdecoder
 import cloudscraper
 from playwright.async_api import async_playwright, Browser, Playwright
 from trendspy import Trends, TrendKeywordLite
-from typing import Optional, cast, overload, Literal, Awaitable
+from typing import Any, Optional, cast, overload, Literal, Awaitable
 from contextlib import asynccontextmanager, AsyncContextDecorator
 import logging
 from collections.abc import Callable
@@ -561,27 +561,27 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
         return []
 
 
+def normalize_json_collections(value: Any) -> Any:
+    """Convert collection values that are not JSON-safe into deterministic values."""
+    if isinstance(value, (set, frozenset)):
+        try:
+            value = sorted(value)
+        except TypeError:
+            value = list(value)
+        return [normalize_json_collections(item) for item in value]
+    if isinstance(value, (list, tuple)):
+        return [normalize_json_collections(item) for item in value]
+    if isinstance(value, dict):
+        return {key: normalize_json_collections(item) for key, item in value.items()}
+    return value
+
+
 def save_article_to_json(article: newspaper.Article, filename: Optional[str] = None) -> None:
     """Save an article to a JSON file."""
     def sanitize_filename(title: str) -> str:
         """Generate safe filename from article title (max 50 chars, no special chars)."""
         sanitized_title = re.sub(r'[\\/*?:"<>|\s]', "_", title)[:50]
         return sanitized_title + ".json"
-
-    def normalize_collections(value):
-        if isinstance(value, (set, frozenset)):
-            try:
-                value = sorted(value)
-            except TypeError:
-                value = list(value)
-            return [normalize_collections(item) for item in value]
-        if isinstance(value, list):
-            return [normalize_collections(item) for item in value]
-        if isinstance(value, tuple):
-            return tuple(normalize_collections(item) for item in value)
-        if isinstance(value, dict):
-            return {key: normalize_collections(item) for key, item in value.items()}
-        return value
 
     if not filename:
         if not article.title:
@@ -611,7 +611,7 @@ def save_article_to_json(article: newspaper.Article, filename: Optional[str] = N
 
     try:
         with open(filename, "w") as f:
-            json.dump(normalize_collections(article_data), f, indent=4)
+            json.dump(normalize_json_collections(article_data), f, indent=4)
         logger.debug(f"Article saved to {filename}")
     except (OSError, IOError) as e:
         logger.error(f"Failed to save article to {filename}: {e}")

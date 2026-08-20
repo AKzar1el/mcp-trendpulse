@@ -64,6 +64,7 @@ async def test_get_article_content_uses_summarization_when_enabled():
         result = await server.get_article_content(
             None,
             "https://93.184.216.34/article",
+            full_data=True,
             summarize=True,
         )
 
