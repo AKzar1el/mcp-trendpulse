@@ -622,6 +622,7 @@ async def get_article_content(
         ),
     ] = True,
 ) -> Optional[ArticleOut]:
+    url = news.validate_article_url(url)
     set_newspaper_article_fields(full_data)
     article = await news.download_article(url)
     if not article:

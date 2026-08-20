@@ -22,6 +22,7 @@ from typing import Optional, cast, overload, Literal, Awaitable
 from contextlib import asynccontextmanager, AsyncContextDecorator
 import logging
 from collections.abc import Callable
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,31 @@ google_news = GNews(
 )
 
 ProgressCallback = Callable[[float, Optional[float]], Awaitable[None]]
+
+_ALLOWED_ARTICLE_URL_SCHEMES = {"http", "https"}
+
+
+def validate_article_url(url: str) -> str:
+    """Return a syntactically valid HTTP(S) article URL without accessing the network."""
+    if not isinstance(url, str) or any(char.isspace() or ord(char) < 32 for char in url):
+        raise ValueError("Article URL must be a valid HTTP(S) URL.")
+
+    try:
+        parsed_url = urlsplit(url)
+        hostname = parsed_url.hostname
+        parsed_url.port
+    except ValueError as exc:
+        raise ValueError("Article URL must be a valid HTTP(S) URL.") from exc
+
+    if (
+        parsed_url.scheme not in _ALLOWED_ARTICLE_URL_SCHEMES
+        or not hostname
+        or parsed_url.username is not None
+        or parsed_url.password is not None
+    ):
+        raise ValueError("Article URL must be a valid HTTP(S) URL.")
+
+    return url
 
 
 class BrowserManager(AsyncContextDecorator):
@@ -184,11 +210,12 @@ async def download_article(url: str) -> newspaper.Article | None:
     """
     Download an article from a given URL using newspaper4k and cloudscraper (async).
     """
+    url = validate_article_url(url)
     if url.startswith("https://news.google.com/rss/"):
         decoded = decode_url(url)
         if decoded is None:
             return None
-        url = decoded
+        url = validate_article_url(decoded)
     article = download_article_with_scraper(url)
     if article is None or not article.text:
         logger.debug("Attempting to download article with playwright")
