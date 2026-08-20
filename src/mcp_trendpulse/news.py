@@ -13,6 +13,7 @@ import asyncio
 import ipaddress
 import socket
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 import pandas
 from gnews import GNews
 import newspaper  # newspaper4k
@@ -41,6 +42,35 @@ except ValueError:
 tr = Trends(request_delay=google_trends_delay)
 
 _scraper_instance = None
+
+_INVALID_TREND_VOLUME = -1
+_TREND_VOLUME_PATTERN = re.compile(
+    r"^(?P<number>(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)(?P<suffix>[KMB])?\+?$",
+    re.IGNORECASE,
+)
+
+
+def parse_trending_volume(volume: object) -> int:
+    """Convert an abbreviated Google Trends volume to an integer sort key."""
+    if volume is None:
+        return _INVALID_TREND_VOLUME
+
+    volume_match = _TREND_VOLUME_PATTERN.fullmatch(str(volume).strip())
+    if not volume_match:
+        return _INVALID_TREND_VOLUME
+
+    try:
+        numeric_value = Decimal(volume_match.group("number").replace(",", ""))
+    except InvalidOperation:
+        return _INVALID_TREND_VOLUME
+
+    multiplier = {"K": 1_000, "M": 1_000_000, "B": 1_000_000_000}.get(
+        (volume_match.group("suffix") or "").upper(), 1
+    )
+    normalized_value = numeric_value * multiplier
+    if not normalized_value.is_finite() or normalized_value != normalized_value.to_integral_value():
+        return _INVALID_TREND_VOLUME
+    return int(normalized_value)
 
 def get_scraper():
     global _scraper_instance
@@ -522,23 +552,9 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
     """
     Returns google trends for a specific geo location.
     """
-    def get_volume_key(tt: TrendKeywordLite) -> int:
-        if tt.volume is None:
-            return -1
-        vol_str = str(tt.volume)
-        if not vol_str:
-            return -1
-        try:
-            if vol_str[-1].isalpha():
-                return int(float(vol_str[:-1]))
-            else:
-                return int(float(vol_str))
-        except (ValueError, IndexError):
-            return -1
-
     try:
         trends = cast(list[TrendKeywordLite], tr.trending_now_by_rss(geo=geo))
-        trends = sorted(trends, key=get_volume_key, reverse=True)
+        trends = sorted(trends, key=lambda trend: parse_trending_volume(trend.volume), reverse=True)
         if not full_data:
             return [{"keyword": trend.keyword, "volume": trend.volume} for trend in trends]
         return trends
