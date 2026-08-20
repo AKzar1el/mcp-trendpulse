@@ -89,10 +89,9 @@ def get_scraper():
 
 scraper = None
 
-google_news = GNews(
-    language="en",
-    # exclude_websites=[],
-)
+def create_google_news_client(period: int, max_results: int) -> GNews:
+    """Create a Google News client configured for one request."""
+    return GNews(language="en", period=f"{period}d", max_results=max_results)
 
 ProgressCallback = Callable[[float, Optional[float]], Awaitable[None]]
 
@@ -472,8 +471,7 @@ async def get_news_by_keyword(
     """
     Find articles by keyword using Google News.
     """
-    google_news.period = f"{period}d"
-    google_news.max_results = max_results
+    google_news = create_google_news_client(period, max_results)
     gnews_articles = google_news.get_news(keyword)
     if not gnews_articles:
         logger.debug(f"No articles found for keyword '{keyword}' in the last {period} days.")
@@ -490,8 +488,7 @@ async def get_top_news(
     """
     Get top news stories from Google News.
     """
-    google_news.period = f"{period}d"
-    google_news.max_results = max_results
+    google_news = create_google_news_client(period, max_results)
     gnews_articles = google_news.get_top_news()
     if not gnews_articles:
         logger.debug("No top news articles found.")
@@ -507,8 +504,7 @@ async def get_news_by_location(
     report_progress: Optional[ProgressCallback] = None,
 ) -> list[newspaper.Article]:
     """Find articles by location using Google News."""
-    google_news.period = f"{period}d"
-    google_news.max_results = max_results
+    google_news = create_google_news_client(period, max_results)
     gnews_articles = google_news.get_news_by_location(location)
     if not gnews_articles:
         logger.debug(f"No articles found for location '{location}' in the last {period} days.")
@@ -534,8 +530,7 @@ async def get_news_by_topic(
     GEOLOGY, PALEONTOLOGY, SOCIAL SCIENCES, EDUCATION, JOBS, ONLINE EDUCATION, HIGHER EDUCATION,
     VEHICLES, ARTS-DESIGN, BEAUTY, FOOD, TRAVEL, SHOPPING, HOME, OUTDOORS, FASHION.
     """
-    google_news.period = f"{period}d"
-    google_news.max_results = max_results
+    google_news = create_google_news_client(period, max_results)
     gnews_articles = google_news.get_news_by_topic(topic)
     if not gnews_articles:
         logger.debug(f"No articles found for topic '{topic}' in the last {period} days.")
@@ -894,8 +889,7 @@ async def get_news_by_site(
     report_progress: Optional[ProgressCallback] = None,
 ) -> list[newspaper.Article]:
     """Find articles from a specific publisher site using Google News."""
-    google_news.period = f"{period}d"
-    google_news.max_results = max_results
+    google_news = create_google_news_client(period, max_results)
     gnews_articles = google_news.get_news_by_site(site)
     if not gnews_articles:
         logger.debug(f"No articles found for site '{site}' in the last {period} days.")
