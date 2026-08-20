@@ -87,7 +87,7 @@ class TrendPoint(BaseModelClean):
 
 class KeywordGrowthOut(BaseModelClean):
     keyword: Annotated[str, Field(description="The keyword being analyzed.")]
-    growth: Annotated[dict[str, float], Field(description="A dictionary mapping the growth period (e.g. '3M', '1Y') to the growth percentage.")]
+    growth: Annotated[dict[str, Optional[float]], Field(description="A dictionary mapping the growth period (e.g. '3M', '1Y') to the growth percentage; null means the historical baseline was zero, so percentage growth is undefined.")]
 
 
 class RankedTrendOut(BaseModelClean):
