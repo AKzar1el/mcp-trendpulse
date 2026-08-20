@@ -243,7 +243,7 @@ async def get_news_by_keyword(
     ctx: Context,
     keyword: Annotated[str, Field(description="Search term to find articles.")],
     period: Annotated[int, Field(description="Number of days to look back for articles.", ge=1)] = 7,
-    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
+    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1, le=20)] = 10,
     full_data: Annotated[
         bool,
         Field(
@@ -289,7 +289,7 @@ async def get_news_by_location(
     ctx: Context,
     location: Annotated[str, Field(description="Name of city/state/country.")],
     period: Annotated[int, Field(description="Number of days to look back for articles.", ge=1)] = 7,
-    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
+    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1, le=20)] = 10,
     full_data: Annotated[
         bool,
         Field(
@@ -332,7 +332,7 @@ async def get_news_by_topic(
     ctx: Context,
     topic: Annotated[str, Field(description="Topic to search for articles.")],
     period: Annotated[int, Field(description="Number of days to look back for articles.", ge=1)] = 7,
-    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
+    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1, le=20)] = 10,
     full_data: Annotated[
         bool,
         Field(
@@ -374,7 +374,7 @@ async def get_news_by_topic(
 async def get_top_news(
     ctx: Context,
     period: Annotated[int, Field(description="Number of days to look back for top articles.", ge=1)] = 3,
-    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
+    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1, le=20)] = 10,
     full_data: Annotated[
         bool,
         Field(
@@ -492,7 +492,7 @@ async def get_growth(
 async def get_ranked_trends(
     source: Annotated[str, Field(description="Search source: 'google search'.")] = "google search",
     sort: Annotated[str, Field(description="Field to sort by: 'wow_pct_change', 'volume'.")] = "wow_pct_change",
-    limit: Annotated[int, Field(description="Maximum number of trends to return.", ge=1)] = 20,
+    limit: Annotated[int, Field(description="Maximum number of trends to return.", ge=1, le=100)] = 20,
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
 ) -> list[RankedTrendOut]:
     results = await news.get_ranked_trends(
@@ -513,7 +513,7 @@ async def get_ranked_trends(
 )
 async def get_top_trends(
     type: Annotated[str, Field(description="Type of trends: 'Google Trends' (realtime), 'Daily Trends' (daily).")] = "Google Trends",
-    limit: Annotated[int, Field(description="Maximum number of trends to return.", ge=1)] = 20,
+    limit: Annotated[int, Field(description="Maximum number of trends to return.", ge=1, le=100)] = 20,
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
 ) -> list[TopTrendOut]:
     results = await news.get_top_trends(
@@ -535,7 +535,7 @@ async def get_news_by_site(
     ctx: Context,
     site: Annotated[str, Field(description="Domain of the news site, e.g. 'cnn.com'.")],
     period: Annotated[int, Field(description="Number of days to look back for articles.", ge=1)] = 7,
-    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
+    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1, le=20)] = 10,
     full_data: Annotated[
         bool,
         Field(

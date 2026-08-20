@@ -29,6 +29,7 @@
           "max_results": {
             "default": 10,
             "description": "Maximum number of results to return.",
+            "maximum": 20,
             "minimum": 1,
             "type": "integer"
           },
@@ -68,6 +69,7 @@
           "max_results": {
             "default": 10,
             "description": "Maximum number of results to return.",
+            "maximum": 20,
             "minimum": 1,
             "type": "integer"
           },
@@ -107,6 +109,7 @@
           "max_results": {
             "default": 10,
             "description": "Maximum number of results to return.",
+            "maximum": 20,
             "minimum": 1,
             "type": "integer"
           },
@@ -142,6 +145,7 @@
           "max_results": {
             "default": 10,
             "description": "Maximum number of results to return.",
+            "maximum": 20,
             "minimum": 1,
             "type": "integer"
           },
@@ -298,6 +302,7 @@
           "limit": {
             "default": 20,
             "description": "Maximum number of trends to return.",
+            "maximum": 100,
             "minimum": 1,
             "type": "integer"
           },
@@ -324,6 +329,7 @@
           "limit": {
             "default": 20,
             "description": "Maximum number of trends to return.",
+            "maximum": 100,
             "minimum": 1,
             "type": "integer"
           },
@@ -355,6 +361,7 @@
           "max_results": {
             "default": 10,
             "description": "Maximum number of results to return.",
+            "maximum": 20,
             "minimum": 1,
             "type": "integer"
           },
