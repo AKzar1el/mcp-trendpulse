@@ -250,11 +250,11 @@ Supported ranges include standard windows such as `today 12-m` and `today 5-y`, 
 
 
 ## CLI
-All tools can be accessed from the command line using `uv`
+The Click CLI commands can be accessed from the command line using `uv`.
 
 ```bash
-uv run mcp-trendpulse
-Usage: mcp-trendpulse [OPTIONS] COMMAND [ARGS]...
+uv run mcp-trendpulse-cli
+Usage: mcp-trendpulse-cli [OPTIONS] COMMAND [ARGS]...
 
   Find and download news articles using Google News.
 
