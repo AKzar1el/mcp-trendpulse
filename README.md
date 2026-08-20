@@ -18,13 +18,14 @@ A powerful, robust Model Context Protocol (MCP) server that connects AI models t
 ### Using uv/uvx (recommended)
 
 When using [`uv`](https://docs.astral.sh/uv/) no specific installation is needed. The
-project is currently run directly from GitHub because it is not yet published to PyPI:
+project is currently run directly from GitHub because `mcp-trendpulse` is not yet
+published to PyPI:
 
 ```bash
 uvx --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse
 ```
 
-Once a release is published to PyPI, the shorter command will also work:
+After the first successful PyPI release, the shorter command will also work:
 
 ```bash
 uvx mcp-trendpulse
@@ -32,21 +33,24 @@ uvx mcp-trendpulse
 
 #### Publishing to PyPI
 
-The included GitHub Actions workflow uses PyPI Trusted Publishing, so no API token
-is stored in GitHub. Before the first release, the PyPI project owner must add a
-pending publisher at [PyPI publishing settings](https://pypi.org/manage/account/publishing/):
+Before the first release, configure a pending GitHub Actions Trusted Publisher at
+[PyPI publishing settings](https://pypi.org/manage/account/publishing/) for:
 
+- Project name: `mcp-trendpulse`
 - Owner: `AKzar1el`
 - Repository: `mcp-trendpulse`
 - Workflow: `publish.yml`
-- Environment: leave blank
+- Environment: leave blank (the workflow does not set one)
 
-After that one-time setup, create and publish a GitHub release. The workflow builds
-and publishes the package automatically. If the owner cannot use PyPI Trusted
-Publishing, a PyPI API token can be stored as the `PYPI_API_TOKEN` repository secret
-and passed to the publishing action instead.
+After that one-time setup, publishing a GitHub release triggers `publish.yml`. Its
+unprivileged build job creates and validates the wheel and source distribution, then
+uploads them as an artifact. A separate publishing job downloads that exact artifact
+and uploads it with PyPI Trusted Publishing. No PyPI API token is required when the
+Trusted Publisher is configured.
 
-### Using PIP
+### Using pip (after the first PyPI release)
+
+After the first successful PyPI release, install the package with:
 
 ```bash
 pip install mcp-trendpulse
