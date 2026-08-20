@@ -84,6 +84,11 @@ _TREND_VOLUME_PATTERN = re.compile(
     r"^(?P<number>(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)(?P<suffix>[KMB])?\+?$",
     re.IGNORECASE,
 )
+_GROWTH_WINDOW_PATTERN = re.compile(r"^(?P<value>[1-9]\d*)(?P<unit>[DWMY])$", re.IGNORECASE)
+_GROWTH_WINDOW_DAYS = {"D": 1, "W": 7, "M": 30, "Y": 365}
+_GROWTH_LONG_TIMEFRAME_THRESHOLD_DAYS = 365
+_MAX_GROWTH_WINDOW_DAYS = 5 * 365
+_DEFAULT_GROWTH_WINDOWS = ("3M", "1Y")
 
 
 def parse_trending_volume(volume: object) -> int:
@@ -107,6 +112,35 @@ def parse_trending_volume(volume: object) -> int:
     if not normalized_value.is_finite() or normalized_value != normalized_value.to_integral_value():
         return _INVALID_TREND_VOLUME
     return int(normalized_value)
+
+
+def parse_growth_window(window: str) -> tuple[str, int]:
+    """Normalize a supported growth window and return its equivalent day offset."""
+    if not isinstance(window, str):
+        raise ValueError("Growth windows must be strings such as '3M' or '1Y'.")
+
+    normalized_window = window.strip().upper()
+    match = _GROWTH_WINDOW_PATTERN.fullmatch(normalized_window)
+    if not match:
+        raise ValueError(
+            "Invalid growth window. Use a positive integer followed by D, W, M, or Y."
+        )
+
+    days_offset = int(match.group("value")) * _GROWTH_WINDOW_DAYS[match.group("unit")]
+    if days_offset > _MAX_GROWTH_WINDOW_DAYS:
+        raise ValueError("Growth windows cannot exceed the supported maximum of 5Y.")
+
+    return normalized_window, days_offset
+
+
+def parse_growth_windows(percent_growth: Optional[list[str]]) -> list[tuple[str, int]]:
+    """Validate requested growth windows before fetching the required Trends data."""
+    windows = _DEFAULT_GROWTH_WINDOWS if percent_growth is None else percent_growth
+    if not windows:
+        raise ValueError("At least one growth window is required.")
+
+    return [parse_growth_window(window) for window in windows]
+
 
 def get_scraper():
     global _scraper_instance
@@ -718,20 +752,13 @@ async def get_growth(
     """
     Measure interest growth over specified windows.
     """
-    if percent_growth is None:
-        percent_growth = ["3M", "1Y"]
+    growth_windows = parse_growth_windows(percent_growth)
 
     keywords = [keyword] if isinstance(keyword, str) else keyword
 
     timeframe = "today 12-m"
-    for pg in percent_growth:
-        if "Y" in pg:
-            try:
-                years = int(pg.replace("Y", ""))
-                if years > 1:
-                    timeframe = "today 5-y"
-            except Exception:
-                pass
+    if any(days_offset > _GROWTH_LONG_TIMEFRAME_THRESHOLD_DAYS for _, days_offset in growth_windows):
+        timeframe = "today 5-y"
 
     source_map = {
         "google search": "",
@@ -760,34 +787,8 @@ async def get_growth(
         current_val = float(series.tail(4).mean())
 
         growth_dict = {}
-        for pg in percent_growth:
+        for growth_window, days_offset in growth_windows:
             latest_date = df.index[-1]
-            if pg.endswith("M"):
-                try:
-                    months = int(pg[:-1])
-                except ValueError:
-                    months = 3
-                days_offset = months * 30
-            elif pg.endswith("Y"):
-                try:
-                    years = int(pg[:-1])
-                except ValueError:
-                    years = 1
-                days_offset = years * 365
-            elif pg.endswith("W"):
-                try:
-                    weeks = int(pg[:-1])
-                except ValueError:
-                    weeks = 1
-                days_offset = weeks * 7
-            elif pg.endswith("D"):
-                try:
-                    days_offset = int(pg[:-1])
-                except ValueError:
-                    days_offset = 90
-            else:
-                days_offset = 90
-
             target_date = latest_date - pandas.Timedelta(days=days_offset)
             indices = df.index.get_indexer([target_date], method='nearest')
             if len(indices) == 0 or indices[0] < 0:
@@ -804,7 +805,7 @@ async def get_growth(
             else:
                 growth_pct = current_val * 100 if current_val > 0 else 0.0
 
-            growth_dict[pg] = round(growth_pct, 2)
+            growth_dict[growth_window] = round(growth_pct, 2)
 
         results.append({
             "keyword": kw,
