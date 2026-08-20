@@ -290,8 +290,9 @@
         "additionalProperties": false,
         "properties": {
           "source": {
+            "const": "google search",
             "default": "google search",
-            "description": "Search source: 'google search'.",
+            "description": "Only supported source: 'google search'.",
             "type": "string"
           },
           "sort": {

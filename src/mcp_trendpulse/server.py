@@ -1,6 +1,6 @@
 import asyncio
 from datetime import date, datetime
-from typing import Annotated, Optional, Any, TYPE_CHECKING
+from typing import Annotated, Optional, Any, TYPE_CHECKING, Literal
 from dotenv import load_dotenv
 from mcp.types import ToolAnnotations
 load_dotenv()
@@ -538,7 +538,7 @@ async def get_growth(
     annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_ranked_trends(
-    source: Annotated[str, Field(description="Search source: 'google search'.")] = "google search",
+    source: Annotated[Literal["google search"], Field(description="Only supported source: 'google search'.")] = "google search",
     sort: Annotated[str, Field(description="Field to sort by: 'wow_pct_change', 'volume'.")] = "wow_pct_change",
     limit: Annotated[int, Field(description="Maximum number of trends to return.", ge=1, le=100)] = 20,
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",

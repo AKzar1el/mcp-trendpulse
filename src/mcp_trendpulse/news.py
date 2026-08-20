@@ -819,7 +819,7 @@ async def get_growth(
 
 
 async def get_ranked_trends(
-    source: str = "google search",
+    source: Literal["google search"] = "google search",
     sort: str = "wow_pct_change",
     limit: int = 20,
     geo: str = "US",
@@ -827,6 +827,9 @@ async def get_ranked_trends(
     """
     Get ranked trending keywords on Google Search.
     """
+    if source != "google search":
+        raise ValueError("get_ranked_trends only supports source='google search'.")
+
     loop = asyncio.get_running_loop()
     trends = await loop.run_in_executor(
         None,
