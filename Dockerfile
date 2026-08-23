@@ -19,13 +19,12 @@ WORKDIR /app
 
 COPY . /app
 
-RUN uv sync --locked --no-dev --no-editable \
+RUN mkdir -p "$TMPDIR" "$NLTK_DATA" \
+    && uv sync --locked --no-dev --no-editable \
     && .venv/bin/playwright install --with-deps chromium \
-    && mkdir -p "$NLTK_DATA" \
     && .venv/bin/python -m nltk.downloader -d "$NLTK_DATA" punkt punkt_tab \
     && groupadd --system --gid 10001 trendpulse \
     && useradd --system --uid 10001 --gid trendpulse --home-dir "$HOME" --create-home --shell /usr/sbin/nologin trendpulse \
-    && mkdir -p "$TMPDIR" \
     && chown -R trendpulse:trendpulse "$HOME" "$TMPDIR" \
     && chmod -R a+rX /app/.venv "$PLAYWRIGHT_BROWSERS_PATH" "$NLTK_DATA" \
     && rm -rf /root/.cache /var/lib/apt/lists/*
