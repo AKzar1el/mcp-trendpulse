@@ -70,10 +70,15 @@ jobs:
       - name: Install Python 3.14
         run: uv python install 3.14
 
-      - name: Sync candidate on Python 3.14 without source builds
+      - name: Verify third-party dependencies have Python 3.14 wheels
         env:
           UV_PYTHON: "3.14"
-        run: uv sync --locked --dev --no-build
+        run: uv sync --locked --dev --no-build --no-install-project
+
+      - name: Install TrendPulse project on Python 3.14
+        env:
+          UV_PYTHON: "3.14"
+        run: uv sync --locked --dev
 
       - name: Run tests on Python 3.14
         env:
