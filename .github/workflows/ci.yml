@@ -19,6 +19,7 @@ jobs:
           - "3.11"
           - "3.12"
           - "3.13"
+          - "3.14"
 
     steps:
       - name: Check out repository
@@ -32,6 +33,25 @@ jobs:
 
       - name: Install Python
         run: uv python install ${{ matrix.python-version }}
+
+      - name: Verify native dependencies use wheels on Python 3.14
+        if: matrix.python-version == '3.14'
+        env:
+          UV_PYTHON: ${{ matrix.python-version }}
+        run: >-
+          uv sync --locked --dev --no-install-project
+          --no-build-package cffi
+          --no-build-package cryptography
+          --no-build-package greenlet
+          --no-build-package lxml
+          --no-build-package numpy
+          --no-build-package pandas
+          --no-build-package pillow
+          --no-build-package pydantic-core
+          --no-build-package pyyaml
+          --no-build-package regex
+          --no-build-package rpds-py
+          --no-build-package selectolax
 
       - name: Sync locked environment
         env:
