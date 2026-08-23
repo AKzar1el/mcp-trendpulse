@@ -12,6 +12,7 @@ import json
 import asyncio
 import ipaddress
 import socket
+import threading
 from decimal import Decimal, InvalidOperation
 import pandas
 from gnews import GNews
@@ -40,7 +41,7 @@ except ValueError:
 
 tr = Trends(request_delay=google_trends_delay)
 
-_scraper_instance = None
+_scraper_local = threading.local()
 
 _INVALID_TREND_VOLUME = -1
 _TREND_VOLUME_PATTERN = re.compile(
@@ -73,10 +74,10 @@ def parse_trending_volume(volume: object) -> int:
 
 
 def get_scraper():
-    global _scraper_instance
-    if _scraper_instance is None:
+    scraper_instance = getattr(_scraper_local, "instance", None)
+    if scraper_instance is None:
         try:
-            _scraper_instance = cloudscraper.create_scraper(
+            scraper_instance = cloudscraper.create_scraper(
                 interpreter="js2py",
                 delay=5,
                 browser="chrome",
@@ -85,10 +86,8 @@ def get_scraper():
         except Exception as e:
             logger.error(f"Failed to initialize cloudscraper: {e}")
             return None
-    return _scraper_instance
-
-
-scraper = None
+        _scraper_local.instance = scraper_instance
+    return scraper_instance
 
 
 def _new_google_news(period: int, max_results: int) -> GNews:
@@ -106,6 +105,7 @@ _MAX_ARTICLE_REDIRECTS = 10
 ARTICLE_HTTP_TIMEOUT_SECONDS = 12
 ARTICLE_BROWSER_NAVIGATION_TIMEOUT_MS = 15_000
 ARTICLE_MAX_HTML_BYTES = 5 * 1024 * 1024
+ARTICLE_PROCESS_CONCURRENCY = 4
 _ARTICLE_RESPONSE_CHUNK_SIZE = 64 * 1024
 _UNSUPPORTED_ARTICLE_CONTENT_TYPES = {
     "application/gzip",
@@ -430,13 +430,13 @@ async def download_article(url: str) -> newspaper.Article | None:
     Download an article from a given URL using newspaper4k and cloudscraper (async).
     """
     target_validator = ArticleTargetValidator()
-    url = target_validator.validate_url(url)
+    url = await asyncio.to_thread(target_validator.validate_url, url)
     if url.startswith("https://news.google.com/rss/"):
-        decoded = decode_url(url)
+        decoded = await asyncio.to_thread(decode_url, url)
         if decoded is None:
             return None
-        url = target_validator.validate_url(decoded)
-    article = download_article_with_scraper(url, target_validator)
+        url = await asyncio.to_thread(target_validator.validate_url, decoded)
+    article = await asyncio.to_thread(download_article_with_scraper, url, target_validator)
     if article is None or not article.text:
         logger.debug("Attempting to download article with playwright")
         article = await download_article_with_playwright(url, target_validator)
@@ -447,20 +447,36 @@ async def process_gnews_articles(
     gnews_articles: list[dict],
     nlp: bool = True,
     report_progress: Optional[ProgressCallback] = None,
+    max_concurrency: int = ARTICLE_PROCESS_CONCURRENCY,
 ) -> list[newspaper.Article]:
     """
-    Process a list of Google News articles and download them (async).
+    Process Google News articles with bounded concurrency while preserving input order.
     Optionally report progress via report_progress callback.
     """
-    articles = []
     total = len(gnews_articles)
-    for idx, gnews_article in enumerate(gnews_articles):
-        article = await download_article(gnews_article["url"])
-        if article is None or not article.text:
-            logger.debug(f"Failed to download article from {gnews_article['url']}:\n{article}")
+    if total == 0:
+        return []
+
+    semaphore = asyncio.Semaphore(max(1, max_concurrency))
+
+    async def process_one(idx: int, gnews_article: dict) -> tuple[int, newspaper.Article | None]:
+        async with semaphore:
+            article = await download_article(gnews_article["url"])
+            if article is None or not article.text:
+                logger.debug(f"Failed to download article from {gnews_article['url']}:\n{article}")
+                return idx, None
+            if nlp:
+                await asyncio.to_thread(article.nlp)
+            return idx, article
+
+    processed = await asyncio.gather(
+        *(process_one(idx, gnews_article) for idx, gnews_article in enumerate(gnews_articles))
+    )
+
+    articles = []
+    for idx, article in processed:
+        if article is None:
             continue
-        if nlp:
-            article.nlp()
         articles.append(article)
         if report_progress:
             await report_progress(idx, total)
