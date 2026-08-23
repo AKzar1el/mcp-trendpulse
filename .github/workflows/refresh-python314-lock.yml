@@ -1,0 +1,83 @@
+name: Refresh Python 3.14 lock
+
+on:
+  push:
+    branches:
+      - chore/dependency-refresh-python314
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: ${{ !contains(github.event.head_commit.message, '[lock-refresh]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: chore/dependency-refresh-python314
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.5"
+          enable-cache: true
+
+      - name: Patch direct dependencies and CI matrix
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          pyproject_path = Path("pyproject.toml")
+          pyproject = pyproject_path.read_text()
+          pyproject = pyproject.replace(
+              '"lxml[html-clean]>=6.0.0",',
+              '"lxml[html-clean]>=6.1.1",',
+          )
+          if '"pandas>=' not in pyproject:
+              pyproject = pyproject.replace(
+                  '"nltk>=3.9.1",',
+                  '"nltk>=3.9.1",\n    "pandas>=2.3.0",',
+              )
+          pyproject_path.write_text(pyproject)
+
+          ci_path = Path(".github/workflows/ci.yml")
+          ci = ci_path.read_text()
+          if '          - "3.14"' not in ci:
+              ci = ci.replace(
+                  '          - "3.13"\n',
+                  '          - "3.13"\n          - "3.14"\n',
+              )
+          ci_path.write_text(ci)
+          PY
+
+      - name: Regenerate targeted lock entries
+        run: uv lock --upgrade-package lxml --upgrade-package pandas
+
+      - name: Install supported Python versions
+        run: uv python install 3.10.18 3.11 3.12 3.13 3.14
+
+      - name: Validate lock, tests, and Ruff across Python versions
+        run: |
+          set -e
+          for version in 3.10.18 3.11 3.12 3.13 3.14; do
+            echo "== Python ${version} =="
+            UV_PYTHON="$version" uv sync --locked --dev
+            UV_PYTHON="$version" uv run --locked pytest
+            UV_PYTHON="$version" uv run --locked ruff check .
+          done
+
+      - name: Build and validate package
+        run: |
+          UV_PYTHON=3.12 uv sync --locked --dev
+          UV_PYTHON=3.12 uv build
+          UV_PYTHON=3.12 uv run --with twine twine check dist/*
+
+      - name: Commit regenerated lock
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml uv.lock .github/workflows/ci.yml
+          git commit -m "chore: refresh dependencies for Python 3.14 [lock-refresh]"
+          git push origin HEAD:chore/dependency-refresh-python314
