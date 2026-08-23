@@ -15,7 +15,10 @@ from mcp_trendpulse.config import (
     get_remote_http_settings,
     load_environment,
 )
-from mcp_trendpulse.server import mcp
+from mcp_trendpulse.hosted import hosted_mcp
+
+
+REMOTE_SERVICE_NAME = "trendpulse-by-digestseo"
 
 
 class TrendPulseRemoteASGI:
@@ -44,7 +47,7 @@ class TrendPulseRemoteASGI:
 
         path = scope.get("path", "")
         if path == "/health":
-            response = JSONResponse({"status": "ok", "service": "mcp-trendpulse"})
+            response = JSONResponse({"status": "ok", "service": REMOTE_SERVICE_NAME})
             await response(scope, receive, send)
             return
 
@@ -52,7 +55,7 @@ class TrendPulseRemoteASGI:
             response = JSONResponse(
                 {
                     "status": "ready",
-                    "service": "mcp-trendpulse",
+                    "service": REMOTE_SERVICE_NAME,
                     "transport": "streamable-http",
                     "stateless": True,
                 }
@@ -74,12 +77,12 @@ class TrendPulseRemoteASGI:
 
 
 def create_app(settings: RemoteHttpSettings | None = None) -> TrendPulseRemoteASGI:
-    """Create the stateless remote MCP application without changing local stdio."""
+    """Create the stateless hosted MCP application without changing local stdio."""
     if settings is None:
         load_environment()
         settings = get_remote_http_settings()
 
-    mcp_app = mcp.http_app(
+    mcp_app = hosted_mcp.http_app(
         path=settings.path,
         transport="streamable-http",
         stateless_http=True,
