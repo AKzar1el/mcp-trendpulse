@@ -181,7 +181,7 @@ def test_clerk_mode_publishes_protected_resource_metadata_and_requires_bearer(mo
     assert metadata.status_code == 200
     payload = metadata.json()
     assert payload["resource"] == f"{PUBLIC_BASE_URL}/mcp"
-    assert payload["authorization_servers"] == [ISSUER]
+    assert payload["authorization_servers"] == [f"{ISSUER}/"]
     assert set(CLERK_OAUTH_SCOPES).issubset(set(payload["scopes_supported"]))
 
     assert unauthenticated.status_code == 401
