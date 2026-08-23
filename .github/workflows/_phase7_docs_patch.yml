@@ -1,0 +1,89 @@
+name: Phase 7 Docs Patch
+
+on:
+  push:
+    branches:
+      - feat/chatgpt-app-hints
+    paths:
+      - .github/workflows/_phase7_docs_patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feat/chatgpt-app-hints
+      - name: Refresh hosted authentication docs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          readme = Path('README.md')
+          text = readme.read_text()
+          old = "The project currently ships as a **community/self-hosted MCP server**. A separate **hosted TrendPulse by DigestSEO** integration is being developed for remote MCP clients such as ChatGPT and Codex. The hosted layer will use a smaller, goal-oriented public tool surface while the community server keeps the full low-level research toolkit available to developers."
+          new = "The project currently ships as a **community/self-hosted MCP server** and also contains the implementation for a separate **hosted TrendPulse by DigestSEO** surface for remote MCP clients such as ChatGPT and Codex. The hosted layer uses a smaller, goal-oriented tool surface while the community server keeps the full low-level research toolkit available to developers."
+          if old not in text:
+              raise SystemExit('README hosted architecture paragraph not found')
+          text = text.replace(old, new, 1)
+
+          old = "The planned public tool surface is intentionally higher level than the community API and is expected to center on goals such as:"
+          new = "The implemented hosted tool surface is intentionally higher level than the community API and centers on goals such as:"
+          if old not in text:
+              raise SystemExit('README planned tool paragraph not found')
+          text = text.replace(old, new, 1)
+
+          old = "These names describe the planned hosted/plugin interface; they are **not** current community MCP tool names yet."
+          new = "These names describe the hosted ChatGPT Apps/MCP interface; they remain separate from the current Community MCP tool names."
+          if old not in text:
+              raise SystemExit('README hosted name paragraph not found')
+          text = text.replace(old, new, 1)
+
+          old = "The DigestSEO-hosted endpoint and public OpenAI plugin are still **not released**. The remote transport currently has no temporary public authentication layer, so do not expose it directly to the open internet before the planned DigestSEO identity integration."
+          new = "The DigestSEO-hosted endpoint and public ChatGPT app are still **not released**. Hosted deployments now support fail-closed Clerk OAuth authentication; do not expose the remote transport publicly unless Clerk issuer/JWKS/audience settings, the public base URL, and the Host/Origin allowlists are configured for that deployment."
+          if old not in text:
+              raise SystemExit('README stale auth paragraph not found')
+          readme.write_text(text.replace(old, new, 1))
+
+          deploy = Path('deploy/README.md')
+          text = deploy.read_text()
+          old = "This directory documents the containerized **remote Streamable HTTP transport**. It is a deployment foundation, not a public production service yet. Until DigestSEO authentication/OAuth is wired, keep this endpoint on localhost, a private network, or behind another controlled access layer."
+          new = "This directory documents the containerized **remote Streamable HTTP transport**. It is a deployment foundation, not a public production service yet. The image defaults to fail-closed Clerk OAuth mode; public deployments must configure the DigestSEO/Clerk OAuth settings and the network allowlists described below."
+          if old not in text:
+              raise SystemExit('deploy intro not found')
+          text = text.replace(old, new, 1)
+
+          old = "  --security-opt seccomp=/tmp/trendpulse-playwright-seccomp.json \\\n  -p 127.0.0.1:8000:8000 \\\n  mcp-trendpulse:local"
+          new = "  --security-opt seccomp=/tmp/trendpulse-playwright-seccomp.json \\\n  -e TRENDPULSE_AUTH_MODE=disabled \\\n  -p 127.0.0.1:8000:8000 \\\n  mcp-trendpulse:local"
+          if old not in text:
+              raise SystemExit('deploy local docker command not found')
+          text = text.replace(old, new, 1)
+
+          old = "- The container includes no temporary authentication layer. Do not publish it directly to the open internet before the planned DigestSEO identity integration."
+          new = "- The production image defaults to `TRENDPULSE_AUTH_MODE=clerk` and fails startup when the required OAuth settings are missing. Use `disabled` only for controlled local/private testing."
+          if old not in text:
+              raise SystemExit('deploy stale auth bullet not found')
+          text = text.replace(old, new, 1)
+
+          old = "TRENDPULSE_HTTP_PATH\nTRENDPULSE_HTTP_ALLOWED_HOSTS\nTRENDPULSE_HTTP_ALLOWED_ORIGINS\nTRENDPULSE_BROWSER_SANDBOX"
+          new = "TRENDPULSE_HTTP_PATH\nTRENDPULSE_HTTP_ALLOWED_HOSTS\nTRENDPULSE_HTTP_ALLOWED_ORIGINS\nTRENDPULSE_AUTH_MODE\nTRENDPULSE_CLERK_ISSUER\nTRENDPULSE_CLERK_JWKS_URI\nTRENDPULSE_CLERK_AUDIENCE\nTRENDPULSE_PUBLIC_BASE_URL\nTRENDPULSE_DIGESTSEO_CONTEXT_URL\nTRENDPULSE_BROWSER_SANDBOX"
+          if old not in text:
+              raise SystemExit('deploy runtime variable block not found')
+          text = text.replace(old, new, 1)
+
+          marker = "The image sets `TRENDPULSE_BROWSER_SANDBOX=true`; overriding it to false weakens the browser isolation model and should not be used for the hosted service."
+          auth_note = """`TRENDPULSE_AUTH_MODE=clerk` requires an HTTPS Clerk issuer, an explicit OAuth audience, and the HTTPS public MCP base URL. `TRENDPULSE_CLERK_JWKS_URI` defaults to the issuer's `/.well-known/jwks.json`. `TRENDPULSE_DIGESTSEO_CONTEXT_URL` defaults to the bounded DigestSEO project-context endpoint and must remain HTTPS.\n\n"""
+          if marker not in text:
+              raise SystemExit('deploy closing marker not found')
+          text = text.replace(marker, auth_note + marker, 1)
+          deploy.write_text(text)
+          PY
+          rm .github/workflows/_phase7_docs_patch.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add README.md deploy/README.md .github/workflows/_phase7_docs_patch.yml
+          git commit -m "docs: refresh hosted OAuth deployment status"
+          git push origin HEAD:feat/chatgpt-app-hints
