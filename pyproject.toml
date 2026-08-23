@@ -1,10 +1,10 @@
 [project]
 name = "mcp-trendpulse"
 version = "0.2.10"
-description = "An MCP server to access RSS feeds of Google News and Google Trends"
+description = "MCP server for Google News research and Google Trends analysis"
 readme = "README.md"
 requires-python = ">=3.10.18"
-authors = [{ name = "Jesse Manek", email = "jesse.manek@gmail.com" }]
+authors = [{ name = "Tomi Šeregi" }]
 keywords = ["google", "news", "rss", "trends", "mcp", "fastmcp", "llm", "nlp"]
 license = "MIT"
 license-files = ["LICENSE"]
@@ -62,3 +62,11 @@ line-length = 120
 
 [tool.ruff]
 line-length = 120
+
+[tool.ruff.lint.per-file-ignores]
+# server.py deliberately loads .env before importing modules whose configuration is
+# initialized at import time. Keep that startup behavior until configuration is
+# refactored into an explicit settings/provider layer.
+"src/mcp_trendpulse/server.py" = ["E402"]
+# This legacy import is removed as part of the upcoming news-provider cleanup.
+"src/mcp_trendpulse/news.py" = ["F401"]
