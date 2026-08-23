@@ -1,0 +1,154 @@
+import json
+
+import pytest
+from mcp.types import LATEST_PROTOCOL_VERSION
+from starlette.testclient import TestClient
+
+from mcp_trendpulse.asgi import create_app
+from mcp_trendpulse.config import (
+    DEFAULT_HTTP_ALLOWED_HOSTS,
+    DEFAULT_HTTP_ALLOWED_ORIGINS,
+    DEFAULT_HTTP_PATH,
+    RemoteHttpSettings,
+    get_remote_http_settings,
+)
+
+
+def remote_settings() -> RemoteHttpSettings:
+    return RemoteHttpSettings(
+        path="/mcp",
+        allowed_hosts=("allowed.test",),
+        allowed_origins=("https://allowed.test",),
+    )
+
+
+def test_remote_http_settings_are_fail_closed_and_normalized():
+    defaults = get_remote_http_settings({})
+    assert defaults.path == DEFAULT_HTTP_PATH
+    assert defaults.allowed_hosts == DEFAULT_HTTP_ALLOWED_HOSTS
+    assert defaults.allowed_origins == DEFAULT_HTTP_ALLOWED_ORIGINS
+
+    custom = get_remote_http_settings(
+        {
+            "TRENDPULSE_HTTP_PATH": "/remote/mcp/",
+            "TRENDPULSE_HTTP_ALLOWED_HOSTS": "trendpulse.example.com, trendpulse.example.com:*",
+            "TRENDPULSE_HTTP_ALLOWED_ORIGINS": "https://digestseo.com, https://app.digestseo.com",
+        }
+    )
+    assert custom.path == "/remote/mcp"
+    assert custom.allowed_hosts == (
+        "trendpulse.example.com",
+        "trendpulse.example.com:*",
+    )
+    assert custom.allowed_origins == (
+        "https://digestseo.com",
+        "https://app.digestseo.com",
+    )
+
+    with pytest.raises(ValueError, match="must start"):
+        get_remote_http_settings({"TRENDPULSE_HTTP_PATH": "mcp"})
+
+    with pytest.raises(ValueError, match="at least one host"):
+        get_remote_http_settings({"TRENDPULSE_HTTP_ALLOWED_HOSTS": " , "})
+
+
+def test_health_and_readiness_endpoints():
+    app = create_app(remote_settings())
+    with TestClient(app, base_url="http://allowed.test") as client:
+        health = client.get("/health")
+        ready = client.get("/ready")
+
+    assert health.status_code == 200
+    assert health.json() == {"status": "ok", "service": "mcp-trendpulse"}
+    assert ready.status_code == 200
+    assert ready.json() == {
+        "status": "ready",
+        "service": "mcp-trendpulse",
+        "transport": "streamable-http",
+        "stateless": True,
+    }
+
+
+def test_remote_mcp_rejects_invalid_host_origin_and_content_type():
+    app = create_app(remote_settings())
+    with TestClient(app, base_url="http://allowed.test") as client:
+        invalid_host = client.post(
+            "/mcp",
+            content="{}",
+            headers={"host": "evil.test", "content-type": "application/json"},
+        )
+        invalid_origin = client.post(
+            "/mcp",
+            content="{}",
+            headers={
+                "host": "allowed.test",
+                "origin": "https://evil.test",
+                "content-type": "application/json",
+            },
+        )
+        invalid_content_type = client.post(
+            "/mcp",
+            content="{}",
+            headers={"host": "allowed.test", "content-type": "text/plain"},
+        )
+
+    assert invalid_host.status_code == 421
+    assert invalid_origin.status_code == 403
+    assert invalid_content_type.status_code == 400
+
+
+def test_remote_mcp_is_stateless_and_sampling_disabled():
+    app = create_app(remote_settings())
+    mcp_route = next(
+        route
+        for route in app.inner_app.routes
+        if getattr(route, "path", None) == "/mcp"
+    )
+
+    assert mcp_route.methods == {"POST", "DELETE"}
+    assert app.inner_app.state.trendpulse_sampling_enabled is False
+
+
+def _decode_initialize_response(response) -> dict:
+    content_type = response.headers.get("content-type", "")
+    if content_type.startswith("application/json"):
+        return response.json()
+
+    assert content_type.startswith("text/event-stream")
+    data_lines = [
+        line.removeprefix("data: ")
+        for line in response.text.splitlines()
+        if line.startswith("data: ")
+    ]
+    assert data_lines
+    return json.loads(data_lines[-1])
+
+
+def test_remote_mcp_accepts_initialize_over_streamable_http():
+    app = create_app(remote_settings())
+    initialize = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": LATEST_PROTOCOL_VERSION,
+            "capabilities": {},
+            "clientInfo": {"name": "trendpulse-test", "version": "1.0"},
+        },
+    }
+
+    with TestClient(app, base_url="http://allowed.test") as client:
+        response = client.post(
+            "/mcp",
+            json=initialize,
+            headers={
+                "host": "allowed.test",
+                "accept": "application/json, text/event-stream",
+            },
+        )
+
+    assert response.status_code == 200
+    payload = _decode_initialize_response(response)
+    assert payload["id"] == 1
+    assert payload["result"]["serverInfo"]["name"] == "mcp-trendpulse"
+    assert payload["result"]["protocolVersion"] == LATEST_PROTOCOL_VERSION
