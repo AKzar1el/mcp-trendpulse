@@ -9,6 +9,7 @@ from mcp_trendpulse.config import (
     DEFAULT_HTTP_ALLOWED_HOSTS,
     DEFAULT_HTTP_ALLOWED_ORIGINS,
     DEFAULT_HTTP_PATH,
+    RemoteAuthSettings,
     RemoteHttpSettings,
     get_remote_http_settings,
 )
@@ -20,6 +21,10 @@ def remote_settings() -> RemoteHttpSettings:
         allowed_hosts=("allowed.test",),
         allowed_origins=("https://allowed.test",),
     )
+
+
+def disabled_auth_settings() -> RemoteAuthSettings:
+    return RemoteAuthSettings(mode="disabled")
 
 
 def test_remote_http_settings_are_fail_closed_and_normalized():
@@ -53,7 +58,7 @@ def test_remote_http_settings_are_fail_closed_and_normalized():
 
 
 def test_health_and_readiness_endpoints():
-    app = create_app(remote_settings())
+    app = create_app(remote_settings(), disabled_auth_settings())
     with TestClient(app, base_url="http://allowed.test") as client:
         health = client.get("/health")
         ready = client.get("/ready")
@@ -66,11 +71,12 @@ def test_health_and_readiness_endpoints():
         "service": REMOTE_SERVICE_NAME,
         "transport": "streamable-http",
         "stateless": True,
+        "auth": "disabled",
     }
 
 
 def test_remote_mcp_rejects_invalid_host_origin_and_content_type():
-    app = create_app(remote_settings())
+    app = create_app(remote_settings(), disabled_auth_settings())
     with TestClient(app, base_url="http://allowed.test") as client:
         invalid_host = client.post(
             "/mcp",
@@ -98,7 +104,7 @@ def test_remote_mcp_rejects_invalid_host_origin_and_content_type():
 
 
 def test_remote_mcp_is_stateless_and_sampling_disabled():
-    app = create_app(remote_settings())
+    app = create_app(remote_settings(), disabled_auth_settings())
     mcp_route = next(
         route
         for route in app.inner_app.routes
@@ -107,6 +113,7 @@ def test_remote_mcp_is_stateless_and_sampling_disabled():
 
     assert mcp_route.methods == {"POST", "DELETE"}
     assert app.inner_app.state.trendpulse_sampling_enabled is False
+    assert app.inner_app.state.trendpulse_auth_settings.mode == "disabled"
 
 
 def _decode_initialize_response(response) -> dict:
@@ -125,7 +132,7 @@ def _decode_initialize_response(response) -> dict:
 
 
 def test_remote_mcp_accepts_initialize_over_streamable_http():
-    app = create_app(remote_settings())
+    app = create_app(remote_settings(), disabled_auth_settings())
     initialize = {
         "jsonrpc": "2.0",
         "id": 1,
