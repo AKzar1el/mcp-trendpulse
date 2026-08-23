@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from mcp_trendpulse import news, server
@@ -91,3 +92,38 @@ async def test_process_gnews_articles_does_not_reparse_downloaded_article():
     assert article.text == "Article body content."
     assert article.authors == ["Article author"]
     assert article.parse_calls == 0
+
+
+async def test_remote_http_summarization_skips_sampling_and_uses_local_nlp(monkeypatch):
+    class RemoteContext:
+        request_context = object()
+        session = object()
+        transport = "streamable-http"
+
+        async def sample(self, prompt):
+            raise AssertionError("stateless remote HTTP must not attempt client sampling")
+
+        async def report_progress(self, progress, total=None):
+            return None
+
+    class LocalNlpArticle:
+        text = "Remote article text."
+        summary = ""
+
+        def nlp(self):
+            self.summary = "Local NLP summary."
+
+    monkeypatch.setattr(
+        server,
+        "get_http_request",
+        lambda: SimpleNamespace(
+            app=SimpleNamespace(
+                state=SimpleNamespace(trendpulse_sampling_enabled=False)
+            )
+        ),
+    )
+
+    article = LocalNlpArticle()
+    await server.summarize_articles([article], RemoteContext())
+
+    assert article.summary == "Local NLP summary."

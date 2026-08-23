@@ -1,5 +1,6 @@
 from typing import Annotated, Optional, Any, TYPE_CHECKING
 from fastmcp import FastMCP, Context
+from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware.timing import TimingMiddleware
 from fastmcp.server.middleware.logging import LoggingMiddleware
 from fastmcp.server.middleware.rate_limiting import RateLimitingMiddleware
@@ -205,8 +206,21 @@ def is_session_active(ctx: Context) -> bool:
         return False
 
 
-async def llm_summarize_article(article: Article, ctx: Context) -> bool:
+def can_use_llm_sampling(ctx: Context) -> bool:
+    """Allow sampling locally while disabling it for the stateless hosted app."""
     if not is_session_active(ctx):
+        return False
+    if getattr(ctx, "transport", "stdio") != "streamable-http":
+        return True
+    try:
+        request = get_http_request()
+    except RuntimeError:
+        return False
+    return bool(getattr(request.app.state, "trendpulse_sampling_enabled", True))
+
+
+async def llm_summarize_article(article: Article, ctx: Context) -> bool:
+    if not can_use_llm_sampling(ctx):
         article.summary = "No summary available."
         return False
 
