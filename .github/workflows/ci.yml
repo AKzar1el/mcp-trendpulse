@@ -81,5 +81,5 @@ jobs:
         run: |
           SMOKE_VENV="${RUNNER_TEMP}/mcp-trendpulse-wheel-smoke"
           uv venv --python 3.12 "$SMOKE_VENV"
-          "$SMOKE_VENV/bin/python" -m pip install dist/*.whl
+          uv pip install --python "$SMOKE_VENV/bin/python" dist/*.whl
           "$SMOKE_VENV/bin/python" -c "import mcp_trendpulse"
