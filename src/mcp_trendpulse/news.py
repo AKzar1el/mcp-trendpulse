@@ -12,7 +12,6 @@ import json
 import asyncio
 import ipaddress
 import socket
-from datetime import datetime
 from decimal import Decimal, InvalidOperation
 import pandas
 from gnews import GNews
@@ -72,6 +71,7 @@ def parse_trending_volume(volume: object) -> int:
         return _INVALID_TREND_VOLUME
     return int(normalized_value)
 
+
 def get_scraper():
     global _scraper_instance
     if _scraper_instance is None:
@@ -87,12 +87,17 @@ def get_scraper():
             return None
     return _scraper_instance
 
+
 scraper = None
 
-google_news = GNews(
-    language="en",
-    # exclude_websites=[],
-)
+
+def _new_google_news(period: int, max_results: int) -> GNews:
+    """Create an isolated Google News client for one request."""
+    client = GNews(language="en")
+    client.period = f"{period}d"
+    client.max_results = max_results
+    return client
+
 
 ProgressCallback = Callable[[float, Optional[float]], Awaitable[None]]
 
@@ -472,9 +477,8 @@ async def get_news_by_keyword(
     """
     Find articles by keyword using Google News.
     """
-    google_news.period = f"{period}d"
-    google_news.max_results = max_results
-    gnews_articles = google_news.get_news(keyword)
+    google_news = _new_google_news(period, max_results)
+    gnews_articles = await asyncio.to_thread(google_news.get_news, keyword)
     if not gnews_articles:
         logger.debug(f"No articles found for keyword '{keyword}' in the last {period} days.")
         return []
@@ -490,9 +494,8 @@ async def get_top_news(
     """
     Get top news stories from Google News.
     """
-    google_news.period = f"{period}d"
-    google_news.max_results = max_results
-    gnews_articles = google_news.get_top_news()
+    google_news = _new_google_news(period, max_results)
+    gnews_articles = await asyncio.to_thread(google_news.get_top_news)
     if not gnews_articles:
         logger.debug("No top news articles found.")
         return []
@@ -507,9 +510,8 @@ async def get_news_by_location(
     report_progress: Optional[ProgressCallback] = None,
 ) -> list[newspaper.Article]:
     """Find articles by location using Google News."""
-    google_news.period = f"{period}d"
-    google_news.max_results = max_results
-    gnews_articles = google_news.get_news_by_location(location)
+    google_news = _new_google_news(period, max_results)
+    gnews_articles = await asyncio.to_thread(google_news.get_news_by_location, location)
     if not gnews_articles:
         logger.debug(f"No articles found for location '{location}' in the last {period} days.")
         return []
@@ -534,9 +536,8 @@ async def get_news_by_topic(
     GEOLOGY, PALEONTOLOGY, SOCIAL SCIENCES, EDUCATION, JOBS, ONLINE EDUCATION, HIGHER EDUCATION,
     VEHICLES, ARTS-DESIGN, BEAUTY, FOOD, TRAVEL, SHOPPING, HOME, OUTDOORS, FASHION.
     """
-    google_news.period = f"{period}d"
-    google_news.max_results = max_results
-    gnews_articles = google_news.get_news_by_topic(topic)
+    google_news = _new_google_news(period, max_results)
+    gnews_articles = await asyncio.to_thread(google_news.get_news_by_topic, topic)
     if not gnews_articles:
         logger.debug(f"No articles found for topic '{topic}' in the last {period} days.")
         return []
@@ -894,9 +895,8 @@ async def get_news_by_site(
     report_progress: Optional[ProgressCallback] = None,
 ) -> list[newspaper.Article]:
     """Find articles from a specific publisher site using Google News."""
-    google_news.period = f"{period}d"
-    google_news.max_results = max_results
-    gnews_articles = google_news.get_news_by_site(site)
+    google_news = _new_google_news(period, max_results)
+    gnews_articles = await asyncio.to_thread(google_news.get_news_by_site, site)
     if not gnews_articles:
         logger.debug(f"No articles found for site '{site}' in the last {period} days.")
         return []
@@ -1036,4 +1036,3 @@ async def get_categories() -> list[dict]:
         lambda: tr.categories()
     )
     return cats
-
