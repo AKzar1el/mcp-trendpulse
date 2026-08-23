@@ -1,118 +1,122 @@
 # mcp-trendpulse
 
-[![MCP Version](https://img.shields.io/badge/MCP-Protocol-blue.svg)](https://modelcontextprotocol.io)
-[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-MCP-blue.svg)](https://modelcontextprotocol.io)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-A powerful, robust Model Context Protocol (MCP) server that connects AI models to Google News RSS feeds and Google Trends. Easily pull historical weekly interest curves, calculate keyword growth rates, fetch trending queries, and analyze/summarize related articles using LLMs and NLP.
+**TrendPulse** is a Python Model Context Protocol (MCP) server for researching current news and search-interest trends. It combines Google News discovery and article extraction with Google Trends analysis so MCP clients can inspect what is trending, compare keyword momentum, explore related demand, and add current-news context to research workflows.
 
-## Features
+The project currently ships as a **community/self-hosted MCP server**. A separate **hosted TrendPulse by DigestSEO** integration is being developed for remote MCP clients such as ChatGPT and Codex. The hosted layer will use a smaller, goal-oriented public tool surface while the community server keeps the full low-level research toolkit available to developers.
 
-- **Google News Integration**: Trawl feeds for articles by keyword, location, or topic, and fetch top news stories.
-- **Advanced Trends Analysis**: Pull interest history for explicit Google Trends windows (such as 12 months, five years, or an exact date range), calculate growth velocities over custom windows, and retrieve real-time trending keywords.
-- **NLP & LLM Summarization**: Summarize article payloads and extract key concepts using client-side LLM sampling or local NLP.
-- **Windows-Safe & Robust**: Fully handles local session state, rates limits, and includes a fallback mechanism for sites that are difficult to scrape.
+> **Project status:** the local/community server is usable today. The DigestSEO-hosted MCP and public OpenAI plugin are not released yet and should not be treated as available endpoints.
+
+## What TrendPulse can do
+
+### News research
+
+- Search Google News by keyword, location, topic, or publisher domain.
+- Retrieve top news stories.
+- Resolve Google News links and extract article content.
+- Fall back from normal HTTP retrieval to Playwright/Chromium for difficult pages.
+- Optionally summarize article text with MCP client sampling, with local NLP as a fallback.
+
+### Trend research
+
+- Retrieve current trending terms for a geographic market.
+- Pull Google Trends interest-over-time data for one or more keywords.
+- Calculate keyword growth over custom windows such as 3M or 1Y.
+- Rank live trends by volume or growth.
+- Inspect interest by country, region, city, or DMA where supported.
+- Explore related queries, related topics, suggestions, and category IDs.
+- Compare Google Search, YouTube Search, News Search, Image Search, and Google Shopping trend properties where supported by the underlying provider.
+
+## Community and hosted architecture
+
+TrendPulse is being developed with two deliberate surfaces:
+
+| Surface | Purpose | Status |
+| --- | --- | --- |
+| **Community MCP** | Full Python MCP server for local use, development, self-hosting, and integrations with MCP-compatible clients. | Available in this repository |
+| **TrendPulse by DigestSEO** | Managed remote MCP for ChatGPT/Codex and a future public OpenAI plugin with a smaller, task-oriented tool surface. | In development |
+
+The community server remains useful independently. The hosted edition will reuse the same core trend-research concepts while adding the deployment, reliability, authentication, observability, and product integration needed for a managed service.
+
+The planned public tool surface is intentionally higher level than the community API and is expected to center on goals such as:
+
+- `discover_trends`
+- `analyze_keyword_trend`
+- `compare_keyword_trends`
+- `discover_related_demand`
+- `get_trend_context`
+- `find_seo_opportunities`
+
+These names describe the planned hosted/plugin interface; they are **not** current community MCP tool names yet.
 
 ## Installation
 
-### Using uv/uvx (recommended)
+### Run directly from GitHub with `uvx` (recommended)
 
-When using [`uv`](https://docs.astral.sh/uv/) no specific installation is needed. The
-project is currently run directly from GitHub because it is not yet published to PyPI:
+The package is not yet published to PyPI, so the most direct installation path is:
 
 ```bash
 uvx --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse
 ```
 
-Once a release is published to PyPI, the shorter command will also work:
+After a PyPI release exists, the shorter form will be:
 
 ```bash
 uvx mcp-trendpulse
 ```
 
-#### Publishing to PyPI
-
-The included GitHub Actions workflow uses PyPI Trusted Publishing, so no API token
-is stored in GitHub. Before the first release, the PyPI project owner must add a
-pending publisher at [PyPI publishing settings](https://pypi.org/manage/account/publishing/):
-
-- Owner: `AKzar1el`
-- Repository: `mcp-trendpulse`
-- Workflow: `publish.yml`
-- Environment: leave blank
-
-After that one-time setup, create and publish a GitHub release. The workflow builds
-and publishes the package automatically. If the owner cannot use PyPI Trusted
-Publishing, a PyPI API token can be stored as the `PYPI_API_TOKEN` repository secret
-and passed to the publishing action instead.
-
-### Using PIP
+### Install with pip from a checkout
 
 ```bash
-pip install mcp-trendpulse
-```
-After installation, you can run it as a script using:
-
-```bash
+git clone https://github.com/AKzar1el/mcp-trendpulse.git
+cd mcp-trendpulse
+python -m pip install .
 python -m mcp_trendpulse
 ```
 
-### Browser fallback setup
+## Browser fallback
 
-Article scraping can fall back to Playwright/Chromium when the normal downloader cannot retrieve an article. Installing the Python `playwright` package does not install the Chromium browser binary; for a local installation, run:
+News/article tools can fall back to Playwright when ordinary retrieval cannot extract a usable article. Installing the Python `playwright` package does not install Chromium automatically.
+
+For local use:
 
 ```bash
 playwright install chromium
 ```
 
-For Linux or CI environments that also need system dependencies, use:
+For Linux environments that also require browser system dependencies:
 
 ```bash
 playwright install --with-deps chromium
 ```
 
-Google Trends-only operations do not inherently launch Chromium.
+Trend-only operations do not inherently require Chromium.
 
-## Configuration
+## Client configuration
 
-### Configure for Claude.app
+### Claude Desktop
 
-Add to your Claude settings:
-
-<details>
-<summary>Using uvx</summary>
+Using `uvx` directly from GitHub:
 
 ```json
 {
   "mcpServers": {
     "mcp-trendpulse": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/AKzar1el/mcp-trendpulse.git", "mcp-trendpulse"]
+      "args": [
+        "--from",
+        "git+https://github.com/AKzar1el/mcp-trendpulse.git",
+        "mcp-trendpulse"
+      ]
     }
   }
 }
 ```
-</details>
 
-<details>
-<summary>Using pip installation</summary>
-
-```json
-{
-  "mcpServers": {
-    "mcp-trendpulse": {
-      "command": "python",
-      "args": ["-m", "mcp_trendpulse"]
-    }
-  }
-}
-```
-</details>
-
-### Configure for VS Code
-
-<details>
-<summary>Using uvx</summary>
+### VS Code
 
 ```json
 {
@@ -120,86 +124,47 @@ Add to your Claude settings:
     "servers": {
       "mcp-trendpulse": {
         "command": "uvx",
-        "args": ["--from", "git+https://github.com/AKzar1el/mcp-trendpulse.git", "mcp-trendpulse"]
+        "args": [
+          "--from",
+          "git+https://github.com/AKzar1el/mcp-trendpulse.git",
+          "mcp-trendpulse"
+        ]
       }
     }
   }
 }
 ```
-</details>
 
-<details>
-<summary>Using pip installation</summary>
+### Cursor
 
-```json
-{
-  "mcp": {
-    "servers": {
-      "mcp-trendpulse": {
-        "command": "python",
-        "args": ["-m", "mcp_trendpulse"]
-      }
-    }
-  }
-}
-```
-</details>
-
-### Configure for Cursor Editor
-
-Cursor supports MCP configuration globally or per-project:
-
-- **Global Config**: Edit `%USERPROFILE%\.cursor\mcp.json` (Windows) or `~/.cursor/mcp.json` (macOS/Linux).
-- **Project Config**: Create a `.cursor/mcp.json` file inside your project root.
-
-Add the following to the `mcpServers` object:
+Cursor supports global and project MCP configuration. Add the server to the relevant `mcp.json` configuration:
 
 ```json
 {
   "mcpServers": {
     "mcp-trendpulse": {
-      "command": "python",
-      "args": ["-m", "mcp_trendpulse"]
-    }
-  }
-}
-```
-*(Alternatively, you can open Cursor Settings -> Features -> MCP, and click "Add New Global MCP Server" to set it up via the UI).*
-
-
-### Configure for Gemini / Antigravity IDE
-
-If you are pair programming with Gemini in Antigravity IDE, add the server to your settings file at `%APPDATA%\.gemini\antigravity-ide\mcp_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "mcp-trendpulse": {
-      "command": "python",
-      "args": ["-m", "mcp_trendpulse"]
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/AKzar1el/mcp-trendpulse.git",
+        "mcp-trendpulse"
+      ]
     }
   }
 }
 ```
 
+### ChatGPT and other cloud MCP clients
 
-### Configure for ChatGPT (OpenAI)
+The current entry point is designed for local MCP clients and runs with FastMCP's default transport. Cloud clients such as ChatGPT require a reachable remote MCP server over HTTPS; simply exposing the local stdio process is not the production architecture.
 
-Because ChatGPT resides in the cloud, it requires your local MCP server to be exposed via a secure HTTPS tunnel (e.g., using `ngrok` or similar):
+Remote HTTP transport and the DigestSEO-hosted endpoint are part of the current production-readiness work. Until that work lands, this README intentionally does **not** advertise a public ChatGPT server URL.
 
-1. **Expose Server via Tunnel**:
-   Start your local MCP server using an HTTP/SSE bridge or expose its stdio endpoint using a secure tunnel tool.
-2. **Enable Developer Mode in ChatGPT**:
-   Open the ChatGPT desktop app, go to **Settings → Apps & Connectors**, and toggle on **Developer Mode**.
-3. **Register the Connector**:
-   Click **+ New Server** (or "Create Connector") and paste the public HTTPS URL where your tunnel is hosted.
+## Configuration
 
-### Environment Variables and Proxies
+TrendPulse loads environment variables from the process environment and from a local `.env` file when present.
 
-If you experience rate limits (`429 Client Error`) from Google Trends, or if your server is running in an environment without direct internet access, you can configure environment variables and proxies in one of two ways:
-
-#### Option A: Using a `.env` file (Recommended)
-You can create a `.env` file in the workspace directory (where the server is executed) and define the variables there. The server will automatically load them at startup:
+Useful variables include:
 
 ```env
 HTTP_PROXY=http://your-proxy-address:port
@@ -207,50 +172,43 @@ HTTPS_PROXY=http://your-proxy-address:port
 GOOGLE_TRENDS_DELAY=2.0
 ```
 
-#### Option B: Injecting via the client configuration
-You can add environment variables directly to the `"env"` object in your Claude Desktop or VS Code JSON configuration:
+`GOOGLE_TRENDS_DELAY` controls the request delay used by the current Trends provider. Proxy variables can be useful when the upstream service rate-limits or blocks a particular network.
 
-```json
-      "env": {
-        "HTTP_PROXY": "http://your-proxy-address:port",
-        "HTTPS_PROXY": "http://your-proxy-address:port",
-        "GOOGLE_TRENDS_DELAY": "2.0"
-      }
-```
+Do not commit secrets, private proxy credentials, or machine-specific `.env` files.
 
-On Windows, it is also recommended to pass system environment variables like `PATH`, `USERPROFILE`, `LOCALAPPDATA`, and `APPDATA` under the `"env"` block to ensure that internal Chromium browsers (used by Playwright) resolve and execute correctly:
+## MCP tools
 
-```json
-      "env": {
-        "PATH": "C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\;C:\\Users\\<Username>\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Users\\<Username>\\AppData\\Local\\Programs\\uv",
-        "USERPROFILE": "C:\\Users\\<Username>",
-        "LOCALAPPDATA": "C:\\Users\\<Username>\\AppData\\Local",
-        "APPDATA": "C:\\Users\\<Username>\\AppData\\Roaming"
-      }
-```
+The community MCP server currently exposes **16 tools**.
 
+### News tools
 
-## Tools
+| Tool | Purpose |
+| --- | --- |
+| `get_news_by_keyword` | Find recent news articles matching a keyword. |
+| `get_news_by_location` | Find recent news associated with a location. |
+| `get_news_by_topic` | Find recent news for a supported Google News topic. |
+| `get_top_news` | Retrieve top Google News stories. |
+| `get_news_by_site` | Find recent news from a specific publisher domain. |
+| `get_article_content` | Download, validate, extract, and optionally summarize one article URL. |
 
-The following MCP tools are available:
+### Trend tools
 
-| Tool Name            | Description                                                                                          |
-|----------------------|------------------------------------------------------------------------------------------------------|
-| **get_news_by_keyword**| Search for news using specific keywords.                                                             |
-| **get_news_by_location**| Retrieve news relevant to a particular location.                                                   |
-| **get_news_by_topic**| Get news based on a chosen topic.                                                                    |
-| **get_top_news**     | Fetch the top news stories from Google News.                                                         |
-| **get_trending_terms**| Return trending keywords from Google Trends for a specified location.                                |
-| **get_trends**       | Pull Google Search interest over an explicit window to inspect growth and seasonality curves.   |
-| **get_growth**       | Measure how much search interest changed over custom periods (e.g. 3M, 1Y) and compare growth side-by-side.|
-| **get_ranked_trends**| Get a ranked list of the highest-volume or fastest-growing keywords on Google Search right now.      |
-| **get_top_trends**   | Discover top trending topics on Google Trends right now without requiring a keyword query.           |
+| Tool | Purpose |
+| --- | --- |
+| `get_trending_terms` | Retrieve current trending terms for a geographic target. |
+| `get_trends` | Retrieve interest-over-time points for one or more keywords. |
+| `get_growth` | Calculate search-interest growth over requested windows. |
+| `get_ranked_trends` | Rank current trends by growth or volume. |
+| `get_top_trends` | Retrieve a top-trends feed without supplying a keyword. |
+| `get_interest_by_region` | Compare keyword interest across geographic regions. |
+| `get_related_queries` | Retrieve top and rising related search queries. |
+| `get_related_topics` | Retrieve top and rising related Google Trends topics. |
+| `get_suggestions` | Resolve autocomplete/topic suggestions for a query. |
+| `get_categories` | Retrieve Google Trends category IDs and names. |
 
-All of the news related tools have an option to summarize the text of the article using LLM Sampling (if supported) or NLP
+### Example: explicit trend window
 
-### Choosing a useful Trends window
-
-`get_trends` accepts an explicit `timeframe` and an optional Google Trends category ID (`cat`). Use `get_categories` to discover category IDs. An explicit `timeframe` overrides the legacy `data_mode` hint.
+`get_trends` accepts an explicit `timeframe`. Supplying one is preferable when you need reproducible comparisons.
 
 ```json
 {
@@ -262,45 +220,90 @@ All of the news related tools have an option to summarize the text of the articl
 }
 ```
 
-Supported ranges include standard windows such as `today 12-m` and `today 5-y`, custom intervals such as `today 90-d`, `all`, and exact date ranges such as `2021-01-01 2026-01-01`. Use an explicit range whenever you need reproducible comparisons; do not infer absolute search volume from normalized 0–100 values.
+Supported provider ranges include standard windows such as `today 12-m` and `today 5-y`, relative windows such as `today 90-d`, `all`, and exact date ranges such as `2021-01-01 2026-01-01`.
 
+Google Trends values are normalized interest scores. Do not interpret a 0-100 interest series as absolute search volume.
 
 ## CLI
-MCP tools are exposed through the MCP server. The separate Click CLI currently exposes only the commands shown below, which can be run from the command line using `uv`.
+
+The separate Click CLI exposes a smaller news-oriented command set than the MCP server:
 
 ```bash
-uv run mcp-trendpulse-cli
-Usage: mcp-trendpulse-cli [OPTIONS] COMMAND [ARGS]...
-
-  Find and download news articles using Google News.
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  keyword   Find articles by keyword using Google News.
-  location  Find articles by location using Google News.
-  top       Get top news stories from Google News.
-  topic     Find articles by topic using Google News.
-  trending  Returns google trends for a specific geo location.
+uv run mcp-trendpulse-cli --help
 ```
 
-## Debugging
+Current CLI commands:
+
+```text
+keyword
+location
+top
+topic
+trending
+```
+
+The CLI and MCP surfaces are intentionally documented separately because they do not expose the same command set.
+
+## Development
+
+Install the project with its development dependencies using your preferred Python environment, then run the unit suite:
+
+```bash
+python -m pytest
+```
+
+The default pytest configuration excludes live integration tests.
+
+Run live provider tests explicitly with:
+
+```bash
+python -m pytest tests/integration -m integration
+```
+
+Browser-marked integration tests require Playwright Chromium to be installed.
+
+Run Ruff checks with:
+
+```bash
+ruff check .
+```
+
+## MCP Inspector
+
+Run the published-from-GitHub server through the MCP Inspector:
 
 ```bash
 npx @modelcontextprotocol/inspector uvx --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse
 ```
 
-To run from within locally installed project:
+For a local checkout:
 
 ```bash
-cd path/to/mcp-trendpulse
 npx @modelcontextprotocol/inspector uv run mcp-trendpulse
 ```
 
-## Testing
+## Packaging
 
-```bash
-cd path/to/mcp-trendpulse
-python -m pytest
-```
+A GitHub Actions workflow is already present for building and publishing Python distributions through PyPI Trusted Publishing when a GitHub release is published. Until the first package release exists, use the GitHub `uvx --from ...` command shown above.
+
+## Security notes
+
+Article retrieval is an outbound network feature and is treated as untrusted input. The implementation validates HTTP(S) targets, rejects private and non-routable destinations, checks redirect targets, enforces response-size limits, and applies browser-route validation when Playwright is used.
+
+If you deploy TrendPulse remotely, retain these controls and add deployment-level rate limiting, request timeouts, observability, and resource limits rather than relying only on application defaults.
+
+## Roadmap
+
+Current production-readiness work is focused on:
+
+1. Keeping documentation, packaging metadata, and generated MCP manifests coherent with the live tool surface.
+2. Adding continuous integration for unit tests and static checks.
+3. Separating provider access from TrendPulse's domain logic so providers can be changed without rewriting the MCP layer.
+4. Adding a production remote HTTP transport while preserving local stdio operation.
+5. Designing a smaller high-level hosted tool surface for ChatGPT/Codex.
+6. Integrating the hosted service with the DigestSEO application and operational stack.
+7. Packaging and testing the hosted MCP as an OpenAI plugin only after the service is production-ready.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
