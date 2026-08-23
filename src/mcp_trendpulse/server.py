@@ -10,6 +10,7 @@ from mcp_trendpulse import news
 from mcp_trendpulse.config import load_environment
 from mcp_trendpulse.news import BrowserManager
 from mcp_trendpulse.middleware import ProviderErrorMiddleware
+from mcp_trendpulse.providers import get_provider_set
 from newspaper import settings as newspaper_settings
 from newspaper.article import Article
 from contextlib import asynccontextmanager
@@ -296,7 +297,7 @@ async def get_news_by_keyword(
             except Exception:
                 pass
 
-    articles = await news.get_news_by_keyword(
+    articles = await get_provider_set().news.get_news_by_keyword(
         keyword=keyword,
         period=period,
         max_results=max_results,
@@ -344,7 +345,7 @@ async def get_news_by_location(
             except Exception:
                 pass
 
-    articles = await news.get_news_by_location(
+    articles = await get_provider_set().news.get_news_by_location(
         location=location,
         period=period,
         max_results=max_results,
@@ -389,7 +390,7 @@ async def get_news_by_topic(
             except Exception:
                 pass
 
-    articles = await news.get_news_by_topic(
+    articles = await get_provider_set().news.get_news_by_topic(
         topic=topic,
         period=period,
         max_results=max_results,
@@ -433,7 +434,7 @@ async def get_top_news(
             except Exception:
                 pass
 
-    articles = await news.get_top_news(
+    articles = await get_provider_set().news.get_top_news(
         period=period,
         max_results=max_results,
         nlp=False,
@@ -469,15 +470,17 @@ async def get_trending_terms(
     ] = False,
 ) -> list[TrendingTermOut]:
     if not full_data:
-        trends = await news.get_trending_terms(geo=geo, full_data=False)
+        trends = await get_provider_set().trends.get_trending_terms(geo=geo, full_data=False)
         return [TrendingTermOut(keyword=str(tt["keyword"]), volume=tt["volume"]) for tt in trends]
-    trends = await news.get_trending_terms(geo=geo, full_data=True)
+    trends = await get_provider_set().trends.get_trending_terms(geo=geo, full_data=True)
     trends_out = []
     for trend in trends:
-        trend = trend.__dict__
-        if "news" in trend:
-            trend["news"] = [TrendingTermArticleOut(**article.__dict__) for article in trend["news"]]
-        trends_out.append(TrendingTermOut(**trend))
+        trend_data = dict(trend)
+        if "news" in trend_data:
+            trend_data["news"] = [
+                TrendingTermArticleOut(**article) for article in trend_data["news"]
+            ]
+        trends_out.append(TrendingTermOut(**trend_data))
     return trends_out
 
 
@@ -493,7 +496,7 @@ async def get_trends(
     timeframe: Annotated[Optional[str], Field(description="Explicit TrendsPy range, for example 'today 12-m', 'today 90-d', 'all', or 'YYYY-MM-DD YYYY-MM-DD'. Overrides data_mode when supplied.")] = None,
     cat: Annotated[int, Field(description="Google Trends category ID; use 0 for all categories or a value from get_categories.")] = 0,
 ) -> list[TrendPoint]:
-    results = await news.get_trends(
+    results = await get_provider_set().trends.get_trends(
         keyword=keyword,
         source=source,
         data_mode=data_mode,
@@ -514,7 +517,7 @@ async def get_growth(
     percent_growth: Annotated[Optional[list[str]], Field(description="Timeframes to calculate growth (e.g. ['3M', '1Y']).")] = None,
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
 ) -> list[KeywordGrowthOut]:
-    results = await news.get_growth(
+    results = await get_provider_set().trends.get_growth(
         keyword=keyword,
         source=source,
         percent_growth=percent_growth,
@@ -533,7 +536,7 @@ async def get_ranked_trends(
     limit: Annotated[int, Field(description="Maximum number of trends to return.", ge=1)] = 20,
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
 ) -> list[RankedTrendOut]:
-    results = await news.get_ranked_trends(
+    results = await get_provider_set().trends.get_ranked_trends(
         source=source,
         sort=sort,
         limit=limit,
@@ -554,7 +557,7 @@ async def get_top_trends(
     limit: Annotated[int, Field(description="Maximum number of trends to return.", ge=1)] = 20,
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
 ) -> list[TopTrendOut]:
-    results = await news.get_top_trends(
+    results = await get_provider_set().trends.get_top_trends(
         type=type,
         limit=limit,
         geo=geo
@@ -596,7 +599,7 @@ async def get_news_by_site(
             except Exception:
                 pass
 
-    articles = await news.get_news_by_site(
+    articles = await get_provider_set().news.get_news_by_site(
         site=site,
         period=period,
         max_results=max_results,
@@ -633,9 +636,9 @@ async def get_article_content(
         ),
     ] = True,
 ) -> Optional[ArticleOut]:
-    url = news.validate_article_url(url)
+    url = get_provider_set().news.validate_article_url(url)
     set_newspaper_article_fields(full_data)
-    article = await news.download_article(url)
+    article = await get_provider_set().news.download_article(url)
     if not article:
         return None
     if summarize:
@@ -656,7 +659,7 @@ async def get_interest_by_region(
     resolution: Annotated[str, Field(description="Geographic resolution: 'COUNTRY', 'REGION', 'CITY', or 'DMA'.")] = "REGION",
     inc_low_vol: Annotated[bool, Field(description="Include regions with low search volume.")] = False,
 ) -> list[RegionInterestOut]:
-    results = await news.get_interest_by_region(
+    results = await get_provider_set().trends.get_interest_by_region(
         keywords=keywords,
         timeframe=timeframe,
         geo=geo,
@@ -683,7 +686,7 @@ async def get_related_queries(
     cat: Annotated[int, Field(description="Category ID (default: 0 for all).")] = 0,
     gprop: Annotated[str, Field(description="Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').")] = "",
 ) -> RelatedQueriesOut:
-    results = await news.get_related_queries(
+    results = await get_provider_set().trends.get_related_queries(
         keyword=keyword,
         timeframe=timeframe,
         geo=geo,
@@ -707,7 +710,7 @@ async def get_related_topics(
     cat: Annotated[int, Field(description="Category ID (default: 0 for all).")] = 0,
     gprop: Annotated[str, Field(description="Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').")] = "",
 ) -> RelatedTopicsOut:
-    results = await news.get_related_topics(
+    results = await get_provider_set().trends.get_related_topics(
         keyword=keyword,
         timeframe=timeframe,
         geo=geo,
@@ -728,7 +731,7 @@ async def get_suggestions(
     keyword: Annotated[str, Field(description="Query string to autocomplete.")],
     language: Annotated[Optional[str], Field(description="Language code, e.g. 'en'.")] = None,
 ) -> list[SuggestionItem]:
-    results = await news.get_suggestions(
+    results = await get_provider_set().trends.get_suggestions(
         keyword=keyword,
         language=language,
     )
@@ -740,7 +743,7 @@ async def get_suggestions(
     tags={"trends", "google", "categories"},
 )
 async def get_categories() -> list[CategoryItem]:
-    results = await news.get_categories()
+    results = await get_provider_set().trends.get_categories()
     return [CategoryItem(**item) for item in results]
 
 
