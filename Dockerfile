@@ -13,7 +13,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     NLTK_DATA=/opt/nltk_data \
     HOME=/home/trendpulse \
     TMPDIR=/tmp/trendpulse \
-    TRENDPULSE_BROWSER_SANDBOX=true
+    TRENDPULSE_BROWSER_SANDBOX=true \
+    TRENDPULSE_AUTH_MODE=clerk
 
 WORKDIR /app
 
