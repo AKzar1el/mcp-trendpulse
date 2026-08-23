@@ -70,10 +70,23 @@ jobs:
       - name: Install Python 3.14
         run: uv python install 3.14
 
-      - name: Verify third-party dependencies have Python 3.14 wheels
+      - name: Verify native third-party dependencies have Python 3.14 wheels
         env:
           UV_PYTHON: "3.14"
-        run: uv sync --locked --dev --no-build --no-install-project
+        run: >-
+          uv sync --locked --dev --no-install-project
+          --no-build-package cffi
+          --no-build-package cryptography
+          --no-build-package greenlet
+          --no-build-package lxml
+          --no-build-package numpy
+          --no-build-package pandas
+          --no-build-package pillow
+          --no-build-package pydantic-core
+          --no-build-package pyyaml
+          --no-build-package regex
+          --no-build-package rpds-py
+          --no-build-package selectolax
 
       - name: Install TrendPulse project on Python 3.14
         env:
