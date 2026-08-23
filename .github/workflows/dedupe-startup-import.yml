@@ -1,0 +1,45 @@
+name: Dedupe startup import
+
+on:
+  push:
+    branches:
+      - refactor/startup-environment
+
+permissions:
+  contents: write
+
+jobs:
+  dedupe:
+    if: ${{ !contains(github.event.head_commit.message, '[dedupe-startup-import]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refactor/startup-environment
+
+      - name: Remove duplicate import
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/mcp_trendpulse/server.py")
+          text = path.read_text()
+          duplicate = (
+              "from mcp_trendpulse.config import load_environment\n"
+              "from mcp_trendpulse.config import load_environment\n"
+          )
+          text = text.replace(duplicate, "from mcp_trendpulse.config import load_environment\n")
+          path.write_text(text)
+          PY
+
+      - name: Commit cleanup
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/mcp_trendpulse/server.py
+          git commit -m "fix: dedupe startup environment import [dedupe-startup-import]"
+          git push origin HEAD:refactor/startup-environment
