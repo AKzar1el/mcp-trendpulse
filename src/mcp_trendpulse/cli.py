@@ -1,5 +1,7 @@
 import click
 import asyncio
+
+from mcp_trendpulse.config import load_environment
 from mcp_trendpulse.news import (
     get_news_by_keyword,
     get_news_by_location,
@@ -13,7 +15,7 @@ from mcp_trendpulse.news import (
 
 @click.group()
 def cli():
-    pass
+    load_environment()
 
 
 @cli.command(help=get_news_by_keyword.__doc__)
