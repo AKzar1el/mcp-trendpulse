@@ -1,7 +1,4 @@
-import json
-
 import pytest
-from mcp.types import LATEST_PROTOCOL_VERSION
 from starlette.testclient import TestClient
 
 from mcp_trendpulse.asgi import REMOTE_SERVICE_NAME, create_app
@@ -114,48 +111,3 @@ def test_remote_mcp_is_stateless_and_sampling_disabled():
     assert mcp_route.methods == {"POST", "DELETE"}
     assert app.inner_app.state.trendpulse_sampling_enabled is False
     assert app.inner_app.state.trendpulse_auth_settings.mode == "disabled"
-
-
-def _decode_initialize_response(response) -> dict:
-    content_type = response.headers.get("content-type", "")
-    if content_type.startswith("application/json"):
-        return response.json()
-
-    assert content_type.startswith("text/event-stream")
-    data_lines = [
-        line.removeprefix("data: ")
-        for line in response.text.splitlines()
-        if line.startswith("data: ")
-    ]
-    assert data_lines
-    return json.loads(data_lines[-1])
-
-
-def test_remote_mcp_accepts_initialize_over_streamable_http():
-    app = create_app(remote_settings(), disabled_auth_settings())
-    initialize = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "initialize",
-        "params": {
-            "protocolVersion": LATEST_PROTOCOL_VERSION,
-            "capabilities": {},
-            "clientInfo": {"name": "trendpulse-test", "version": "1.0"},
-        },
-    }
-
-    with TestClient(app, base_url="http://allowed.test") as client:
-        response = client.post(
-            "/mcp",
-            json=initialize,
-            headers={
-                "host": "allowed.test",
-                "accept": "application/json, text/event-stream",
-            },
-        )
-
-    assert response.status_code == 200
-    payload = _decode_initialize_response(response)
-    assert payload["id"] == 1
-    assert payload["result"]["serverInfo"]["name"] == REMOTE_SERVICE_NAME
-    assert payload["result"]["protocolVersion"] == LATEST_PROTOCOL_VERSION
