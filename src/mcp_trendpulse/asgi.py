@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+from time import perf_counter
+
 from mcp.server.transport_security import (
     TransportSecurityMiddleware,
     TransportSecuritySettings,
 )
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from mcp_trendpulse.auth import build_remote_auth_provider
 from mcp_trendpulse.config import (
@@ -19,13 +22,19 @@ from mcp_trendpulse.config import (
     load_environment,
 )
 from mcp_trendpulse.hosted import hosted_mcp
+from mcp_trendpulse.observability import (
+    new_request_id,
+    reset_request_id,
+    set_request_id,
+)
 
 
+logger = logging.getLogger(__name__)
 REMOTE_SERVICE_NAME = "trendpulse-by-digestseo"
 
 
 class TrendPulseRemoteASGI:
-    """Add health endpoints and DNS-rebinding protection around FastMCP HTTP."""
+    """Add health endpoints, request telemetry, and DNS-rebinding protection."""
 
     def __init__(
         self,
@@ -55,35 +64,62 @@ class TrendPulseRemoteASGI:
             return
 
         path = scope.get("path", "")
-        if path == "/health":
-            response = JSONResponse({"status": "ok", "service": REMOTE_SERVICE_NAME})
-            await response(scope, receive, send)
-            return
+        request_id = new_request_id()
+        request_token = set_request_id(request_id)
+        started = perf_counter()
+        status_code = 500
 
-        if path == "/ready":
-            response = JSONResponse(
-                {
-                    "status": "ready",
-                    "service": REMOTE_SERVICE_NAME,
-                    "transport": "streamable-http",
-                    "stateless": True,
-                    "auth": self.auth_settings.mode,
-                }
-            )
-            await response(scope, receive, send)
-            return
+        async def send_with_request_id(message: Message) -> None:
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = int(message["status"])
+                headers = list(message.get("headers", []))
+                if not any(name.lower() == b"x-request-id" for name, _ in headers):
+                    headers.append((b"x-request-id", request_id.encode("ascii")))
+                message = {**message, "headers": headers}
+            await send(message)
 
-        if self._is_mcp_path(path):
-            request = Request(scope, receive=receive)
-            validation_error = await self.security.validate_request(
-                request,
-                is_post=scope.get("method") == "POST",
-            )
-            if validation_error is not None:
-                await validation_error(scope, receive, send)
+        try:
+            if path == "/health":
+                response = JSONResponse({"status": "ok", "service": REMOTE_SERVICE_NAME})
+                await response(scope, receive, send_with_request_id)
                 return
 
-        await self.inner_app(scope, receive, send)
+            if path == "/ready":
+                response = JSONResponse(
+                    {
+                        "status": "ready",
+                        "service": REMOTE_SERVICE_NAME,
+                        "transport": "streamable-http",
+                        "stateless": True,
+                        "auth": self.auth_settings.mode,
+                    }
+                )
+                await response(scope, receive, send_with_request_id)
+                return
+
+            if self._is_mcp_path(path):
+                request = Request(scope, receive=receive)
+                validation_error = await self.security.validate_request(
+                    request,
+                    is_post=scope.get("method") == "POST",
+                )
+                if validation_error is not None:
+                    await validation_error(scope, receive, send_with_request_id)
+                    return
+
+            await self.inner_app(scope, receive, send_with_request_id)
+        finally:
+            if self._is_mcp_path(path):
+                logger.info(
+                    "mcp_http_request request_id=%s method=%s status=%s duration_ms=%.1f auth=%s",
+                    request_id,
+                    scope.get("method", ""),
+                    status_code,
+                    (perf_counter() - started) * 1000,
+                    self.auth_settings.mode,
+                )
+            reset_request_id(request_token)
 
 
 def create_app(
