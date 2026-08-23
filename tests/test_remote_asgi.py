@@ -1,3 +1,6 @@
+import logging
+import re
+
 import pytest
 from starlette.testclient import TestClient
 
@@ -10,6 +13,9 @@ from mcp_trendpulse.config import (
     RemoteHttpSettings,
     get_remote_http_settings,
 )
+
+
+REQUEST_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 
 
 def remote_settings() -> RemoteHttpSettings:
@@ -54,7 +60,7 @@ def test_remote_http_settings_are_fail_closed_and_normalized():
         get_remote_http_settings({"TRENDPULSE_HTTP_ALLOWED_HOSTS": " , "})
 
 
-def test_health_and_readiness_endpoints():
+def test_health_and_readiness_endpoints_have_unique_server_request_ids():
     app = create_app(remote_settings(), disabled_auth_settings())
     with TestClient(app, base_url="http://allowed.test") as client:
         health = client.get("/health")
@@ -70,6 +76,12 @@ def test_health_and_readiness_endpoints():
         "stateless": True,
         "auth": "disabled",
     }
+
+    health_request_id = health.headers["x-request-id"]
+    ready_request_id = ready.headers["x-request-id"]
+    assert REQUEST_ID_PATTERN.fullmatch(health_request_id)
+    assert REQUEST_ID_PATTERN.fullmatch(ready_request_id)
+    assert health_request_id != ready_request_id
 
 
 def test_remote_mcp_rejects_invalid_host_origin_and_content_type():
@@ -98,6 +110,33 @@ def test_remote_mcp_rejects_invalid_host_origin_and_content_type():
     assert invalid_host.status_code == 421
     assert invalid_origin.status_code == 403
     assert invalid_content_type.status_code == 400
+    assert REQUEST_ID_PATTERN.fullmatch(invalid_host.headers["x-request-id"])
+    assert REQUEST_ID_PATTERN.fullmatch(invalid_origin.headers["x-request-id"])
+    assert REQUEST_ID_PATTERN.fullmatch(invalid_content_type.headers["x-request-id"])
+
+
+def test_mcp_http_log_is_bounded_and_does_not_log_request_body(caplog):
+    app = create_app(remote_settings(), disabled_auth_settings())
+    secret = "do-not-log-this-keyword-or-token"
+
+    with caplog.at_level(logging.INFO, logger="mcp_trendpulse.asgi"):
+        with TestClient(app, base_url="http://allowed.test") as client:
+            response = client.post(
+                "/mcp",
+                content=secret,
+                headers={"host": "allowed.test", "content-type": "text/plain"},
+            )
+
+    assert response.status_code == 400
+    records = [record.getMessage() for record in caplog.records if "mcp_http_request" in record.getMessage()]
+    assert len(records) == 1
+    log_line = records[0]
+    assert f"request_id={response.headers['x-request-id']}" in log_line
+    assert "method=POST" in log_line
+    assert "status=400" in log_line
+    assert "auth=disabled" in log_line
+    assert "duration_ms=" in log_line
+    assert secret not in log_line
 
 
 def test_remote_mcp_is_stateless_and_sampling_disabled():
