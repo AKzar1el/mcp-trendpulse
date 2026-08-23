@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 128" role="img" aria-labelledby="title desc">
+  <title id="title">DigestSEO</title>
+  <desc id="desc">DigestSEO</desc>
+  <g transform="translate(0 4)">
+    <rect width="120" height="120" rx="30" fill="#111827"/>
+    <circle cx="52" cy="63" r="28" fill="#fff"/>
+    <rect x="64" y="21" width="16" height="54" fill="#fff"/>
+    <circle cx="52" cy="63" r="15.5" fill="#111827"/>
+    <circle cx="52" cy="63" r="8.25" fill="#2563eb"/>
+    <path d="M75 45h30l-7 12H75z" fill="#2563eb"/>
+    <path d="M75 60h30l-7 12H75z" fill="#7c3aed"/>
+    <path d="M75 75h30l-7 12H75z" fill="#2563eb"/>
+  </g>
+  <text x="142" y="84" fill="#111827" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="62" font-weight="750" letter-spacing="-2">Digest</text>
+  <text x="344" y="84" fill="#2563eb" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="62" font-weight="750" letter-spacing="-2">SEO</text>
+</svg>
