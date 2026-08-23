@@ -4,7 +4,7 @@ import pytest
 from mcp.types import LATEST_PROTOCOL_VERSION
 from starlette.testclient import TestClient
 
-from mcp_trendpulse.asgi import create_app
+from mcp_trendpulse.asgi import REMOTE_SERVICE_NAME, create_app
 from mcp_trendpulse.config import (
     DEFAULT_HTTP_ALLOWED_HOSTS,
     DEFAULT_HTTP_ALLOWED_ORIGINS,
@@ -59,11 +59,11 @@ def test_health_and_readiness_endpoints():
         ready = client.get("/ready")
 
     assert health.status_code == 200
-    assert health.json() == {"status": "ok", "service": "mcp-trendpulse"}
+    assert health.json() == {"status": "ok", "service": REMOTE_SERVICE_NAME}
     assert ready.status_code == 200
     assert ready.json() == {
         "status": "ready",
-        "service": "mcp-trendpulse",
+        "service": REMOTE_SERVICE_NAME,
         "transport": "streamable-http",
         "stateless": True,
     }
@@ -150,5 +150,5 @@ def test_remote_mcp_accepts_initialize_over_streamable_http():
     assert response.status_code == 200
     payload = _decode_initialize_response(response)
     assert payload["id"] == 1
-    assert payload["result"]["serverInfo"]["name"] == "mcp-trendpulse"
+    assert payload["result"]["serverInfo"]["name"] == REMOTE_SERVICE_NAME
     assert payload["result"]["protocolVersion"] == LATEST_PROTOCOL_VERSION
