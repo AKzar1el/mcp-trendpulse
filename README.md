@@ -156,9 +156,11 @@ Cursor supports global and project MCP configuration. Add the server to the rele
 
 ### ChatGPT and other cloud MCP clients
 
-The current entry point is designed for local MCP clients and runs with FastMCP's default transport. Cloud clients such as ChatGPT require a reachable remote MCP server over HTTPS; simply exposing the local stdio process is not the production architecture.
+The repository now includes a dedicated stateless Streamable HTTP ASGI entry point at `mcp_trendpulse.asgi:app`. This is separate from the Community stdio entry point, which remains unchanged.
 
-Remote HTTP transport and the DigestSEO-hosted endpoint are part of the current production-readiness work. Until that work lands, this README intentionally does **not** advertise a public ChatGPT server URL.
+For controlled local/private testing you can run the ASGI app with Uvicorn or use the provided container. See [`deploy/README.md`](deploy/README.md) for the hardened container, Host/Origin allowlists, Chromium sandbox requirements, health/readiness endpoints, and reverse-proxy notes.
+
+The DigestSEO-hosted endpoint and public OpenAI plugin are still **not released**. The remote transport currently has no temporary public authentication layer, so do not expose it directly to the open internet before the planned DigestSEO identity integration.
 
 ## Configuration
 
@@ -173,6 +175,8 @@ GOOGLE_TRENDS_DELAY=2.0
 ```
 
 `GOOGLE_TRENDS_DELAY` controls the request delay used by the current Trends provider. Proxy variables can be useful when the upstream service rate-limits or blocks a particular network.
+
+Remote deployments also support `TRENDPULSE_HTTP_PATH`, `TRENDPULSE_HTTP_ALLOWED_HOSTS`, `TRENDPULSE_HTTP_ALLOWED_ORIGINS`, and `TRENDPULSE_BROWSER_SANDBOX`. The container enables Chromium sandboxing explicitly; local Community runs retain the Playwright-compatible default unless you opt in.
 
 Do not commit secrets, private proxy credentials, or machine-specific `.env` files.
 

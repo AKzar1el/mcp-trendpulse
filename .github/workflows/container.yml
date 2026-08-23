@@ -1,0 +1,111 @@
+name: Container
+
+on:
+  pull_request:
+    paths:
+      - ".dockerignore"
+      - "Dockerfile"
+      - "deploy/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "src/**"
+      - ".github/workflows/container.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".dockerignore"
+      - "Dockerfile"
+      - "deploy/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "src/**"
+      - ".github/workflows/container.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke:
+    name: Build and smoke test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download pinned Playwright seccomp profile
+        run: >-
+          curl --fail --silent --show-error --location
+          https://raw.githubusercontent.com/microsoft/playwright/v1.53.0/utils/docker/seccomp_profile.json
+          --output "${RUNNER_TEMP}/playwright-seccomp.json"
+
+      - name: Build image
+        run: docker build --pull --tag mcp-trendpulse:ci .
+
+      - name: Start container
+        run: |
+          docker run --detach \
+            --name mcp-trendpulse-ci \
+            --init \
+            --ipc=host \
+            --security-opt "seccomp=${RUNNER_TEMP}/playwright-seccomp.json" \
+            --publish 127.0.0.1:18000:8000 \
+            mcp-trendpulse:ci
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          docker logs mcp-trendpulse-ci
+          exit 1
+
+      - name: Verify health and readiness
+        run: |
+          curl --fail --silent http://127.0.0.1:18000/health | grep '"status":"ok"'
+          curl --fail --silent http://127.0.0.1:18000/ready | grep '"status":"ready"'
+
+      - name: Verify non-root runtime and packaged NLP data
+        run: |
+          test "$(docker exec mcp-trendpulse-ci id -u)" = "10001"
+          docker exec mcp-trendpulse-ci python -c "import nltk; nltk.data.find('tokenizers/punkt'); nltk.data.find('tokenizers/punkt_tab')"
+
+      - name: Verify sandboxed Chromium launch
+        run: |
+          docker exec -i mcp-trendpulse-ci python - <<'PY'
+          import asyncio
+
+          from mcp_trendpulse.news import BrowserManager
+
+
+          async def main() -> None:
+              async with BrowserManager():
+                  async with BrowserManager.browser_context() as context:
+                      page = await context.new_page()
+                      await page.set_content("<html><body>container smoke</body></html>")
+                      assert "container smoke" in await page.text_content("body")
+
+
+          asyncio.run(main())
+          PY
+
+      - name: Verify Streamable HTTP initialize
+        run: |
+          curl --fail --silent --show-error \
+            --header 'Accept: application/json, text/event-stream' \
+            --header 'Content-Type: application/json' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"container-smoke","version":"1.0"}}}' \
+            http://127.0.0.1:18000/mcp \
+            --output "${RUNNER_TEMP}/mcp-initialize.out"
+          grep -Eq '"result"|event: message' "${RUNNER_TEMP}/mcp-initialize.out"
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs mcp-trendpulse-ci || true
+
+      - name: Stop container
+        if: always()
+        run: docker rm --force mcp-trendpulse-ci >/dev/null 2>&1 || true

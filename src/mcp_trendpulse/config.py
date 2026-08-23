@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 DEFAULT_GOOGLE_TRENDS_DELAY = 2.0
+DEFAULT_BROWSER_SANDBOX = False
 DEFAULT_HTTP_PATH = "/mcp"
 DEFAULT_HTTP_ALLOWED_HOSTS = ("127.0.0.1:*", "localhost:*", "[::1]:*")
 DEFAULT_HTTP_ALLOWED_ORIGINS = (
@@ -15,6 +16,8 @@ DEFAULT_HTTP_ALLOWED_ORIGINS = (
     "http://localhost:*",
     "http://[::1]:*",
 )
+_TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
+_FALSE_VALUES = frozenset({"0", "false", "no", "off"})
 
 
 @dataclass(frozen=True)
@@ -44,6 +47,27 @@ def get_google_trends_delay(env: Mapping[str, str] | None = None) -> float:
             DEFAULT_GOOGLE_TRENDS_DELAY,
         )
         return DEFAULT_GOOGLE_TRENDS_DELAY
+
+
+def get_browser_sandbox_enabled(env: Mapping[str, str] | None = None) -> bool:
+    """Return whether Playwright should explicitly enable Chromium sandboxing."""
+    source = os.environ if env is None else env
+    raw_value = source.get("TRENDPULSE_BROWSER_SANDBOX")
+    if raw_value is None:
+        return DEFAULT_BROWSER_SANDBOX
+
+    normalized = raw_value.strip().lower()
+    if normalized in _TRUE_VALUES:
+        return True
+    if normalized in _FALSE_VALUES:
+        return False
+
+    logger.warning(
+        "Invalid TRENDPULSE_BROWSER_SANDBOX value %r; using default %s",
+        raw_value,
+        DEFAULT_BROWSER_SANDBOX,
+    )
+    return DEFAULT_BROWSER_SANDBOX
 
 
 def _comma_separated_values(raw_value: str) -> tuple[str, ...]:

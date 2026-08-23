@@ -59,7 +59,9 @@ async def test_browser_manager_can_start_after_a_previous_launch_failure():
     assert BrowserManager._playwright is successful_playwright
     assert BrowserManager._browser is browser
     failed_playwright.stop.assert_awaited_once()
-    successful_playwright.chromium.launch.assert_awaited_once_with(headless=True)
+    successful_playwright.chromium.launch.assert_awaited_once_with(
+        headless=True, chromium_sandbox=False
+    )
 
 
 async def test_browser_manager_successful_start_is_reused():
@@ -75,7 +77,28 @@ async def test_browser_manager_successful_start_is_reused():
         assert await BrowserManager._get_browser() is browser
 
     runner.start.assert_awaited_once()
-    playwright.chromium.launch.assert_awaited_once_with(headless=True)
+    playwright.chromium.launch.assert_awaited_once_with(
+        headless=True, chromium_sandbox=False
+    )
+
+
+async def test_browser_manager_enables_configured_chromium_sandbox():
+    browser = SimpleNamespace(close=AsyncMock())
+    playwright = SimpleNamespace(
+        chromium=SimpleNamespace(launch=AsyncMock(return_value=browser)),
+        stop=AsyncMock(),
+    )
+    runner = SimpleNamespace(start=AsyncMock(return_value=playwright))
+
+    with (
+        patch("mcp_trendpulse.news.async_playwright", return_value=runner),
+        patch("mcp_trendpulse.news.get_browser_sandbox_enabled", return_value=True),
+    ):
+        assert await BrowserManager._get_browser() is browser
+
+    playwright.chromium.launch.assert_awaited_once_with(
+        headless=True, chromium_sandbox=True
+    )
 
 
 async def test_playwright_download_requires_browser_context():
