@@ -8,9 +8,18 @@ permissions:
   contents: read
 
 jobs:
-  dependency-diagnostic:
-    name: Python 3.14 dependency diagnostic
+  test:
+    name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.10.18"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
 
     steps:
       - name: Check out repository
@@ -22,57 +31,13 @@ jobs:
           enable-cache: true
           version: "0.12.5"
 
-      - name: Patch candidate dependency bounds
-        run: |
-          python - <<'PY'
-          from pathlib import Path
+      - name: Install Python
+        run: uv python install ${{ matrix.python-version }}
 
-          path = Path("pyproject.toml")
-          text = path.read_text()
-          text = text.replace(
-              '"lxml[html-clean]>=6.0.0",',
-              '"lxml[html-clean]>=6.1.1",',
-          )
-          text = text.replace(
-              '"newspaper4k>=0.9.3.1",',
-              '"newspaper4k>=0.9.6",',
-          )
-          text = text.replace(
-              '"nltk>=3.9.1",',
-              '"nltk>=3.9.4",',
-          )
-          text = text.replace(
-              '"pydantic>=2.11.7",',
-              '"pydantic>=2.12.0",',
-          )
-          if '"pandas>=' not in text:
-              text = text.replace(
-                  '"nltk>=3.9.4",',
-                  '"nltk>=3.9.4",\n    "pandas>=2.3.0",',
-              )
-          path.write_text(text)
-          PY
-
-      - name: Resolve targeted lock candidate
-        run: >-
-          uv lock
-          --upgrade-package lxml
-          --upgrade-package newspaper4k
-          --upgrade-package nltk
-          --upgrade-package pandas
-          --upgrade-package pillow
-          --upgrade-package pydantic
-          --upgrade-package cffi
-          --upgrade-package pyyaml
-          --upgrade-package regex
-          --upgrade-package selectolax
-
-      - name: Install Python 3.14
-        run: uv python install 3.14
-
-      - name: Verify native third-party dependencies have Python 3.14 wheels
+      - name: Verify native dependencies use wheels on Python 3.14
+        if: matrix.python-version == '3.14'
         env:
-          UV_PYTHON: "3.14"
+          UV_PYTHON: ${{ matrix.python-version }}
         run: >-
           uv sync --locked --dev --no-install-project
           --no-build-package cffi
@@ -87,46 +52,6 @@ jobs:
           --no-build-package regex
           --no-build-package rpds-py
           --no-build-package selectolax
-
-      - name: Install TrendPulse project on Python 3.14
-        env:
-          UV_PYTHON: "3.14"
-        run: uv sync --locked --dev
-
-      - name: Run tests on Python 3.14
-        env:
-          UV_PYTHON: "3.14"
-        run: uv run --locked pytest
-
-      - name: Run Ruff on Python 3.14
-        env:
-          UV_PYTHON: "3.14"
-        run: uv run --locked ruff check .
-
-  test:
-    name: Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version:
-          - "3.10.18"
-          - "3.11"
-          - "3.12"
-          - "3.13"
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
-        with:
-          enable-cache: true
-          version: "0.12.5"
-
-      - name: Install Python
-        run: uv python install ${{ matrix.python-version }}
 
       - name: Sync locked environment
         env:
