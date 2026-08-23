@@ -54,10 +54,19 @@ The production endpoint must expose the configured `/mcp` path, protected-resour
 
 The current Community adapters use libraries that access Google Trends / Google News data without an official Google API credential. The provider boundary is intentionally separate from the hosted MCP surface, so this can be changed for hosted deployments without breaking Community clients.
 
+### Preferred free route: official Google Trends API alpha
+
+Google currently offers an official Google Trends API alpha for approved testers. This is the preferred no-paid-provider route for the hosted Trends adapter because it is Google's supported programmatic interface and is explicitly intended for scalable research, publishing, business, marketing, and SEO use cases.
+
+The alpha is still approval-only. Apply for access and do not implement against guessed or undocumented alpha endpoints before access is granted. Once approved, add a hosted-only adapter behind the existing `TrendsProvider` boundary and verify which high-level tools can be covered by the official API contract before retiring the unofficial hosted Trends path.
+
+The official alpha currently advertises multi-year search-interest history, regular time aggregations, and region/sub-region comparisons. Do not assume it covers every Community capability such as related queries, related topics, real-time trending searches, or news context until the approved API documentation confirms those operations.
+
 Before public submission, satisfy one of these gates:
 
-1. replace the hosted trends/news adapters with an authorized or licensed provider whose terms permit the hosted integration; or
-2. obtain explicit authorization for the current upstream access pattern and retain evidence suitable for review.
+1. use the approved official Google Trends API plus an authorized news/context source for the hosted adapters;
+2. replace the hosted trends/news adapters with another authorized or licensed provider whose terms permit the hosted integration; or
+3. obtain explicit authorization for the current upstream access pattern and retain evidence suitable for review.
 
 Do not rely on the open-source library license alone as evidence that the upstream Google access itself is authorized.
 
