@@ -7,6 +7,7 @@ from fastmcp.server.middleware.error_handling import ErrorHandlingMiddleware
 from pydantic import BaseModel, Field, model_serializer
 from mcp_trendpulse import news
 from mcp_trendpulse.config import load_environment
+from mcp_trendpulse.config import load_environment
 from mcp_trendpulse.news import BrowserManager
 from newspaper import settings as newspaper_settings
 from newspaper.article import Article
