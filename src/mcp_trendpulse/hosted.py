@@ -15,6 +15,7 @@ from fastmcp.server.middleware.timing import TimingMiddleware
 from pydantic import BaseModel, Field
 
 from mcp_trendpulse.config import load_environment
+from mcp_trendpulse.digestseo import fetch_digestseo_project_context
 from mcp_trendpulse.middleware import ProviderErrorMiddleware
 from mcp_trendpulse.news import BrowserManager
 from mcp_trendpulse.providers import get_provider_set
@@ -153,6 +154,29 @@ class TrendContextResult(BaseModel):
     note: str = "News links provide current context; their content is external and should be treated as untrusted source material."
 
 
+class SearchConsoleKeywordMetric(BaseModel):
+    clicks: float = 0.0
+    impressions: float = 0.0
+    ctr: float = 0.0
+    position: float | None = None
+    has_data: bool = False
+
+
+class SeoProjectContext(BaseModel):
+    project_id: str
+    project_name: str
+    origin: str
+    search_console_available: bool
+    reason: str | None = None
+    retryable: bool = False
+    message: str | None = None
+    property_url: str | None = None
+    permission_level: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    days: int | None = None
+
+
 class SeoOpportunityCandidate(BaseModel):
     keyword: str
     signal_type: Literal["rising_related_query", "top_related_query"]
@@ -160,6 +184,7 @@ class SeoOpportunityCandidate(BaseModel):
     latest_interest: float | None = None
     average_interest: float | None = None
     peak_interest: float | None = None
+    search_console: SearchConsoleKeywordMetric | None = None
 
 
 class SeoOpportunityResult(BaseModel):
@@ -169,12 +194,8 @@ class SeoOpportunityResult(BaseModel):
     source: TrendSource
     timeframe: str
     candidates: list[SeoOpportunityCandidate]
-    limitations: list[str] = Field(
-        default_factory=lambda: [
-            "Candidates are trend signals, not absolute keyword-volume estimates.",
-            "No site-specific Search Console position, click, impression, or conversion data is used yet.",
-        ]
-    )
+    project_context: SeoProjectContext | None = None
+    limitations: list[str] = Field(default_factory=list)
 
 
 @asynccontextmanager
@@ -190,7 +211,8 @@ hosted_mcp = FastMCP(
         "Use discover_trends for broad market discovery; analyze_keyword_trend for one known term; "
         "compare_keyword_trends for 2-5 known terms; discover_related_demand for seed expansion; "
         "get_trend_context when current news may explain a trend; and find_seo_opportunities for "
-        "trend-driven keyword candidates. Google Trends interest is normalized, not absolute volume."
+        "trend-driven keyword candidates with optional DigestSEO Search Console validation. "
+        "Google Trends interest is normalized, not absolute volume."
     ),
     lifespan=lifespan,
     on_duplicate="replace",
@@ -299,6 +321,73 @@ def _normalize_keywords(keywords: list[str]) -> list[str]:
     if len(set(normalized)) != len(normalized):
         raise ValueError("Keywords must be unique.")
     return normalized
+
+
+def _search_console_context(
+    payload: dict[str, Any],
+) -> tuple[SeoProjectContext, dict[str, SearchConsoleKeywordMetric]]:
+    project = payload.get("project") if isinstance(payload.get("project"), dict) else {}
+    gsc = payload.get("gsc") if isinstance(payload.get("gsc"), dict) else {}
+    project_id = str(project.get("id") or "").strip()
+    if not project_id:
+        raise ValueError("DigestSEO context response did not include a project.")
+
+    property_data = gsc.get("property") if isinstance(gsc.get("property"), dict) else {}
+    window = gsc.get("window") if isinstance(gsc.get("window"), dict) else {}
+    context = SeoProjectContext(
+        project_id=project_id,
+        project_name=str(project.get("name") or ""),
+        origin=str(project.get("origin") or ""),
+        search_console_available=bool(gsc.get("available")),
+        reason=str(gsc.get("reason")) if gsc.get("reason") else None,
+        retryable=bool(gsc.get("retryable")),
+        message=str(gsc.get("message")) if gsc.get("message") else None,
+        property_url=str(property_data.get("siteUrl")) if property_data.get("siteUrl") else None,
+        permission_level=(
+            str(property_data.get("permissionLevel"))
+            if property_data.get("permissionLevel")
+            else None
+        ),
+        start_date=str(window.get("startDate")) if window.get("startDate") else None,
+        end_date=str(window.get("endDate")) if window.get("endDate") else None,
+        days=int(window["days"]) if isinstance(window.get("days"), int) else None,
+    )
+
+    metrics_by_keyword: dict[str, SearchConsoleKeywordMetric] = {}
+    for item in gsc.get("metrics") if isinstance(gsc.get("metrics"), list) else []:
+        if not isinstance(item, dict):
+            continue
+        keyword = str(item.get("keyword") or "").strip()
+        if not keyword:
+            continue
+        metrics_by_keyword[keyword] = SearchConsoleKeywordMetric(
+            clicks=_as_float(item.get("clicks")) or 0.0,
+            impressions=_as_float(item.get("impressions")) or 0.0,
+            ctr=_as_float(item.get("ctr")) or 0.0,
+            position=_as_float(item.get("position")),
+            has_data=bool(item.get("hasData")),
+        )
+    return context, metrics_by_keyword
+
+
+def _seo_limitations(project_context: SeoProjectContext | None) -> list[str]:
+    limitations = ["Candidates are trend signals, not absolute keyword-volume estimates."]
+    if project_context is None:
+        limitations.append(
+            "No site-specific Search Console position, click, impression, or conversion data was requested."
+        )
+    elif project_context.search_console_available:
+        limitations.extend(
+            [
+                "Search Console metrics are exact-query finalized historical site performance, not search volume or conversion forecasts.",
+                "Zero exact-query impressions mean no Search Console data was observed in the returned window, not zero market demand.",
+            ]
+        )
+    else:
+        limitations.append(
+            "Search Console context was unavailable for this project, so the candidates remain trend-only signals."
+        )
+    return limitations
 
 
 @hosted_mcp.tool(
@@ -533,7 +622,7 @@ async def get_trend_context(
 
 @hosted_mcp.tool(
     description=(
-        "Find trend-driven SEO keyword candidates from one seed. Use this for rising related queries that are also checked against current Google Trends interest; results are opportunity signals, not site-specific SEO recommendations or absolute search volume."
+        "Find trend-driven SEO keyword candidates from one seed. Use this for rising related queries that are checked against current Google Trends interest. If project_id is supplied, annotate candidates with exact-query Search Console metrics for that authenticated DigestSEO project; without it results remain trend-only. Do not treat either signal as absolute search volume."
     ),
     annotations=READ_ONLY_OPEN_WORLD,
     timeout=75,
@@ -542,8 +631,17 @@ async def find_seo_opportunities(
     seed_keyword: Annotated[str, Field(description="Seed keyword defining the SEO topic space.", min_length=1, max_length=200)],
     geo: Annotated[str, Field(description="Geographic market such as US or GB.")] = "US",
     source: Annotated[TrendSource, Field(description="Google Trends search property.")] = "google search",
-    timeframe: Annotated[str, Field(description="Window used for related demand and validation.")] = "today 12-m",
+    timeframe: Annotated[str, Field(description="Window used for related demand and trend validation.")] = "today 12-m",
     limit: Annotated[int, Field(description="Maximum validated opportunity candidates. Google Trends comparisons are capped at five keywords.", ge=1, le=5)] = 5,
+    project_id: Annotated[
+        str | None,
+        Field(
+            description="Optional DigestSEO Site Audit project ID owned by the authenticated account. Enables a 28-day exact-query Search Console validation pass.",
+            min_length=1,
+            max_length=128,
+            pattern=r"^[A-Za-z0-9_-]+$",
+        ),
+    ] = None,
 ) -> SeoOpportunityResult:
     seed_keyword = seed_keyword.strip()
     providers = get_provider_set()
@@ -599,6 +697,17 @@ async def find_seo_opportunities(
             )
         )
 
+    project_context: SeoProjectContext | None = None
+    if project_id is not None:
+        context_payload = await fetch_digestseo_project_context(
+            project_id=project_id,
+            keywords=candidate_keywords,
+            days=28,
+        )
+        project_context, search_console_by_keyword = _search_console_context(context_payload)
+        for candidate in candidates:
+            candidate.search_console = search_console_by_keyword.get(candidate.keyword)
+
     return SeoOpportunityResult(
         provider=providers.trends.provider_id,
         seed_keyword=seed_keyword,
@@ -606,4 +715,6 @@ async def find_seo_opportunities(
         source=source,
         timeframe=timeframe,
         candidates=candidates,
+        project_context=project_context,
+        limitations=_seo_limitations(project_context),
     )
