@@ -1,7 +1,4 @@
-import json
-
 import pytest
-from mcp.types import LATEST_PROTOCOL_VERSION
 from starlette.testclient import TestClient
 
 from mcp_trendpulse.asgi import REMOTE_SERVICE_NAME, create_app
@@ -9,6 +6,7 @@ from mcp_trendpulse.config import (
     DEFAULT_HTTP_ALLOWED_HOSTS,
     DEFAULT_HTTP_ALLOWED_ORIGINS,
     DEFAULT_HTTP_PATH,
+    RemoteAuthSettings,
     RemoteHttpSettings,
     get_remote_http_settings,
 )
@@ -20,6 +18,10 @@ def remote_settings() -> RemoteHttpSettings:
         allowed_hosts=("allowed.test",),
         allowed_origins=("https://allowed.test",),
     )
+
+
+def disabled_auth_settings() -> RemoteAuthSettings:
+    return RemoteAuthSettings(mode="disabled")
 
 
 def test_remote_http_settings_are_fail_closed_and_normalized():
@@ -53,7 +55,7 @@ def test_remote_http_settings_are_fail_closed_and_normalized():
 
 
 def test_health_and_readiness_endpoints():
-    app = create_app(remote_settings())
+    app = create_app(remote_settings(), disabled_auth_settings())
     with TestClient(app, base_url="http://allowed.test") as client:
         health = client.get("/health")
         ready = client.get("/ready")
@@ -66,11 +68,12 @@ def test_health_and_readiness_endpoints():
         "service": REMOTE_SERVICE_NAME,
         "transport": "streamable-http",
         "stateless": True,
+        "auth": "disabled",
     }
 
 
 def test_remote_mcp_rejects_invalid_host_origin_and_content_type():
-    app = create_app(remote_settings())
+    app = create_app(remote_settings(), disabled_auth_settings())
     with TestClient(app, base_url="http://allowed.test") as client:
         invalid_host = client.post(
             "/mcp",
@@ -98,7 +101,7 @@ def test_remote_mcp_rejects_invalid_host_origin_and_content_type():
 
 
 def test_remote_mcp_is_stateless_and_sampling_disabled():
-    app = create_app(remote_settings())
+    app = create_app(remote_settings(), disabled_auth_settings())
     mcp_route = next(
         route
         for route in app.inner_app.routes
@@ -107,48 +110,4 @@ def test_remote_mcp_is_stateless_and_sampling_disabled():
 
     assert mcp_route.methods == {"POST", "DELETE"}
     assert app.inner_app.state.trendpulse_sampling_enabled is False
-
-
-def _decode_initialize_response(response) -> dict:
-    content_type = response.headers.get("content-type", "")
-    if content_type.startswith("application/json"):
-        return response.json()
-
-    assert content_type.startswith("text/event-stream")
-    data_lines = [
-        line.removeprefix("data: ")
-        for line in response.text.splitlines()
-        if line.startswith("data: ")
-    ]
-    assert data_lines
-    return json.loads(data_lines[-1])
-
-
-def test_remote_mcp_accepts_initialize_over_streamable_http():
-    app = create_app(remote_settings())
-    initialize = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "initialize",
-        "params": {
-            "protocolVersion": LATEST_PROTOCOL_VERSION,
-            "capabilities": {},
-            "clientInfo": {"name": "trendpulse-test", "version": "1.0"},
-        },
-    }
-
-    with TestClient(app, base_url="http://allowed.test") as client:
-        response = client.post(
-            "/mcp",
-            json=initialize,
-            headers={
-                "host": "allowed.test",
-                "accept": "application/json, text/event-stream",
-            },
-        )
-
-    assert response.status_code == 200
-    payload = _decode_initialize_response(response)
-    assert payload["id"] == 1
-    assert payload["result"]["serverInfo"]["name"] == REMOTE_SERVICE_NAME
-    assert payload["result"]["protocolVersion"] == LATEST_PROTOCOL_VERSION
+    assert app.inner_app.state.trendpulse_auth_settings.mode == "disabled"

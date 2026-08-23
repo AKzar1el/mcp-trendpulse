@@ -10,8 +10,11 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from mcp_trendpulse.auth import build_remote_auth_provider
 from mcp_trendpulse.config import (
+    RemoteAuthSettings,
     RemoteHttpSettings,
+    get_remote_auth_settings,
     get_remote_http_settings,
     load_environment,
 )
@@ -24,9 +27,15 @@ REMOTE_SERVICE_NAME = "trendpulse-by-digestseo"
 class TrendPulseRemoteASGI:
     """Add health endpoints and DNS-rebinding protection around FastMCP HTTP."""
 
-    def __init__(self, inner_app: ASGIApp, settings: RemoteHttpSettings):
+    def __init__(
+        self,
+        inner_app: ASGIApp,
+        settings: RemoteHttpSettings,
+        auth_settings: RemoteAuthSettings,
+    ):
         self.inner_app = inner_app
         self.settings = settings
+        self.auth_settings = auth_settings
         self.security = TransportSecurityMiddleware(
             TransportSecuritySettings(
                 enable_dns_rebinding_protection=True,
@@ -58,6 +67,7 @@ class TrendPulseRemoteASGI:
                     "service": REMOTE_SERVICE_NAME,
                     "transport": "streamable-http",
                     "stateless": True,
+                    "auth": self.auth_settings.mode,
                 }
             )
             await response(scope, receive, send)
@@ -76,20 +86,34 @@ class TrendPulseRemoteASGI:
         await self.inner_app(scope, receive, send)
 
 
-def create_app(settings: RemoteHttpSettings | None = None) -> TrendPulseRemoteASGI:
+def create_app(
+    settings: RemoteHttpSettings | None = None,
+    auth_settings: RemoteAuthSettings | None = None,
+) -> TrendPulseRemoteASGI:
     """Create the stateless hosted MCP application without changing local stdio."""
-    if settings is None:
+    if settings is None or auth_settings is None:
         load_environment()
+    if settings is None:
         settings = get_remote_http_settings()
+    if auth_settings is None:
+        auth_settings = get_remote_auth_settings()
 
-    mcp_app = hosted_mcp.http_app(
-        path=settings.path,
-        transport="streamable-http",
-        stateless_http=True,
-    )
+    auth_provider = build_remote_auth_provider(auth_settings)
+    previous_auth = hosted_mcp.auth
+    hosted_mcp.auth = auth_provider
+    try:
+        mcp_app = hosted_mcp.http_app(
+            path=settings.path,
+            transport="streamable-http",
+            stateless_http=True,
+        )
+    finally:
+        hosted_mcp.auth = previous_auth
+
     mcp_app.state.trendpulse_sampling_enabled = False
     mcp_app.state.trendpulse_remote_settings = settings
-    return TrendPulseRemoteASGI(mcp_app, settings)
+    mcp_app.state.trendpulse_auth_settings = auth_settings
+    return TrendPulseRemoteASGI(mcp_app, settings, auth_settings)
 
 
 app = create_app()

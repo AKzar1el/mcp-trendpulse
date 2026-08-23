@@ -2,6 +2,7 @@ import logging
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 
@@ -16,6 +17,8 @@ DEFAULT_HTTP_ALLOWED_ORIGINS = (
     "http://localhost:*",
     "http://[::1]:*",
 )
+DEFAULT_AUTH_MODE = "disabled"
+CLERK_OAUTH_SCOPES = ("openid", "profile", "email", "offline_access")
 _TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
 _FALSE_VALUES = frozenset({"0", "false", "no", "off"})
 
@@ -27,6 +30,17 @@ class RemoteHttpSettings:
     path: str
     allowed_hosts: tuple[str, ...]
     allowed_origins: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class RemoteAuthSettings:
+    """Authentication configuration for the hosted remote MCP."""
+
+    mode: str
+    issuer: str | None = None
+    jwks_uri: str | None = None
+    audience: tuple[str, ...] = ()
+    public_base_url: str | None = None
 
 
 def load_environment() -> None:
@@ -83,6 +97,18 @@ def _normalize_http_path(raw_path: str) -> str:
     return path
 
 
+def _https_url(name: str, raw_value: str, *, origin_only: bool = False) -> str:
+    value = raw_value.strip().rstrip("/")
+    parsed = urlsplit(value)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ValueError(f"{name} must be an absolute HTTPS URL.")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError(f"{name} must not include credentials, a query, or a fragment.")
+    if origin_only and parsed.path not in {"", "/"}:
+        raise ValueError(f"{name} must be an HTTPS origin without a path.")
+    return value
+
+
 def get_remote_http_settings(env: Mapping[str, str] | None = None) -> RemoteHttpSettings:
     """Read fail-closed settings for the remote Streamable HTTP entry point."""
     source = os.environ if env is None else env
@@ -105,4 +131,51 @@ def get_remote_http_settings(env: Mapping[str, str] | None = None) -> RemoteHttp
         path=path,
         allowed_hosts=allowed_hosts,
         allowed_origins=allowed_origins,
+    )
+
+
+def get_remote_auth_settings(env: Mapping[str, str] | None = None) -> RemoteAuthSettings:
+    """Read explicit hosted-MCP authentication settings.
+
+    Local/private development defaults to disabled auth. The production container
+    overrides this default to ``clerk`` so missing OAuth configuration fails startup.
+    """
+    source = os.environ if env is None else env
+    mode = source.get("TRENDPULSE_AUTH_MODE", DEFAULT_AUTH_MODE).strip().lower()
+    if mode == "disabled":
+        return RemoteAuthSettings(mode=mode)
+    if mode != "clerk":
+        raise ValueError("TRENDPULSE_AUTH_MODE must be 'disabled' or 'clerk'.")
+
+    issuer_raw = source.get("TRENDPULSE_CLERK_ISSUER", "")
+    public_base_raw = source.get("TRENDPULSE_PUBLIC_BASE_URL", "")
+    if not issuer_raw:
+        raise ValueError("TRENDPULSE_CLERK_ISSUER is required when Clerk auth is enabled.")
+    if not public_base_raw:
+        raise ValueError("TRENDPULSE_PUBLIC_BASE_URL is required when Clerk auth is enabled.")
+
+    issuer = _https_url("TRENDPULSE_CLERK_ISSUER", issuer_raw)
+    public_base_url = _https_url(
+        "TRENDPULSE_PUBLIC_BASE_URL",
+        public_base_raw,
+        origin_only=True,
+    )
+    jwks_raw = source.get(
+        "TRENDPULSE_CLERK_JWKS_URI",
+        f"{issuer}/.well-known/jwks.json",
+    )
+    jwks_uri = _https_url("TRENDPULSE_CLERK_JWKS_URI", jwks_raw)
+
+    audience = _comma_separated_values(source.get("TRENDPULSE_CLERK_AUDIENCE", ""))
+    if not audience:
+        raise ValueError(
+            "TRENDPULSE_CLERK_AUDIENCE must contain the OAuth client ID when Clerk auth is enabled."
+        )
+
+    return RemoteAuthSettings(
+        mode=mode,
+        issuer=issuer,
+        jwks_uri=jwks_uri,
+        audience=audience,
+        public_base_url=public_base_url,
     )
