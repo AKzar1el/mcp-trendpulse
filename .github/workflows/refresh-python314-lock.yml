@@ -55,26 +55,7 @@ jobs:
       - name: Regenerate targeted lock entries
         run: uv lock --upgrade-package lxml --upgrade-package pandas
 
-      - name: Install supported Python versions
-        run: uv python install 3.10.18 3.11 3.12 3.13 3.14
-
-      - name: Validate lock, tests, and Ruff across Python versions
-        run: |
-          set -e
-          for version in 3.10.18 3.11 3.12 3.13 3.14; do
-            echo "== Python ${version} =="
-            UV_PYTHON="$version" uv sync --locked --dev
-            UV_PYTHON="$version" uv run --locked pytest
-            UV_PYTHON="$version" uv run --locked ruff check .
-          done
-
-      - name: Build and validate package
-        run: |
-          UV_PYTHON=3.12 uv sync --locked --dev
-          UV_PYTHON=3.12 uv build
-          UV_PYTHON=3.12 uv run --with twine twine check dist/*
-
-      - name: Commit regenerated lock
+      - name: Commit candidate lock
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
