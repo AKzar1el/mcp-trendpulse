@@ -6,7 +6,6 @@ It uses the `gnews` library to search for news articles and trendspy to get Goog
 It will fallback to using Playwright for websites that are difficult to scrape with newspaper4k or cloudscraper.
 """
 
-import os
 import re
 import json
 import asyncio
@@ -27,27 +26,41 @@ import logging
 from collections.abc import Callable
 from urllib.parse import urljoin, urlsplit
 
+from mcp_trendpulse.config import get_google_trends_delay
+
 logger = logging.getLogger(__name__)
 
 for logname in logging.root.manager.loggerDict:
     if logname.startswith("newspaper"):
         logging.getLogger(logname).setLevel(logging.ERROR)
 
-try:
-    google_trends_delay = float(os.environ.get("GOOGLE_TRENDS_DELAY", "2.0"))
-except ValueError:
-    logger.warning("Invalid GOOGLE_TRENDS_DELAY environment variable, using default 2.0")
-    google_trends_delay = 2.0
-
-tr = Trends(request_delay=google_trends_delay)
-
 _scraper_local = threading.local()
+_trends_local = threading.local()
 
 _INVALID_TREND_VOLUME = -1
 _TREND_VOLUME_PATTERN = re.compile(
     r"^(?P<number>(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)(?P<suffix>[KMB])?\+?$",
     re.IGNORECASE,
 )
+
+
+def _get_trends_client() -> Trends:
+    """Return one lazily-created TrendSpy client per worker thread."""
+    client = getattr(_trends_local, "instance", None)
+    if client is None:
+        client = Trends(request_delay=get_google_trends_delay())
+        _trends_local.instance = client
+    return client
+
+
+class _ThreadLocalTrendsProxy:
+    """Resolve TrendSpy attributes against the client owned by the current thread."""
+
+    def __getattr__(self, name: str):
+        return getattr(_get_trends_client(), name)
+
+
+tr = _ThreadLocalTrendsProxy()
 
 
 def parse_trending_volume(volume: object) -> int:
@@ -573,7 +586,10 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
     Returns google trends for a specific geo location.
     """
     try:
-        trends = cast(list[TrendKeywordLite], tr.trending_now_by_rss(geo=geo))
+        trends = cast(
+            list[TrendKeywordLite],
+            await asyncio.to_thread(lambda: tr.trending_now_by_rss(geo=geo)),
+        )
         trends = sorted(trends, key=lambda trend: parse_trending_volume(trend.volume), reverse=True)
         if not full_data:
             return [{"keyword": trend.keyword, "volume": trend.volume} for trend in trends]
