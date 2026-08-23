@@ -33,6 +33,10 @@ jobs:
               '"lxml[html-clean]>=6.0.0",',
               '"lxml[html-clean]>=6.1.1",',
           )
+          text = text.replace(
+              '"pydantic>=2.11.7",',
+              '"pydantic>=2.12.0",',
+          )
           if '"pandas>=' not in text:
               text = text.replace(
                   '"nltk>=3.9.1",',
@@ -42,7 +46,7 @@ jobs:
           PY
 
       - name: Resolve targeted lock candidate
-        run: uv lock --upgrade-package lxml --upgrade-package pandas --upgrade-package pillow
+        run: uv lock --upgrade-package lxml --upgrade-package pandas --upgrade-package pillow --upgrade-package pydantic
 
       - name: Install Python 3.14
         run: uv python install 3.14
