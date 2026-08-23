@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, model_serializer
 from mcp_trendpulse import news
 from mcp_trendpulse.config import load_environment
 from mcp_trendpulse.news import BrowserManager
+from mcp_trendpulse.middleware import ProviderErrorMiddleware
 from newspaper import settings as newspaper_settings
 from newspaper.article import Article
 from contextlib import asynccontextmanager
@@ -156,6 +157,7 @@ mcp = FastMCP(
     on_duplicate="replace",
 )
 
+mcp.add_middleware(ProviderErrorMiddleware())
 mcp.add_middleware(ErrorHandlingMiddleware())  # Handle errors first
 mcp.add_middleware(RateLimitingMiddleware(max_requests_per_second=50))
 mcp.add_middleware(TimingMiddleware())  # Time actual execution

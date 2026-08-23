@@ -27,6 +27,7 @@ from collections.abc import Callable
 from urllib.parse import urljoin, urlsplit
 
 from mcp_trendpulse.config import get_google_trends_delay
+from mcp_trendpulse.errors import ProviderError, classify_provider_exception
 
 logger = logging.getLogger(__name__)
 
@@ -54,10 +55,26 @@ def _get_trends_client() -> Trends:
 
 
 class _ThreadLocalTrendsProxy:
-    """Resolve TrendSpy attributes against the client owned by the current thread."""
+    """Resolve TrendSpy attributes and normalize provider failures per worker thread."""
 
     def __getattr__(self, name: str):
-        return getattr(_get_trends_client(), name)
+        attribute = getattr(_get_trends_client(), name)
+        if not callable(attribute):
+            return attribute
+
+        def provider_call(*args, **kwargs):
+            try:
+                return attribute(*args, **kwargs)
+            except (ProviderError, ValueError, TypeError):
+                raise
+            except Exception as exc:
+                raise classify_provider_exception(
+                    exc,
+                    provider="google_trends",
+                    operation=name,
+                ) from exc
+
+        return provider_call
 
 
 tr = _ThreadLocalTrendsProxy()
@@ -112,6 +129,20 @@ def _new_google_news(period: int, max_results: int) -> GNews:
 
 
 ProgressCallback = Callable[[float, Optional[float]], Awaitable[None]]
+
+def _call_google_news(client: GNews, operation: str, *args, **kwargs):
+    """Run one GNews operation and normalize upstream failures."""
+    try:
+        return getattr(client, operation)(*args, **kwargs)
+    except (ProviderError, ValueError, TypeError):
+        raise
+    except Exception as exc:
+        raise classify_provider_exception(
+            exc,
+            provider="google_news",
+            operation=operation,
+        ) from exc
+
 
 _ALLOWED_ARTICLE_URL_SCHEMES = {"http", "https"}
 _MAX_ARTICLE_REDIRECTS = 10
@@ -507,7 +538,7 @@ async def get_news_by_keyword(
     Find articles by keyword using Google News.
     """
     google_news = _new_google_news(period, max_results)
-    gnews_articles = await asyncio.to_thread(google_news.get_news, keyword)
+    gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news", keyword)
     if not gnews_articles:
         logger.debug(f"No articles found for keyword '{keyword}' in the last {period} days.")
         return []
@@ -524,7 +555,7 @@ async def get_top_news(
     Get top news stories from Google News.
     """
     google_news = _new_google_news(period, max_results)
-    gnews_articles = await asyncio.to_thread(google_news.get_top_news)
+    gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_top_news")
     if not gnews_articles:
         logger.debug("No top news articles found.")
         return []
@@ -540,7 +571,7 @@ async def get_news_by_location(
 ) -> list[newspaper.Article]:
     """Find articles by location using Google News."""
     google_news = _new_google_news(period, max_results)
-    gnews_articles = await asyncio.to_thread(google_news.get_news_by_location, location)
+    gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news_by_location", location)
     if not gnews_articles:
         logger.debug(f"No articles found for location '{location}' in the last {period} days.")
         return []
@@ -566,7 +597,7 @@ async def get_news_by_topic(
     VEHICLES, ARTS-DESIGN, BEAUTY, FOOD, TRAVEL, SHOPPING, HOME, OUTDOORS, FASHION.
     """
     google_news = _new_google_news(period, max_results)
-    gnews_articles = await asyncio.to_thread(google_news.get_news_by_topic, topic)
+    gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news_by_topic", topic)
     if not gnews_articles:
         logger.debug(f"No articles found for topic '{topic}' in the last {period} days.")
         return []
@@ -585,18 +616,14 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
     """
     Returns google trends for a specific geo location.
     """
-    try:
-        trends = cast(
-            list[TrendKeywordLite],
-            await asyncio.to_thread(lambda: tr.trending_now_by_rss(geo=geo)),
-        )
-        trends = sorted(trends, key=lambda trend: parse_trending_volume(trend.volume), reverse=True)
-        if not full_data:
-            return [{"keyword": trend.keyword, "volume": trend.volume} for trend in trends]
-        return trends
-    except Exception as e:
-        logger.warning(f"Error fetching trending terms: {e}")
-        return []
+    trends = cast(
+        list[TrendKeywordLite],
+        await asyncio.to_thread(lambda: tr.trending_now_by_rss(geo=geo)),
+    )
+    trends = sorted(trends, key=lambda trend: parse_trending_volume(trend.volume), reverse=True)
+    if not full_data:
+        return [{"keyword": trend.keyword, "volume": trend.volume} for trend in trends]
+    return trends
 
 
 def save_article_to_json(article: newspaper.Article, filename: Optional[str] = None) -> None:
@@ -928,7 +955,7 @@ async def get_news_by_site(
 ) -> list[newspaper.Article]:
     """Find articles from a specific publisher site using Google News."""
     google_news = _new_google_news(period, max_results)
-    gnews_articles = await asyncio.to_thread(google_news.get_news_by_site, site)
+    gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news_by_site", site)
     if not gnews_articles:
         logger.debug(f"No articles found for site '{site}' in the last {period} days.")
         return []
