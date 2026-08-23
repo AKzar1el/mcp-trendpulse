@@ -6,7 +6,7 @@
 
 **TrendPulse** is a Python Model Context Protocol (MCP) server for researching current news and search-interest trends. It combines Google News discovery and article extraction with Google Trends analysis so MCP clients can inspect what is trending, compare keyword momentum, explore related demand, and add current-news context to research workflows.
 
-The project currently ships as a **community/self-hosted MCP server**. A separate **hosted TrendPulse by DigestSEO** integration is being developed for remote MCP clients such as ChatGPT and Codex. The hosted layer will use a smaller, goal-oriented public tool surface while the community server keeps the full low-level research toolkit available to developers.
+The project currently ships as a **community/self-hosted MCP server** and also contains the implementation for a separate **hosted TrendPulse by DigestSEO** surface for remote MCP clients such as ChatGPT and Codex. The hosted layer uses a smaller, goal-oriented tool surface while the community server keeps the full low-level research toolkit available to developers.
 
 > **Project status:** the local/community server is usable today. The DigestSEO-hosted MCP and public OpenAI plugin are not released yet and should not be treated as available endpoints.
 
@@ -41,7 +41,7 @@ TrendPulse is being developed with two deliberate surfaces:
 
 The community server remains useful independently. The hosted edition will reuse the same core trend-research concepts while adding the deployment, reliability, authentication, observability, and product integration needed for a managed service.
 
-The planned public tool surface is intentionally higher level than the community API and is expected to center on goals such as:
+The implemented hosted tool surface is intentionally higher level than the community API and centers on goals such as:
 
 - `discover_trends`
 - `analyze_keyword_trend`
@@ -50,7 +50,7 @@ The planned public tool surface is intentionally higher level than the community
 - `get_trend_context`
 - `find_seo_opportunities`
 
-These names describe the planned hosted/plugin interface; they are **not** current community MCP tool names yet.
+These names describe the hosted ChatGPT Apps/MCP interface; they remain separate from the current Community MCP tool names.
 
 ## Installation
 
@@ -160,7 +160,7 @@ The repository now includes a dedicated stateless Streamable HTTP ASGI entry poi
 
 For controlled local/private testing you can run the ASGI app with Uvicorn or use the provided container. See [`deploy/README.md`](deploy/README.md) for the hardened container, Host/Origin allowlists, Chromium sandbox requirements, health/readiness endpoints, and reverse-proxy notes.
 
-The DigestSEO-hosted endpoint and public OpenAI plugin are still **not released**. The remote transport currently has no temporary public authentication layer, so do not expose it directly to the open internet before the planned DigestSEO identity integration.
+The DigestSEO-hosted endpoint and public ChatGPT app are still **not released**. Hosted deployments now support fail-closed Clerk OAuth authentication; do not expose the remote transport publicly unless Clerk issuer/JWKS/audience settings, the public base URL, and the Host/Origin allowlists are configured for that deployment.
 
 ## Configuration
 
