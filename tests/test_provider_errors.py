@@ -64,7 +64,7 @@ async def test_google_trends_rate_limit_is_not_reported_as_empty_results(monkeyp
         def trending_now_by_rss(self, *, geo):
             raise RateLimitError()
 
-    monkeypatch.setattr(news, "tr", FailingTrends())
+    monkeypatch.setattr(news, "_get_trends_client", lambda: FailingTrends())
 
     with pytest.raises(ProviderRateLimitError) as exc_info:
         await news.get_trending_terms("US")
@@ -79,7 +79,7 @@ async def test_empty_provider_result_remains_a_successful_empty_result(monkeypat
         def trending_now_by_rss(self, *, geo):
             return []
 
-    monkeypatch.setattr(news, "tr", EmptyTrends())
+    monkeypatch.setattr(news, "_get_trends_client", lambda: EmptyTrends())
 
     assert await news.get_trending_terms("US") == []
 
