@@ -52,13 +52,24 @@ jobs:
           ci_path.write_text(ci)
           PY
 
-      - name: Regenerate targeted lock entries
-        run: uv lock --upgrade-package lxml --upgrade-package pandas
+      - name: Regenerate targeted lock entries and capture diagnostics
+        id: lock
+        shell: bash
+        run: |
+          set +e
+          uv lock --upgrade-package lxml --upgrade-package pandas > lock-refresh.log 2>&1
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          cat lock-refresh.log
+          exit 0
 
-      - name: Commit candidate lock
+      - name: Commit candidate or diagnostics
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pyproject.toml uv.lock .github/workflows/ci.yml
-          git commit -m "chore: refresh dependencies for Python 3.14 [lock-refresh]"
+          git add pyproject.toml .github/workflows/ci.yml lock-refresh.log
+          if [ "${{ steps.lock.outputs.status }}" = "0" ]; then
+            git add uv.lock
+          fi
+          git commit -m "chore: capture Python 3.14 lock candidate [lock-refresh]"
           git push origin HEAD:chore/dependency-refresh-python314
