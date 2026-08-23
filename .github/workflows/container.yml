@@ -50,6 +50,7 @@ jobs:
             --init \
             --ipc=host \
             --security-opt "seccomp=${RUNNER_TEMP}/playwright-seccomp.json" \
+            --env TRENDPULSE_AUTH_MODE=disabled \
             --publish 127.0.0.1:18000:8000 \
             mcp-trendpulse:ci
 
@@ -67,6 +68,7 @@ jobs:
         run: |
           curl --fail --silent http://127.0.0.1:18000/health | grep '"status":"ok"'
           curl --fail --silent http://127.0.0.1:18000/ready | grep '"status":"ready"'
+          curl --fail --silent http://127.0.0.1:18000/ready | grep '"auth":"disabled"'
 
       - name: Verify non-root runtime and packaged NLP data
         run: |
