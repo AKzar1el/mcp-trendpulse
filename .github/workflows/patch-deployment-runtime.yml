@@ -1,0 +1,92 @@
+name: Patch deployment runtime
+
+on:
+  push:
+    branches:
+      - chore/remote-deployment-packaging
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[deployment-runtime-patch]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: chore/remote-deployment-packaging
+
+      - name: Apply runtime and documentation patches
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          news_path = Path("src/mcp_trendpulse/news.py")
+          news = news_path.read_text()
+          old_import = "from mcp_trendpulse.config import get_google_trends_delay\n"
+          new_import = (
+              "from mcp_trendpulse.config import "
+              "get_browser_sandbox_enabled, get_google_trends_delay\n"
+          )
+          if old_import in news:
+              news = news.replace(old_import, new_import, 1)
+          else:
+              assert new_import in news
+
+          old_launch = "cls._browser = await cls._playwright.chromium.launch(headless=True)"
+          new_launch = (
+              "cls._browser = await cls._playwright.chromium.launch(\n"
+              "                            headless=True,\n"
+              "                            chromium_sandbox=get_browser_sandbox_enabled(),\n"
+              "                        )"
+          )
+          if old_launch in news:
+              news = news.replace(old_launch, new_launch, 1)
+          else:
+              assert new_launch in news
+          news_path.write_text(news)
+
+          test_path = Path("tests/test_browser_manager.py")
+          tests = test_path.read_text()
+          tests = tests.replace(
+              "playwright.chromium.launch.assert_awaited_once_with(headless=True)",
+              "playwright.chromium.launch.assert_awaited_once_with(\n"
+              "        headless=True, chromium_sandbox=False\n"
+              "    )",
+          )
+          sandbox_test = '''\n\nasync def test_browser_manager_enables_configured_chromium_sandbox():\n    browser = SimpleNamespace(close=AsyncMock())\n    playwright = SimpleNamespace(\n        chromium=SimpleNamespace(launch=AsyncMock(return_value=browser)),\n        stop=AsyncMock(),\n    )\n    runner = SimpleNamespace(start=AsyncMock(return_value=playwright))\n\n    with (\n        patch("mcp_trendpulse.news.async_playwright", return_value=runner),\n        patch("mcp_trendpulse.news.get_browser_sandbox_enabled", return_value=True),\n    ):\n        assert await BrowserManager._get_browser() is browser\n\n    playwright.chromium.launch.assert_awaited_once_with(\n        headless=True, chromium_sandbox=True\n    )\n'''
+          marker = "\n\nasync def test_playwright_download_requires_browser_context():\n"
+          if "test_browser_manager_enables_configured_chromium_sandbox" not in tests:
+              assert marker in tests
+              tests = tests.replace(marker, sandbox_test + marker, 1)
+          test_path.write_text(tests)
+
+          readme_path = Path("README.md")
+          readme = readme_path.read_text()
+          old_remote = '''### ChatGPT and other cloud MCP clients\n\nThe current entry point is designed for local MCP clients and runs with FastMCP's default transport. Cloud clients such as ChatGPT require a reachable remote MCP server over HTTPS; simply exposing the local stdio process is not the production architecture.\n\nRemote HTTP transport and the DigestSEO-hosted endpoint are part of the current production-readiness work. Until that work lands, this README intentionally does **not** advertise a public ChatGPT server URL.\n'''
+          new_remote = '''### ChatGPT and other cloud MCP clients\n\nThe repository now includes a dedicated stateless Streamable HTTP ASGI entry point at `mcp_trendpulse.asgi:app`. This is separate from the Community stdio entry point, which remains unchanged.\n\nFor controlled local/private testing you can run the ASGI app with Uvicorn or use the provided container. See [`deploy/README.md`](deploy/README.md) for the hardened container, Host/Origin allowlists, Chromium sandbox requirements, health/readiness endpoints, and reverse-proxy notes.\n\nThe DigestSEO-hosted endpoint and public OpenAI plugin are still **not released**. The remote transport currently has no temporary public authentication layer, so do not expose it directly to the open internet before the planned DigestSEO identity integration.\n'''
+          if old_remote in readme:
+              readme = readme.replace(old_remote, new_remote, 1)
+          else:
+              assert new_remote in readme
+
+          config_marker = "`GOOGLE_TRENDS_DELAY` controls the request delay used by the current Trends provider. Proxy variables can be useful when the upstream service rate-limits or blocks a particular network.\n"
+          config_replacement = config_marker + "\nRemote deployments also support `TRENDPULSE_HTTP_PATH`, `TRENDPULSE_HTTP_ALLOWED_HOSTS`, `TRENDPULSE_HTTP_ALLOWED_ORIGINS`, and `TRENDPULSE_BROWSER_SANDBOX`. The container enables Chromium sandboxing explicitly; local Community runs retain the Playwright-compatible default unless you opt in.\n"
+          if config_replacement not in readme:
+              assert config_marker in readme
+              readme = readme.replace(config_marker, config_replacement, 1)
+          readme_path.write_text(readme)
+          PY
+
+      - name: Commit patched files
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/mcp_trendpulse/news.py tests/test_browser_manager.py README.md
+          git commit -m "deploy: enable sandboxed Chromium for hosted container [deployment-runtime-patch]"
+          git push origin HEAD:chore/remote-deployment-packaging
