@@ -210,7 +210,7 @@ def can_use_llm_sampling(ctx: Context) -> bool:
     """Allow sampling locally while disabling it for the stateless hosted app."""
     if not is_session_active(ctx):
         return False
-    if ctx.transport != "streamable-http":
+    if getattr(ctx, "transport", "stdio") != "streamable-http":
         return True
     try:
         request = get_http_request()
