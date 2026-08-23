@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   refresh:
-    if: ${{ !contains(github.event.head_commit.message, '[lock-refresh]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[final-lock]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out branch
@@ -24,52 +24,55 @@ jobs:
           version: "0.12.5"
           enable-cache: true
 
-      - name: Patch direct dependencies and CI matrix
+      - name: Apply validated dependency floors
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          pyproject_path = Path("pyproject.toml")
-          pyproject = pyproject_path.read_text()
-          pyproject = pyproject.replace(
+          path = Path("pyproject.toml")
+          text = path.read_text()
+          text = text.replace(
               '"lxml[html-clean]>=6.0.0",',
               '"lxml[html-clean]>=6.1.1",',
           )
-          if '"pandas>=' not in pyproject:
-              pyproject = pyproject.replace(
-                  '"nltk>=3.9.1",',
-                  '"nltk>=3.9.1",\n    "pandas>=2.3.0",',
+          text = text.replace(
+              '"newspaper4k>=0.9.3.1",',
+              '"newspaper4k>=0.9.6",',
+          )
+          text = text.replace(
+              '"nltk>=3.9.1",',
+              '"nltk>=3.9.4",',
+          )
+          text = text.replace(
+              '"pydantic>=2.11.7",',
+              '"pydantic>=2.12.0",',
+          )
+          if '"pandas>=' not in text:
+              text = text.replace(
+                  '"nltk>=3.9.4",',
+                  '"nltk>=3.9.4",\n    "pandas>=2.3.0",',
               )
-          pyproject_path.write_text(pyproject)
-
-          ci_path = Path(".github/workflows/ci.yml")
-          ci = ci_path.read_text()
-          if '          - "3.14"' not in ci:
-              ci = ci.replace(
-                  '          - "3.13"\n',
-                  '          - "3.13"\n          - "3.14"\n',
-              )
-          ci_path.write_text(ci)
+          path.write_text(text)
           PY
 
-      - name: Regenerate targeted lock entries and capture diagnostics
-        id: lock
-        shell: bash
-        run: |
-          set +e
-          uv lock --upgrade-package lxml --upgrade-package pandas > lock-refresh.log 2>&1
-          status=$?
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          cat lock-refresh.log
-          exit 0
+      - name: Regenerate validated targeted lock
+        run: >-
+          uv lock
+          --upgrade-package lxml
+          --upgrade-package newspaper4k
+          --upgrade-package nltk
+          --upgrade-package pandas
+          --upgrade-package pillow
+          --upgrade-package pydantic
+          --upgrade-package cffi
+          --upgrade-package pyyaml
+          --upgrade-package regex
+          --upgrade-package selectolax
 
-      - name: Commit candidate or diagnostics
+      - name: Commit validated dependency set
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pyproject.toml .github/workflows/ci.yml lock-refresh.log
-          if [ "${{ steps.lock.outputs.status }}" = "0" ]; then
-            git add uv.lock
-          fi
-          git commit -m "chore: capture Python 3.14 lock candidate [lock-refresh]"
+          git add pyproject.toml uv.lock
+          git commit -m "chore: refresh dependencies for Python 3.14 [final-lock]"
           git push origin HEAD:chore/dependency-refresh-python314
