@@ -168,6 +168,10 @@ async def test_hosted_catalog_exposes_only_six_goal_oriented_tools():
         assert output_schema
         assert output_schema["type"] == "object"
 
+    seo_schema = by_name["find_seo_opportunities"].inputSchema
+    assert "project_id" in seo_schema["properties"]
+    assert "project_id" not in seo_schema.get("required", [])
+
 
 async def test_community_catalog_remains_separate_from_hosted_catalog():
     async with Client(server.mcp) as client:
@@ -184,7 +188,7 @@ async def test_community_catalog_remains_separate_from_hosted_catalog():
         ("compare_keyword_trends", ("2-5 known keywords", "relative momentum")),
         ("discover_related_demand", ("seed keyword", "does not return a time-series")),
         ("get_trend_context", ("current-news context", "why a term may be moving")),
-        ("find_seo_opportunities", ("SEO keyword candidates", "not site-specific")),
+        ("find_seo_opportunities", ("SEO keyword candidates", "without it results remain trend-only")),
     ],
 )
 async def test_tool_descriptions_encode_selection_boundaries(tool_name, required_phrases):
@@ -275,7 +279,7 @@ async def test_trend_context_combines_trend_and_news_provider_metadata(fake_prov
     assert result.recent_articles[0].url == "https://example.com/0"
 
 
-async def test_find_seo_opportunities_validates_bounded_related_queries(fake_providers):
+async def test_find_seo_opportunities_remains_trend_only_without_project(fake_providers):
     with use_provider_set(fake_providers):
         result = await hosted.find_seo_opportunities(
             seed_keyword="technical seo",
@@ -287,4 +291,127 @@ async def test_find_seo_opportunities_validates_bounded_related_queries(fake_pro
     assert len(result.candidates) == 3
     assert all(item.signal_type == "rising_related_query" for item in result.candidates)
     assert all(item.latest_interest is not None for item in result.candidates)
-    assert any("Search Console" in limitation for limitation in result.limitations)
+    assert all(item.search_console is None for item in result.candidates)
+    assert result.project_context is None
+    assert any("No site-specific Search Console" in limitation for limitation in result.limitations)
+
+
+async def test_find_seo_opportunities_adds_exact_query_gsc_annotations(
+    fake_providers,
+    monkeypatch,
+):
+    captured = {}
+
+    async def fake_context(**kwargs):
+        captured.update(kwargs)
+        return {
+            "project": {
+                "id": "project_123",
+                "name": "DigestSEO",
+                "origin": "https://digestseo.com",
+            },
+            "gsc": {
+                "available": True,
+                "reason": None,
+                "retryable": False,
+                "message": None,
+                "property": {
+                    "siteUrl": "sc-domain:digestseo.com",
+                    "permissionLevel": "siteOwner",
+                },
+                "window": {
+                    "startDate": "2026-07-24",
+                    "endDate": "2026-08-20",
+                    "days": 28,
+                },
+                "metrics": [
+                    {
+                        "keyword": "technical seo rising 0",
+                        "clicks": 12,
+                        "impressions": 340,
+                        "ctr": 0.035294,
+                        "position": 8.4,
+                        "hasData": True,
+                    },
+                    {
+                        "keyword": "technical seo rising 1",
+                        "clicks": 0,
+                        "impressions": 0,
+                        "ctr": 0,
+                        "position": None,
+                        "hasData": False,
+                    },
+                ],
+            },
+        }
+
+    monkeypatch.setattr(hosted, "fetch_digestseo_project_context", fake_context)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(
+            seed_keyword="technical seo",
+            geo="US",
+            limit=2,
+            project_id="project_123",
+        )
+
+    assert captured == {
+        "project_id": "project_123",
+        "keywords": ["technical seo rising 0", "technical seo rising 1"],
+        "days": 28,
+    }
+    assert result.project_context is not None
+    assert result.project_context.project_id == "project_123"
+    assert result.project_context.origin == "https://digestseo.com"
+    assert result.project_context.search_console_available is True
+    assert result.project_context.property_url == "sc-domain:digestseo.com"
+    assert result.project_context.days == 28
+
+    first = result.candidates[0].search_console
+    second = result.candidates[1].search_console
+    assert first is not None
+    assert first.clicks == 12
+    assert first.impressions == 340
+    assert first.position == 8.4
+    assert first.has_data is True
+    assert second is not None
+    assert second.has_data is False
+    assert second.impressions == 0
+    assert any("exact-query" in limitation for limitation in result.limitations)
+    assert any("not search volume" in limitation for limitation in result.limitations)
+
+
+async def test_find_seo_opportunities_degrades_when_gsc_is_unavailable(
+    fake_providers,
+    monkeypatch,
+):
+    async def fake_context(**kwargs):
+        return {
+            "project": {
+                "id": "project_123",
+                "name": "Example",
+                "origin": "https://example.com",
+            },
+            "gsc": {
+                "available": False,
+                "reason": "no_matching_property",
+                "retryable": False,
+                "message": "No Search Console property connected to this project origin.",
+                "property": None,
+                "window": None,
+                "metrics": [],
+            },
+        }
+
+    monkeypatch.setattr(hosted, "fetch_digestseo_project_context", fake_context)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(
+            seed_keyword="technical seo",
+            limit=2,
+            project_id="project_123",
+        )
+
+    assert result.project_context is not None
+    assert result.project_context.search_console_available is False
+    assert result.project_context.reason == "no_matching_property"
+    assert all(candidate.search_console is None for candidate in result.candidates)
+    assert any("remain trend-only" in limitation for limitation in result.limitations)
