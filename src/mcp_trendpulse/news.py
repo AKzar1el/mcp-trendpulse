@@ -26,7 +26,7 @@ import logging
 from collections.abc import Callable
 from urllib.parse import urljoin, urlsplit
 
-from mcp_trendpulse.config import get_google_trends_delay
+from mcp_trendpulse.config import get_browser_sandbox_enabled, get_google_trends_delay
 from mcp_trendpulse.errors import ProviderError, classify_provider_exception
 
 logger = logging.getLogger(__name__)
@@ -269,7 +269,10 @@ class BrowserManager(AsyncContextDecorator):
                     logger.info("Starting browser...")
                     try:
                         cls._playwright = await async_playwright().start()
-                        cls._browser = await cls._playwright.chromium.launch(headless=True)
+                        cls._browser = await cls._playwright.chromium.launch(
+                            headless=True,
+                            chromium_sandbox=get_browser_sandbox_enabled(),
+                        )
                     except Exception as exc:
                         logger.critical("Browser startup failed", exc_info=exc)
                         await cls._shutdown()
