@@ -1,0 +1,44 @@
+name: Patch transport fallback
+
+on:
+  push:
+    branches:
+      - feat/remote-asgi-transport
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[transport-fallback]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/remote-asgi-transport
+
+      - name: Patch defensive transport lookup
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("src/mcp_trendpulse/server.py")
+          text = path.read_text()
+          text = text.replace(
+              '    if ctx.transport != "streamable-http":\n',
+              '    if getattr(ctx, "transport", "stdio") != "streamable-http":\n',
+              1,
+          )
+          path.write_text(text)
+          PY
+
+      - name: Commit patch
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/mcp_trendpulse/server.py
+          git commit -m "fix: keep sampling guard backward-compatible [transport-fallback]"
+          git push origin HEAD:feat/remote-asgi-transport
