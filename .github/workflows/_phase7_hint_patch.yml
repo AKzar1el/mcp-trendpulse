@@ -1,0 +1,61 @@
+name: Phase 7 Hint Patch
+
+on:
+  push:
+    branches:
+      - feat/chatgpt-app-hints
+    paths:
+      - .github/workflows/_phase7_hint_patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feat/chatgpt-app-hints
+      - name: Apply explicit submission hints
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          hosted = Path('src/mcp_trendpulse/hosted.py')
+          text = hosted.read_text()
+          old = '''READ_ONLY_OPEN_WORLD = {
+              "readOnlyHint": True,
+              "openWorldHint": True,
+          }'''
+          new = '''READ_ONLY_ANNOTATIONS = {
+              "readOnlyHint": True,
+              "openWorldHint": False,
+              "destructiveHint": False,
+          }'''
+          if old not in text:
+              raise SystemExit('hosted annotation block not found')
+          text = text.replace(old, new, 1)
+          count = text.count('annotations=READ_ONLY_OPEN_WORLD')
+          if count != 6:
+              raise SystemExit(f'expected 6 hosted annotation references, found {count}')
+          text = text.replace('annotations=READ_ONLY_OPEN_WORLD', 'annotations=READ_ONLY_ANNOTATIONS')
+          hosted.write_text(text)
+
+          tests = Path('tests/test_hosted_facade.py')
+          text = tests.read_text()
+          old_assert = '''        assert tool.annotations.readOnlyHint is True
+                  assert tool.annotations.openWorldHint is True'''
+          new_assert = '''        assert tool.annotations.readOnlyHint is True
+                  assert tool.annotations.openWorldHint is False
+                  assert tool.annotations.destructiveHint is False'''
+          if old_assert not in text:
+              raise SystemExit('hosted annotation assertions not found')
+          tests.write_text(text.replace(old_assert, new_assert, 1))
+          PY
+          rm .github/workflows/_phase7_hint_patch.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/mcp_trendpulse/hosted.py tests/test_hosted_facade.py .github/workflows/_phase7_hint_patch.yml
+          git commit -m "fix: align hosted tool hints with ChatGPT review"
+          git push origin HEAD:feat/chatgpt-app-hints
