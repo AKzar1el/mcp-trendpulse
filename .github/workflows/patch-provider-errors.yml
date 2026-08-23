@@ -1,0 +1,98 @@
+name: Patch provider error contract
+
+on:
+  push:
+    branches:
+      - refactor/provider-error-contract
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[provider-patch]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refactor/provider-error-contract
+
+      - name: Apply provider error wiring
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          news_path = Path("src/mcp_trendpulse/news.py")
+          text = news_path.read_text()
+
+          old = "from mcp_trendpulse.config import get_google_trends_delay\n"
+          new = (
+              "from mcp_trendpulse.config import get_google_trends_delay\n"
+              "from mcp_trendpulse.errors import ProviderError, classify_provider_exception\n"
+          )
+          if "from mcp_trendpulse.errors import ProviderError" not in text:
+              assert old in text
+              text = text.replace(old, new, 1)
+
+          old_proxy = '''class _ThreadLocalTrendsProxy:\n    """Resolve TrendSpy attributes against the client owned by the current thread."""\n\n    def __getattr__(self, name: str):\n        return getattr(_get_trends_client(), name)\n'''
+          new_proxy = '''class _ThreadLocalTrendsProxy:\n    """Resolve TrendSpy attributes and normalize provider failures per worker thread."""\n\n    def __getattr__(self, name: str):\n        attribute = getattr(_get_trends_client(), name)\n        if not callable(attribute):\n            return attribute\n\n        def provider_call(*args, **kwargs):\n            try:\n                return attribute(*args, **kwargs)\n            except (ProviderError, ValueError, TypeError):\n                raise\n            except Exception as exc:\n                raise classify_provider_exception(\n                    exc,\n                    provider="google_trends",\n                    operation=name,\n                ) from exc\n\n        return provider_call\n'''
+          if old_proxy in text:
+              text = text.replace(old_proxy, new_proxy, 1)
+          else:
+              assert "normalize provider failures per worker thread" in text
+
+          new_google_news = '''def _call_google_news(client: GNews, operation: str, *args, **kwargs):\n    """Run one GNews operation and normalize upstream failures."""\n    try:\n        return getattr(client, operation)(*args, **kwargs)\n    except (ProviderError, ValueError, TypeError):\n        raise\n    except Exception as exc:\n        raise classify_provider_exception(\n            exc,\n            provider="google_news",\n            operation=operation,\n        ) from exc\n\n\n'''
+          marker = "ProgressCallback = Callable[[float, Optional[float]], Awaitable[None]]\n\n"
+          if "def _call_google_news(" not in text:
+              assert marker in text
+              text = text.replace(marker, marker + new_google_news, 1)
+
+          replacements = {
+              "await asyncio.to_thread(google_news.get_news, keyword)": "await asyncio.to_thread(_call_google_news, google_news, \"get_news\", keyword)",
+              "await asyncio.to_thread(google_news.get_top_news)": "await asyncio.to_thread(_call_google_news, google_news, \"get_top_news\")",
+              "await asyncio.to_thread(google_news.get_news_by_location, location)": "await asyncio.to_thread(_call_google_news, google_news, \"get_news_by_location\", location)",
+              "await asyncio.to_thread(google_news.get_news_by_topic, topic)": "await asyncio.to_thread(_call_google_news, google_news, \"get_news_by_topic\", topic)",
+              "await asyncio.to_thread(google_news.get_news_by_site, site)": "await asyncio.to_thread(_call_google_news, google_news, \"get_news_by_site\", site)",
+          }
+          for before, after in replacements.items():
+              if before in text:
+                  text = text.replace(before, after, 1)
+              else:
+                  assert after in text
+
+          old_trending = '''    try:\n        trends = cast(\n            list[TrendKeywordLite],\n            await asyncio.to_thread(lambda: tr.trending_now_by_rss(geo=geo)),\n        )\n        trends = sorted(trends, key=lambda trend: parse_trending_volume(trend.volume), reverse=True)\n        if not full_data:\n            return [{"keyword": trend.keyword, "volume": trend.volume} for trend in trends]\n        return trends\n    except Exception as e:\n        logger.warning(f"Error fetching trending terms: {e}")\n        return []\n'''
+          new_trending = '''    trends = cast(\n        list[TrendKeywordLite],\n        await asyncio.to_thread(lambda: tr.trending_now_by_rss(geo=geo)),\n    )\n    trends = sorted(trends, key=lambda trend: parse_trending_volume(trend.volume), reverse=True)\n    if not full_data:\n        return [{"keyword": trend.keyword, "volume": trend.volume} for trend in trends]\n    return trends\n'''
+          if old_trending in text:
+              text = text.replace(old_trending, new_trending, 1)
+          else:
+              assert "logger.warning(f\"Error fetching trending terms" not in text
+
+          news_path.write_text(text)
+
+          server_path = Path("src/mcp_trendpulse/server.py")
+          server = server_path.read_text()
+          import_marker = "from mcp_trendpulse.news import BrowserManager\n"
+          middleware_import = "from mcp_trendpulse.middleware import ProviderErrorMiddleware\n"
+          if middleware_import not in server:
+              assert import_marker in server
+              server = server.replace(import_marker, import_marker + middleware_import, 1)
+
+          error_middleware = "mcp.add_middleware(ErrorHandlingMiddleware())  # Handle errors first\n"
+          provider_middleware = "mcp.add_middleware(ProviderErrorMiddleware())\n"
+          if provider_middleware not in server:
+              assert error_middleware in server
+              server = server.replace(error_middleware, provider_middleware + error_middleware, 1)
+          server_path.write_text(server)
+          PY
+
+      - name: Commit patched source
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/mcp_trendpulse/news.py src/mcp_trendpulse/server.py
+          git commit -m "refactor: normalize upstream provider failures [provider-patch]"
+          git push origin HEAD:refactor/provider-error-contract
