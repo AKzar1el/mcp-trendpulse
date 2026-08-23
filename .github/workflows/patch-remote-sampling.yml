@@ -1,0 +1,60 @@
+name: Patch remote sampling policy
+
+on:
+  push:
+    branches:
+      - feat/remote-asgi-transport
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[remote-sampling-patch]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/remote-asgi-transport
+
+      - name: Apply sampling policy patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/mcp_trendpulse/server.py")
+          text = path.read_text()
+
+          import_marker = "from fastmcp import FastMCP, Context\n"
+          dependency_import = "from fastmcp.server.dependencies import get_http_request\n"
+          if dependency_import not in text:
+              assert import_marker in text
+              text = text.replace(import_marker, import_marker + dependency_import, 1)
+
+          session_helper = '''def is_session_active(ctx: Context) -> bool:\n    try:\n        return ctx.request_context is not None and ctx.session is not None\n    except Exception:\n        return False\n\n\n'''
+          sampling_helper = '''def is_session_active(ctx: Context) -> bool:\n    try:\n        return ctx.request_context is not None and ctx.session is not None\n    except Exception:\n        return False\n\n\ndef can_use_llm_sampling(ctx: Context) -> bool:\n    """Allow sampling locally while disabling it for the stateless hosted app."""\n    if not is_session_active(ctx):\n        return False\n    if ctx.transport != "streamable-http":\n        return True\n    try:\n        request = get_http_request()\n    except RuntimeError:\n        return False\n    return bool(getattr(request.app.state, "trendpulse_sampling_enabled", True))\n\n\n'''
+          if "def can_use_llm_sampling(" not in text:
+              assert session_helper in text
+              text = text.replace(session_helper, sampling_helper, 1)
+
+          old_guard = '''async def llm_summarize_article(article: Article, ctx: Context) -> bool:\n    if not is_session_active(ctx):\n'''
+          new_guard = '''async def llm_summarize_article(article: Article, ctx: Context) -> bool:\n    if not can_use_llm_sampling(ctx):\n'''
+          if old_guard in text:
+              text = text.replace(old_guard, new_guard, 1)
+          else:
+              assert new_guard in text
+
+          path.write_text(text)
+          PY
+
+      - name: Commit patched source
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/mcp_trendpulse/server.py
+          git commit -m "fix: disable sampling on stateless remote HTTP [remote-sampling-patch]"
+          git push origin HEAD:feat/remote-asgi-transport
