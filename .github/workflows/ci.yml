@@ -42,7 +42,7 @@ jobs:
           PY
 
       - name: Resolve targeted lock candidate
-        run: uv lock --upgrade-package lxml --upgrade-package pandas
+        run: uv lock --upgrade-package lxml --upgrade-package pandas --upgrade-package pillow
 
       - name: Install Python 3.14
         run: uv python install 3.14
