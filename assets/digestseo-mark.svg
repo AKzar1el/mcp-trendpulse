@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">DigestSEO</title>
+  <desc id="desc">DigestSEO mark: a lowercase d with blue and violet motion lines.</desc>
+  <rect width="128" height="128" rx="30" fill="#111827"/>
+  <circle cx="56" cy="67" r="29" fill="#fff"/>
+  <rect x="68" y="25" width="16" height="54" fill="#fff"/>
+  <circle cx="56" cy="67" r="16" fill="#111827"/>
+  <circle cx="56" cy="67" r="8.5" fill="#2563eb"/>
+  <path d="M79 49h30l-7 12H79z" fill="#2563eb"/>
+  <path d="M79 64h30l-7 12H79z" fill="#7c3aed"/>
+  <path d="M79 79h30l-7 12H79z" fill="#2563eb"/>
+</svg>

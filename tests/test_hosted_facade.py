@@ -161,7 +161,8 @@ async def test_hosted_catalog_exposes_only_six_goal_oriented_tools():
         assert tool.description
         assert tool.annotations is not None
         assert tool.annotations.readOnlyHint is True
-        assert tool.annotations.openWorldHint is True
+        assert tool.annotations.openWorldHint is False
+        assert tool.annotations.destructiveHint is False
         output_schema = getattr(tool, "outputSchema", None) or getattr(
             tool, "output_schema", None
         )

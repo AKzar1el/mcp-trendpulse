@@ -1,0 +1,42 @@
+{
+  "name": "trendpulse-by-digestseo",
+  "version": "0.1.0",
+  "description": "Research current search trends, related demand, and trend-driven SEO opportunities.",
+  "author": {
+    "name": "Tomi Šeregi",
+    "email": "info@tomiseregi.si",
+    "url": "https://digestseo.com"
+  },
+  "homepage": "https://digestseo.com",
+  "repository": "https://github.com/AKzar1el/mcp-trendpulse",
+  "license": "MIT",
+  "keywords": [
+    "trends",
+    "seo",
+    "search-demand",
+    "news",
+    "research",
+    "mcp"
+  ],
+  "interface": {
+    "displayName": "TrendPulse by DigestSEO",
+    "shortDescription": "Search trends and demand",
+    "longDescription": "Discover current search trends, compare keyword momentum, expand related demand, add recent-news context, and find trend-driven SEO opportunities with optional authenticated DigestSEO Search Console context.",
+    "developerName": "Tomi Šeregi",
+    "category": "Business",
+    "capabilities": [
+      "Read"
+    ],
+    "websiteURL": "https://digestseo.com",
+    "privacyPolicyURL": "https://digestseo.com/privacy/",
+    "termsOfServiceURL": "https://digestseo.com/terms/",
+    "defaultPrompt": [
+      "Show me the fastest-rising search topics in the US right now.",
+      "Compare AI agents, agentic AI, and AI automation over the last 12 months.",
+      "Find trend-driven SEO opportunities around AI search optimization."
+    ],
+    "brandColor": "#2563EB",
+    "composerIcon": "./assets/digestseo-mark.svg",
+    "logo": "./assets/digestseo-mark.svg"
+  }
+}

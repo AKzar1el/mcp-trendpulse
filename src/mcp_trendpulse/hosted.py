@@ -29,9 +29,10 @@ TrendSource = Literal[
 ]
 DiscoverySort = Literal["growth", "volume"]
 
-READ_ONLY_OPEN_WORLD = {
+READ_ONLY_ANNOTATIONS = {
     "readOnlyHint": True,
-    "openWorldHint": True,
+    "openWorldHint": False,
+    "destructiveHint": False,
 }
 _SOURCE_TO_GPROP: dict[TrendSource, str] = {
     "google search": "",
@@ -394,7 +395,7 @@ def _seo_limitations(project_context: SeoProjectContext | None) -> list[str]:
     description=(
         "Discover broad, currently trending search topics in a geographic market. Use this when the user has no specific seed keyword yet and wants emerging topics ranked by growth or volume."
     ),
-    annotations=READ_ONLY_OPEN_WORLD,
+    annotations=READ_ONLY_ANNOTATIONS,
     timeout=60,
 )
 async def discover_trends(
@@ -445,7 +446,7 @@ async def discover_trends(
     description=(
         "Analyze one known keyword's Google Trends trajectory. Use this for direction, recent/average/peak normalized interest, growth windows, and a bounded time series; do not use it to compare multiple keywords."
     ),
-    annotations=READ_ONLY_OPEN_WORLD,
+    annotations=READ_ONLY_ANNOTATIONS,
     timeout=60,
 )
 async def analyze_keyword_trend(
@@ -487,7 +488,7 @@ async def analyze_keyword_trend(
     description=(
         "Compare 2-5 known keywords on the same Google Trends scale and window. Use this when relative momentum between alternatives matters; use analyze_keyword_trend for only one keyword."
     ),
-    annotations=READ_ONLY_OPEN_WORLD,
+    annotations=READ_ONLY_ANNOTATIONS,
     timeout=60,
 )
 async def compare_keyword_trends(
@@ -536,7 +537,7 @@ async def compare_keyword_trends(
     description=(
         "Expand one seed keyword into related search demand. Use this for top/rising queries, related topics, and entity suggestions; it does not return a time-series analysis."
     ),
-    annotations=READ_ONLY_OPEN_WORLD,
+    annotations=READ_ONLY_ANNOTATIONS,
     timeout=60,
 )
 async def discover_related_demand(
@@ -581,7 +582,7 @@ async def discover_related_demand(
     description=(
         "Add current-news context to one keyword and return a compact recent trend snapshot. Use this when the user asks why a term may be moving now or wants sources to investigate; use analyze_keyword_trend for trend metrics without news."
     ),
-    annotations=READ_ONLY_OPEN_WORLD,
+    annotations=READ_ONLY_ANNOTATIONS,
     timeout=75,
 )
 async def get_trend_context(
@@ -624,7 +625,7 @@ async def get_trend_context(
     description=(
         "Find trend-driven SEO keyword candidates from one seed. Use this for rising related queries that are checked against current Google Trends interest. If project_id is supplied, annotate candidates with exact-query Search Console metrics for that authenticated DigestSEO project; without it results remain trend-only. Do not treat either signal as absolute search volume."
     ),
-    annotations=READ_ONLY_OPEN_WORLD,
+    annotations=READ_ONLY_ANNOTATIONS,
     timeout=75,
 )
 async def find_seo_opportunities(

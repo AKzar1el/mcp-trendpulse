@@ -1,6 +1,6 @@
 # Remote deployment notes
 
-This directory documents the containerized **remote Streamable HTTP transport**. It is a deployment foundation, not a public production service yet. Until DigestSEO authentication/OAuth is wired, keep this endpoint on localhost, a private network, or behind another controlled access layer.
+This directory documents the containerized **remote Streamable HTTP transport**. It is a deployment foundation, not a public production service yet. The image defaults to fail-closed Clerk OAuth mode; public deployments must configure the DigestSEO/Clerk OAuth settings and the network allowlists described below.
 
 ## Build
 
@@ -31,6 +31,7 @@ docker run --rm \
   --init \
   --ipc=host \
   --security-opt seccomp=/tmp/trendpulse-playwright-seccomp.json \
+  -e TRENDPULSE_AUTH_MODE=disabled \
   -p 127.0.0.1:8000:8000 \
   mcp-trendpulse:local
 ```
@@ -69,7 +70,7 @@ The MCP path can be changed with:
 - Keep one Uvicorn worker per container. Scale horizontally with additional container replicas; the remote MCP transport is stateless.
 - Provide sufficient shared memory for Chromium. Docker's recommended local setting is `--ipc=host`; Kubernetes-style deployments should provision an appropriately sized `/dev/shm` (for example a memory-backed volume) rather than relying on Docker's tiny default.
 - Preserve a Chromium-compatible sandbox/user-namespace policy. The exact mechanism depends on the runtime, so validate it on the target platform before exposing article/browser tools.
-- The container includes no temporary authentication layer. Do not publish it directly to the open internet before the planned DigestSEO identity integration.
+- The production image defaults to `TRENDPULSE_AUTH_MODE=clerk` and fails startup when the required OAuth settings are missing. Use `disabled` only for controlled local/private testing.
 
 ## Runtime variables
 
@@ -79,10 +80,18 @@ Relevant remote/container settings:
 TRENDPULSE_HTTP_PATH
 TRENDPULSE_HTTP_ALLOWED_HOSTS
 TRENDPULSE_HTTP_ALLOWED_ORIGINS
+TRENDPULSE_AUTH_MODE
+TRENDPULSE_CLERK_ISSUER
+TRENDPULSE_CLERK_JWKS_URI
+TRENDPULSE_CLERK_AUDIENCE
+TRENDPULSE_PUBLIC_BASE_URL
+TRENDPULSE_DIGESTSEO_CONTEXT_URL
 TRENDPULSE_BROWSER_SANDBOX
 GOOGLE_TRENDS_DELAY
 HTTP_PROXY
 HTTPS_PROXY
 ```
+
+`TRENDPULSE_AUTH_MODE=clerk` requires an HTTPS Clerk issuer, an explicit OAuth audience, and the HTTPS public MCP base URL. `TRENDPULSE_CLERK_JWKS_URI` defaults to the issuer's `/.well-known/jwks.json`. `TRENDPULSE_DIGESTSEO_CONTEXT_URL` defaults to the bounded DigestSEO project-context endpoint and must remain HTTPS.
 
 The image sets `TRENDPULSE_BROWSER_SANDBOX=true`; overriding it to false weakens the browser isolation model and should not be used for the hosted service.

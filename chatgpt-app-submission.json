@@ -1,0 +1,152 @@
+{
+  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "TrendPulse by DigestSEO",
+    "subtitle": "Search trends and demand",
+    "description": "TrendPulse by DigestSEO helps users discover trending search topics, analyze and compare Google Trends momentum, expand related search demand, add recent-news context, and surface SEO keyword opportunities with optional authenticated DigestSEO Search Console context.",
+    "category": "BUSINESS"
+  },
+  "tools": {
+    "discover_trends": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves and ranks current trend data without creating or changing records.",
+        "open_world_justification": "Only reads external trend data and does not publish or modify public or third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, send, or perform any irreversible action."
+      }
+    },
+    "analyze_keyword_trend": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves Google Trends history and computes bounded interest and growth metrics for one keyword.",
+        "open_world_justification": "Only reads trend data and does not publish or modify public or third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, send, or perform any irreversible action."
+      }
+    },
+    "compare_keyword_trends": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves a shared Google Trends comparison and computes bounded metrics without changing external data.",
+        "open_world_justification": "Only reads trend data and does not publish or modify public or third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, send, or perform any irreversible action."
+      }
+    },
+    "discover_related_demand": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves related queries, topics, and suggestions for a seed keyword without modifying any source system.",
+        "open_world_justification": "Only reads search-demand data and does not publish or modify public or third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, send, or perform any irreversible action."
+      }
+    },
+    "get_trend_context": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves a trend snapshot and recent news links without changing the news sources or any user data.",
+        "open_world_justification": "Only reads public trend and news information and does not publish or modify external state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, send, or perform any irreversible action."
+      }
+    },
+    "find_seo_opportunities": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Computes trend-based keyword candidates and can read bounded Search Console metrics for an authorized DigestSEO project without changing the project or Google account.",
+        "open_world_justification": "Only reads trend data and authorized private project context and does not publish or modify public or third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, send, submit, or perform any irreversible action."
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "description": "Discover broad current search trends in a market.",
+      "user_prompt": "What search topics are rising fastest in the US right now? Give me the top five.",
+      "file_attachment_urls": null,
+      "tools_triggered": "discover_trends",
+      "expected_output": "Returns up to five ranked current trend signals for the US with bounded provider context and clearly distinguishes normalized trend data from absolute search volume.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Analyze one keyword and add recent-news context for its movement.",
+      "user_prompt": "Analyze the recent trend for AI agents in the US and explain what current news may be contributing to the movement.",
+      "file_attachment_urls": null,
+      "tools_triggered": "analyze_keyword_trend, get_trend_context",
+      "expected_output": "Returns bounded normalized-interest metrics for the keyword plus recent relevant news links as external context, without claiming causation from the news alone.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Compare a small set of known keywords on one Trends scale.",
+      "user_prompt": "Compare AI agents, agentic AI, and AI automation in the US over the last 12 months. Which has the strongest relative momentum?",
+      "file_attachment_urls": null,
+      "tools_triggered": "compare_keyword_trends",
+      "expected_output": "Returns all three keywords on the same normalized Google Trends comparison with bounded series and growth metrics, and explains that the values are relative rather than absolute volume.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Expand a seed keyword into related search demand.",
+      "user_prompt": "For technical SEO, show the strongest rising related searches, related topics, and useful suggestions in the US.",
+      "file_attachment_urls": null,
+      "tools_triggered": "discover_related_demand",
+      "expected_output": "Returns bounded top and rising related queries, related topics, and suggestions tied to the requested seed and market.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Find trend-driven SEO keyword opportunities without requiring workspace data.",
+      "user_prompt": "Find five trend-driven SEO keyword opportunities around AI search optimization in the US. I do not need site-specific Search Console data.",
+      "file_attachment_urls": null,
+      "tools_triggered": "find_seo_opportunities",
+      "expected_output": "Returns up to five related-demand candidates validated against current normalized Trends interest, with limitations stating that the signals are not absolute keyword volume or site-specific performance data.",
+      "expected_output_url": null
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Do not invoke the app for Google Ads keyword-planner metrics it does not provide.",
+      "user_prompt": "Give me the exact monthly Google Ads search volume, CPC, and competition for these keywords.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because it does not provide Google Ads Keyword Planner volume, CPC, or competition data.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not invoke the app to publish or edit website content.",
+      "user_prompt": "Write a blog post about AI SEO and publish it to my website now.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because its tools research trends and demand but cannot create, edit, or publish website content.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not invoke the app for Search Console write operations.",
+      "user_prompt": "Submit my sitemap to Google Search Console and change the settings for my property.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because its Search Console integration is read-only and cannot submit sitemaps or modify property settings.",
+      "expected_output_url": null
+    }
+  ]
+}
