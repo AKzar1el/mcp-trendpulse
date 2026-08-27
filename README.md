@@ -10,6 +10,8 @@ The project currently ships as a **community/self-hosted MCP server** and also c
 
 > **Project status:** the local/community server is usable today. The DigestSEO-hosted MCP and public OpenAI plugin are not released yet and should not be treated as available endpoints.
 
+Engineering context: TrendPulse is part of the [DigestSEO MCP Suite engineering case study](https://tomiseregi.si/projects/digestseo-mcp-suite), alongside the AI-visibility, Google Search Console, and technical web-validation MCP systems.
+
 ## What TrendPulse can do
 
 ### News research
