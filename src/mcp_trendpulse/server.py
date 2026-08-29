@@ -6,7 +6,6 @@ from fastmcp.server.middleware.logging import LoggingMiddleware
 from fastmcp.server.middleware.rate_limiting import RateLimitingMiddleware
 from fastmcp.server.middleware.error_handling import ErrorHandlingMiddleware
 from pydantic import BaseModel, Field, model_serializer
-from mcp_trendpulse import news
 from mcp_trendpulse.config import load_environment
 from mcp_trendpulse.news import BrowserManager
 from mcp_trendpulse.middleware import ProviderErrorMiddleware
@@ -165,6 +164,12 @@ mcp.add_middleware(RateLimitingMiddleware(max_requests_per_second=50))
 mcp.add_middleware(TimingMiddleware())  # Time actual execution
 mcp.add_middleware(LoggingMiddleware())  # Log everything
 
+READ_ONLY_OPEN_WORLD_ANNOTATIONS = {
+    "readOnlyHint": True,
+    "openWorldHint": True,
+    "destructiveHint": False,
+}
+
 
 def set_newspaper_article_fields(full_data: bool = False):
     if full_data:
@@ -267,8 +272,12 @@ async def summarize_articles(articles: list[Article], ctx: Context) -> None:
 
 
 @mcp.tool(
-    description=news.get_news_by_keyword.__doc__,
+    description=(
+        "Find recent Google News articles for a free-form keyword or phrase. Use this for ad-hoc subject searches; "
+        "use get_news_by_topic for a predefined topic category or get_news_by_site for one publisher."
+    ),
     tags={"news", "articles", "keyword"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_news_by_keyword(
     ctx: Context,
@@ -315,8 +324,12 @@ async def get_news_by_keyword(
 
 
 @mcp.tool(
-    description=news.get_news_by_location.__doc__,
+    description=(
+        "Find recent Google News articles about a place-focused location such as a city, state, or country. "
+        "Use this when geography is the primary filter; use get_news_by_keyword for general subject searches."
+    ),
     tags={"news", "articles", "location"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_news_by_location(
     ctx: Context,
@@ -362,7 +375,14 @@ async def get_news_by_location(
     return [ArticleOut(**a.to_json(False)) for a in articles]
 
 
-@mcp.tool(description=news.get_news_by_topic.__doc__, tags={"news", "articles", "topic"})
+@mcp.tool(
+    description=(
+        "Find recent Google News articles from a predefined Google News topic category. Use this for topic category "
+        "browsing such as BUSINESS, TECHNOLOGY, or SPORTS; use get_news_by_keyword for a free-form query."
+    ),
+    tags={"news", "articles", "topic"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
+)
 async def get_news_by_topic(
     ctx: Context,
     topic: Annotated[str, Field(description="Topic to search for articles.")],
@@ -407,7 +427,14 @@ async def get_news_by_topic(
     return [ArticleOut(**a.to_json(False)) for a in articles]
 
 
-@mcp.tool(description=news.get_top_news.__doc__, tags={"news", "articles", "top"})
+@mcp.tool(
+    description=(
+        "Return general headline and top-news stories from Google News without a keyword or topic seed. Use this for "
+        "a broad news snapshot; use the keyword, location, topic, or site tools when the user gives a filter."
+    ),
+    tags={"news", "articles", "top"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
+)
 async def get_top_news(
     ctx: Context,
     period: Annotated[int, Field(description="Number of days to look back for top articles.", ge=1)] = 3,
@@ -450,7 +477,14 @@ async def get_top_news(
     return [ArticleOut(**a.to_json(False)) for a in articles]
 
 
-@mcp.tool(description=news.get_trending_terms.__doc__, tags={"trends", "google", "trending"})
+@mcp.tool(
+    description=(
+        "Return terms that are trending now for a geography, optionally with related news metadata. Use this for "
+        "current trend discovery; use get_trends when the user wants historical interest over time for known keywords."
+    ),
+    tags={"trends", "google", "trending"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
+)
 async def get_trending_terms(
     geo: Annotated[
         str,
@@ -485,8 +519,13 @@ async def get_trending_terms(
 
 
 @mcp.tool(
-    description=news.get_trends.__doc__,
+    description=(
+        "Return historical Google Trends interest-over-time points for one or more known keywords. Use this for "
+        "trajectory and comparisons across a timeframe; values are normalized 0-100 interest scores, not absolute "
+        "search volume. Use get_trending_terms for what is trending now."
+    ),
     tags={"trends", "google", "history"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_trends(
     keyword: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
@@ -508,8 +547,12 @@ async def get_trends(
 
 
 @mcp.tool(
-    description=news.get_growth.__doc__,
+    description=(
+        "Estimate momentum for one or more known keywords across requested growth windows. Use this when percentage "
+        "growth is the goal; use get_trends when the user needs the underlying historical time series."
+    ),
     tags={"trends", "google", "growth"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_growth(
     keyword: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
@@ -527,8 +570,12 @@ async def get_growth(
 
 
 @mcp.tool(
-    description=news.get_ranked_trends.__doc__,
+    description=(
+        "Return currently trending keywords ranked by week-over-week growth or volume. Use this when explicit ranked "
+        "order matters; use get_top_trends for a simpler current feed and get_trends for historical series."
+    ),
     tags={"trends", "google", "ranked"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_ranked_trends(
     source: Annotated[str, Field(description="Search source: 'google search'.")] = "google search",
@@ -549,8 +596,12 @@ async def get_ranked_trends(
 
 
 @mcp.tool(
-    description=news.get_top_trends.__doc__,
+    description=(
+        "Return a bounded current topic discovery feed from Google Trends RSS, including related news where available. "
+        "Use this for current top or daily trends; use get_ranked_trends when explicit ranking by growth or volume matters."
+    ),
     tags={"trends", "google", "top"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_top_trends(
     type: Annotated[str, Field(description="Type of trends: 'Google Trends' (realtime), 'Daily Trends' (daily).")] = "Google Trends",
@@ -569,8 +620,12 @@ async def get_top_trends(
 
 
 @mcp.tool(
-    description=news.get_news_by_site.__doc__,
+    description=(
+        "Find recent Google News articles from one publisher domain. Use this when the user wants source-specific "
+        "coverage; use get_news_by_keyword for cross-publisher subject search."
+    ),
     tags={"news", "articles", "site"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_news_by_site(
     ctx: Context,
@@ -617,8 +672,12 @@ async def get_news_by_site(
 
 
 @mcp.tool(
-    description="Download, scrape and parse the content of a specific news article from a given URL.",
+    description=(
+        "Download and parse one specific news article when you already have an article URL. Use it to retrieve article "
+        "text or metadata or summarize that URL; do not use it for discovery - use the news search tools instead."
+    ),
     tags={"news", "articles", "scrape"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_article_content(
     ctx: Context,
@@ -647,8 +706,12 @@ async def get_article_content(
 
 
 @mcp.tool(
-    description=news.get_interest_by_region.__doc__,
+    description=(
+        "Return geographic Google Trends interest for one or more known keywords at country, region, city, or DMA "
+        "resolution. Use this to compare where demand is strongest; use get_trends for interest over time instead."
+    ),
     tags={"trends", "google", "region"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_interest_by_region(
     keywords: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
@@ -676,8 +739,12 @@ async def get_interest_by_region(
 
 
 @mcp.tool(
-    description=news.get_related_queries.__doc__,
+    description=(
+        "Return top and rising literal search queries related to one seed keyword. Use this for query expansion; use "
+        "get_related_topics for topic entities or get_suggestions for autocomplete candidates."
+    ),
     tags={"trends", "google", "queries"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_related_queries(
     keyword: Annotated[str, Field(description="Search keyword to analyze.")],
@@ -700,8 +767,12 @@ async def get_related_queries(
 
 
 @mcp.tool(
-    description=news.get_related_topics.__doc__,
+    description=(
+        "Return top and rising Google Trends topic entities related to one seed keyword. Use this for entity or topic "
+        "expansion; use get_related_queries for literal search queries."
+    ),
     tags={"trends", "google", "topics"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_related_topics(
     keyword: Annotated[str, Field(description="Search keyword to analyze.")],
@@ -724,8 +795,12 @@ async def get_related_topics(
 
 
 @mcp.tool(
-    description=news.get_suggestions.__doc__,
+    description=(
+        "Return Google Trends autocomplete suggestions for a seed keyword. Use this for lightweight autocomplete or "
+        "entity candidates; use get_related_queries when you need top or rising demand signals."
+    ),
     tags={"trends", "google", "suggestions"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_suggestions(
     keyword: Annotated[str, Field(description="Query string to autocomplete.")],
@@ -739,8 +814,12 @@ async def get_suggestions(
 
 
 @mcp.tool(
-    description=news.get_categories.__doc__,
+    description=(
+        "Return Google Trends category IDs and names for use in the cat parameter of trend tools. Call this when a "
+        "category filter is needed; do not guess category IDs."
+    ),
     tags={"trends", "google", "categories"},
+    annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_categories() -> list[CategoryItem]:
     results = await get_provider_set().trends.get_categories()
