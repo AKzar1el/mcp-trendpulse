@@ -157,6 +157,12 @@ Cursor supports global and project MCP configuration. Add the server to the rele
 }
 ```
 
+### Kiro
+
+[![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=mcp-trendpulse&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--from%22%2C%22git%2Bhttps%3A%2F%2Fgithub.com%2FAKzar1el%2Fmcp-trendpulse.git%22%2C%22mcp-trendpulse%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D)
+
+Requires `uv`/`uvx`. The install runs the current community MCP directly from this GitHub repository; it does not use the unreleased hosted surface.
+
 ### ChatGPT and other cloud MCP clients
 
 The repository now includes a dedicated stateless Streamable HTTP ASGI entry point at `mcp_trendpulse.asgi:app`. This is separate from the Community stdio entry point, which remains unchanged.
