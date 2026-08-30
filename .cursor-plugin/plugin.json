@@ -1,0 +1,29 @@
+{
+  "name": "mcp-trendpulse",
+  "displayName": "TrendPulse",
+  "version": "0.2.10",
+  "description": "Research current news and Google Trends data from Cursor with the local TrendPulse MCP server.",
+  "author": {
+    "name": "Tomi Šeregi"
+  },
+  "publisher": "DigestSEO",
+  "homepage": "https://tomiseregi.si/projects/digestseo-mcp-suite",
+  "repository": "https://github.com/AKzar1el/mcp-trendpulse",
+  "license": "MIT",
+  "logo": "assets/logo-400.png",
+  "keywords": [
+    "mcp",
+    "google-news",
+    "google-trends",
+    "news-research",
+    "seo"
+  ],
+  "category": "data-and-apis",
+  "tags": [
+    "news",
+    "trends",
+    "research",
+    "seo"
+  ],
+  "mcpServers": "mcp.json"
+}
