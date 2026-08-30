@@ -7,13 +7,6 @@ on:
       - server.json
       - pyproject.toml
       - .github/workflows/publish.yml
-  push:
-    branches:
-      - main
-    paths:
-      - README.md
-      - server.json
-      - .github/workflows/publish.yml
   release:
     types: [published]
 
