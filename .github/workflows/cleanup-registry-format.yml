@@ -23,24 +23,33 @@ jobs:
           from pathlib import Path
 
           path = Path('server.json')
-          text = path.read_text()
-          generated = '''          "timeframe": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],'''
-          original = '''          "timeframe": {
-            "anyOf": [
-              { "type": "string" },
-              { "type": "null" }
-            ],'''
-          if generated not in text:
-              raise SystemExit('expected generated formatting not found')
-          path.write_text(text.replace(generated, original, 1))
+          lines = path.read_text().splitlines()
+          changed = False
+          for i, line in enumerate(lines):
+              if '"timeframe": {' not in line or i + 8 >= len(lines):
+                  continue
+              if lines[i + 1].strip() != '"anyOf": [':
+                  continue
+              if not (
+                  lines[i + 2].strip() == '{'
+                  and lines[i + 3].strip() == '"type": "string"'
+                  and lines[i + 4].strip() == '},'
+                  and lines[i + 5].strip() == '{'
+                  and lines[i + 6].strip() == '"type": "null"'
+                  and lines[i + 7].strip() == '}'
+                  and lines[i + 8].strip() == '],'
+              ):
+                  continue
+              indent = lines[i + 2][: len(lines[i + 2]) - len(lines[i + 2].lstrip())]
+              lines[i + 2 : i + 8] = [
+                  f'{indent}{{ "type": "string" }},',
+                  f'{indent}{{ "type": "null" }}',
+              ]
+              changed = True
+              break
+          if not changed:
+              raise SystemExit('expected generated timeframe formatting not found')
+          path.write_text('\n'.join(lines) + '\n')
           PY
       - name: Commit cleanup
         run: |
