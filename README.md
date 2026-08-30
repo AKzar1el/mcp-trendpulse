@@ -320,3 +320,5 @@ Current production-readiness work is focused on:
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+<!-- mcp-name: io.github.AKzar1el/mcp-trendpulse -->
