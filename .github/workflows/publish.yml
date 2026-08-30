@@ -1,6 +1,19 @@
 name: Publish package
 
 on:
+  pull_request:
+    paths:
+      - README.md
+      - server.json
+      - pyproject.toml
+      - .github/workflows/publish.yml
+  push:
+    branches:
+      - main
+    paths:
+      - README.md
+      - server.json
+      - .github/workflows/publish.yml
   release:
     types: [published]
 
@@ -30,6 +43,28 @@ jobs:
           UV_PYTHON: "3.12"
         run: uv sync --locked --dev
 
+      - name: Verify Registry package metadata
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          server = json.loads(Path('server.json').read_text())
+          version = '0.2.10'
+          assert server['name'] == 'io.github.AKzar1el/mcp-trendpulse'
+          assert server['version'] == version
+          assert '<!-- mcp-name: io.github.AKzar1el/mcp-trendpulse -->' in Path('README.md').read_text()
+          package = server['packages'][0]
+          assert package == {
+              'registryType': 'pypi',
+              'registryBaseUrl': 'https://pypi.org',
+              'identifier': 'mcp-trendpulse',
+              'version': version,
+              'runtimeHint': 'uvx',
+              'transport': {'type': 'stdio'},
+          }
+          PY
+
       - name: Run unit tests
         env:
           UV_PYTHON: "3.12"
@@ -58,14 +93,16 @@ jobs:
           "$SMOKE_VENV/bin/python" -c "import mcp_trendpulse"
 
       - name: Upload package distributions
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: python-package-distributions
           path: dist/
           if-no-files-found: error
 
-  publish:
+  publish-pypi:
     name: Publish to PyPI
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -82,3 +119,25 @@ jobs:
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           packages-dir: dist/
+
+  publish-registry:
+    name: Publish to official MCP Registry
+    if: github.event_name != 'pull_request'
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+
+      - name: Log in to the Registry with GitHub OIDC
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish Registry metadata
+        run: ./mcp-publisher publish server.json

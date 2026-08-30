@@ -585,5 +585,17 @@
         "news"
       ]
     }
-  }
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "mcp-trendpulse",
+      "version": "0.2.10",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
 }
