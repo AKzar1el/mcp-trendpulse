@@ -1,0 +1,34 @@
+name: Verify Docker MCP Catalog image
+
+on:
+  push:
+    branches:
+      - chore/docker-mcp-catalog
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build stdio catalog image
+        run: docker build -f Dockerfile.mcp-registry -t trendpulse-mcp-catalog:test .
+
+      - name: Smoke MCP initialize and tool discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/mcp-input.jsonl <<'EOF'
+          {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"docker-catalog-smoke","version":"1.0.0"}}}
+          {"jsonrpc":"2.0","method":"notifications/initialized","params":{}}
+          {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
+          EOF
+          timeout 30s docker run --rm -i trendpulse-mcp-catalog:test < /tmp/mcp-input.jsonl > /tmp/mcp-output.jsonl
+          grep -q '"id":2' /tmp/mcp-output.jsonl
+          grep -q '"tools"' /tmp/mcp-output.jsonl
+          grep -q 'get_news_by_keyword' /tmp/mcp-output.jsonl
+          cat /tmp/mcp-output.jsonl
