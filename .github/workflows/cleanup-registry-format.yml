@@ -1,0 +1,51 @@
+name: Cleanup Registry manifest formatting
+
+on:
+  push:
+    branches:
+      - chore/official-mcp-registry
+    paths:
+      - .github/workflows/cleanup-registry-format.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/official-mcp-registry
+      - name: Restore untouched JSON formatting
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('server.json')
+          text = path.read_text()
+          generated = '''          "timeframe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],'''
+          original = '''          "timeframe": {
+            "anyOf": [
+              { "type": "string" },
+              { "type": "null" }
+            ],'''
+          if generated not in text:
+              raise SystemExit('expected generated formatting not found')
+          path.write_text(text.replace(generated, original, 1))
+          PY
+      - name: Commit cleanup
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add server.json
+          git commit -m 'chore: preserve existing manifest formatting'
+          git push origin HEAD:chore/official-mcp-registry
