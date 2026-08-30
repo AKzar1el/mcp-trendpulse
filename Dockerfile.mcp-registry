@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1
+
+FROM python:3.12.14-slim-bookworm
+
+COPY --from=ghcr.io/astral-sh/uv:0.12.5 /uv /uvx /bin/
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_NO_DEV=1 \
+    UV_PYTHON_DOWNLOADS=0 \
+    UV_LINK_MODE=copy \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright \
+    NLTK_DATA=/opt/nltk_data \
+    HOME=/home/trendpulse \
+    TMPDIR=/tmp/trendpulse
+
+WORKDIR /app
+
+COPY . /app
+
+RUN mkdir -p "$TMPDIR" "$NLTK_DATA" \
+    && uv sync --locked --no-dev --no-editable \
+    && .venv/bin/playwright install --with-deps chromium \
+    && .venv/bin/python -m nltk.downloader -d "$NLTK_DATA" punkt punkt_tab \
+    && groupadd --system --gid 10001 trendpulse \
+    && useradd --system --uid 10001 --gid trendpulse --home-dir "$HOME" --create-home --shell /usr/sbin/nologin trendpulse \
+    && chown -R trendpulse:trendpulse "$HOME" "$TMPDIR" \
+    && chmod -R a+rX /app/.venv "$PLAYWRIGHT_BROWSERS_PATH" "$NLTK_DATA" \
+    && rm -rf /root/.cache /var/lib/apt/lists/*
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+USER 10001:10001
+
+ENTRYPOINT ["mcp-trendpulse"]
