@@ -33,6 +33,7 @@ jobs:
 
           replacements = {
               "pyproject.toml": ('version = "0.2.10"', 'version = "0.2.11"', 1),
+              "manifest.json": ('"version": "0.2.10"', '"version": "0.2.11"', 1),
               "server.json": ('"version": "0.2.10"', '"version": "0.2.11"', 2),
               ".github/workflows/publish.yml": ("version = '0.2.10'", "version = '0.2.11'", 1),
               ".cursor-plugin/plugin.json": ('"version": "0.2.10"', '"version": "0.2.11"', 1),
@@ -57,20 +58,23 @@ jobs:
 
           version = "0.2.11"
           project = tomllib.loads(Path("pyproject.toml").read_text())
+          manifest = json.loads(Path("manifest.json").read_text())
           server = json.loads(Path("server.json").read_text())
           cursor = json.loads(Path(".cursor-plugin/plugin.json").read_text())
           publish = Path(".github/workflows/publish.yml").read_text()
           lock = Path("uv.lock").read_text()
 
           assert project["project"]["version"] == version
+          assert manifest["version"] == version
           assert server["version"] == version
           assert server["packages"][0]["version"] == version
           assert cursor["version"] == version
           assert "version = '0.2.11'" in publish
           assert 'name = "mcp-trendpulse"\nversion = "0.2.11"' in lock
           assert "0.2.10" not in Path("pyproject.toml").read_text()
+          assert "0.2.10" not in Path("manifest.json").read_text()
           assert "0.2.10" not in Path("server.json").read_text()
-          assert "0.2.10" not in cursor.__repr__()
+          assert "0.2.10" not in Path(".cursor-plugin/plugin.json").read_text()
           PY
 
       - name: Sync locked environment
@@ -103,7 +107,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .github/workflows/release-bump-0.2.11.yml
-          git add pyproject.toml server.json .github/workflows/publish.yml .cursor-plugin/plugin.json uv.lock
+          git add pyproject.toml manifest.json server.json .github/workflows/publish.yml .cursor-plugin/plugin.json uv.lock
           git diff --cached --check
           git commit -m "Release TrendPulse 0.2.11"
           git push origin HEAD:release/trendpulse-0.2.11
