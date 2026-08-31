@@ -43,7 +43,7 @@ jobs:
           from pathlib import Path
 
           server = json.loads(Path('server.json').read_text())
-          version = '0.2.10'
+          version = '0.2.11'
           assert server['name'] == 'io.github.AKzar1el/mcp-trendpulse'
           assert server['version'] == version
           assert '<!-- mcp-name: io.github.AKzar1el/mcp-trendpulse -->' in Path('README.md').read_text()
