@@ -102,12 +102,11 @@ jobs:
           UV_PYTHON: "3.12"
         run: uv run --with twine twine check dist/*
 
-      - name: Commit verified release bump
+      - name: Commit validated non-workflow metadata
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/release-bump-0.2.11.yml
-          git add pyproject.toml manifest.json server.json .github/workflows/publish.yml .cursor-plugin/plugin.json uv.lock
+          git add pyproject.toml manifest.json server.json .cursor-plugin/plugin.json uv.lock
           git diff --cached --check
-          git commit -m "Release TrendPulse 0.2.11"
+          git commit -m "Release TrendPulse 0.2.11 metadata"
           git push origin HEAD:release/trendpulse-0.2.11
