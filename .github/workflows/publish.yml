@@ -1,7 +1,6 @@
 name: Publish package
 
 on:
-  workflow_dispatch:
   pull_request:
     paths:
       - README.md
