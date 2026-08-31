@@ -2,11 +2,7 @@
   "mcpServers": {
     "mcp-trendpulse": {
       "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/AKzar1el/mcp-trendpulse.git",
-        "mcp-trendpulse"
-      ]
+      "args": ["mcp-trendpulse"]
     }
   }
 }
