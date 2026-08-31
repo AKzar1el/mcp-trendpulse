@@ -1,0 +1,40 @@
+name: Publish TrendPulse v0.2.11 release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/release-v0.2.11.yml
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create v0.2.11 GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > "${RUNNER_TEMP}/release-notes.md" <<'EOF'
+          ## TrendPulse v0.2.11
+
+          Corrective package release following the v0.2.10 PyPI filename collision. The source and registry metadata are unchanged functionally; this release advances the distribution version so PyPI receives a fresh immutable filename.
+
+          ### Distribution
+          - PyPI package: `mcp-trendpulse==0.2.11`
+          - Official MCP Registry: `io.github.AKzar1el/mcp-trendpulse` version `0.2.11`
+
+          ### Install
+          ```bash
+          uvx mcp-trendpulse
+          ```
+          EOF
+
+          gh release create v0.2.11 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target e63ec85893c81aab6faef2dba9ff7080d27a948b \
+            --title "TrendPulse v0.2.11 — PyPI & MCP Registry Release" \
+            --notes-file "${RUNNER_TEMP}/release-notes.md"
