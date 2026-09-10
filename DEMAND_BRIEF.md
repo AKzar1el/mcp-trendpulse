@@ -6,6 +6,8 @@ During the current launch experiment, Tomi Seregi is offering a small number of 
 
 This is a human-produced research service built around the open-source TrendPulse toolkit. It does not require access to the unreleased hosted TrendPulse service, and buying a brief is not required to use the Community MCP.
 
+Want to see the output before buying? Read the [public sample brief](SAMPLE_DEMAND_BRIEF.md), built from live TrendPulse data and current public sources.
+
 ## What is included
 
 For one decision, send up to **five keywords or phrases** and up to **two geographic markets**. The brief will cover:

@@ -19,7 +19,7 @@ Need a fast evidence check before choosing a topic, keyword, market, product ang
 
 For one decision, the brief covers up to five keywords/phrases and two geographic markets using TrendPulse's open-source research capabilities plus current public sources: search-interest direction, relative momentum, related demand, useful news context, and three concrete implications. Target turnaround is within 24 hours after payment is confirmed and the inputs are supplied.
 
-[See the exact scope and request format](DEMAND_BRIEF.md), or email [info@tomiseregi.si](mailto:info@tomiseregi.si?subject=TrendPulse%20Demand%20Brief%20%5BTP-RS1%5D) with the subject `TrendPulse Demand Brief [TP-RS1]`.
+[See the exact scope and request format](DEMAND_BRIEF.md), [read a public sample brief](SAMPLE_DEMAND_BRIEF.md), or email [info@tomiseregi.si](mailto:info@tomiseregi.si?subject=TrendPulse%20Demand%20Brief%20%5BTP-RS1%5D) with the subject `TrendPulse Demand Brief [TP-RS1]`.
 
 The paid brief is optional. The Community MCP remains free and unchanged, and the `TP-RS1` marker is only an inbound attribution marker; no hidden telemetry is added to the MCP.
 
