@@ -26,6 +26,13 @@ The target turnaround is **within 24 hours after payment is confirmed** and the 
 
 Scope is confirmed by email first. Payment uses Tomi's existing invoicing/bank-transfer arrangement; no payment information is collected by this repository.
 
+## What happens next
+
+1. Send the decision, keywords, markets, and any relevant context using the request link below.
+2. Tomi confirms that the request fits the fixed brief scope before any payment is due.
+3. You receive the invoice and bank-transfer instructions through the existing invoicing process.
+4. After payment and inputs are confirmed, the completed brief is targeted for delivery within 24 hours.
+
 ## Request a brief
 
 Email **info@tomiseregi.si** with the subject **`TrendPulse Demand Brief [TP-RS1]`** and include:
