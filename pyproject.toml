@@ -1,6 +1,6 @@
 [project]
 name = "mcp-trendpulse"
-version = "0.2.12"
+version = "0.2.13"
 description = "MCP server for Google News research and Google Trends analysis"
 readme = "README.md"
 requires-python = ">=3.10.18"
@@ -11,7 +11,7 @@ license-files = ["LICENSE"]
 dependencies = [
     "click>=8.2.1",
     "cloudscraper>=1.2.71",
-    "fastmcp>=3",
+    "fastmcp>=3.2.0,<4",
     "gnews>=0.4.1",
     "googlenewsdecoder>=0.1.7",
     "lxml[html-clean]>=6.1.1",
