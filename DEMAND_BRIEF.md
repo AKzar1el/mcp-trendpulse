@@ -20,6 +20,10 @@ For one decision, send up to **five keywords or phrases** and up to **two geogra
 
 The target turnaround is **within 24 hours after payment is confirmed** and the topic/keywords and geography are supplied.
 
+## Why pay for this instead of using free trend tools?
+
+If you only need raw Google Trends charts or TrendPulse output, do not buy this brief: Google Trends and the Community MCP are free. The paid brief is for a decision where you want the comparison framed, the signals and caveats interpreted, relevant current-news context cross-checked, and three concrete recommendations tied to what you are deciding.
+
 ## Price
 
 **EUR 49 fixed launch price per brief.**
