@@ -35,6 +35,6 @@ Email **info@tomiseregi.si** with the subject **`TrendPulse Demand Brief [TP-RS1
 3. up to two countries/markets;
 4. any date window or current-news context that matters.
 
-[Request a TrendPulse Demand Brief](mailto:info@tomiseregi.si?subject=TrendPulse%20Demand%20Brief%20%5BTP-RS1%5D)
+[Request a TrendPulse Demand Brief](mailto:info@tomiseregi.si?subject=TrendPulse%20Demand%20Brief%20%5BTP-RS1%5D&body=Decision%3A%0AKeywords%20(up%20to%205)%3A%0AMarkets%20(up%20to%202)%3A%0AContext%20%2F%20deadline%3A)
 
 The `TP-RS1` marker exists only to attribute requests to this bounded experiment. The Community MCP itself does not add hidden telemetry.

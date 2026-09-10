@@ -110,4 +110,4 @@ For a paid brief, that enrichment would be retried within the delivery window an
 
 The launch offer is **EUR 49 for one brief**, covering up to five keywords/phrases and two geographic markets, with a target turnaround within 24 hours after payment and inputs are confirmed.
 
-See [DEMAND_BRIEF.md](DEMAND_BRIEF.md) or email **info@tomiseregi.si** with the subject **`TrendPulse Demand Brief [TP-RS1]`**.
+See [DEMAND_BRIEF.md](DEMAND_BRIEF.md) or [request a brief by email](mailto:info@tomiseregi.si?subject=TrendPulse%20Demand%20Brief%20%5BTP-RS1%5D&body=Decision%3A%0AKeywords%20(up%20to%205)%3A%0AMarkets%20(up%20to%202)%3A%0AContext%20%2F%20deadline%3A) with the subject **`TrendPulse Demand Brief [TP-RS1]`**.
