@@ -5,7 +5,7 @@ This file is for AI agents such as Cline installing the current **community/loca
 ## Requirements
 
 - `uv` / `uvx` installed and available on `PATH`
-- Internet access for Google News, Google Trends, article retrieval, and the initial GitHub package install
+- Internet access for Google News, Google Trends, article retrieval, and the initial PyPI package install
 - Python 3.10.18+ (normally managed automatically by `uv`)
 - Optional: Playwright Chromium only when browser fallback is needed for difficult article pages
 
@@ -13,13 +13,13 @@ No API keys or environment variables are required for the community server.
 
 ## Recommended install path
 
-Run the server directly from the canonical GitHub repository:
+Run the published package from PyPI:
 
 ```bash
-uvx --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse
+uvx mcp-trendpulse
 ```
 
-The package is not yet published to PyPI, so do not replace this with `uvx mcp-trendpulse` until a real PyPI release exists.
+Use `uvx --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse` only when repository-head code is explicitly required.
 
 ## Cline configuration
 
@@ -30,11 +30,7 @@ For the Cline IDE extension, open **MCP Servers → Configure → Configure MCP 
   "mcpServers": {
     "mcp-trendpulse": {
       "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/AKzar1el/mcp-trendpulse.git",
-        "mcp-trendpulse"
-      ],
+      "args": ["mcp-trendpulse"],
       "disabled": false,
       "autoApprove": []
     }

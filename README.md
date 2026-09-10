@@ -57,18 +57,18 @@ These names describe the hosted ChatGPT Apps/MCP interface; they remain separate
 
 ## Installation
 
-### Run directly from GitHub with `uvx` (recommended)
+### Run from PyPI with `uvx` (recommended)
 
-The package is not yet published to PyPI, so the most direct installation path is:
-
-```bash
-uvx --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse
-```
-
-After a PyPI release exists, the shorter form will be:
+TrendPulse is published on PyPI, so the shortest install path is:
 
 ```bash
 uvx mcp-trendpulse
+```
+
+To run the current repository head instead of the published package:
+
+```bash
+uvx --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse
 ```
 
 ### Install with pip from a checkout
@@ -297,7 +297,7 @@ npx @modelcontextprotocol/inspector uv run mcp-trendpulse
 
 ## Packaging
 
-A GitHub Actions workflow is already present for building and publishing Python distributions through PyPI Trusted Publishing when a GitHub release is published. Until the first package release exists, use the GitHub `uvx --from ...` command shown above.
+A GitHub Actions workflow builds and publishes Python distributions through PyPI Trusted Publishing when a GitHub release is published. The current stable package can be run with `uvx mcp-trendpulse`; use the GitHub `uvx --from ...` form only when you intentionally want repository-head code.
 
 ## Security notes
 
