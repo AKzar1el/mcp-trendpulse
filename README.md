@@ -13,6 +13,16 @@ The project currently ships as a **community/self-hosted MCP server** and also c
 
 Engineering context: TrendPulse is part of the [DigestSEO](https://digestseo.com/) MCP ecosystem. It complements [mcp-gsc](https://digestseo.com/gsc-mcp/) for Google Search Console data, [mcp-geo](https://digestseo.com/geo-mcp/) for AI visibility, and [mcp-web-validator](https://digestseo.com/validator-mcp/) for technical web validation. The broader architecture is documented in the [DigestSEO MCP Suite engineering case study](https://tomiseregi.si/projects/digestseo-mcp-suite).
 
+## TrendPulse Demand Brief
+
+Need a fast evidence check before choosing a topic, keyword, market, product angle, or content bet? During the current launch experiment, Tomi is offering a **human-produced TrendPulse Demand Brief for EUR 49**.
+
+For one decision, the brief covers up to five keywords/phrases and two geographic markets using TrendPulse's open-source research capabilities plus current public sources: search-interest direction, relative momentum, related demand, useful news context, and three concrete implications. Target turnaround is within 24 hours after payment is confirmed and the inputs are supplied.
+
+[See the exact scope and request format](DEMAND_BRIEF.md), or email [info@tomiseregi.si](mailto:info@tomiseregi.si?subject=TrendPulse%20Demand%20Brief%20%5BTP-RS1%5D) with the subject `TrendPulse Demand Brief [TP-RS1]`.
+
+The paid brief is optional. The Community MCP remains free and unchanged, and the `TP-RS1` marker is only an inbound attribution marker; no hidden telemetry is added to the MCP.
+
 ## What TrendPulse can do
 
 ### News research
