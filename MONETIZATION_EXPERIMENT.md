@@ -1,6 +1,8 @@
 # TrendPulse Monetization Experiment
 
-Status: FROZEN HYPOTHESIS
+Status: HISTORICAL LAUNCH RECORD
+
+The original seven-day experiment below is retained as launch history. It no longer defines the current offer expiry or operational runtime authority. Current buyer-facing terms live in `DEMAND_BRIEF.md`: the one-off TrendPulse Demand Brief remains EUR 49 and the Community MCP remains free.
 
 Experiment window: 2026-09-10 18:15 Europe/Ljubljana through 2026-09-17 18:15 Europe/Ljubljana.
 
