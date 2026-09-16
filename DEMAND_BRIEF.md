@@ -2,7 +2,7 @@
 
 Need a fast answer to **which topic, keyword, market, or content angle is actually gaining momentum?**
 
-During the current launch experiment, Tomi Seregi is offering a small number of **TrendPulse Demand Briefs for EUR 49 each**.
+Tomi Seregi offers a **TrendPulse Demand Brief for EUR 49** for decisions where a compact evidence check is more useful than raw trend data alone.
 
 This is a human-produced research service built around the open-source TrendPulse toolkit. It does not require access to the unreleased hosted TrendPulse service, and buying a brief is not required to use the Community MCP.
 
@@ -26,7 +26,7 @@ If you only need raw Google Trends charts or TrendPulse output, do not buy this 
 
 ## Price
 
-**EUR 49 fixed launch price per brief.**
+**EUR 49 fixed price per brief.**
 
 Scope is confirmed by email first. Payment uses Tomi's existing invoicing/bank-transfer arrangement; no payment information is collected by this repository.
 
@@ -48,4 +48,4 @@ Email **info@tomiseregi.si** with the subject **`TrendPulse Demand Brief [TP-RS1
 
 [Request a TrendPulse Demand Brief](mailto:info@tomiseregi.si?subject=TrendPulse%20Demand%20Brief%20%5BTP-RS1%5D&body=Decision%3A%0AKeywords%20(up%20to%205)%3A%0AMarkets%20(up%20to%202)%3A%0AContext%20%2F%20deadline%3A)
 
-The `TP-RS1` marker exists only to attribute requests to this bounded experiment. The Community MCP itself does not add hidden telemetry.
+The `TP-RS1` marker exists only to attribute requests to this Demand Brief offer. The Community MCP itself does not add hidden telemetry.

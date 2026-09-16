@@ -15,7 +15,7 @@ Engineering context: TrendPulse is part of the [DigestSEO](https://digestseo.com
 
 ## TrendPulse Demand Brief
 
-Need a fast evidence check before choosing a topic, keyword, market, product angle, or content bet? During the current launch experiment, Tomi is offering a **human-produced TrendPulse Demand Brief for EUR 49**.
+Need a fast evidence check before choosing a topic, keyword, market, product angle, or content bet? Tomi offers a **human-produced TrendPulse Demand Brief for EUR 49**.
 
 For one decision, the brief covers up to five keywords/phrases and two geographic markets using TrendPulse's open-source research capabilities plus current public sources: search-interest direction, relative momentum, related demand, useful news context, and three concrete implications. Target turnaround is within 24 hours after payment is confirmed and the inputs are supplied.
 
