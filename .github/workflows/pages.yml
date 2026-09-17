@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - index.html
+      - 5c7cff42fcd3423b8e2d2c86a4c628c5.txt
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -30,6 +31,7 @@ jobs:
         run: |
           mkdir _site
           cp index.html _site/index.html
+          cp 5c7cff42fcd3423b8e2d2c86a4c628c5.txt _site/5c7cff42fcd3423b8e2d2c86a4c628c5.txt
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
