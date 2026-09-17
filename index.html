@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="MCP server exposing Google Trends and Google News to AI agents via Model Context Protocol.">
-<title>mcp-trendpulse — real-time trends for MCP-aware agents</title>
+<meta name="description" content="Open-source Google Trends and Google News MCP server, plus a EUR 49 human-produced demand brief for focused keyword and market decisions.">
+<title>TrendPulse — trends MCP + EUR 49 demand brief</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -278,6 +278,45 @@
     font-size: 12px;
     color: var(--text-faint);
     flex-wrap: wrap;
+  }
+
+  .brief-card {
+    margin-top: 48px;
+    padding: 26px 28px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 28px;
+    background: linear-gradient(110deg, rgba(79,70,229,0.16), rgba(17,24,39,0.72));
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    backdrop-filter: blur(12px);
+  }
+  .brief-kicker {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--lime);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .brief-card h2 {
+    margin-bottom: 8px;
+    font-size: clamp(1.2rem, 2vw, 1.55rem);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .brief-card p {
+    max-width: 760px;
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .brief-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   /* Trends preview panel */
@@ -725,6 +764,8 @@
   /* === Responsive === */
   @media (max-width: 920px) {
     .hero-grid { grid-template-columns: 1fr; gap: 56px; }
+    .brief-card { grid-template-columns: 1fr; }
+    .brief-actions { justify-content: flex-start; }
     .bento { grid-template-columns: 1fr 1fr; }
     .card-wide { grid-column: span 2; }
     .config-panel { grid-template-columns: 1fr; }
@@ -776,7 +817,7 @@
   <div class="wrap">
     <a href="#" class="nav-brand">mcp-trendpulse</a>
     <div class="nav-right">
-      <span class="nav-version">v0.2.9</span>
+      <span class="nav-version">v0.2.13</span>
       <a href="https://github.com/AKzar1el/mcp-trendpulse" class="nav-link">
         <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
         GitHub
@@ -793,7 +834,7 @@
       <div>
         <div class="eyebrow">
           <span class="status-dot"></span>
-          <span>v0.2.9 · MIT licensed · MCP server</span>
+          <span>v0.2.13 · MIT licensed · MCP server</span>
         </div>
         <h1 class="wordmark"><span class="dim">mcp-</span>trendpulse</h1>
         <p class="lede">Connect your AI models to real-time Google News feeds and Google Trends interest curves via Model Context Protocol. <strong>16 tools, one stdio server, zero API keys.</strong></p>
@@ -856,6 +897,17 @@
         </div>
       </div>
     </div>
+    <div class="brief-card" id="demand-brief">
+      <div>
+        <span class="brief-kicker mono">TP-RS1 · human-produced · EUR 49 one-off</span>
+        <h2>Need a decision, not another dashboard?</h2>
+        <p>The TrendPulse Demand Brief turns a focused keyword or market question into a bounded decision memo with direction, momentum, related demand, current news context, evidence caveats, and three concrete implications. The Community MCP remains free.</p>
+      </div>
+      <div class="brief-actions">
+        <a href="https://github.com/AKzar1el/mcp-trendpulse/blob/main/SAMPLE_DEMAND_BRIEF.md" class="btn btn-ghost">View sample</a>
+        <a href="mailto:info@tomiseregi.si?subject=TrendPulse%20Demand%20Brief%20%5BTP-RS1%5D" class="btn btn-primary">Request brief</a>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -889,7 +941,7 @@
         </div>
         <div class="term-output mono">
           <div>Resolved 15 packages in 920ms</div>
-          <div>Installed mcp-trendpulse==0.2.9</div>
+          <div>Installed mcp-trendpulse==0.2.13</div>
           <div class="arrow">→ trendspy 0.1.6, gnews 0.4.1, newspaper4k 0.9.3.1, mcp 1.2.0</div>
           <div>MCP server listening on stdio</div>
           <div class="ok">✓ registered 16 tools · ready for connections</div>
@@ -1039,26 +1091,25 @@
     <div class="footer-cta">
       <div>
         <p class="footer-line">Built because agents shouldn't have to guess what's actually trending.</p>
-        <p class="footer-sub mono">MIT licensed · maintained on weekends · issues & PRs welcome</p>
+        <p class="footer-sub mono">MIT licensed · Community MCP stays free · issues & PRs welcome</p>
       </div>
       <a href="https://github.com/AKzar1el/mcp-trendpulse" class="star-btn">
         <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.72-4.194L.818 6.374a.75.75 0 01.416-1.28l4.21-.611L7.327.668A.75.75 0 018 .25z"/></svg>
-        <span>Star</span>
-        <span class="star-count mono">1,247</span>
+        <span>Star on GitHub</span>
       </a>
     </div>
     <div class="footer-bottom mono">
       <span>mcp-trendpulse</span>
       <span>·</span>
-      <span>v0.2.9</span>
+      <span>v0.2.13</span>
       <span>·</span>
-      <a href="#">docs</a>
+      <a href="https://github.com/AKzar1el/mcp-trendpulse#readme">docs</a>
       <span>·</span>
-      <a href="#">changelog</a>
+      <a href="https://github.com/AKzar1el/mcp-trendpulse/releases">changelog</a>
       <span>·</span>
-      <a href="#">issues</a>
+      <a href="https://github.com/AKzar1el/mcp-trendpulse/issues">issues</a>
       <span>·</span>
-      <a href="#">license</a>
+      <a href="https://github.com/AKzar1el/mcp-trendpulse/blob/main/LICENSE">license</a>
     </div>
   </div>
 </footer>
