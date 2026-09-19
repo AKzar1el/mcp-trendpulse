@@ -8,8 +8,9 @@ from mcp_trendpulse import news
 class FakeGNews:
     instances: list["FakeGNews"] = []
 
-    def __init__(self, *, language: str = "en"):
+    def __init__(self, *, language: str = "en", country: str = "US"):
         self.language = language
+        self.country = country
         self.period = None
         self.max_results = None
         self.calls: list[tuple[str, str | None]] = []
@@ -69,6 +70,20 @@ async def test_news_queries_use_request_scoped_clients(monkeypatch):
         [("site", "example.com")],
     ]
     assert process.await_count == 5
+
+
+@pytest.mark.asyncio
+async def test_news_queries_use_configured_google_news_locale(monkeypatch):
+    monkeypatch.setenv("GOOGLE_NEWS_LANGUAGE", "sl")
+    monkeypatch.setenv("GOOGLE_NEWS_COUNTRY", "si")
+    monkeypatch.setattr(news, "GNews", FakeGNews)
+    monkeypatch.setattr(news, "process_gnews_articles", AsyncMock(return_value=[]))
+
+    await news.get_news_by_keyword("Ljubljana", period=2, max_results=3, nlp=False)
+
+    assert len(FakeGNews.instances) == 1
+    assert FakeGNews.instances[0].language == "sl"
+    assert FakeGNews.instances[0].country == "SI"
 
 
 @pytest.mark.asyncio

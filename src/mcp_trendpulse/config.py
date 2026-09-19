@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 
 
 logger = logging.getLogger(__name__)
+DEFAULT_GOOGLE_NEWS_LANGUAGE = "en"
+DEFAULT_GOOGLE_NEWS_COUNTRY = "US"
 DEFAULT_GOOGLE_TRENDS_DELAY = 2.0
 DEFAULT_BROWSER_SANDBOX = False
 DEFAULT_HTTP_PATH = "/mcp"
@@ -46,6 +48,20 @@ class RemoteAuthSettings:
 def load_environment() -> None:
     """Load local .env values for command-line/server entry points."""
     load_dotenv()
+
+
+def get_google_news_language(env: Mapping[str, str] | None = None) -> str:
+    """Return the Google News language code, preserving the provider's English default."""
+    source = os.environ if env is None else env
+    value = source.get("GOOGLE_NEWS_LANGUAGE", DEFAULT_GOOGLE_NEWS_LANGUAGE).strip()
+    return value or DEFAULT_GOOGLE_NEWS_LANGUAGE
+
+
+def get_google_news_country(env: Mapping[str, str] | None = None) -> str:
+    """Return the Google News country code, preserving the provider's US default."""
+    source = os.environ if env is None else env
+    value = source.get("GOOGLE_NEWS_COUNTRY", DEFAULT_GOOGLE_NEWS_COUNTRY).strip().upper()
+    return value or DEFAULT_GOOGLE_NEWS_COUNTRY
 
 
 def get_google_trends_delay(env: Mapping[str, str] | None = None) -> float:
