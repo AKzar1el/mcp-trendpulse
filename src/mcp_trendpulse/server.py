@@ -729,8 +729,8 @@ async def get_interest_by_region(
     timeframe: Annotated[str, Field(description="Timeframe for search volume analysis (e.g., 'today 12-m').")] = "today 12-m",
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US' or empty '' for worldwide).")] = "US",
     cat: Annotated[int, Field(description="Category ID (default: 0 for all).")] = 0,
-    gprop: Annotated[str, Field(description="Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').")] = "",
-    resolution: Annotated[str, Field(description="Geographic resolution: 'COUNTRY', 'REGION', 'CITY', or 'DMA'.")] = "REGION",
+    gprop: Annotated[Literal["", "youtube", "news", "images", "froogle"], Field(description="Google property filter.")] = "",
+    resolution: Annotated[Literal["COUNTRY", "REGION", "CITY", "DMA"], Field(description="Geographic resolution.")] = "REGION",
     inc_low_vol: Annotated[bool, Field(description="Include regions with low search volume.")] = False,
 ) -> list[RegionInterestOut]:
     results = await get_provider_set().trends.get_interest_by_region(
@@ -762,7 +762,7 @@ async def get_related_queries(
     timeframe: Annotated[str, Field(description="Timeframe for search volume analysis (e.g., 'today 12-m').")] = "today 12-m",
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
     cat: Annotated[int, Field(description="Category ID (default: 0 for all).")] = 0,
-    gprop: Annotated[str, Field(description="Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').")] = "",
+    gprop: Annotated[Literal["", "youtube", "news", "images", "froogle"], Field(description="Google property filter.")] = "",
 ) -> RelatedQueriesOut:
     results = await get_provider_set().trends.get_related_queries(
         keyword=keyword,
@@ -790,7 +790,7 @@ async def get_related_topics(
     timeframe: Annotated[str, Field(description="Timeframe for search volume analysis (e.g., 'today 12-m').")] = "today 12-m",
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
     cat: Annotated[int, Field(description="Category ID (default: 0 for all).")] = 0,
-    gprop: Annotated[str, Field(description="Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').")] = "",
+    gprop: Annotated[Literal["", "youtube", "news", "images", "froogle"], Field(description="Google property filter.")] = "",
 ) -> RelatedTopicsOut:
     results = await get_provider_set().trends.get_related_topics(
         keyword=keyword,
