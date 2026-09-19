@@ -196,10 +196,12 @@ Useful variables include:
 ```env
 HTTP_PROXY=http://your-proxy-address:port
 HTTPS_PROXY=http://your-proxy-address:port
+GOOGLE_NEWS_LANGUAGE=en
+GOOGLE_NEWS_COUNTRY=US
 GOOGLE_TRENDS_DELAY=2.0
 ```
 
-`GOOGLE_TRENDS_DELAY` controls the request delay used by the current Trends provider. Proxy variables can be useful when the upstream service rate-limits or blocks a particular network.
+`GOOGLE_NEWS_LANGUAGE` and `GOOGLE_NEWS_COUNTRY` select the Google News language/edition used by all news-discovery tools; defaults remain `en` and `US`. `GOOGLE_TRENDS_DELAY` controls the request delay used by the current Trends provider. Proxy variables can be useful when the upstream service rate-limits or blocks a particular network.
 
 Remote deployments also support `TRENDPULSE_HTTP_PATH`, `TRENDPULSE_HTTP_ALLOWED_HOSTS`, `TRENDPULSE_HTTP_ALLOWED_ORIGINS`, and `TRENDPULSE_BROWSER_SANDBOX`. The container enables Chromium sandboxing explicitly; local Community runs retain the Playwright-compatible default unless you opt in.
 

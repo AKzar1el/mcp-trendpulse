@@ -26,7 +26,12 @@ import logging
 from collections.abc import Callable
 from urllib.parse import urljoin, urlsplit
 
-from mcp_trendpulse.config import get_browser_sandbox_enabled, get_google_trends_delay
+from mcp_trendpulse.config import (
+    get_browser_sandbox_enabled,
+    get_google_news_country,
+    get_google_news_language,
+    get_google_trends_delay,
+)
 from mcp_trendpulse.errors import ProviderError, classify_provider_exception
 
 logger = logging.getLogger(__name__)
@@ -122,7 +127,10 @@ def get_scraper():
 
 def _new_google_news(period: int, max_results: int) -> GNews:
     """Create an isolated Google News client for one request."""
-    client = GNews(language="en")
+    client = GNews(
+        language=get_google_news_language(),
+        country=get_google_news_country(),
+    )
     client.period = f"{period}d"
     client.max_results = max_results
     return client
