@@ -1,4 +1,4 @@
-﻿"""Focused unit tests for useful Google Trends windows and categories."""
+"""Focused unit tests for useful Google Trends windows and categories."""
 
 from unittest.mock import patch
 
