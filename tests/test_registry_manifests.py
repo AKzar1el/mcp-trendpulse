@@ -9,6 +9,13 @@ from mcp_trendpulse import server
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_FILES = ("manifest.json", "server.json")
+RELEASE_ALIGNED_VERSION_FILES = (
+    "manifest.json",
+    "server.json",
+    "plugin.json",
+    ".cursor-plugin/plugin.json",
+    ".claude-plugin/plugin.json",
+)
 
 
 def _load_json(filename: str) -> dict:
@@ -33,5 +40,13 @@ def test_registry_manifest_versions_match_package_version():
     package_version = version("mcp-trendpulse")
 
     for filename in REGISTRY_FILES:
+        manifest = _load_json(filename)
+        assert manifest["version"] == package_version, f"{filename} version is stale"
+
+
+def test_release_aligned_distribution_versions_match_package_version():
+    package_version = version("mcp-trendpulse")
+
+    for filename in RELEASE_ALIGNED_VERSION_FILES:
         manifest = _load_json(filename)
         assert manifest["version"] == package_version, f"{filename} version is stale"
