@@ -2,7 +2,7 @@
 
 This is a public example of the **EUR 49 TrendPulse Demand Brief**. It demonstrates the format and level of interpretation a buyer receives. It is not a client deliverable and does not contain private customer data.
 
-Data captured: **2026-09-10**
+Data refreshed: **2026-09-19** using TrendPulse's completed-period filtering. The newest provider-marked partial week is excluded from the decision metrics below.
 
 ## Decision
 
@@ -30,19 +30,19 @@ TrendPulse queried the five terms together in each market. Google Trends values 
 
 | Term | Latest weekly index (2026-09-06) | 3-month growth estimate | 1-year growth estimate |
 | --- | ---: | ---: | ---: |
-| ChatGPT | 80 | +5.35% | -20.85% |
-| Gemini | 31 | +2.48% | +31.91% |
-| Claude | 19 | -34.43% | +300.00% |
-| Perplexity | 1 | -66.67% | -80.00% |
+| ChatGPT | 78 | +6.12% | -20.00% |
+| Gemini | 31 | -1.65% | +16.67% |
+| Claude | 18 | -36.13% | +280.00% |
+| Perplexity | 1 | -66.67% | -83.33% |
 | Microsoft Copilot | 1 | 0.00% | 0.00% |
 
 ### United Kingdom
 
 | Term | Latest weekly index (2026-09-06) | 3-month growth estimate | 1-year growth estimate |
 | --- | ---: | ---: | ---: |
-| ChatGPT | 97 | +5.00% | -1.18% |
-| Gemini | 29 | -7.08% | +38.16% |
-| Claude | 25 | -15.93% | +493.75% |
+| ChatGPT | 90 | +4.40% | -7.78% |
+| Gemini | 28 | -7.83% | +29.27% |
+| Claude | 23 | -15.18% | +493.75% |
 | Perplexity | 1 | -50.00% | -50.00% |
 | Microsoft Copilot | 1 | -20.00% | 0.00% |
 
@@ -52,15 +52,15 @@ The growth figures are TrendPulse estimates based on normalized Google Trends se
 
 ### 1. ChatGPT remains the reach-first choice
 
-ChatGPT is still the dominant exact search term in both market comparisons. Its latest index is materially above every other term, and the 3-month estimate is slightly positive in both markets.
+ChatGPT is still the dominant exact search term in both market comparisons. Its latest completed-week index is materially above every other term, and the 3-month estimate remains slightly positive in both markets.
 
 For a single near-term content or integration sprint, ChatGPT therefore has the strongest evidence for **immediate audience reach** among these exact terms.
 
-### 2. Gemini is the strongest second priority
+### 2. Gemini remains the strongest second priority on reach
 
-Gemini is the clear second-largest exact term in both markets in the latest weekly snapshot. Its US 3-month estimate is slightly positive and its 1-year estimate is positive in both markets.
+Gemini is the clear second-largest exact term in both markets in the latest completed-week snapshot. Its 3-month estimate is now slightly negative in both markets, while its 1-year estimate remains positive in both.
 
-That combination makes Gemini a better second priority than simply chasing the highest percentage-growth term.
+That combination still makes Gemini a stronger second reach priority than simply chasing the highest percentage-growth term, but the recent softness argues against treating it as an accelerating trend.
 
 ### 3. Claude is the interesting challenger, not the first reach bet
 
@@ -101,7 +101,7 @@ For a paid brief, that enrichment would be retried within the delivery window an
 
 - Google Trends indices are normalized relative-interest values, not absolute search volumes.
 - Comparing five terms in one request changes the normalization scale versus querying each term separately.
-- The latest weekly point can move as Google updates or resamples Trends data.
+- The latest completed weekly point can move as Google updates or resamples Trends data; provider-marked partial weeks are excluded from these decision metrics.
 - Search terms may be ambiguous; topic/entity comparisons can be more appropriate for some brands.
 - The growth estimates are directional and should not be interpreted as revenue, market share, or user-count growth.
 - This sample is a decision aid, not a claim that search interest alone determines product strategy.
