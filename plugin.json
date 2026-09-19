@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "mcp-trendpulse",
+  "version": "0.2.13",
+  "description": "Research current Google News and Google Trends data for keyword, market, and demand analysis.",
+  "author": {
+    "name": "Tomi Šeregi",
+    "email": "info@tomiseregi.si",
+    "url": "https://tomiseregi.si"
+  },
+  "homepage": "https://akzar1el.github.io/mcp-trendpulse/",
+  "repository": "https://github.com/AKzar1el/mcp-trendpulse",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "google-news",
+    "google-trends",
+    "keyword-research",
+    "market-research",
+    "seo"
+  ]
+}
