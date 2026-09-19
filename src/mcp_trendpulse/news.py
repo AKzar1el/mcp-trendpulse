@@ -832,10 +832,14 @@ async def get_growth(
 
             if past_val > 0:
                 growth_pct = ((current_val - past_val) / past_val) * 100
+            elif current_val == 0:
+                growth_pct = 0.0
             else:
-                growth_pct = current_val * 100 if current_val > 0 else 0.0
+                growth_pct = None
 
-            growth_dict[pg] = round(growth_pct, 2)
+            growth_dict[pg] = (
+                round(growth_pct, 2) if growth_pct is not None else None
+            )
 
         results.append({
             "keyword": kw,
