@@ -116,18 +116,14 @@ Claude Code plugin packaging is included in `.claude-plugin/plugin.json` with it
 
 ### Claude Desktop
 
-Using `uvx` directly from GitHub:
+Using the published PyPI package with `uvx`:
 
 ```json
 {
   "mcpServers": {
     "mcp-trendpulse": {
       "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/AKzar1el/mcp-trendpulse.git",
-        "mcp-trendpulse"
-      ]
+      "args": ["mcp-trendpulse"]
     }
   }
 }
@@ -142,11 +138,7 @@ For workspace-level configuration, put this in `.vscode/mcp.json`. The same top-
   "servers": {
     "mcp-trendpulse": {
       "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/AKzar1el/mcp-trendpulse.git",
-        "mcp-trendpulse"
-      ]
+      "args": ["mcp-trendpulse"]
     }
   }
 }
@@ -163,11 +155,7 @@ Cursor also supports global and project MCP configuration. Add the server to the
   "mcpServers": {
     "mcp-trendpulse": {
       "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/AKzar1el/mcp-trendpulse.git",
-        "mcp-trendpulse"
-      ]
+      "args": ["mcp-trendpulse"]
     }
   }
 }
@@ -175,9 +163,9 @@ Cursor also supports global and project MCP configuration. Add the server to the
 
 ### Kiro
 
-[![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=mcp-trendpulse&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--from%22%2C%22git%2Bhttps%3A%2F%2Fgithub.com%2FAKzar1el%2Fmcp-trendpulse.git%22%2C%22mcp-trendpulse%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D)
+[![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=mcp-trendpulse&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-trendpulse%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D)
 
-Requires `uv`/`uvx`. The install runs the current community MCP directly from this GitHub repository; it does not use the unreleased hosted surface.
+Requires `uv`/`uvx`. The install runs the published Community MCP package from PyPI; it does not use the unreleased hosted surface.
 
 Privacy: [TrendPulse Community MCP Privacy Notice](PRIVACY.md) · Support: [info@tomiseregi.si](mailto:info@tomiseregi.si)
 

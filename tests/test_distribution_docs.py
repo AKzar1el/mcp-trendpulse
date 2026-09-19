@@ -35,3 +35,20 @@ def test_kiro_docs_link_community_privacy_notice_and_support():
     assert "local `stdio` execution path" in privacy
     assert "does not add hidden analytics" in privacy
     assert "unreleased hosted TrendPulse service" in privacy
+
+
+def test_client_install_docs_use_stable_pypi_package():
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+
+    claude_section = readme.split("### Claude Desktop", 1)[1].split("### VS Code", 1)[0]
+    vscode_section = readme.split("### VS Code", 1)[1].split("### Cursor", 1)[0]
+    cursor_section = readme.split("### Cursor", 1)[1].split("### Kiro", 1)[0]
+    kiro_section = readme.split("### Kiro", 1)[1].split("### ChatGPT", 1)[0]
+
+    for section in (claude_section, vscode_section, cursor_section):
+        assert "git+https://github.com/AKzar1el/mcp-trendpulse.git" not in section
+        assert '"command": "uvx"' in section
+        assert '"mcp-trendpulse"' in section
+
+    assert "git%2Bhttps%3A%2F%2Fgithub.com%2FAKzar1el%2Fmcp-trendpulse.git" not in kiro_section
+    assert "%22args%22%3A%5B%22mcp-trendpulse%22%5D" in kiro_section
