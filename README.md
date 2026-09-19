@@ -135,18 +135,18 @@ Using `uvx` directly from GitHub:
 
 ### VS Code
 
+For workspace-level configuration, put this in `.vscode/mcp.json`. The same top-level `servers` shape is used by the VS Code user-profile `mcp.json` for a global configuration.
+
 ```json
 {
-  "mcp": {
-    "servers": {
-      "mcp-trendpulse": {
-        "command": "uvx",
-        "args": [
-          "--from",
-          "git+https://github.com/AKzar1el/mcp-trendpulse.git",
-          "mcp-trendpulse"
-        ]
-      }
+  "servers": {
+    "mcp-trendpulse": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/AKzar1el/mcp-trendpulse.git",
+        "mcp-trendpulse"
+      ]
     }
   }
 }
