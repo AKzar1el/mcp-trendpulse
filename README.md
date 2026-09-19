@@ -179,6 +179,8 @@ Cursor also supports global and project MCP configuration. Add the server to the
 
 Requires `uv`/`uvx`. The install runs the current community MCP directly from this GitHub repository; it does not use the unreleased hosted surface.
 
+Privacy: [TrendPulse Community MCP Privacy Notice](PRIVACY.md) · Support: [info@tomiseregi.si](mailto:info@tomiseregi.si)
+
 ### ChatGPT and other cloud MCP clients
 
 The repository now includes a dedicated stateless Streamable HTTP ASGI entry point at `mcp_trendpulse.asgi:app`. This is separate from the Community stdio entry point, which remains unchanged.
