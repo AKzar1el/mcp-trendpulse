@@ -1,5 +1,7 @@
 import click
 import asyncio
+from collections import defaultdict
+
 
 from mcp_trendpulse.config import load_environment
 from mcp_trendpulse.news import (
@@ -11,6 +13,7 @@ from mcp_trendpulse.news import (
     save_article_to_json,
     BrowserManager,
 )
+from mcp_trendpulse.providers import get_provider_set
 
 
 @click.group()
@@ -119,6 +122,89 @@ def top(period, max_results, no_nlp):
         click.echo(f"Found {len(articles)} top articles.")
 
     asyncio.run(_top())
+
+
+@cli.command("brief-pack", help="Build the core trend/growth evidence table for a TrendPulse Demand Brief.")
+@click.option("--keyword", "keywords", multiple=True, required=True, help="Keyword or phrase; repeat up to five times.")
+@click.option("--market", "markets", multiple=True, required=True, help="Market code such as US or GB; repeat up to twice.")
+@click.option("--timeframe", type=str, default="today 12-m", show_default=True, help="Shared Google Trends timeframe.")
+def brief_pack(keywords, markets, timeframe):
+    """Emit a deterministic Markdown evidence pack for human Demand Brief fulfillment."""
+    cleaned_keywords = [value.strip() for value in keywords if value.strip()]
+    cleaned_markets = [value.strip().upper() for value in markets if value.strip()]
+    if not 1 <= len(cleaned_keywords) <= 5 or len(cleaned_keywords) != len(keywords):
+        raise click.UsageError("Provide between one and five non-empty --keyword values.")
+    if len(set(cleaned_keywords)) != len(cleaned_keywords):
+        raise click.UsageError("Keywords must be unique.")
+    if not 1 <= len(cleaned_markets) <= 2 or len(cleaned_markets) != len(markets):
+        raise click.UsageError("Provide one or two non-empty --market values.")
+    if len(set(cleaned_markets)) != len(cleaned_markets):
+        raise click.UsageError("Markets must be unique.")
+
+    async def _build():
+        providers = get_provider_set()
+        click.echo("# TrendPulse Demand Brief evidence pack")
+        click.echo()
+        click.echo(f"Timeframe: **{timeframe}** | Source: **Google Search**")
+        click.echo()
+        click.echo("> Google Trends values are normalized relative-interest indices, not absolute search volume. Compare terms within the same market request; do not compare index values directly across markets.")
+
+        for market in cleaned_markets:
+            points = await providers.trends.get_trends(
+                keyword=cleaned_keywords,
+                source="google search",
+                geo=market,
+                timeframe=timeframe,
+            )
+            growth_rows = await providers.trends.get_growth(
+                keyword=cleaned_keywords,
+                source="google search",
+                percent_growth=["3M", "1Y"],
+                geo=market,
+            )
+
+            series = defaultdict(list)
+            for point in points:
+                series[str(point.get("keyword", ""))].append(point)
+            growth = {
+                str(row.get("keyword", "")): row.get("growth") or {}
+                for row in growth_rows
+            }
+
+            click.echo()
+            click.echo(f"## {market}")
+            click.echo()
+            click.echo("| Keyword | Latest index | 3M growth | 1Y growth |")
+            click.echo("| --- | ---: | ---: | ---: |")
+            for keyword in cleaned_keywords:
+                keyword_points = series.get(keyword, [])
+                latest = keyword_points[-1].get("value") if keyword_points else None
+                keyword_growth = growth.get(keyword, {})
+                click.echo(
+                    f"| {keyword} | {_brief_value(latest)} | {_brief_percent(keyword_growth.get('3M'))} | {_brief_percent(keyword_growth.get('1Y'))} |"
+                )
+
+    asyncio.run(_build())
+
+
+def _brief_value(value):
+    if value is None:
+        return "n/a"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    return f"{number:g}"
+
+
+def _brief_percent(value):
+    if value is None:
+        return "n/a"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    return f"{number:+.2f}%"
 
 
 def print_articles(articles):
