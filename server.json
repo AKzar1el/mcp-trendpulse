@@ -3,7 +3,7 @@
   "name": "io.github.AKzar1el/mcp-trendpulse",
   "title": "Google News & Trends MCP",
   "description": "Query Google News RSS feeds and search interest over time via Google Trends.",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "repository": {
     "url": "https://github.com/AKzar1el/mcp-trendpulse",
     "source": "github"
@@ -228,8 +228,12 @@
           },
           "timeframe": {
             "anyOf": [
-              { "type": "string" },
-              { "type": "null" }
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
             "default": null,
             "description": "Explicit TrendsPy range, for example 'today 12-m', 'today 90-d', 'all', or 'YYYY-MM-DD YYYY-MM-DD'. Overrides data_mode when supplied."
@@ -470,12 +474,25 @@
           "gprop": {
             "default": "",
             "description": "Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "",
+              "youtube",
+              "news",
+              "images",
+              "froogle"
+            ]
           },
           "resolution": {
             "default": "REGION",
             "description": "Geographic resolution: 'COUNTRY', 'REGION', 'CITY', or 'DMA'.",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "COUNTRY",
+              "REGION",
+              "CITY",
+              "DMA"
+            ]
           },
           "inc_low_vol": {
             "default": false,
@@ -517,7 +534,14 @@
           "gprop": {
             "default": "",
             "description": "Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "",
+              "youtube",
+              "news",
+              "images",
+              "froogle"
+            ]
           }
         },
         "required": [
@@ -554,7 +578,14 @@
           "gprop": {
             "default": "",
             "description": "Google property filter (e.g., '', 'youtube', 'news', 'images', 'froogle').",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "",
+              "youtube",
+              "news",
+              "images",
+              "froogle"
+            ]
           }
         },
         "required": [
@@ -624,7 +655,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "mcp-trendpulse",
-      "version": "0.2.17",
+      "version": "0.2.18",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
