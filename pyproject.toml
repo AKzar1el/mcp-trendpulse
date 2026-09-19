@@ -1,6 +1,6 @@
 [project]
 name = "mcp-trendpulse"
-version = "0.2.13"
+version = "0.2.14"
 description = "MCP server for Google News research and Google Trends analysis"
 readme = "README.md"
 requires-python = ">=3.10.18"
@@ -57,6 +57,7 @@ markers = [
 Homepage = "https://github.com/AKzar1el/mcp-trendpulse"
 Repository = "https://github.com/AKzar1el/mcp-trendpulse"
 Issues = "https://github.com/AKzar1el/mcp-trendpulse/issues"
+"Demand Brief" = "https://akzar1el.github.io/mcp-trendpulse/#demand-brief"
 
 [tool.black]
 line-length = 120

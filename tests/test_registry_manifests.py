@@ -15,6 +15,7 @@ RELEASE_ALIGNED_VERSION_FILES = (
     "plugin.json",
     ".cursor-plugin/plugin.json",
     ".claude-plugin/plugin.json",
+    "gemini-extension.json",
 )
 
 
