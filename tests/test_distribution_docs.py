@@ -23,3 +23,15 @@ def test_vscode_mcp_json_uses_current_top_level_servers_shape():
     assert "`.vscode/mcp.json`" in vscode_section
     assert '  "servers": {' in vscode_section
     assert '  "mcp": {' not in vscode_section
+
+
+def test_kiro_docs_link_community_privacy_notice_and_support():
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    privacy = (PROJECT_ROOT / "PRIVACY.md").read_text(encoding="utf-8")
+    kiro_section = readme.split("### Kiro", 1)[1].split("### ChatGPT", 1)[0]
+
+    assert "[TrendPulse Community MCP Privacy Notice](PRIVACY.md)" in kiro_section
+    assert "info@tomiseregi.si" in kiro_section
+    assert "local `stdio` execution path" in privacy
+    assert "does not add hidden analytics" in privacy
+    assert "unreleased hosted TrendPulse service" in privacy
