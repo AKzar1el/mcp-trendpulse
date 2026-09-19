@@ -148,9 +148,11 @@ Using `uvx` directly from GitHub:
 }
 ```
 
-### Cursor
+### Cursor and portable Agent Plugins
 
-Cursor supports global and project MCP configuration. Add the server to the relevant `mcp.json` configuration:
+This repository includes an [Agent Plugins 1.0](https://agent-plugins.org/) manifest at the repository root. Compatible clients such as Cursor and GitHub Copilot can load the same portable `plugin.json` + `mcp.json` package.
+
+Cursor also supports global and project MCP configuration. Add the server to the relevant `mcp.json` configuration:
 
 ```json
 {
