@@ -3,7 +3,7 @@
   "name": "io.github.AKzar1el/mcp-trendpulse",
   "title": "Google News & Trends MCP",
   "description": "Query Google News RSS feeds and search interest over time via Google Trends.",
-  "version": "0.2.16",
+  "version": "0.2.17",
   "repository": {
     "url": "https://github.com/AKzar1el/mcp-trendpulse",
     "source": "github"
@@ -202,12 +202,24 @@
           "source": {
             "default": "google search",
             "description": "Search source: 'google search', 'youtube search', 'news search', 'image search', 'google shopping'.",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "google search",
+              "youtube search",
+              "news search",
+              "image search",
+              "google shopping"
+            ]
           },
           "data_mode": {
             "default": "weekly",
             "description": "Legacy resolution hint used only when timeframe is omitted: 'weekly', 'daily', 'monthly'.",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "weekly",
+              "daily",
+              "monthly"
+            ]
           },
           "geo": {
             "default": "US",
@@ -257,7 +269,14 @@
           "source": {
             "default": "google search",
             "description": "Search source: 'google search', 'youtube search', etc.",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "google search",
+              "youtube search",
+              "news search",
+              "image search",
+              "google shopping"
+            ]
           },
           "percent_growth": {
             "default": null,
@@ -288,12 +307,19 @@
           "source": {
             "default": "google search",
             "description": "Search source: 'google search'.",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "google search"
+            ]
           },
           "sort": {
             "default": "wow_pct_change",
             "description": "Field to sort by: 'wow_pct_change', 'volume'.",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "wow_pct_change",
+              "volume"
+            ]
           },
           "limit": {
             "default": 20,
@@ -319,7 +345,11 @@
           "type": {
             "default": "Google Trends",
             "description": "Type of trends: 'Google Trends' (realtime), 'Daily Trends' (daily).",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "Google Trends",
+              "Daily Trends"
+            ]
           },
           "limit": {
             "default": 20,
@@ -594,7 +624,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "mcp-trendpulse",
-      "version": "0.2.16",
+      "version": "0.2.17",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
