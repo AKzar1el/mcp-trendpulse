@@ -99,6 +99,8 @@ def test_brief_pack_emits_two_market_evidence_tables():
 
     assert result.exit_code == 0
     assert "# TrendPulse Demand Brief evidence pack" in result.output
+    assert "Google Trends property: **Google Search**" in result.output
+    assert "Data source: **Google Trends** (https://trends.google.com/trends/)" in result.output
     assert "## US" in result.output
     assert "## GB" in result.output
     assert "| ChatGPT | 80 | +5.00% | -1.25% |" in result.output
