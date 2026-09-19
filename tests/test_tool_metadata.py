@@ -40,3 +40,15 @@ async def test_community_tool_metadata_is_explicit_and_actionable():
         description = tool.description.lower()
         for phrase in required_phrases:
             assert phrase in description
+
+
+def test_community_server_instructions_cover_cross_tool_workflows():
+    instructions = server.mcp.instructions.lower()
+
+    assert "get_trending_terms" in instructions
+    assert "get_trends" in instructions
+    assert "normalized relative interest (0-100)" in instructions
+    assert "not absolute search volume" in instructions
+    assert "get_article_content" in instructions
+    assert "get_categories" in instructions
+    assert "geography and timeframe" in instructions
