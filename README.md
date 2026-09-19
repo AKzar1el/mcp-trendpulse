@@ -110,6 +110,10 @@ Trend-only operations do not inherently require Chromium.
 
 ## Client configuration
 
+### Claude Desktop and Claude Code
+
+Claude Code plugin packaging is included in `.claude-plugin/plugin.json` with its MCP definition in `.mcp.json`. The Community MCP remains local/stdin-based and runs through `uvx mcp-trendpulse`.
+
 ### Claude Desktop
 
 Using `uvx` directly from GitHub:

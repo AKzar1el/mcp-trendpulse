@@ -11,6 +11,8 @@ build/
 !server.json
 !manifest.json
 !plugin.json
+!.mcp.json
+!.claude-plugin/plugin.json
 .coverage
 *.ipynb
 rename_project.py
