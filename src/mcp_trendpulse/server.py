@@ -1,4 +1,4 @@
-from typing import Annotated, Optional, Any, TYPE_CHECKING
+from typing import Annotated, Optional, Any, TYPE_CHECKING, Literal
 from fastmcp import FastMCP, Context
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware.timing import TimingMiddleware
@@ -529,8 +529,8 @@ async def get_trending_terms(
 )
 async def get_trends(
     keyword: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
-    source: Annotated[str, Field(description="Search source: 'google search', 'youtube search', 'news search', 'image search', 'google shopping'.")] = "google search",
-    data_mode: Annotated[str, Field(description="Legacy resolution hint used only when timeframe is omitted: 'weekly', 'daily', 'monthly'.")] = "weekly",
+    source: Annotated[Literal["google search", "youtube search", "news search", "image search", "google shopping"], Field(description="Search source.")] = "google search",
+    data_mode: Annotated[Literal["weekly", "daily", "monthly"], Field(description="Legacy resolution hint used only when timeframe is omitted.")] = "weekly",
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
     timeframe: Annotated[Optional[str], Field(description="Explicit TrendsPy range, for example 'today 12-m', 'today 90-d', 'all', or 'YYYY-MM-DD YYYY-MM-DD'. Overrides data_mode when supplied.")] = None,
     cat: Annotated[int, Field(description="Google Trends category ID; use 0 for all categories or a value from get_categories.")] = 0,
@@ -556,7 +556,7 @@ async def get_trends(
 )
 async def get_growth(
     keyword: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
-    source: Annotated[str, Field(description="Search source: 'google search', 'youtube search', etc.")] = "google search",
+    source: Annotated[Literal["google search", "youtube search", "news search", "image search", "google shopping"], Field(description="Search source.")] = "google search",
     percent_growth: Annotated[Optional[list[str]], Field(description="Timeframes to calculate growth (e.g. ['3M', '1Y']).")] = None,
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
 ) -> list[KeywordGrowthOut]:
@@ -578,8 +578,8 @@ async def get_growth(
     annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_ranked_trends(
-    source: Annotated[str, Field(description="Search source: 'google search'.")] = "google search",
-    sort: Annotated[str, Field(description="Field to sort by: 'wow_pct_change', 'volume'.")] = "wow_pct_change",
+    source: Annotated[Literal["google search"], Field(description="Search source.")] = "google search",
+    sort: Annotated[Literal["wow_pct_change", "volume"], Field(description="Field to sort by.")] = "wow_pct_change",
     limit: Annotated[int, Field(description="Maximum number of trends to return.", ge=1)] = 20,
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
 ) -> list[RankedTrendOut]:
@@ -604,7 +604,7 @@ async def get_ranked_trends(
     annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_top_trends(
-    type: Annotated[str, Field(description="Type of trends: 'Google Trends' (realtime), 'Daily Trends' (daily).")] = "Google Trends",
+    type: Annotated[Literal["Google Trends", "Daily Trends"], Field(description="Type of trends feed.")] = "Google Trends",
     limit: Annotated[int, Field(description="Maximum number of trends to return.", ge=1)] = 20,
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
 ) -> list[TopTrendOut]:
