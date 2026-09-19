@@ -693,6 +693,28 @@ def _completed_trends_frame(df: pandas.DataFrame) -> pandas.DataFrame:
     return completed
 
 
+def _growth_window_days(window: str) -> int:
+    """Parse a growth window without silently relabeling unsupported input."""
+    match = re.fullmatch(r"([1-9]\d*)([DWMY])", window.strip().upper())
+    if not match:
+        raise ValueError(
+            f"Invalid growth window {window!r}; expected a positive integer followed by D, W, M, or Y (for example '90D', '3M', or '1Y')."
+        )
+    amount = int(match.group(1))
+    unit = match.group(2)
+    return amount * {"D": 1, "W": 7, "M": 30, "Y": 365}[unit]
+
+
+def _growth_fetch_timeframe(windows: list[str]) -> str:
+    """Choose a provider range that actually covers the longest requested window."""
+    max_days = max((_growth_window_days(window) for window in windows), default=365)
+    if max_days <= 365:
+        return "today 12-m"
+    if max_days <= 365 * 5:
+        return "today 5-y"
+    return "all"
+
+
 async def get_trends(
     keyword: str | list[str],
     source: str = "google search",
@@ -764,15 +786,7 @@ async def get_growth(
 
     keywords = [keyword] if isinstance(keyword, str) else keyword
 
-    timeframe = "today 12-m"
-    for pg in percent_growth:
-        if "Y" in pg:
-            try:
-                years = int(pg.replace("Y", ""))
-                if years > 1:
-                    timeframe = "today 5-y"
-            except Exception:
-                pass
+    timeframe = _growth_fetch_timeframe(percent_growth)
 
     source_map = {
         "google search": "",
@@ -804,32 +818,7 @@ async def get_growth(
         growth_dict = {}
         for pg in percent_growth:
             latest_date = df.index[-1]
-            if pg.endswith("M"):
-                try:
-                    months = int(pg[:-1])
-                except ValueError:
-                    months = 3
-                days_offset = months * 30
-            elif pg.endswith("Y"):
-                try:
-                    years = int(pg[:-1])
-                except ValueError:
-                    years = 1
-                days_offset = years * 365
-            elif pg.endswith("W"):
-                try:
-                    weeks = int(pg[:-1])
-                except ValueError:
-                    weeks = 1
-                days_offset = weeks * 7
-            elif pg.endswith("D"):
-                try:
-                    days_offset = int(pg[:-1])
-                except ValueError:
-                    days_offset = 90
-            else:
-                days_offset = 90
-
+            days_offset = _growth_window_days(pg)
             target_date = latest_date - pandas.Timedelta(days=days_offset)
             indices = df.index.get_indexer([target_date], method='nearest')
             if len(indices) == 0 or indices[0] < 0:

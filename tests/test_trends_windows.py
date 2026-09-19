@@ -75,3 +75,46 @@ async def test_get_growth_excludes_partial_provider_rows():
         result = await news.get_growth("keyword", percent_growth=["1Y"], geo="US")
 
     assert result[0]["growth"]["1Y"] == 250.0
+
+
+async def test_get_growth_fetches_enough_history_for_month_window():
+    dates = pd.date_range(start="2025-01-05", periods=90, freq="W")
+    frame = pd.DataFrame(
+        {"keyword": [20.0] * 26 + [40.0] * 60 + [80.0] * 4},
+        index=pd.DatetimeIndex(dates, name="time [UTC]"),
+    )
+
+    with patch.object(news.tr, "interest_over_time", return_value=frame) as request:
+        result = await news.get_growth("keyword", percent_growth=["18M"], geo="US")
+
+    request.assert_called_once_with(
+        ["keyword"], timeframe="today 5-y", geo="US", gprop=""
+    )
+    assert "18M" in result[0]["growth"]
+
+
+async def test_get_growth_uses_all_history_for_windows_over_five_years():
+    dates = pd.date_range(start="2015-01-01", periods=12, freq="YS")
+    frame = pd.DataFrame(
+        {"keyword": [10.0] * 8 + [20.0] * 4},
+        index=pd.DatetimeIndex(dates, name="time [UTC]"),
+    )
+
+    with patch.object(news.tr, "interest_over_time", return_value=frame) as request:
+        await news.get_growth("keyword", percent_growth=["10Y"], geo="US")
+
+    request.assert_called_once_with(
+        ["keyword"], timeframe="all", geo="US", gprop=""
+    )
+
+
+async def test_get_growth_rejects_invalid_window_instead_of_mislabeling_it():
+    with patch.object(news.tr, "interest_over_time") as request:
+        try:
+            await news.get_growth("keyword", percent_growth=["quarter"], geo="US")
+        except ValueError as exc:
+            assert "Invalid growth window" in str(exc)
+        else:
+            raise AssertionError("invalid growth window should fail")
+
+    request.assert_not_called()
