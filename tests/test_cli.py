@@ -61,3 +61,61 @@ def test_trending_command_emits_no_results_message():
 
     assert result.exit_code == 0
     assert result.output == "No trending terms found.\n"
+
+
+class FakeBriefTrendsProvider:
+    async def get_trends(self, **kwargs):
+        geo = kwargs["geo"]
+        base = 80 if geo == "US" else 60
+        return [
+            {"date": "2026-09-06", "value": base, "keyword": "ChatGPT"},
+            {"date": "2026-09-06", "value": base // 2, "keyword": "Claude"},
+        ]
+
+    async def get_growth(self, **kwargs):
+        return [
+            {"keyword": "ChatGPT", "growth": {"3M": 5.0, "1Y": -1.25}},
+            {"keyword": "Claude", "growth": {"3M": -15.5, "1Y": 300.0}},
+        ]
+
+
+class FakeBriefProviders:
+    trends = FakeBriefTrendsProvider()
+
+
+def test_brief_pack_emits_two_market_evidence_tables():
+    runner = CliRunner()
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=FakeBriefProviders()):
+        result = runner.invoke(
+            cli_module.cli,
+            [
+                "brief-pack",
+                "--keyword", "ChatGPT",
+                "--keyword", "Claude",
+                "--market", "US",
+                "--market", "GB",
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert "# TrendPulse Demand Brief evidence pack" in result.output
+    assert "## US" in result.output
+    assert "## GB" in result.output
+    assert "| ChatGPT | 80 | +5.00% | -1.25% |" in result.output
+    assert "| Claude | 30 | -15.50% | +300.00% |" in result.output
+    assert "do not compare index values directly across markets" in result.output
+
+
+def test_brief_pack_enforces_offer_keyword_and_market_limits():
+    runner = CliRunner()
+    too_many_keywords = [item for value in ["a", "b", "c", "d", "e", "f"] for item in ("--keyword", value)]
+    result = runner.invoke(cli_module.cli, ["brief-pack", *too_many_keywords, "--market", "US"])
+    assert result.exit_code == 2
+    assert "one and five" in result.output
+
+    result = runner.invoke(
+        cli_module.cli,
+        ["brief-pack", "--keyword", "AI", "--market", "US", "--market", "GB", "--market", "DE"],
+    )
+    assert result.exit_code == 2
+    assert "one or two" in result.output
