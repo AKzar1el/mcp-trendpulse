@@ -151,9 +151,20 @@ async def lifespan(app: FastMCP):
         yield
 
 
+COMMUNITY_SERVER_INSTRUCTIONS = (
+    "Use TrendPulse for evidence-led trend research. Start with get_trending_terms or get_top_trends "
+    "when the user needs discovery; use get_trends or get_growth for known keywords and historical momentum. "
+    "Google Trends values are normalized relative interest (0-100), not absolute search volume, so do not infer "
+    "raw demand without independent evidence. Use Google News discovery tools for current context and call "
+    "get_article_content only after you have a specific article URL; call get_categories before using a "
+    "non-default category ID. Preserve geography and timeframe when summarizing conclusions, and combine trend "
+    "and news evidence when the user is making a decision."
+)
+
+
 mcp = FastMCP(
     name="mcp-trendpulse",
-    instructions="This server provides tools to search, analyze, and summarize Google News articles and Google Trends",
+    instructions=COMMUNITY_SERVER_INSTRUCTIONS,
     lifespan=lifespan,
     on_duplicate="replace",
 )
