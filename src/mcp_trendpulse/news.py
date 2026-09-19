@@ -58,6 +58,8 @@ _SEARCH_SOURCE_MAP = {
 _ALLOWED_DATA_MODES = frozenset({"weekly", "daily", "monthly"})
 _ALLOWED_RANK_SORTS = frozenset({"wow_pct_change", "volume"})
 _ALLOWED_TOP_TREND_TYPES = frozenset({"google trends", "daily trends", "daily"})
+_ALLOWED_GOOGLE_PROPERTIES = frozenset(_SEARCH_SOURCE_MAP.values())
+_ALLOWED_REGION_RESOLUTIONS = frozenset({"COUNTRY", "REGION", "CITY", "DMA"})
 
 
 def _google_property(source: str) -> str:
@@ -67,6 +69,22 @@ def _google_property(source: str) -> str:
     except KeyError as exc:
         allowed = ", ".join(sorted(_SEARCH_SOURCE_MAP))
         raise ValueError(f"Unsupported search source {source!r}; expected one of: {allowed}.") from exc
+
+
+def _validated_google_property(gprop: str) -> str:
+    normalized = gprop.strip().lower()
+    if normalized not in _ALLOWED_GOOGLE_PROPERTIES:
+        allowed = ", ".join(repr(value) for value in sorted(_ALLOWED_GOOGLE_PROPERTIES))
+        raise ValueError(f"Unsupported Google property {gprop!r}; expected one of: {allowed}.")
+    return normalized
+
+
+def _validated_region_resolution(resolution: str) -> str:
+    normalized = resolution.strip().upper()
+    if normalized not in _ALLOWED_REGION_RESOLUTIONS:
+        allowed = ", ".join(sorted(_ALLOWED_REGION_RESOLUTIONS))
+        raise ValueError(f"Unsupported region resolution {resolution!r}; expected one of: {allowed}.")
+    return normalized
 
 
 
@@ -1013,6 +1031,8 @@ async def get_interest_by_region(
     inc_low_vol: bool = False,
 ) -> list[dict]:
     """Retrieves geographical interest data based on keywords and other parameters."""
+    gprop = _validated_google_property(gprop)
+    resolution = _validated_region_resolution(resolution)
     kw_list = [keywords] if isinstance(keywords, str) else keywords
     loop = asyncio.get_running_loop()
     df = await loop.run_in_executor(
@@ -1051,6 +1071,7 @@ async def get_related_queries(
     gprop: str = "",
 ) -> dict[str, list[dict]]:
     """Retrieves related queries for a single search term."""
+    gprop = _validated_google_property(gprop)
     loop = asyncio.get_running_loop()
     res = await loop.run_in_executor(
         None,
@@ -1083,6 +1104,7 @@ async def get_related_topics(
     gprop: str = "",
 ) -> dict[str, list[dict]]:
     """Retrieves related topics for a single search term."""
+    gprop = _validated_google_property(gprop)
     loop = asyncio.get_running_loop()
     res = await loop.run_in_executor(
         None,
