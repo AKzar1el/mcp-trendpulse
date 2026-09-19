@@ -685,6 +685,14 @@ def save_article_to_json(article: newspaper.Article, filename: Optional[str] = N
         logger.error(f"Failed to save article to {filename}: {e}")
 
 
+def _completed_trends_frame(df: pandas.DataFrame) -> pandas.DataFrame:
+    """Exclude provider rows explicitly marked partial from decision metrics."""
+    if "isPartial" not in df.columns:
+        return df
+    completed = df.loc[~df["isPartial"].fillna(False).astype(bool)]
+    return completed
+
+
 async def get_trends(
     keyword: str | list[str],
     source: str = "google search",
@@ -725,6 +733,7 @@ async def get_trends(
         lambda: tr.interest_over_time(keywords, timeframe=timeframe, geo=geo, cat=cat, gprop=gprop)
     )
 
+    df = _completed_trends_frame(df)
     if df.empty:
         return []
 
@@ -780,6 +789,7 @@ async def get_growth(
         lambda: tr.interest_over_time(keywords, timeframe=timeframe, geo=geo, gprop=gprop)
     )
 
+    df = _completed_trends_frame(df)
     if df.empty:
         return []
 
