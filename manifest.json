@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "mcp-trendpulse",
   "display_name": "Google News & Trends MCP",
-  "version": "0.2.16",
+  "version": "0.2.17",
   "description": "MCP server to query Google News RSS feeds, analyze keyword search interest over time via Google Trends, and calculate keyword velocity metrics.",
   "author": {
     "name": "AKzar1el",
@@ -218,12 +218,24 @@
           "source": {
             "default": "google search",
             "description": "Search source: 'google search', 'youtube search', 'news search', 'image search', 'google shopping'.",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "google search",
+              "youtube search",
+              "news search",
+              "image search",
+              "google shopping"
+            ]
           },
           "data_mode": {
             "default": "weekly",
             "description": "Legacy resolution hint used only when timeframe is omitted: 'weekly', 'daily', 'monthly'.",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "weekly",
+              "daily",
+              "monthly"
+            ]
           },
           "geo": {
             "default": "US",
@@ -273,7 +285,14 @@
           "source": {
             "default": "google search",
             "description": "Search source: 'google search', 'youtube search', etc.",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "google search",
+              "youtube search",
+              "news search",
+              "image search",
+              "google shopping"
+            ]
           },
           "percent_growth": {
             "default": null,
@@ -304,12 +323,19 @@
           "source": {
             "default": "google search",
             "description": "Search source: 'google search'.",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "google search"
+            ]
           },
           "sort": {
             "default": "wow_pct_change",
             "description": "Field to sort by: 'wow_pct_change', 'volume'.",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "wow_pct_change",
+              "volume"
+            ]
           },
           "limit": {
             "default": 20,
@@ -335,7 +361,11 @@
           "type": {
             "default": "Google Trends",
             "description": "Type of trends: 'Google Trends' (realtime), 'Daily Trends' (daily).",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "Google Trends",
+              "Daily Trends"
+            ]
           },
           "limit": {
             "default": 20,
