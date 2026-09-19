@@ -1,6 +1,6 @@
 {
   "name": "mcp-trendpulse",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "description": "Google News and Google Trends research for keyword, market, content, and demand analysis.",
   "mcpServers": {
     "mcp-trendpulse": {

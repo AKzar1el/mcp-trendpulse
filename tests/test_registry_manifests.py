@@ -37,6 +37,23 @@ async def test_registry_manifests_match_live_tool_names():
         assert declared_names == live_names, f"{filename} tool registry is stale"
 
 
+async def test_registry_manifests_match_live_input_enums():
+    async with Client(server.mcp) as client:
+        live_tools = {tool.name: tool for tool in await client.list_tools()}
+
+    for filename in REGISTRY_FILES:
+        manifest = _load_json(filename)
+        declared_tools = {tool["name"]: tool for tool in manifest["tools"]}
+        for tool_name, live_tool in live_tools.items():
+            live_properties = live_tool.inputSchema.get("properties", {})
+            declared_properties = declared_tools[tool_name]["inputSchema"].get("properties", {})
+            for property_name, live_property in live_properties.items():
+                if "enum" in live_property:
+                    assert declared_properties[property_name].get("enum") == live_property["enum"], (
+                        f"{filename} {tool_name}.{property_name} enum is stale"
+                    )
+
+
 def test_registry_manifest_versions_match_package_version():
     package_version = version("mcp-trendpulse")
 
