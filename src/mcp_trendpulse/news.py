@@ -48,6 +48,26 @@ _TREND_VOLUME_PATTERN = re.compile(
     r"^(?P<number>(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)(?P<suffix>[KMB])?\+?$",
     re.IGNORECASE,
 )
+_SEARCH_SOURCE_MAP = {
+    "google search": "",
+    "youtube search": "youtube",
+    "news search": "news",
+    "image search": "images",
+    "google shopping": "froogle",
+}
+_ALLOWED_DATA_MODES = frozenset({"weekly", "daily", "monthly"})
+_ALLOWED_RANK_SORTS = frozenset({"wow_pct_change", "volume"})
+_ALLOWED_TOP_TREND_TYPES = frozenset({"google trends", "daily trends", "daily"})
+
+
+def _google_property(source: str) -> str:
+    normalized = source.strip().lower()
+    try:
+        return _SEARCH_SOURCE_MAP[normalized]
+    except KeyError as exc:
+        allowed = ", ".join(sorted(_SEARCH_SOURCE_MAP))
+        raise ValueError(f"Unsupported search source {source!r}; expected one of: {allowed}.") from exc
+
 
 
 def _get_trends_client() -> Trends:
@@ -739,20 +759,19 @@ async def get_trends(
     90-d``, and ``YYYY-MM-DD YYYY-MM-DD``. When it is omitted, the legacy
     ``data_mode`` defaults are retained for backwards compatibility.
     """
-    source_map = {
-        "google search": "",
-        "youtube search": "youtube",
-        "news search": "news",
-        "image search": "images",
-        "google shopping": "froogle",
-    }
-    gprop = source_map.get(source.lower(), "")
+    gprop = _google_property(source)
 
     if timeframe is None:
+        normalized_data_mode = data_mode.strip().lower()
+        if normalized_data_mode not in _ALLOWED_DATA_MODES:
+            allowed = ", ".join(sorted(_ALLOWED_DATA_MODES))
+            raise ValueError(
+                f"Unsupported data_mode {data_mode!r}; expected one of: {allowed}."
+            )
         timeframe = "today 5-y"
-        if data_mode.lower() == "daily":
+        if normalized_data_mode == "daily":
             timeframe = "today 3-m"
-        elif data_mode.lower() == "monthly":
+        elif normalized_data_mode == "monthly":
             timeframe = "all"
 
     keywords = [keyword] if isinstance(keyword, str) else keyword
@@ -796,14 +815,7 @@ async def get_growth(
 
     timeframe = _growth_fetch_timeframe(percent_growth)
 
-    source_map = {
-        "google search": "",
-        "youtube search": "youtube",
-        "news search": "news",
-        "image search": "images",
-        "google shopping": "froogle",
-    }
-    gprop = source_map.get(source.lower(), "")
+    gprop = _google_property(source)
 
     loop = asyncio.get_running_loop()
     df = await loop.run_in_executor(
@@ -865,19 +877,27 @@ async def get_ranked_trends(
     """
     Get ranked trending keywords on Google Search.
     """
+    normalized_source = source.strip().lower()
+    if normalized_source != "google search":
+        raise ValueError("get_ranked_trends supports only source='google search'.")
+    normalized_sort = sort.strip().lower()
+    if normalized_sort not in _ALLOWED_RANK_SORTS:
+        allowed = ", ".join(sorted(_ALLOWED_RANK_SORTS))
+        raise ValueError(f"Unsupported sort {sort!r}; expected one of: {allowed}.")
+
     loop = asyncio.get_running_loop()
     trends = await loop.run_in_executor(
         None,
         lambda: tr.trending_now(geo=geo, hours=24)
     )
 
-    if sort == "wow_pct_change":
+    if normalized_sort == "wow_pct_change":
         sorted_trends = sorted(
             trends,
             key=lambda t: t.volume_growth_pct if t.volume_growth_pct is not None else -1,
             reverse=True
         )
-    elif sort == "volume":
+    elif normalized_sort == "volume":
         sorted_trends = sorted(
             trends,
             key=lambda t: t.volume if t.volume is not None else -1,
@@ -922,8 +942,15 @@ async def get_top_trends(
     """
     Get top trends using RSS trending feeds.
     """
+    normalized_type = type.strip().lower()
+    if normalized_type not in _ALLOWED_TOP_TREND_TYPES:
+        raise ValueError(
+            "Unsupported trend type "
+            f"{type!r}; expected 'Google Trends' or 'Daily Trends'."
+        )
+
     loop = asyncio.get_running_loop()
-    if type.lower() in ("daily trends", "daily"):
+    if normalized_type in ("daily trends", "daily"):
         trends = await loop.run_in_executor(
             None,
             lambda: tr.daily_trends_deprecated_by_rss(geo=geo)
