@@ -1,0 +1,11 @@
+{
+  "name": "mcp-trendpulse",
+  "version": "0.2.13",
+  "description": "Google News and Google Trends research for keyword, market, content, and demand analysis.",
+  "mcpServers": {
+    "mcp-trendpulse": {
+      "command": "uvx",
+      "args": ["mcp-trendpulse"]
+    }
+  }
+}
