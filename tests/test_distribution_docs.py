@@ -25,6 +25,16 @@ def test_vscode_mcp_json_uses_current_top_level_servers_shape():
     assert '  "mcp": {' not in vscode_section
 
 
+def test_vscode_one_click_install_uses_stable_pypi_package():
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    vscode_section = readme.split("### VS Code", 1)[1].split("### Cursor", 1)[0]
+
+    assert "https://vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F" in vscode_section
+    assert "%2522command%2522%253A%2522uvx%2522" in vscode_section
+    assert "%2522args%2522%253A%255B%2522mcp-trendpulse%2522%255D" in vscode_section
+    assert "git%2Bhttps%3A%2F%2Fgithub.com%2FAKzar1el%2Fmcp-trendpulse.git" not in vscode_section
+
+
 def test_kiro_docs_link_community_privacy_notice_and_support():
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     privacy = (PROJECT_ROOT / "PRIVACY.md").read_text(encoding="utf-8")
