@@ -210,6 +210,25 @@ async def test_summarize_articles_sets_safe_summary_when_sampling_and_nlp_fail()
     assert article.nlp_calls == 1
 
 
+async def test_summarize_articles_uses_extract_fallback_when_nltk_data_is_missing():
+    article = SummarizableMockArticle(nlp_error=LookupError("Resource punkt_tab not found"))
+    article.text = (
+        "First useful sentence explains the event. "
+        "Second useful sentence adds important context. "
+        "Third useful sentence gives the consequence. "
+        "Fourth sentence should not be needed."
+    )
+
+    await server.summarize_articles([article], MockSamplingContext(error=RuntimeError("sampling unavailable")))
+
+    assert article.summary == (
+        "First useful sentence explains the event. "
+        "Second useful sentence adds important context. "
+        "Third useful sentence gives the consequence."
+    )
+    assert article.nlp_calls == 1
+
+
 async def test_summarize_articles_falls_back_per_article():
     sampled_article = SummarizableMockArticle(nlp_summary="NLP summary A")
     fallback_article = SummarizableMockArticle(nlp_summary="NLP summary B")
@@ -326,7 +345,9 @@ async def test_get_top_trends(mcp_server):
 
     with patch('mcp_trendpulse.news.tr') as mock_tr:
         mock_tr.trending_now_by_rss.return_value = mock_trends_lite
-        mock_tr.daily_trends_deprecated_by_rss.return_value = mock_trends_lite
+        mock_tr.trending_now.return_value = [
+            MockTrendKeyword("switzerland vs colombia", 500000, 1000.0, [1783389000])
+        ]
 
         async with Client(mcp_server) as client:
             params = {
@@ -346,6 +367,8 @@ async def test_get_top_trends(mcp_server):
             daily_trends = _articles(result)
             assert len(daily_trends) == 1
             assert daily_trends[0]["keyword"] == "switzerland vs colombia"
+            assert daily_trends[0]["volume"] == "500000"
+            mock_tr.trending_now.assert_called_once_with(geo="US", hours=24)
 
 
 async def test_get_news_by_site(mcp_server):

@@ -1,3 +1,5 @@
+import asyncio
+import re
 from typing import Annotated, Optional, Any, TYPE_CHECKING, Literal
 from fastmcp import FastMCP, Context
 from fastmcp.server.dependencies import get_http_request
@@ -240,6 +242,46 @@ def can_use_llm_sampling(ctx: Context) -> bool:
     return bool(getattr(request.app.state, "trendpulse_sampling_enabled", True))
 
 
+SUMMARY_FALLBACK_MAX_SENTENCES = 3
+SUMMARY_FALLBACK_MAX_CHARS = 1_200
+_SUMMARY_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+
+
+def extractive_summary_fallback(article_text: str) -> str:
+    """Return a bounded deterministic summary when newspaper NLP data is unavailable."""
+    normalized = " ".join(article_text.split())
+    if not normalized:
+        return ""
+
+    selected = []
+    total_chars = 0
+    for sentence in _SUMMARY_SENTENCE_SPLIT.split(normalized):
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        extra_chars = len(sentence) + (1 if selected else 0)
+        if selected and total_chars + extra_chars > SUMMARY_FALLBACK_MAX_CHARS:
+            break
+        selected.append(sentence)
+        total_chars += extra_chars
+        if len(selected) >= SUMMARY_FALLBACK_MAX_SENTENCES:
+            break
+    return " ".join(selected)
+
+
+def run_local_article_nlp(article: Article) -> None:
+    """Run newspaper NLP with a deterministic fallback for missing NLTK data."""
+    try:
+        article.nlp()
+        return
+    except LookupError:
+        fallback = extractive_summary_fallback(article.text or "")
+        if fallback:
+            article.summary = fallback
+            return
+        raise
+
+
 async def llm_summarize_article(article: Article, ctx: Context) -> bool:
     if not can_use_llm_sampling(ctx):
         article.summary = "No summary available."
@@ -274,7 +316,7 @@ async def summarize_articles(articles: list[Article], ctx: Context) -> None:
     for idx, article in enumerate(articles):
         if not await llm_summarize_article(article, ctx):
             try:
-                article.nlp()
+                await asyncio.to_thread(run_local_article_nlp, article)
                 if not article.summary or not article.summary.strip():
                     article.summary = "No summary available."
             except Exception:

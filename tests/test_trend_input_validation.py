@@ -93,7 +93,7 @@ async def test_ranked_trends_rejects_unsupported_source_and_sort_before_provider
 @pytest.mark.asyncio
 async def test_top_trends_rejects_unknown_feed_before_provider_call():
     with patch.object(news.tr, "trending_now_by_rss") as realtime, patch.object(
-        news.tr, "daily_trends_deprecated_by_rss"
+        news.tr, "trending_now"
     ) as daily:
         with pytest.raises(ValueError, match="Unsupported trend type"):
             await news.get_top_trends(type="hourly")
