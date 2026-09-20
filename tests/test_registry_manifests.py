@@ -68,10 +68,14 @@ async def test_registry_manifests_match_live_trends_keyword_bounds():
         ):
             live_keyword = live_tools[tool_name].inputSchema["properties"][property_name]
             declared_keyword = declared_tools[tool_name]["inputSchema"]["properties"][property_name]
+            live_single = next(option for option in live_keyword["anyOf"] if option.get("type") == "string")
+            declared_single = next(option for option in declared_keyword["anyOf"] if option.get("type") == "string")
             live_list = next(option for option in live_keyword["anyOf"] if option.get("type") == "array")
             declared_list = next(option for option in declared_keyword["anyOf"] if option.get("type") == "array")
+            assert declared_single.get("minLength") == live_single["minLength"]
             assert declared_list.get("minItems") == live_list["minItems"]
             assert declared_list.get("maxItems") == live_list["maxItems"]
+            assert declared_list["items"].get("minLength") == live_list["items"]["minLength"]
 
 
 def test_registry_manifest_versions_match_package_version():
