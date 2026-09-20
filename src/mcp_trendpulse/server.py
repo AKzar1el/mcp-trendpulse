@@ -728,7 +728,7 @@ async def get_article_content(
     annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_interest_by_region(
-    keywords: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
+    keywords: Annotated[TrendKeywordInput, Field(description="Search keyword(s) to analyze.")],
     timeframe: Annotated[str, Field(description="Timeframe for search volume analysis (e.g., 'today 12-m').")] = "today 12-m",
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US' or empty '' for worldwide).")] = "US",
     cat: Annotated[int, Field(description="Category ID (default: 0 for all).")] = 0,
