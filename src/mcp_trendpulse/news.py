@@ -763,9 +763,14 @@ def _growth_fetch_timeframe(windows: list[str]) -> str:
 
 def _comparison_keywords(keyword: str | list[str]) -> list[str]:
     """Keep comparison requests inside the provider's one-to-five-keyword contract."""
-    keywords = [keyword] if isinstance(keyword, str) else keyword
+    raw_keywords = [keyword] if isinstance(keyword, str) else keyword
+    keywords = [value.strip() for value in raw_keywords]
     if not 1 <= len(keywords) <= 5:
         raise ValueError("Google Trends comparisons require between 1 and 5 keywords.")
+    if any(not value for value in keywords):
+        raise ValueError("Google Trends keywords must not be empty.")
+    if len(set(keywords)) != len(keywords):
+        raise ValueError("Google Trends comparison keywords must be unique.")
     return keywords
 
 
