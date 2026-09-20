@@ -586,6 +586,7 @@ async def get_news_by_keyword(
     """
     Find articles by keyword using Google News.
     """
+    keyword = _required_news_lookup(keyword, "keyword")
     google_news = _new_google_news(period, max_results)
     gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news", keyword)
     if not gnews_articles:
@@ -619,6 +620,7 @@ async def get_news_by_location(
     report_progress: Optional[ProgressCallback] = None,
 ) -> list[newspaper.Article]:
     """Find articles by location using Google News."""
+    location = _required_news_lookup(location, "location")
     google_news = _new_google_news(period, max_results)
     gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news_by_location", location)
     if not gnews_articles:
@@ -645,6 +647,7 @@ async def get_news_by_topic(
     GEOLOGY, PALEONTOLOGY, SOCIAL SCIENCES, EDUCATION, JOBS, ONLINE EDUCATION, HIGHER EDUCATION,
     VEHICLES, ARTS-DESIGN, BEAUTY, FOOD, TRAVEL, SHOPPING, HOME, OUTDOORS, FASHION.
     """
+    topic = _required_news_lookup(topic, "topic")
     google_news = _new_google_news(period, max_results)
     gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news_by_topic", topic)
     if not gnews_articles:
@@ -759,6 +762,14 @@ def _growth_fetch_timeframe(windows: list[str]) -> str:
     if max_days <= 365 * 5:
         return "today 5-y"
     return "all"
+
+
+def _required_news_lookup(value: str, label: str) -> str:
+    """Normalize one news lookup value and reject requests with no query text."""
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"News lookup {label} must not be empty.")
+    return normalized
 
 
 def _comparison_keywords(keyword: str | list[str]) -> list[str]:
@@ -1034,6 +1045,7 @@ async def get_news_by_site(
     report_progress: Optional[ProgressCallback] = None,
 ) -> list[newspaper.Article]:
     """Find articles from a specific publisher site using Google News."""
+    site = _required_news_lookup(site, "site")
     google_news = _new_google_news(period, max_results)
     gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news_by_site", site)
     if not gnews_articles:
