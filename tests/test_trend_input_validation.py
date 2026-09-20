@@ -43,12 +43,39 @@ async def test_trends_comparison_rejects_keyword_counts_outside_provider_limit(t
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("tool", [news.get_trends, news.get_growth])
+async def test_trends_comparison_rejects_blank_and_duplicate_keywords_before_provider_call(tool):
+    with patch.object(news.tr, "interest_over_time") as request:
+        with pytest.raises(ValueError, match="must not be empty"):
+            await tool("   ")
+        with pytest.raises(ValueError, match="must be unique"):
+            await tool(["python", " python "])
+
+    request.assert_not_called()
+
+
+def test_trends_comparison_normalizes_keyword_whitespace():
+    assert news._comparison_keywords([" python ", " ai agents "]) == ["python", "ai agents"]
+
+
+@pytest.mark.asyncio
 async def test_interest_by_region_rejects_keyword_counts_outside_provider_limit():
     with patch.object(news.tr, "interest_by_region") as request:
         with pytest.raises(ValueError, match="between 1 and 5 keywords"):
             await news.get_interest_by_region([])
         with pytest.raises(ValueError, match="between 1 and 5 keywords"):
             await news.get_interest_by_region(["one", "two", "three", "four", "five", "six"])
+
+    request.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_interest_by_region_rejects_blank_and_duplicate_keywords_before_provider_call():
+    with patch.object(news.tr, "interest_by_region") as request:
+        with pytest.raises(ValueError, match="must not be empty"):
+            await news.get_interest_by_region("   ")
+        with pytest.raises(ValueError, match="must be unique"):
+            await news.get_interest_by_region(["python", " python "])
 
     request.assert_not_called()
 
@@ -161,11 +188,17 @@ async def test_trends_tool_schemas_expose_provider_keyword_count_limit():
 
     for tool_name in ("get_trends", "get_growth"):
         keyword_schema = tools[tool_name].inputSchema["properties"]["keyword"]
+        single_schema = next(option for option in keyword_schema["anyOf"] if option.get("type") == "string")
         list_schema = next(option for option in keyword_schema["anyOf"] if option.get("type") == "array")
+        assert single_schema["minLength"] == 1
         assert list_schema["minItems"] == 1
         assert list_schema["maxItems"] == 5
+        assert list_schema["items"]["minLength"] == 1
 
     region_schema = tools["get_interest_by_region"].inputSchema["properties"]["keywords"]
+    region_single_schema = next(option for option in region_schema["anyOf"] if option.get("type") == "string")
     region_list_schema = next(option for option in region_schema["anyOf"] if option.get("type") == "array")
+    assert region_single_schema["minLength"] == 1
     assert region_list_schema["minItems"] == 1
     assert region_list_schema["maxItems"] == 5
+    assert region_list_schema["items"]["minLength"] == 1
