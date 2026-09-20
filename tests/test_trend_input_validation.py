@@ -122,6 +122,27 @@ async def test_region_and_related_tools_reject_invalid_filters_before_provider_c
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tool", "provider_method"),
+    [
+        (news.get_related_queries, "related_queries"),
+        (news.get_related_topics, "related_topics"),
+        (news.get_suggestions, "suggestions"),
+    ],
+)
+async def test_seed_keyword_tools_reject_blank_input_before_provider_call(tool, provider_method):
+    with patch.object(news.tr, provider_method) as request:
+        with pytest.raises(ValueError, match="must not be empty"):
+            await tool("   ")
+
+    request.assert_not_called()
+
+
+def test_seed_keyword_normalization_trims_surrounding_whitespace():
+    assert news._required_seed_keyword("  python agents  ") == "python agents"
+
+
+@pytest.mark.asyncio
 async def test_region_filters_normalize_supported_direct_provider_values():
     with patch.object(news.tr, "interest_by_region") as request:
         request.return_value.empty = True
@@ -202,3 +223,8 @@ async def test_trends_tool_schemas_expose_provider_keyword_count_limit():
     assert region_list_schema["minItems"] == 1
     assert region_list_schema["maxItems"] == 5
     assert region_list_schema["items"]["minLength"] == 1
+
+    for tool_name in ("get_related_queries", "get_related_topics", "get_suggestions"):
+        seed_schema = tools[tool_name].inputSchema["properties"]["keyword"]
+        assert seed_schema["minLength"] == 1
+        assert seed_schema["pattern"] == r".*\S.*"
