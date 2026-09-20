@@ -52,3 +52,13 @@ def test_client_install_docs_use_stable_pypi_package():
 
     assert "git%2Bhttps%3A%2F%2Fgithub.com%2FAKzar1el%2Fmcp-trendpulse.git" not in kiro_section
     assert "%22args%22%3A%5B%22mcp-trendpulse%22%5D" in kiro_section
+
+
+def test_lm_studio_one_click_install_uses_stable_pypi_package():
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    lm_studio_section = readme.split("### LM Studio", 1)[1].split("### ChatGPT", 1)[0]
+
+    assert "https://lmstudio.ai/install-mcp?" in lm_studio_section
+    assert "name=mcp-trendpulse" in lm_studio_section
+    assert "eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJtY3AtdHJlbmRwdWxzZSJdfQ%3D%3D" in lm_studio_section
+    assert "git+https://github.com/AKzar1el/mcp-trendpulse.git" not in lm_studio_section

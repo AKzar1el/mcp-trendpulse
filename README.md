@@ -169,6 +169,12 @@ Requires `uv`/`uvx`. The install runs the published Community MCP package from P
 
 Privacy: [TrendPulse Community MCP Privacy Notice](PRIVACY.md) · Support: [info@tomiseregi.si](mailto:info@tomiseregi.si)
 
+### LM Studio
+
+[Add TrendPulse to LM Studio](https://lmstudio.ai/install-mcp?name=mcp-trendpulse&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJtY3AtdHJlbmRwdWxzZSJdfQ%3D%3D)
+
+Requires `uv`/`uvx`. LM Studio runs the published Community MCP package locally over stdio; no hosted TrendPulse service is required.
+
 ### ChatGPT and other cloud MCP clients
 
 The repository now includes a dedicated stateless Streamable HTTP ASGI entry point at `mcp_trendpulse.asgi:app`. This is separate from the Community stdio entry point, which remains unchanged.
