@@ -43,6 +43,17 @@ async def test_trends_comparison_rejects_keyword_counts_outside_provider_limit(t
 
 
 @pytest.mark.asyncio
+async def test_interest_by_region_rejects_keyword_counts_outside_provider_limit():
+    with patch.object(news.tr, "interest_by_region") as request:
+        with pytest.raises(ValueError, match="between 1 and 5 keywords"):
+            await news.get_interest_by_region([])
+        with pytest.raises(ValueError, match="between 1 and 5 keywords"):
+            await news.get_interest_by_region(["one", "two", "three", "four", "five", "six"])
+
+    request.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_ranked_trends_rejects_unsupported_source_and_sort_before_provider_call():
     with patch.object(news.tr, "trending_now") as request:
         with pytest.raises(ValueError, match="supports only source"):
@@ -153,3 +164,8 @@ async def test_trends_tool_schemas_expose_provider_keyword_count_limit():
         list_schema = next(option for option in keyword_schema["anyOf"] if option.get("type") == "array")
         assert list_schema["minItems"] == 1
         assert list_schema["maxItems"] == 5
+
+    region_schema = tools["get_interest_by_region"].inputSchema["properties"]["keywords"]
+    region_list_schema = next(option for option in region_schema["anyOf"] if option.get("type") == "array")
+    assert region_list_schema["minItems"] == 1
+    assert region_list_schema["maxItems"] == 5

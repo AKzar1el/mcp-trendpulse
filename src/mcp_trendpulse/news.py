@@ -1041,7 +1041,7 @@ async def get_interest_by_region(
     """Retrieves geographical interest data based on keywords and other parameters."""
     gprop = _validated_google_property(gprop)
     resolution = _validated_region_resolution(resolution)
-    kw_list = [keywords] if isinstance(keywords, str) else keywords
+    kw_list = _comparison_keywords(keywords)
     loop = asyncio.get_running_loop()
     df = await loop.run_in_executor(
         None,
