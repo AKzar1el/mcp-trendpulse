@@ -72,3 +72,14 @@ def test_lm_studio_one_click_install_uses_stable_pypi_package():
     assert "name=mcp-trendpulse" in lm_studio_section
     assert "eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJtY3AtdHJlbmRwdWxzZSJdfQ%3D%3D" in lm_studio_section
     assert "git+https://github.com/AKzar1el/mcp-trendpulse.git" not in lm_studio_section
+
+
+def test_pages_visual_examples_are_not_presented_as_live_evidence():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+
+    assert "illustrative preview - not live data" in page.lower()
+    assert "last updated 4m ago" not in page
+    assert "+340%" not in page
+    assert "+412%" not in page
+    assert "+287%" not in page
+    assert "+196%" not in page
