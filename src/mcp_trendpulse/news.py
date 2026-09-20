@@ -761,6 +761,14 @@ def _growth_fetch_timeframe(windows: list[str]) -> str:
     return "all"
 
 
+def _comparison_keywords(keyword: str | list[str]) -> list[str]:
+    """Keep comparison requests inside the provider's one-to-five-keyword contract."""
+    keywords = [keyword] if isinstance(keyword, str) else keyword
+    if not 1 <= len(keywords) <= 5:
+        raise ValueError("Google Trends comparisons require between 1 and 5 keywords.")
+    return keywords
+
+
 async def get_trends(
     keyword: str | list[str],
     source: str = "google search",
@@ -792,7 +800,7 @@ async def get_trends(
         elif normalized_data_mode == "monthly":
             timeframe = "all"
 
-    keywords = [keyword] if isinstance(keyword, str) else keyword
+    keywords = _comparison_keywords(keyword)
 
     loop = asyncio.get_running_loop()
     df = await loop.run_in_executor(
@@ -829,7 +837,7 @@ async def get_growth(
     if percent_growth is None:
         percent_growth = ["3M", "1Y"]
 
-    keywords = [keyword] if isinstance(keyword, str) else keyword
+    keywords = _comparison_keywords(keyword)
 
     timeframe = _growth_fetch_timeframe(percent_growth)
 
