@@ -1,7 +1,7 @@
 {
   "name": "mcp-trendpulse",
   "displayName": "TrendPulse",
-  "version": "0.2.24",
+  "version": "0.2.25",
   "description": "Research current news and Google Trends data from Cursor with the local TrendPulse MCP server.",
   "author": {
     "name": "Tomi Šeregi"
