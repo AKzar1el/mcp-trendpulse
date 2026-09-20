@@ -88,6 +88,9 @@ class KeywordGrowthOut(BaseModelClean):
     growth: Annotated[dict[str, Optional[float]], Field(description="A dictionary mapping the growth period (e.g. '3M', '1Y') to the growth percentage; null means the historical baseline was zero, so percentage growth is undefined.")]
 
 
+TrendKeywordInput = str | Annotated[list[str], Field(min_length=1, max_length=5)]
+
+
 class RankedTrendOut(BaseModelClean):
     keyword: Annotated[str, Field(description="The trending keyword.")]
     volume: Annotated[Optional[int], Field(description="Search volume count.")] = None
@@ -539,7 +542,7 @@ async def get_trending_terms(
     annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_trends(
-    keyword: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
+    keyword: Annotated[TrendKeywordInput, Field(description="Search keyword(s) to analyze; comparison lists support 1-5 keywords.")],
     source: Annotated[Literal["google search", "youtube search", "news search", "image search", "google shopping"], Field(description="Search source.")] = "google search",
     data_mode: Annotated[Literal["weekly", "daily", "monthly"], Field(description="Legacy resolution hint used only when timeframe is omitted.")] = "weekly",
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
@@ -566,7 +569,7 @@ async def get_trends(
     annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_growth(
-    keyword: Annotated[str | list[str], Field(description="Search keyword(s) to analyze.")],
+    keyword: Annotated[TrendKeywordInput, Field(description="Search keyword(s) to analyze; comparison lists support 1-5 keywords.")],
     source: Annotated[Literal["google search", "youtube search", "news search", "image search", "google shopping"], Field(description="Search source.")] = "google search",
     percent_growth: Annotated[Optional[list[str]], Field(description="Timeframes to calculate growth (e.g. ['3M', '1Y']).")] = None,
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",

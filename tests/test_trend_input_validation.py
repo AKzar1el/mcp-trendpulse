@@ -31,6 +31,18 @@ async def test_get_growth_rejects_unsupported_source_before_provider_call():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("tool", [news.get_trends, news.get_growth])
+async def test_trends_comparison_rejects_keyword_counts_outside_provider_limit(tool):
+    with patch.object(news.tr, "interest_over_time") as request:
+        with pytest.raises(ValueError, match="between 1 and 5 keywords"):
+            await tool([])
+        with pytest.raises(ValueError, match="between 1 and 5 keywords"):
+            await tool(["one", "two", "three", "four", "five", "six"])
+
+    request.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_ranked_trends_rejects_unsupported_source_and_sort_before_provider_call():
     with patch.object(news.tr, "trending_now") as request:
         with pytest.raises(ValueError, match="supports only source"):
@@ -129,3 +141,15 @@ async def test_tool_schemas_expose_supported_value_enums():
             "images",
             "froogle",
         ]
+
+
+@pytest.mark.asyncio
+async def test_trends_tool_schemas_expose_provider_keyword_count_limit():
+    async with Client(server.mcp) as client:
+        tools = {tool.name: tool for tool in await client.list_tools()}
+
+    for tool_name in ("get_trends", "get_growth"):
+        keyword_schema = tools[tool_name].inputSchema["properties"]["keyword"]
+        list_schema = next(option for option in keyword_schema["anyOf"] if option.get("type") == "array")
+        assert list_schema["minItems"] == 1
+        assert list_schema["maxItems"] == 5
