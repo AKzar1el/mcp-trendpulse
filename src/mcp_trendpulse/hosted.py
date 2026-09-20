@@ -31,7 +31,7 @@ DiscoverySort = Literal["growth", "volume"]
 
 READ_ONLY_ANNOTATIONS = {
     "readOnlyHint": True,
-    "openWorldHint": False,
+    "openWorldHint": True,
     "destructiveHint": False,
 }
 _SOURCE_TO_GPROP: dict[TrendSource, str] = {
