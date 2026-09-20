@@ -12,9 +12,12 @@ import asyncio
 import ipaddress
 import socket
 import threading
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
+from email.utils import parsedate_to_datetime
 import pandas
 from gnews import GNews
+from gnews.gnews import SECTIONS as GNEWS_SECTIONS, TOPICS as GNEWS_TOPICS
 import newspaper  # newspaper4k
 from googlenewsdecoder import gnewsdecoder
 import cloudscraper
@@ -24,7 +27,7 @@ from typing import Optional, cast, overload, Literal, Awaitable
 from contextlib import asynccontextmanager, AsyncContextDecorator
 import logging
 from collections.abc import Callable
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import quote, urljoin, urlsplit
 
 from mcp_trendpulse.config import (
     get_browser_sandbox_enabled,
@@ -60,6 +63,9 @@ _ALLOWED_RANK_SORTS = frozenset({"wow_pct_change", "volume"})
 _ALLOWED_TOP_TREND_TYPES = frozenset({"google trends", "daily trends", "daily"})
 _ALLOWED_GOOGLE_PROPERTIES = frozenset(_SEARCH_SOURCE_MAP.values())
 _ALLOWED_REGION_RESOLUTIONS = frozenset({"COUNTRY", "REGION", "CITY", "DMA"})
+_SUPPORTED_NEWS_TOPICS = frozenset(
+    topic.upper() for topic in (*GNEWS_TOPICS, *GNEWS_SECTIONS.keys())
+)
 
 
 def _google_property(source: str) -> str:
@@ -541,6 +547,8 @@ async def process_gnews_articles(
     nlp: bool = True,
     report_progress: Optional[ProgressCallback] = None,
     max_concurrency: int = ARTICLE_PROCESS_CONCURRENCY,
+    period: Optional[int] = None,
+    now: Optional[datetime] = None,
 ) -> list[newspaper.Article]:
     """
     Process Google News articles with bounded concurrency while preserving input order.
@@ -550,14 +558,34 @@ async def process_gnews_articles(
     if total == 0:
         return []
 
+    reference_now = _parse_news_publish_date(now) if now is not None else datetime.now(timezone.utc)
+    cutoff = reference_now - timedelta(days=period) if period is not None else None
     semaphore = asyncio.Semaphore(max(1, max_concurrency))
 
     async def process_one(idx: int, gnews_article: dict) -> tuple[int, newspaper.Article | None]:
         async with semaphore:
+            feed_publish_date = _parse_news_publish_date(gnews_article.get("published date"))
+            if cutoff is not None and feed_publish_date is not None and (
+                feed_publish_date < cutoff or feed_publish_date > reference_now
+            ):
+                return idx, None
+
             article = await download_article(gnews_article["url"])
             if article is None or not article.text:
                 logger.debug(f"Failed to download article from {gnews_article['url']}:\n{article}")
                 return idx, None
+
+            article_publish_date = _parse_news_publish_date(getattr(article, "publish_date", None))
+            effective_publish_date = article_publish_date or feed_publish_date
+            if cutoff is not None and (
+                effective_publish_date is None
+                or effective_publish_date < cutoff
+                or effective_publish_date > reference_now
+            ):
+                return idx, None
+            if article_publish_date is None and feed_publish_date is not None:
+                article.publish_date = feed_publish_date
+
             if nlp:
                 await asyncio.to_thread(article.nlp)
             return idx, article
@@ -592,7 +620,12 @@ async def get_news_by_keyword(
     if not gnews_articles:
         logger.debug(f"No articles found for keyword '{keyword}' in the last {period} days.")
         return []
-    return await process_gnews_articles(gnews_articles, nlp=nlp, report_progress=report_progress)
+    return await process_gnews_articles(
+        gnews_articles,
+        nlp=nlp,
+        report_progress=report_progress,
+        period=period,
+    )
 
 
 async def get_top_news(
@@ -609,7 +642,12 @@ async def get_top_news(
     if not gnews_articles:
         logger.debug("No top news articles found.")
         return []
-    return await process_gnews_articles(gnews_articles, nlp=nlp, report_progress=report_progress)
+    return await process_gnews_articles(
+        gnews_articles,
+        nlp=nlp,
+        report_progress=report_progress,
+        period=period,
+    )
 
 
 async def get_news_by_location(
@@ -622,11 +660,24 @@ async def get_news_by_location(
     """Find articles by location using Google News."""
     location = _required_news_lookup(location, "location")
     google_news = _new_google_news(period, max_results)
-    gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news_by_location", location)
+    encoded_location = quote(location, safe="")
+    gnews_articles = await asyncio.to_thread(
+        _call_google_news,
+        google_news,
+        "get_news_by_location",
+        encoded_location,
+    )
+    if not gnews_articles:
+        gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news", location)
     if not gnews_articles:
         logger.debug(f"No articles found for location '{location}' in the last {period} days.")
         return []
-    return await process_gnews_articles(gnews_articles, nlp=nlp, report_progress=report_progress)
+    return await process_gnews_articles(
+        gnews_articles,
+        nlp=nlp,
+        report_progress=report_progress,
+        period=period,
+    )
 
 
 async def get_news_by_topic(
@@ -647,13 +698,20 @@ async def get_news_by_topic(
     GEOLOGY, PALEONTOLOGY, SOCIAL SCIENCES, EDUCATION, JOBS, ONLINE EDUCATION, HIGHER EDUCATION,
     VEHICLES, ARTS-DESIGN, BEAUTY, FOOD, TRAVEL, SHOPPING, HOME, OUTDOORS, FASHION.
     """
-    topic = _required_news_lookup(topic, "topic")
+    topic = _required_news_lookup(topic, "topic").upper()
+    if topic not in _SUPPORTED_NEWS_TOPICS:
+        raise ValueError(f"Unsupported news topic: {topic!r}.")
     google_news = _new_google_news(period, max_results)
     gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news_by_topic", topic)
     if not gnews_articles:
         logger.debug(f"No articles found for topic '{topic}' in the last {period} days.")
         return []
-    return await process_gnews_articles(gnews_articles, nlp=nlp, report_progress=report_progress)
+    return await process_gnews_articles(
+        gnews_articles,
+        nlp=nlp,
+        report_progress=report_progress,
+        period=period,
+    )
 
 
 @overload
@@ -770,6 +828,26 @@ def _required_news_lookup(value: str, label: str) -> str:
     if not normalized:
         raise ValueError(f"News lookup {label} must not be empty.")
     return normalized
+
+
+def _parse_news_publish_date(value: object) -> Optional[datetime]:
+    """Normalize provider/article publication dates to UTC."""
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str) and value.strip():
+        try:
+            parsed = parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+    else:
+        return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _comparison_keywords(keyword: str | list[str]) -> list[str]:
@@ -999,16 +1077,16 @@ async def get_top_trends(
             f"{type!r}; expected 'Google Trends' or 'Daily Trends'."
         )
 
-    loop = asyncio.get_running_loop()
     if normalized_type in ("daily trends", "daily"):
-        trends = await loop.run_in_executor(
-            None,
-            lambda: tr.daily_trends_deprecated_by_rss(geo=geo)
+        trends = await asyncio.to_thread(
+            tr.trending_now,
+            geo=geo,
+            hours=24,
         )
     else:
-        trends = await loop.run_in_executor(
-            None,
-            lambda: tr.trending_now_by_rss(geo=geo)
+        trends = await asyncio.to_thread(
+            tr.trending_now_by_rss,
+            geo=geo,
         )
 
     trends = trends[:limit]
@@ -1026,12 +1104,19 @@ async def get_top_trends(
                     "time": article.time,
                     "snippet": article.snippet
                 })
+        started = getattr(t, "started", None)
+        started_timestamp = getattr(t, "started_timestamp", None)
+        if started is None and started_timestamp:
+            started = started_timestamp[0]
+        volume = getattr(t, "volume", None)
+        if volume is not None and not isinstance(volume, str):
+            volume = str(volume)
         results.append({
             "keyword": t.keyword,
-            "volume": t.volume,
-            "link": t.link,
-            "started": t.started,
-            "picture": t.picture,
+            "volume": volume,
+            "link": getattr(t, "link", None),
+            "started": started,
+            "picture": getattr(t, "picture", None),
             "news": news_out
         })
     return results
@@ -1051,7 +1136,12 @@ async def get_news_by_site(
     if not gnews_articles:
         logger.debug(f"No articles found for site '{site}' in the last {period} days.")
         return []
-    return await process_gnews_articles(gnews_articles, nlp=nlp, report_progress=report_progress)
+    return await process_gnews_articles(
+        gnews_articles,
+        nlp=nlp,
+        report_progress=report_progress,
+        period=period,
+    )
 
 
 async def get_interest_by_region(
