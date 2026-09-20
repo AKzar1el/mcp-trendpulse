@@ -861,7 +861,7 @@
         <div class="trends-preview">
           <div class="preview-header">
             <span class="mono tool">get_trends</span>
-            <span class="mono meta">5y · weekly · worldwide</span>
+            <span class="mono meta">illustrative preview - not live data</span>
           </div>
           <div class="preview-chart">
             <svg viewBox="0 0 400 160" preserveAspectRatio="none">
@@ -886,12 +886,12 @@
           </div>
           <div class="preview-footer">
             <div>
-              <span class="mono stat-label">peak</span>
-              <span class="mono">100 · Nov 2024</span>
+              <span class="mono stat-label">scale</span>
+              <span class="mono">normalized interest · 0–100</span>
             </div>
             <div>
-              <span class="mono stat-label">Δ 12m</span>
-              <span class="mono stat-val up">+340%</span>
+              <span class="mono stat-label">source</span>
+              <span class="mono">run the tool for current data</span>
             </div>
           </div>
         </div>
@@ -940,11 +940,11 @@
           <code class="term-cmd mono" id="cmdText">uvx mcp-trendpulse@latest</code>
         </div>
         <div class="term-output mono">
-          <div>Resolved 15 packages in 920ms</div>
-          <div>Installed mcp-trendpulse==0.2.22</div>
-          <div class="arrow">→ trendspy 0.1.6, gnews 0.4.1, newspaper4k 0.9.3.1, mcp 1.2.0</div>
-          <div>MCP server listening on stdio</div>
-          <div class="ok">✓ registered 16 tools · ready for connections</div>
+          <div>Example output — exact resolver details may differ</div>
+          <div>Installed mcp-trendpulse from PyPI</div>
+          <div class="arrow">→ dependencies resolved by your environment</div>
+          <div>MCP server starts on stdio</div>
+          <div class="ok">✓ 16 tools available</div>
         </div>
       </div>
     </div>
@@ -987,7 +987,7 @@
           <span class="tool-name mono">get_growth</span>
           <span class="card-tag mono">Δ velocity</span>
         </div>
-        <p class="card-desc">Compare keyword growth across custom windows — 3M, 6M, 1Y, 3Y. Returns percentage delta and inflection date.</p>
+        <p class="card-desc">Compare keyword growth across custom windows — 3M, 6M, 1Y, 3Y. Returns percentage delta by requested window.</p>
         <div class="card-viz">
           <div class="growth-bars">
             <div class="growth-bar"><div class="bar" style="--h: 25%"></div><div class="label">3M</div></div>
@@ -1006,9 +1006,9 @@
         <p class="card-desc">Fastest-growing or highest-volume searches for a region and category. Returns a ranked list with growth scores.</p>
         <div class="card-viz">
           <ol class="rank-list mono">
-            <li><span class="num">01</span> llm agent orchestration <span class="delta">+412%</span></li>
-            <li><span class="num">02</span> pgvector embeddings <span class="delta">+287%</span></li>
-            <li><span class="num">03</span> model context protocol <span class="delta">+196%</span></li>
+            <li><span class="num">01</span> example trend alpha <span class="delta">sample</span></li>
+            <li><span class="num">02</span> example trend beta <span class="delta">sample</span></li>
+            <li><span class="num">03</span> example trend gamma <span class="delta">sample</span></li>
           </ol>
         </div>
       </article>
@@ -1016,19 +1016,19 @@
       <article class="card card-wide">
         <div class="card-head">
           <span class="tool-name mono">get_top_trends & get_related_queries</span>
-          <span class="card-tag mono">live & query maps</span>
+          <span class="card-tag mono">trend feed & query maps</span>
         </div>
         <p class="card-desc">Real-time spike feed from Google Trends RSS, combined with tools to fetch related search queries, topics, and suggestions to build rich keyword contextual graphs.</p>
         <div class="card-viz">
           <div class="pulse-row">
             <span class="pulse-dot"></span>
-            <span class="mono">live · last updated 4m ago · 24 items</span>
+            <span class="mono">illustrative preview - not live data</span>
           </div>
           <div class="pulse-items mono">
-            <div><span>quantum computing breakthrough</span><span class="pct">+82%</span></div>
-            <div><span>rust 1.84 release notes</span><span class="pct">+64%</span></div>
-            <div><span>openai o3 benchmark leak</span><span class="pct">+51%</span></div>
-            <div><span>apple vision os 3</span><span class="pct">+38%</span></div>
+            <div><span>example trend alpha</span><span class="pct">sample</span></div>
+            <div><span>example trend beta</span><span class="pct">sample</span></div>
+            <div><span>example trend gamma</span><span class="pct">sample</span></div>
+            <div><span>example trend delta</span><span class="pct">sample</span></div>
           </div>
         </div>
       </article>
