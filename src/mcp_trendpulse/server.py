@@ -762,7 +762,10 @@ async def get_interest_by_region(
     annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_related_queries(
-    keyword: Annotated[str, Field(description="Search keyword to analyze.")],
+    keyword: Annotated[
+        str,
+        Field(description="Search keyword to analyze.", min_length=1, pattern=r".*\S.*"),
+    ],
     timeframe: Annotated[str, Field(description="Timeframe for search volume analysis (e.g., 'today 12-m').")] = "today 12-m",
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
     cat: Annotated[int, Field(description="Category ID (default: 0 for all).")] = 0,
@@ -790,7 +793,10 @@ async def get_related_queries(
     annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_related_topics(
-    keyword: Annotated[str, Field(description="Search keyword to analyze.")],
+    keyword: Annotated[
+        str,
+        Field(description="Search keyword to analyze.", min_length=1, pattern=r".*\S.*"),
+    ],
     timeframe: Annotated[str, Field(description="Timeframe for search volume analysis (e.g., 'today 12-m').")] = "today 12-m",
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
     cat: Annotated[int, Field(description="Category ID (default: 0 for all).")] = 0,
@@ -818,7 +824,10 @@ async def get_related_topics(
     annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_suggestions(
-    keyword: Annotated[str, Field(description="Query string to autocomplete.")],
+    keyword: Annotated[
+        str,
+        Field(description="Query string to autocomplete.", min_length=1, pattern=r".*\S.*"),
+    ],
     language: Annotated[Optional[str], Field(description="Language code, e.g. 'en'.")] = None,
 ) -> list[SuggestionItem]:
     results = await get_provider_set().trends.get_suggestions(

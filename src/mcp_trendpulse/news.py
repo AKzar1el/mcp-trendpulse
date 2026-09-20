@@ -774,6 +774,14 @@ def _comparison_keywords(keyword: str | list[str]) -> list[str]:
     return keywords
 
 
+def _required_seed_keyword(keyword: str) -> str:
+    """Normalize one seed term and reject requests with no actual query text."""
+    normalized = keyword.strip()
+    if not normalized:
+        raise ValueError("Google Trends seed keyword must not be empty.")
+    return normalized
+
+
 async def get_trends(
     keyword: str | list[str],
     source: str = "google search",
@@ -1084,6 +1092,7 @@ async def get_related_queries(
     gprop: str = "",
 ) -> dict[str, list[dict]]:
     """Retrieves related queries for a single search term."""
+    keyword = _required_seed_keyword(keyword)
     gprop = _validated_google_property(gprop)
     loop = asyncio.get_running_loop()
     res = await loop.run_in_executor(
@@ -1117,6 +1126,7 @@ async def get_related_topics(
     gprop: str = "",
 ) -> dict[str, list[dict]]:
     """Retrieves related topics for a single search term."""
+    keyword = _required_seed_keyword(keyword)
     gprop = _validated_google_property(gprop)
     loop = asyncio.get_running_loop()
     res = await loop.run_in_executor(
@@ -1146,6 +1156,7 @@ async def get_related_topics(
 
 async def get_suggestions(keyword: str, language: Optional[str] = None) -> list[dict]:
     """Retrieves autocomplete suggestions for a search term."""
+    keyword = _required_seed_keyword(keyword)
     loop = asyncio.get_running_loop()
     df = await loop.run_in_executor(
         None,
