@@ -54,6 +54,22 @@ async def test_registry_manifests_match_live_input_enums():
                     )
 
 
+async def test_registry_manifests_match_live_trends_keyword_bounds():
+    async with Client(server.mcp) as client:
+        live_tools = {tool.name: tool for tool in await client.list_tools()}
+
+    for filename in REGISTRY_FILES:
+        manifest = _load_json(filename)
+        declared_tools = {tool["name"]: tool for tool in manifest["tools"]}
+        for tool_name in ("get_trends", "get_growth"):
+            live_keyword = live_tools[tool_name].inputSchema["properties"]["keyword"]
+            declared_keyword = declared_tools[tool_name]["inputSchema"]["properties"]["keyword"]
+            live_list = next(option for option in live_keyword["anyOf"] if option.get("type") == "array")
+            declared_list = next(option for option in declared_keyword["anyOf"] if option.get("type") == "array")
+            assert declared_list.get("minItems") == live_list["minItems"]
+            assert declared_list.get("maxItems") == live_list["maxItems"]
+
+
 def test_registry_manifest_versions_match_package_version():
     package_version = version("mcp-trendpulse")
 
