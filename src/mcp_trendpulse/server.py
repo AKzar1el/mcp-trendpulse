@@ -296,7 +296,7 @@ async def summarize_articles(articles: list[Article], ctx: Context) -> None:
 )
 async def get_news_by_keyword(
     ctx: Context,
-    keyword: Annotated[str, Field(description="Search term to find articles.")],
+    keyword: Annotated[str, Field(description="Search term to find articles.", min_length=1, pattern=r".*\S.*")],
     period: Annotated[int, Field(description="Number of days to look back for articles.", ge=1)] = 7,
     max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
     full_data: Annotated[
@@ -348,7 +348,7 @@ async def get_news_by_keyword(
 )
 async def get_news_by_location(
     ctx: Context,
-    location: Annotated[str, Field(description="Name of city/state/country.")],
+    location: Annotated[str, Field(description="Name of city/state/country.", min_length=1, pattern=r".*\S.*")],
     period: Annotated[int, Field(description="Number of days to look back for articles.", ge=1)] = 7,
     max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
     full_data: Annotated[
@@ -400,7 +400,7 @@ async def get_news_by_location(
 )
 async def get_news_by_topic(
     ctx: Context,
-    topic: Annotated[str, Field(description="Topic to search for articles.")],
+    topic: Annotated[str, Field(description="Topic to search for articles.", min_length=1, pattern=r".*\S.*")],
     period: Annotated[int, Field(description="Number of days to look back for articles.", ge=1)] = 7,
     max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
     full_data: Annotated[
@@ -644,7 +644,7 @@ async def get_top_trends(
 )
 async def get_news_by_site(
     ctx: Context,
-    site: Annotated[str, Field(description="Domain of the news site, e.g. 'cnn.com'.")],
+    site: Annotated[str, Field(description="Domain of the news site, e.g. 'cnn.com'.", min_length=1, pattern=r".*\S.*")],
     period: Annotated[int, Field(description="Number of days to look back for articles.", ge=1)] = 7,
     max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
     full_data: Annotated[
