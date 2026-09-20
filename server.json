@@ -3,7 +3,7 @@
   "name": "io.github.AKzar1el/mcp-trendpulse",
   "title": "Google News & Trends MCP",
   "description": "Query Google News RSS feeds and search interest over time via Google Trends.",
-  "version": "0.2.20",
+  "version": "0.2.21",
   "repository": {
     "url": "https://github.com/AKzar1el/mcp-trendpulse",
     "source": "github"
@@ -455,7 +455,9 @@
                 "items": {
                   "type": "string"
                 },
-                "type": "array"
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 5
               }
             ],
             "description": "Search keyword(s) to analyze."
@@ -659,7 +661,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "mcp-trendpulse",
-      "version": "0.2.20",
+      "version": "0.2.21",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
