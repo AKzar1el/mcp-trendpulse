@@ -1,6 +1,6 @@
 [project]
 name = "mcp-trendpulse"
-version = "0.2.26"
+version = "0.2.27"
 description = "MCP server for Google News research and Google Trends analysis"
 readme = "README.md"
 requires-python = ">=3.10.18"
