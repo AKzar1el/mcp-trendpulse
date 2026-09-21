@@ -1083,7 +1083,7 @@ async def get_top_trends(
     geo: str = "US",
 ) -> list[dict]:
     """
-    Get top trends using RSS trending feeds.
+    Get top trends from Google Trends realtime or 24-hour Trending Now feeds.
     """
     normalized_type = type.strip().lower()
     if normalized_type not in _ALLOWED_TOP_TREND_TYPES:

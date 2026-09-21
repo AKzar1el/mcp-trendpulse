@@ -1,6 +1,6 @@
 {
   "name": "mcp-trendpulse",
-  "version": "0.2.25",
+  "version": "0.2.26",
   "description": "Research current Google News and Google Trends data for keyword, market, and demand analysis through the free TrendPulse MCP server.",
   "author": {
     "name": "Tomi Šeregi",

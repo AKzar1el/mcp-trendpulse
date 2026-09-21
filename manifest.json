@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "mcp-trendpulse",
   "display_name": "Google News & Trends MCP",
-  "version": "0.2.25",
+  "version": "0.2.26",
   "description": "MCP server to query Google News RSS feeds, analyze keyword search interest over time via Google Trends, and calculate keyword velocity metrics.",
   "author": {
     "name": "AKzar1el",
@@ -366,7 +366,7 @@
     },
     {
       "name": "get_top_trends",
-      "description": "\n    Get top trends using RSS trending feeds.\n    ",
+      "description": "\n    Get top trends from Google Trends realtime or 24-hour Trending Now feeds.\n    ",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
