@@ -102,6 +102,19 @@ def test_pages_publish_agentic_resource_discovery_metadata():
     assert entry["capabilities"]
 
 
+def test_pages_publish_canonical_and_social_preview_metadata():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+
+    assert '<link rel="canonical" href="https://akzar1el.github.io/mcp-trendpulse/">' in page
+    assert '<meta property="og:title" content="TrendPulse — Google Trends + Google News MCP">' in page
+    assert '<meta property="og:url" content="https://akzar1el.github.io/mcp-trendpulse/">' in page
+    assert (
+        '<meta property="og:image" content="https://raw.githubusercontent.com/AKzar1el/mcp-trendpulse/main/assets/logo-400.png">'
+        in page
+    )
+    assert '<meta name="twitter:card" content="summary">' in page
+
+
 def test_pages_top_trends_copy_matches_current_provider_paths():
     page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
 
