@@ -1,4 +1,5 @@
 import json
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -53,6 +54,22 @@ async def test_google_news_timeout_is_not_reported_as_empty_results(monkeypatch)
 
     with pytest.raises(ProviderTimeoutError) as exc_info:
         await news.get_news_by_keyword("python", nlp=False)
+
+    assert exc_info.value.provider == "google_news"
+    assert exc_info.value.operation == "get_news"
+
+
+@pytest.mark.asyncio
+async def test_google_news_call_has_a_caller_visible_timeout(monkeypatch):
+    class BlockingGoogleNews:
+        def get_news(self, keyword):
+            time.sleep(0.1)
+            return []
+
+    monkeypatch.setattr(news, "GOOGLE_NEWS_OPERATION_TIMEOUT_SECONDS", 0.01)
+
+    with pytest.raises(ProviderTimeoutError) as exc_info:
+        await news._call_google_news_async(BlockingGoogleNews(), "get_news", "python")
 
     assert exc_info.value.provider == "google_news"
     assert exc_info.value.operation == "get_news"
