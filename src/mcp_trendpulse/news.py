@@ -181,6 +181,7 @@ def _new_google_news(period: int, max_results: int) -> GNews:
 
 
 ProgressCallback = Callable[[float, Optional[float]], Awaitable[None]]
+GOOGLE_NEWS_OPERATION_TIMEOUT_SECONDS = 30
 
 def _call_google_news(client: GNews, operation: str, *args, **kwargs):
     """Run one GNews operation and normalize upstream failures."""
@@ -189,6 +190,21 @@ def _call_google_news(client: GNews, operation: str, *args, **kwargs):
     except (ProviderError, ValueError, TypeError):
         raise
     except Exception as exc:
+        raise classify_provider_exception(
+            exc,
+            provider="google_news",
+            operation=operation,
+        ) from exc
+
+
+async def _call_google_news_async(client: GNews, operation: str, *args, **kwargs):
+    """Run one blocking GNews operation with a bounded caller-visible wait."""
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(_call_google_news, client, operation, *args, **kwargs),
+            timeout=GOOGLE_NEWS_OPERATION_TIMEOUT_SECONDS,
+        )
+    except (TimeoutError, asyncio.TimeoutError) as exc:
         raise classify_provider_exception(
             exc,
             provider="google_news",
@@ -616,7 +632,7 @@ async def get_news_by_keyword(
     """
     keyword = _required_news_lookup(keyword, "keyword")
     google_news = _new_google_news(period, max_results)
-    gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news", keyword)
+    gnews_articles = await _call_google_news_async(google_news, "get_news", keyword)
     if not gnews_articles:
         logger.debug(f"No articles found for keyword '{keyword}' in the last {period} days.")
         return []
@@ -638,7 +654,7 @@ async def get_top_news(
     Get top news stories from Google News.
     """
     google_news = _new_google_news(period, max_results)
-    gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_top_news")
+    gnews_articles = await _call_google_news_async(google_news, "get_top_news")
     if not gnews_articles:
         logger.debug("No top news articles found.")
         return []
@@ -661,14 +677,13 @@ async def get_news_by_location(
     location = _required_news_lookup(location, "location")
     google_news = _new_google_news(period, max_results)
     encoded_location = quote(location, safe="")
-    gnews_articles = await asyncio.to_thread(
-        _call_google_news,
+    gnews_articles = await _call_google_news_async(
         google_news,
         "get_news_by_location",
         encoded_location,
     )
     if not gnews_articles:
-        gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news", location)
+        gnews_articles = await _call_google_news_async(google_news, "get_news", location)
     if not gnews_articles:
         logger.debug(f"No articles found for location '{location}' in the last {period} days.")
         return []
@@ -702,7 +717,7 @@ async def get_news_by_topic(
     if topic not in _SUPPORTED_NEWS_TOPICS:
         raise ValueError(f"Unsupported news topic: {topic!r}.")
     google_news = _new_google_news(period, max_results)
-    gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news_by_topic", topic)
+    gnews_articles = await _call_google_news_async(google_news, "get_news_by_topic", topic)
     if not gnews_articles:
         logger.debug(f"No articles found for topic '{topic}' in the last {period} days.")
         return []
@@ -1132,7 +1147,7 @@ async def get_news_by_site(
     """Find articles from a specific publisher site using Google News."""
     site = _required_news_lookup(site, "site")
     google_news = _new_google_news(period, max_results)
-    gnews_articles = await asyncio.to_thread(_call_google_news, google_news, "get_news_by_site", site)
+    gnews_articles = await _call_google_news_async(google_news, "get_news_by_site", site)
     if not gnews_articles:
         logger.debug(f"No articles found for site '{site}' in the last {period} days.")
         return []
