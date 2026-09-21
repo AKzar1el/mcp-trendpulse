@@ -35,7 +35,11 @@ from mcp_trendpulse.config import (
     get_google_news_language,
     get_google_trends_delay,
 )
-from mcp_trendpulse.errors import ProviderError, classify_provider_exception
+from mcp_trendpulse.errors import (
+    ProviderError,
+    ProviderUnavailableError,
+    classify_provider_exception,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +131,16 @@ class _ThreadLocalTrendsProxy:
 
 
 tr = _ThreadLocalTrendsProxy()
+
+
+def _call_related_queries_with_unavailable_retry(**kwargs):
+    """Retry one transient related-query failure with a fresh TrendSpy client."""
+    try:
+        return tr.related_queries(**kwargs)
+    except ProviderUnavailableError:
+        if hasattr(_trends_local, "instance"):
+            delattr(_trends_local, "instance")
+        return tr.related_queries(**kwargs)
 
 
 def parse_trending_volume(volume: object) -> int:
@@ -1214,7 +1228,7 @@ async def get_related_queries(
     loop = asyncio.get_running_loop()
     res = await loop.run_in_executor(
         None,
-        lambda: tr.related_queries(
+        lambda: _call_related_queries_with_unavailable_retry(
             keyword=keyword,
             timeframe=timeframe,
             geo=geo,
