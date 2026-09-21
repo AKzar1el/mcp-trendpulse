@@ -204,7 +204,7 @@ async def _call_google_news_async(client: GNews, operation: str, *args, **kwargs
             asyncio.to_thread(_call_google_news, client, operation, *args, **kwargs),
             timeout=GOOGLE_NEWS_OPERATION_TIMEOUT_SECONDS,
         )
-    except TimeoutError as exc:
+    except (TimeoutError, asyncio.TimeoutError) as exc:
         raise classify_provider_exception(
             exc,
             provider="google_news",
