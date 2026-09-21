@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 
@@ -83,3 +84,26 @@ def test_pages_visual_examples_are_not_presented_as_live_evidence():
     assert "+412%" not in page
     assert "+287%" not in page
     assert "+196%" not in page
+
+
+def test_pages_publish_agentic_resource_discovery_metadata():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+    marker = '<script id="ard-discovery" type="application/ld+json">'
+
+    assert marker in page
+    ard_json = page.split(marker, 1)[1].split("</script>", 1)[0]
+    entry = json.loads(ard_json)
+
+    assert entry["@context"] == "https://agenticresourcediscovery.org/context/v1"
+    assert entry["identifier"] == "urn:air:github.com:AKzar1el:mcp-trendpulse"
+    assert entry["type"] == "application/mcp-server-card+json"
+    assert entry["url"] == "https://raw.githubusercontent.com/AKzar1el/mcp-trendpulse/main/server.json"
+    assert 2 <= len(entry["representativeQueries"]) <= 5
+    assert entry["capabilities"]
+
+
+def test_pages_top_trends_copy_matches_current_provider_paths():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+
+    assert "realtime RSS feed or the 24-hour Trending Now feed" in page
+    assert "Real-time spike feed from Google Trends RSS" not in page

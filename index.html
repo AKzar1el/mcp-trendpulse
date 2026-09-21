@@ -5,6 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Open-source Google Trends and Google News MCP server, plus a EUR 49 human-produced demand brief for focused keyword and market decisions.">
 <title>TrendPulse — trends MCP + EUR 49 demand brief</title>
+<script id="ard-discovery" type="application/ld+json">
+{
+  "@context": "https://agenticresourcediscovery.org/context/v1",
+  "identifier": "urn:air:github.com:AKzar1el:mcp-trendpulse",
+  "displayName": "Google News & Trends MCP",
+  "type": "application/mcp-server-card+json",
+  "url": "https://raw.githubusercontent.com/AKzar1el/mcp-trendpulse/main/server.json",
+  "description": "Free local MCP server for Google Trends research and current Google News context, including keyword growth, regional interest, related demand, ranked trends, and bounded news lookup.",
+  "capabilities": [
+    "GoogleTrendsResearch",
+    "GoogleNewsResearch",
+    "KeywordGrowth",
+    "RegionalInterest",
+    "RelatedDemand"
+  ],
+  "representativeQueries": [
+    "compare search interest growth for ChatGPT, Claude, and Gemini over the last 12 months",
+    "show where searches for electric vehicles are strongest in the United States",
+    "find rising related queries for GLP-1 weight loss",
+    "give me current Google News context for OpenAI"
+  ]
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1018,7 +1041,7 @@
           <span class="tool-name mono">get_top_trends & get_related_queries</span>
           <span class="card-tag mono">trend feed & query maps</span>
         </div>
-        <p class="card-desc">Real-time spike feed from Google Trends RSS, combined with tools to fetch related search queries, topics, and suggestions to build rich keyword contextual graphs.</p>
+        <p class="card-desc">Current Google Trends discovery from the realtime RSS feed or the 24-hour Trending Now feed, combined with related queries, topics, and suggestions for richer keyword context.</p>
         <div class="card-viz">
           <div class="pulse-row">
             <span class="pulse-dot"></span>
