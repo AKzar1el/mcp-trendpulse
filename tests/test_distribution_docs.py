@@ -109,7 +109,7 @@ def test_pages_publish_canonical_and_social_preview_metadata():
     assert '<meta property="og:title" content="TrendPulse — Google Trends + Google News MCP">' in page
     assert '<meta property="og:url" content="https://akzar1el.github.io/mcp-trendpulse/">' in page
     assert (
-        '<meta property="og:image" content="https://akzar1el.github.io/mcp-trendpulse/assets/logo-400.png">'
+        '<meta property="og:image" content="https://raw.githubusercontent.com/AKzar1el/mcp-trendpulse/main/assets/logo-400.png">'
         in page
     )
     assert '<meta name="twitter:card" content="summary">' in page
