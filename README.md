@@ -4,6 +4,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![mcp-trendpulse MCP server](https://glama.ai/mcp/servers/AKzar1el/mcp-trendpulse/badges/score.svg)](https://glama.ai/mcp/servers/AKzar1el/mcp-trendpulse)
+[![MCPVault: verified](https://mcpvault.io/badge/mcp-trendpulse.svg)](https://mcpvault.io/servers/mcp-trendpulse/health?utm_source=external_badge&utm_medium=referral&utm_campaign=mcp_health_report)
 
 **TrendPulse** is a Python Model Context Protocol (MCP) server for researching current news and search-interest trends. It combines Google News discovery and article extraction with Google Trends analysis so MCP clients can inspect what is trending, compare keyword momentum, explore related demand, and add current-news context to research workflows.
 
