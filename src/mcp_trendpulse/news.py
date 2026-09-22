@@ -70,6 +70,7 @@ _ALLOWED_REGION_RESOLUTIONS = frozenset({"COUNTRY", "REGION", "CITY", "DMA"})
 _ARTICLE_TITLE_PLACEHOLDERS = frozenset(
     {
         "access denied",
+        "are you a robot?",
         "attention required",
         "attention required!",
         "checking your browser...",
@@ -78,8 +79,11 @@ _ARTICLE_TITLE_PLACEHOLDERS = frozenset(
 )
 _ARTICLE_CHALLENGE_BODY_MARKERS = (
     "why have i been blocked?",
+    "why did this happen?",
     "this website is using a security service to protect itself from online attacks",
     "cloudflare ray id",
+    "make sure your browser supports javascript and cookies",
+    "block reference id:",
 )
 _SUPPORTED_NEWS_TOPICS = frozenset(
     topic.upper() for topic in (*GNEWS_TOPICS, *GNEWS_SECTIONS.keys())
