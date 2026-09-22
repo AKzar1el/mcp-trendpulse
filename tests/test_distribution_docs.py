@@ -44,14 +44,21 @@ def test_vscode_one_click_install_uses_stable_pypi_package():
     assert "git%2Bhttps%3A%2F%2Fgithub.com%2FAKzar1el%2Fmcp-trendpulse.git" not in vscode_section
 
 
-def test_codex_docs_use_local_stdio_with_stable_pypi_package():
+def test_openai_desktop_clients_use_local_stdio_with_stable_pypi_package():
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
-    codex_section = readme.split("### Codex CLI and IDE extension", 1)[1].split("### Cursor", 1)[0]
+    client_section = readme.split("### ChatGPT desktop, Codex CLI, and IDE extension", 1)[1].split("### Cursor", 1)[0]
 
-    assert "codex mcp add mcp-trendpulse -- uvx mcp-trendpulse" in codex_section
-    assert "published Community MCP package from PyPI" in codex_section
-    assert "unreleased hosted TrendPulse endpoint" in codex_section
-    assert "git+https://github.com/AKzar1el/mcp-trendpulse.git" not in codex_section
+    assert "codex mcp add mcp-trendpulse -- uvx mcp-trendpulse" in client_section
+    assert "ChatGPT desktop app" in client_section
+    assert "Settings -> MCP Servers" in client_section
+    assert "STDIO" in client_section
+    assert "published Community MCP package from PyPI" in client_section
+    assert "ChatGPT on the web is separate" in client_section
+    assert "unreleased hosted TrendPulse endpoint" in client_section
+    assert "git+https://github.com/AKzar1el/mcp-trendpulse.git" not in client_section
+
+    web_section = readme.split("### ChatGPT web and other cloud MCP clients", 1)[1].split("## Configuration", 1)[0]
+    assert "not released" in web_section
 
 
 def test_kiro_docs_link_community_privacy_notice_and_support():
@@ -149,11 +156,13 @@ def test_pages_publish_current_mcpvault_verification_badge():
     assert 'alt="MCPVault: verified"' in page
 
 
-def test_pages_offer_codex_local_stdio_install():
+def test_pages_offer_openai_desktop_local_stdio_install():
     page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
 
     assert 'data-client="codex"' in page
-    assert "Codex CLI · IDE" in page
+    assert "ChatGPT Desktop · Codex" in page
+    assert "shared local MCP config" in page
+    assert "// ChatGPT Desktop / Codex CLI / IDE" in page
     assert "codex mcp add mcp-trendpulse -- uvx mcp-trendpulse" in page
 
 
