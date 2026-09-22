@@ -149,6 +149,14 @@ def test_pages_publish_current_mcpvault_verification_badge():
     assert 'alt="MCPVault: verified"' in page
 
 
+def test_pages_offer_codex_local_stdio_install():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+
+    assert 'data-client="codex"' in page
+    assert "Codex CLI · IDE" in page
+    assert "codex mcp add mcp-trendpulse -- uvx mcp-trendpulse" in page
+
+
 def test_pages_top_trends_copy_matches_current_provider_paths():
     page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
 
