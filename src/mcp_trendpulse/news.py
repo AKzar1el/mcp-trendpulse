@@ -599,9 +599,12 @@ async def download_article(url: str) -> newspaper.Article | None:
             return None
         url = await asyncio.to_thread(target_validator.validate_url, decoded)
     article = await asyncio.to_thread(download_article_with_scraper, url, target_validator)
-    if article is None or not article.text:
+    if article is None or not article.text or _is_challenge_page(article):
         logger.debug("Attempting to download article with playwright")
         article = await download_article_with_playwright(url, target_validator)
+    if article is not None and _is_challenge_page(article):
+        logger.debug(f"Rejected anti-bot challenge page from {url}")
+        return None
     return article
 
 

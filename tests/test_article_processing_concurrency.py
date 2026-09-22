@@ -109,6 +109,51 @@ async def test_download_article_offloads_blocking_validation_and_scraper(monkeyp
     assert all(thread_id != event_loop_thread for _, thread_id in worker_threads)
 
 
+@pytest.mark.asyncio
+async def test_download_article_retries_challenge_page_with_playwright(monkeypatch):
+    scraper_article = FakeArticle("Attention Required!")
+    scraper_article.text = (
+        "Why have I been blocked? This website is using a security service to protect itself "
+        "from online attacks. Cloudflare Ray ID 1234."
+    )
+    browser_article = FakeArticle("Real article title")
+    playwright_download = AsyncMock(return_value=browser_article)
+
+    class FakeValidator:
+        def validate_url(self, url: str) -> str:
+            return url
+
+    monkeypatch.setattr(news, "ArticleTargetValidator", FakeValidator)
+    monkeypatch.setattr(news, "download_article_with_scraper", lambda url, target_validator: scraper_article)
+    monkeypatch.setattr(news, "download_article_with_playwright", playwright_download)
+
+    result = await news.download_article("https://example.com/article")
+
+    assert result is browser_article
+    playwright_download.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_download_article_rejects_challenge_page_after_playwright_fallback(monkeypatch):
+    challenge_article = FakeArticle("Are you a robot?")
+    challenge_article.text = (
+        "Why did this happen? Please make sure your browser supports JavaScript and cookies. "
+        "Block reference ID: abc123."
+    )
+
+    class FakeValidator:
+        def validate_url(self, url: str) -> str:
+            return url
+
+    monkeypatch.setattr(news, "ArticleTargetValidator", FakeValidator)
+    monkeypatch.setattr(news, "download_article_with_scraper", lambda url, target_validator: challenge_article)
+    monkeypatch.setattr(news, "download_article_with_playwright", AsyncMock(return_value=challenge_article))
+
+    result = await news.download_article("https://example.com/article")
+
+    assert result is None
+
+
 def test_scraper_is_reused_per_thread_but_not_shared_between_threads(monkeypatch):
     created: list[object] = []
     barrier = threading.Barrier(2)
