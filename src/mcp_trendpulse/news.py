@@ -67,6 +67,15 @@ _ALLOWED_RANK_SORTS = frozenset({"wow_pct_change", "volume"})
 _ALLOWED_TOP_TREND_TYPES = frozenset({"google trends", "daily trends", "daily"})
 _ALLOWED_GOOGLE_PROPERTIES = frozenset(_SEARCH_SOURCE_MAP.values())
 _ALLOWED_REGION_RESOLUTIONS = frozenset({"COUNTRY", "REGION", "CITY", "DMA"})
+_ARTICLE_TITLE_PLACEHOLDERS = frozenset(
+    {
+        "access denied",
+        "attention required",
+        "attention required!",
+        "checking your browser...",
+        "just a moment...",
+    }
+)
 _SUPPORTED_NEWS_TOPICS = frozenset(
     topic.upper() for topic in (*GNEWS_TOPICS, *GNEWS_SECTIONS.keys())
 )
@@ -95,6 +104,14 @@ def _validated_region_resolution(resolution: str) -> str:
         allowed = ", ".join(sorted(_ALLOWED_REGION_RESOLUTIONS))
         raise ValueError(f"Unsupported region resolution {resolution!r}; expected one of: {allowed}.")
     return normalized
+
+
+def _restore_feed_title_if_placeholder(article: newspaper.Article, gnews_article: dict) -> None:
+    """Prefer Google News' title when extraction returns a generic challenge-page title."""
+    feed_title = str(gnews_article.get("title") or "").strip()
+    article_title = str(getattr(article, "title", "") or "").strip()
+    if feed_title and (not article_title or article_title.casefold() in _ARTICLE_TITLE_PLACEHOLDERS):
+        article.title = feed_title
 
 
 
@@ -615,6 +632,8 @@ async def process_gnews_articles(
                 return idx, None
             if article_publish_date is None and feed_publish_date is not None:
                 article.publish_date = feed_publish_date
+
+            _restore_feed_title_if_placeholder(article, gnews_article)
 
             if nlp:
                 await asyncio.to_thread(article.nlp)

@@ -81,6 +81,50 @@ async def test_process_gnews_articles_enforces_requested_period(monkeypatch):
     ]
 
 
+async def test_process_gnews_articles_restores_feed_title_for_challenge_placeholder(monkeypatch):
+    article = SimpleNamespace(
+        title="Attention Required!",
+        text="Valid article body",
+        publish_date=None,
+    )
+    monkeypatch.setattr(news, "download_article", AsyncMock(return_value=article))
+
+    result = await news.process_gnews_articles(
+        [
+            {
+                "url": "https://example.com/article",
+                "title": "Actual article title",
+            }
+        ],
+        nlp=False,
+    )
+
+    assert result == [article]
+    assert article.title == "Actual article title"
+
+
+async def test_process_gnews_articles_preserves_real_extracted_title(monkeypatch):
+    article = SimpleNamespace(
+        title="Publisher's canonical title",
+        text="Valid article body",
+        publish_date=None,
+    )
+    monkeypatch.setattr(news, "download_article", AsyncMock(return_value=article))
+
+    result = await news.process_gnews_articles(
+        [
+            {
+                "url": "https://example.com/article",
+                "title": "Google News feed title",
+            }
+        ],
+        nlp=False,
+    )
+
+    assert result == [article]
+    assert article.title == "Publisher's canonical title"
+
+
 async def test_invalid_news_topic_is_rejected_before_provider_call(monkeypatch):
     provider_factory = Mock()
     monkeypatch.setattr(news, "_new_google_news", provider_factory)
