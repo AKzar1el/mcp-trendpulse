@@ -324,6 +324,8 @@ Article retrieval is an outbound network feature and is treated as untrusted inp
 
 If you deploy TrendPulse remotely, retain these controls and add deployment-level rate limiting, request timeouts, observability, and resource limits rather than relying only on application defaults.
 
+For responsible disclosure instructions, see [SECURITY.md](SECURITY.md).
+
 ## Roadmap
 
 Current production-readiness priorities are:
