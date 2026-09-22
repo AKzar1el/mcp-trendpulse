@@ -106,7 +106,11 @@ def test_pages_publish_canonical_and_social_preview_metadata():
     page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
 
     assert '<link rel="canonical" href="https://akzar1el.github.io/mcp-trendpulse/">' in page
-    assert '<link rel="icon" type="image/png" href="./assets/logo-400.png">' in page
+    assert (
+        '<link rel="icon" type="image/png" '
+        'href="https://raw.githubusercontent.com/AKzar1el/mcp-trendpulse/main/assets/logo-400.png">'
+        in page
+    )
     assert '<meta property="og:title" content="TrendPulse — Google Trends + Google News MCP">' in page
     assert '<meta property="og:url" content="https://akzar1el.github.io/mcp-trendpulse/">' in page
     assert (
