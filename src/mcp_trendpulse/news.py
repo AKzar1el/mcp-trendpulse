@@ -67,6 +67,24 @@ _ALLOWED_RANK_SORTS = frozenset({"wow_pct_change", "volume"})
 _ALLOWED_TOP_TREND_TYPES = frozenset({"google trends", "daily trends", "daily"})
 _ALLOWED_GOOGLE_PROPERTIES = frozenset(_SEARCH_SOURCE_MAP.values())
 _ALLOWED_REGION_RESOLUTIONS = frozenset({"COUNTRY", "REGION", "CITY", "DMA"})
+_ARTICLE_TITLE_PLACEHOLDERS = frozenset(
+    {
+        "access denied",
+        "are you a robot?",
+        "attention required",
+        "attention required!",
+        "checking your browser...",
+        "just a moment...",
+    }
+)
+_ARTICLE_CHALLENGE_BODY_MARKERS = (
+    "why have i been blocked?",
+    "why did this happen?",
+    "this website is using a security service to protect itself from online attacks",
+    "cloudflare ray id",
+    "make sure your browser supports javascript and cookies",
+    "block reference id:",
+)
 _SUPPORTED_NEWS_TOPICS = frozenset(
     topic.upper() for topic in (*GNEWS_TOPICS, *GNEWS_SECTIONS.keys())
 )
@@ -95,6 +113,21 @@ def _validated_region_resolution(resolution: str) -> str:
         allowed = ", ".join(sorted(_ALLOWED_REGION_RESOLUTIONS))
         raise ValueError(f"Unsupported region resolution {resolution!r}; expected one of: {allowed}.")
     return normalized
+
+
+def _restore_feed_title_if_placeholder(article: newspaper.Article, gnews_article: dict) -> None:
+    """Prefer Google News' title when extraction returns a generic challenge-page title."""
+    feed_title = str(gnews_article.get("title") or "").strip()
+    article_title = str(getattr(article, "title", "") or "").strip()
+    if feed_title and (not article_title or article_title.casefold() in _ARTICLE_TITLE_PLACEHOLDERS):
+        article.title = feed_title
+
+
+def _is_challenge_page(article: newspaper.Article) -> bool:
+    """Reject known anti-bot pages instead of returning their challenge copy as news."""
+    title = str(getattr(article, "title", "") or "").strip().casefold()
+    text = str(getattr(article, "text", "") or "").casefold()
+    return title in _ARTICLE_TITLE_PLACEHOLDERS and any(marker in text for marker in _ARTICLE_CHALLENGE_BODY_MARKERS)
 
 
 
@@ -604,6 +637,9 @@ async def process_gnews_articles(
             if article is None or not article.text:
                 logger.debug(f"Failed to download article from {gnews_article['url']}:\n{article}")
                 return idx, None
+            if _is_challenge_page(article):
+                logger.debug(f"Rejected anti-bot challenge page from {gnews_article['url']}")
+                return idx, None
 
             article_publish_date = _parse_news_publish_date(getattr(article, "publish_date", None))
             effective_publish_date = article_publish_date or feed_publish_date
@@ -615,6 +651,8 @@ async def process_gnews_articles(
                 return idx, None
             if article_publish_date is None and feed_publish_date is not None:
                 article.publish_date = feed_publish_date
+
+            _restore_feed_title_if_placeholder(article, gnews_article)
 
             if nlp:
                 await asyncio.to_thread(article.nlp)
