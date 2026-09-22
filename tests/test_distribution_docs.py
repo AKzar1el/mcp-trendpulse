@@ -44,6 +44,16 @@ def test_vscode_one_click_install_uses_stable_pypi_package():
     assert "git%2Bhttps%3A%2F%2Fgithub.com%2FAKzar1el%2Fmcp-trendpulse.git" not in vscode_section
 
 
+def test_codex_docs_use_local_stdio_with_stable_pypi_package():
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    codex_section = readme.split("### Codex CLI and IDE extension", 1)[1].split("### Cursor", 1)[0]
+
+    assert "codex mcp add mcp-trendpulse -- uvx mcp-trendpulse" in codex_section
+    assert "published Community MCP package from PyPI" in codex_section
+    assert "unreleased hosted TrendPulse endpoint" in codex_section
+    assert "git+https://github.com/AKzar1el/mcp-trendpulse.git" not in codex_section
+
+
 def test_kiro_docs_link_community_privacy_notice_and_support():
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     privacy = (PROJECT_ROOT / "PRIVACY.md").read_text(encoding="utf-8")

@@ -149,6 +149,16 @@ For workspace-level configuration, put this in `.vscode/mcp.json`. The same top-
 }
 ```
 
+### Codex CLI and IDE extension
+
+OpenAI Codex supports local stdio MCP servers. Add the published TrendPulse package with:
+
+```bash
+codex mcp add mcp-trendpulse -- uvx mcp-trendpulse
+```
+
+The Codex CLI and IDE extension share the same local MCP configuration. This runs the published Community MCP package from PyPI; it does not use the unreleased hosted TrendPulse endpoint.
+
 ### Cursor and portable Agent Plugins
 
 This repository includes an [Agent Plugins 1.0](https://agent-plugins.org/) manifest at the repository root. Compatible clients such as Cursor and GitHub Copilot can load the same portable `plugin.json` + `mcp.json` package.
