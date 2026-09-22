@@ -739,7 +739,7 @@ wheels = [
 
 [[package]]
 name = "gnews"
-version = "0.4.1"
+version = "0.8.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -747,9 +747,9 @@ dependencies = [
     { name = "feedparser" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9c/90/c4e5457d5aa9d6182a875835c19ba8e58dc1f0a184e47213320a1bac04ae/gnews-0.4.1.tar.gz", hash = "sha256:7ae2922fda1146dad25af29a1ad0dd7b569d9dbabd67b84821ef47e143d15d3b", size = 24816, upload-time = "2025-03-16T14:14:56.838Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b5/d2/94e620e91c6d7705785e9ca9ba0ae9d0b8970957f8d06d0b70b3c6af149a/gnews-0.8.2.tar.gz", hash = "sha256:b2614d5265333cda76753a884ef2e6085b68381de4261e960fc2f9ad45c224e0", size = 38659, upload-time = "2026-06-25T10:23:10.945Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/51/51f0136ac42e49aac8e90ed2dff041af930331841b989107064ebc320b21/gnews-0.4.1-py3-none-any.whl", hash = "sha256:d0ecfc15e78bf93aaab4c12c3cd1aa0944b0845a40f719da31c46c5cdae8ee98", size = 18086, upload-time = "2025-03-16T14:14:55.818Z" },
+    { url = "https://files.pythonhosted.org/packages/97/e4/ff787e493208398d4642a656f2dcde3d95b88dcb7e31e19c837aba45e34e/gnews-0.8.2-py3-none-any.whl", hash = "sha256:2a6755c1007263d0b1648bedd2da089772147d5163c43652481f7f166392b1f0", size = 24880, upload-time = "2026-06-25T10:23:09.806Z" },
 ]
 
 [[package]]
