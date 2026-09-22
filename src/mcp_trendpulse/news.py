@@ -76,6 +76,11 @@ _ARTICLE_TITLE_PLACEHOLDERS = frozenset(
         "just a moment...",
     }
 )
+_ARTICLE_CHALLENGE_BODY_MARKERS = (
+    "why have i been blocked?",
+    "this website is using a security service to protect itself from online attacks",
+    "cloudflare ray id",
+)
 _SUPPORTED_NEWS_TOPICS = frozenset(
     topic.upper() for topic in (*GNEWS_TOPICS, *GNEWS_SECTIONS.keys())
 )
@@ -112,6 +117,13 @@ def _restore_feed_title_if_placeholder(article: newspaper.Article, gnews_article
     article_title = str(getattr(article, "title", "") or "").strip()
     if feed_title and (not article_title or article_title.casefold() in _ARTICLE_TITLE_PLACEHOLDERS):
         article.title = feed_title
+
+
+def _is_challenge_page(article: newspaper.Article) -> bool:
+    """Reject known anti-bot pages instead of returning their challenge copy as news."""
+    title = str(getattr(article, "title", "") or "").strip().casefold()
+    text = str(getattr(article, "text", "") or "").casefold()
+    return title in _ARTICLE_TITLE_PLACEHOLDERS and any(marker in text for marker in _ARTICLE_CHALLENGE_BODY_MARKERS)
 
 
 
@@ -620,6 +632,9 @@ async def process_gnews_articles(
             article = await download_article(gnews_article["url"])
             if article is None or not article.text:
                 logger.debug(f"Failed to download article from {gnews_article['url']}:\n{article}")
+                return idx, None
+            if _is_challenge_page(article):
+                logger.debug(f"Rejected anti-bot challenge page from {gnews_article['url']}")
                 return idx, None
 
             article_publish_date = _parse_news_publish_date(getattr(article, "publish_date", None))
