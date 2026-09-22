@@ -149,15 +149,15 @@ For workspace-level configuration, put this in `.vscode/mcp.json`. The same top-
 }
 ```
 
-### Codex CLI and IDE extension
+### ChatGPT desktop, Codex CLI, and IDE extension
 
-OpenAI Codex supports local stdio MCP servers. Add the published TrendPulse package with:
+OpenAI's local ChatGPT desktop and Codex clients support local stdio MCP servers and share the same MCP configuration on a Codex host. Add the published TrendPulse package once with:
 
 ```bash
 codex mcp add mcp-trendpulse -- uvx mcp-trendpulse
 ```
 
-The Codex CLI and IDE extension share the same local MCP configuration. This runs the published Community MCP package from PyPI; it does not use the unreleased hosted TrendPulse endpoint.
+The same local server is then available to the ChatGPT desktop app, Codex CLI, and the Codex IDE extension. In ChatGPT desktop, you can also open **Settings -> MCP Servers** and add an **STDIO** server with command `uvx mcp-trendpulse`, then restart the app. This runs the published Community MCP package from PyPI; it does not use the unreleased hosted TrendPulse endpoint. ChatGPT on the web is separate and does not read this local Codex MCP configuration.
 
 ### Cursor and portable Agent Plugins
 
@@ -190,7 +190,7 @@ Privacy: [TrendPulse Community MCP Privacy Notice](PRIVACY.md) · Support: [info
 
 Requires `uv`/`uvx`. LM Studio runs the published Community MCP package locally over stdio; no hosted TrendPulse service is required.
 
-### ChatGPT and other cloud MCP clients
+### ChatGPT web and other cloud MCP clients
 
 The repository now includes a dedicated stateless Streamable HTTP ASGI entry point at `mcp_trendpulse.asgi:app`. This is separate from the Community stdio entry point, which remains unchanged.
 
