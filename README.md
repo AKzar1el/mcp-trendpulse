@@ -267,12 +267,15 @@ uv run mcp-trendpulse-cli --help
 Current CLI commands:
 
 ```text
+brief-pack
 keyword
 location
 top
 topic
 trending
 ```
+
+`brief-pack` emits the deterministic trend/growth evidence table used for Demand Brief fulfillment. It intentionally leaves the final interpretation and recommendations to the human-produced brief.
 
 The CLI and MCP surfaces are intentionally documented separately because they do not expose the same command set.
 
