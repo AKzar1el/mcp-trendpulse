@@ -9,19 +9,28 @@ keywords = ["google", "news", "rss", "trends", "mcp", "fastmcp", "llm", "nlp", "
 license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
-    "click>=8.2.1",
+    "anyio>=4.14.2",
+    "click>=8.3.3",
     "cloudscraper>=1.2.71",
+    "cryptography>=50.0.0",
     "fastmcp>=3.2.0,<4",
+    "filelock>=3.20.3",
     "gnews>=0.4.1",
     "googlenewsdecoder>=0.1.7",
     "lxml[html-clean]>=6.1.1",
+    "lxml-html-clean>=0.4.4",
     "newspaper4k>=0.9.6",
     "nltk>=3.10.3",
+    "pygments>=2.20.0",
+    "pyjwt>=2.13.0",
     "pandas>=2.3.0",
     "playwright>=1.53.0",
     "pydantic>=2.12.0",
-    "python-dotenv>=1.0.1",
+    "python-dotenv>=1.2.2",
+    "requests>=2.33.0",
+    "soupsieve>=2.9.0",
     "trendspy>=0.1.6",
+    "urllib3>=2.7.0",
 ]
 
 [project.scripts]
@@ -35,8 +44,8 @@ build-backend = "setuptools.build_meta"
 
 [dependency-groups]
 dev = [
-    "anyio>=4.9.0",
-    "pytest>=8.4.1",
+    "anyio>=4.14.2",
+    "pytest>=9.0.3",
     "pytest-asyncio>=1.0.0",
     "pytest-cov>=6.2.1",
     "ruff>=0.12.1",
