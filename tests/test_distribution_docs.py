@@ -106,6 +106,7 @@ def test_pages_publish_canonical_and_social_preview_metadata():
     page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
 
     assert '<link rel="canonical" href="https://akzar1el.github.io/mcp-trendpulse/">' in page
+    assert '<link rel="icon" type="image/png" href="./assets/logo-400.png">' in page
     assert '<meta property="og:title" content="TrendPulse — Google Trends + Google News MCP">' in page
     assert '<meta property="og:url" content="https://akzar1el.github.io/mcp-trendpulse/">' in page
     assert (
@@ -113,6 +114,17 @@ def test_pages_publish_canonical_and_social_preview_metadata():
         in page
     )
     assert '<meta name="twitter:card" content="summary">' in page
+
+
+def test_pages_publish_current_mcpvault_verification_badge():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+
+    assert 'https://mcpvault.io/badge/mcp-trendpulse.svg?theme=dark' in page
+    assert (
+        'https://mcpvault.io/servers/mcp-trendpulse/health?utm_source=external_badge&utm_medium=referral&utm_campaign=mcp_health_report'
+        in page
+    )
+    assert 'alt="MCPVault: verified"' in page
 
 
 def test_pages_top_trends_copy_matches_current_provider_paths():
