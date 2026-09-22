@@ -326,15 +326,15 @@ If you deploy TrendPulse remotely, retain these controls and add deployment-leve
 
 ## Roadmap
 
-Current production-readiness work is focused on:
+Current production-readiness priorities are:
 
-1. Keeping documentation, packaging metadata, and generated MCP manifests coherent with the live tool surface.
-2. Adding continuous integration for unit tests and static checks.
-3. Separating provider access from TrendPulse's domain logic so providers can be changed without rewriting the MCP layer.
-4. Adding a production remote HTTP transport while preserving local stdio operation.
-5. Designing a smaller high-level hosted tool surface for ChatGPT/Codex.
-6. Integrating the hosted service with the DigestSEO application and operational stack.
-7. Packaging and testing the hosted MCP as an OpenAI plugin only after the service is production-ready.
+1. Keep documentation, packaging metadata, and generated MCP manifests coherent with the live tool surface.
+2. Keep CI, package validation, and dependency/runtime coverage aligned with what users actually install.
+3. Preserve provider boundaries so upstream sources can be changed without rewriting the MCP layer.
+4. Harden and operate the existing stateless Streamable HTTP transport while preserving local stdio operation.
+5. Refine the existing smaller hosted tool surface for ChatGPT/Codex against real deployment and buyer evidence.
+6. Complete provider authorization and integrate the hosted service with the DigestSEO application and operational stack.
+7. Package and test the hosted MCP as an OpenAI plugin only after the managed service is production-ready.
 
 ## License
 
