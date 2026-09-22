@@ -80,6 +80,7 @@ _ARTICLE_TITLE_PLACEHOLDERS = frozenset(
 _ARTICLE_CHALLENGE_BODY_MARKERS = (
     "why have i been blocked?",
     "why did this happen?",
+    "verification successful",
     "this website is using a security service to protect itself from online attacks",
     "cloudflare ray id",
     "make sure your browser supports javascript and cookies",
