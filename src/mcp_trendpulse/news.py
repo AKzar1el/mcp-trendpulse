@@ -12,6 +12,7 @@ import asyncio
 import ipaddress
 import socket
 import threading
+from html import unescape
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from email.utils import parsedate_to_datetime
@@ -89,6 +90,11 @@ _ARTICLE_CHALLENGE_BODY_MARKERS = (
 _SUPPORTED_NEWS_TOPICS = frozenset(
     topic.upper() for topic in (*GNEWS_TOPICS, *GNEWS_SECTIONS.keys())
 )
+
+
+def _decode_provider_text(value):
+    """Decode HTML entities in provider-owned display text while preserving non-strings."""
+    return unescape(value) if isinstance(value, str) else value
 
 
 def _google_property(source: str) -> str:
@@ -1115,16 +1121,16 @@ async def get_ranked_trends(
         if t.news:
             for article in t.news:
                 news_out.append({
-                    "title": article.title,
+                    "title": _decode_provider_text(article.title),
                     "url": article.url,
-                    "source": article.source,
+                    "source": _decode_provider_text(article.source),
                     "picture": article.picture,
                     "time": article.time,
-                    "snippet": article.snippet
+                    "snippet": _decode_provider_text(article.snippet)
                 })
 
         results.append({
-            "keyword": t.keyword,
+            "keyword": _decode_provider_text(t.keyword),
             "volume": t.volume,
             "growth_pct": t.volume_growth_pct,
             "started": started_ts,
@@ -1168,12 +1174,12 @@ async def get_top_trends(
         if t.news:
             for article in t.news:
                 news_out.append({
-                    "title": article.title,
+                    "title": _decode_provider_text(article.title),
                     "url": article.url,
-                    "source": article.source,
+                    "source": _decode_provider_text(article.source),
                     "picture": article.picture,
                     "time": article.time,
-                    "snippet": article.snippet
+                    "snippet": _decode_provider_text(article.snippet)
                 })
         started = getattr(t, "started", None)
         started_timestamp = getattr(t, "started_timestamp", None)
@@ -1183,7 +1189,7 @@ async def get_top_trends(
         if volume is not None and not isinstance(volume, str):
             volume = str(volume)
         results.append({
-            "keyword": t.keyword,
+            "keyword": _decode_provider_text(t.keyword),
             "volume": volume,
             "link": getattr(t, "link", None),
             "started": started,

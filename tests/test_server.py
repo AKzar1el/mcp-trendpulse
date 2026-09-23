@@ -306,8 +306,8 @@ async def test_get_growth(mcp_server):
 
 async def test_get_ranked_trends(mcp_server):
     mock_trends = [
-        MockTrendKeyword("switzerland vs colombia", 500000, 1000.0, [1783389000], [
-            MockNewsArticle("Switzerland Beats Colombia", "https://news.com/1", "News Source", "https://img.com/1", 1783389100, "Switzerland won.")
+        MockTrendKeyword("switzerland &amp; colombia", 500000, 1000.0, [1783389000], [
+            MockNewsArticle("Switzerland&apos;s Win", "https://news.com/1", "News &amp; Source", "https://img.com/1", 1783389100, "Switzerland&apos;s team won.")
         ]),
         MockTrendKeyword("hybrid cars", 100000, 50.0, [1783389010])
     ]
@@ -325,21 +325,23 @@ async def test_get_ranked_trends(mcp_server):
             ranked_trends = _articles(result)
             assert isinstance(ranked_trends, list)
             assert len(ranked_trends) == 2
-            assert ranked_trends[0]["keyword"] == "switzerland vs colombia"
+            assert ranked_trends[0]["keyword"] == "switzerland & colombia"
             assert ranked_trends[0]["growth_pct"] == 1000.0
             assert len(ranked_trends[0]["news"]) == 1
-            assert ranked_trends[0]["news"][0]["title"] == "Switzerland Beats Colombia"
+            assert ranked_trends[0]["news"][0]["title"] == "Switzerland's Win"
+            assert ranked_trends[0]["news"][0]["source"] == "News & Source"
+            assert ranked_trends[0]["news"][0]["snippet"] == "Switzerland's team won."
 
             params["sort"] = "volume"
             result = await client.call_tool("get_ranked_trends", params)
             ranked_trends_vol = _articles(result)
-            assert ranked_trends_vol[0]["keyword"] == "switzerland vs colombia"
+            assert ranked_trends_vol[0]["keyword"] == "switzerland & colombia"
 
 
 async def test_get_top_trends(mcp_server):
     mock_trends_lite = [
-        MockTrendKeywordLite("switzerland vs colombia", "500K+", ["switzerland", "colombia"], "https://trends.com/rss", 1783389000, "https://img.com/1", [
-            MockNewsArticle("Switzerland Beats Colombia", "https://news.com/1", "News Source", "https://img.com/1", 1783389100, "Switzerland won.")
+        MockTrendKeywordLite("switzerland &amp; colombia", "500K+", ["switzerland", "colombia"], "https://trends.com/rss", 1783389000, "https://img.com/1", [
+            MockNewsArticle("Switzerland&apos;s Win", "https://news.com/1", "News &amp; Source", "https://img.com/1", 1783389100, "Switzerland&apos;s team won.")
         ])
     ]
 
@@ -358,9 +360,12 @@ async def test_get_top_trends(mcp_server):
             top_trends = _articles(result)
             assert isinstance(top_trends, list)
             assert len(top_trends) == 1
-            assert top_trends[0]["keyword"] == "switzerland vs colombia"
+            assert top_trends[0]["keyword"] == "switzerland & colombia"
             assert top_trends[0]["volume"] == "500K+"
             assert len(top_trends[0]["news"]) == 1
+            assert top_trends[0]["news"][0]["title"] == "Switzerland's Win"
+            assert top_trends[0]["news"][0]["source"] == "News & Source"
+            assert top_trends[0]["news"][0]["snippet"] == "Switzerland's team won."
 
             params["type"] = "Daily Trends"
             result = await client.call_tool("get_top_trends", params)
