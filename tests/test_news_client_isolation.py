@@ -42,9 +42,27 @@ def reset_instances():
     FakeGNews.instances = []
 
 
+def test_google_news_client_defers_rss_url_resolution():
+    client = news._DeferredUrlGNews(language="en", country="US")
+    rss_url = "https://news.google.com/rss/articles/example"
+    item = {
+        "title": "Example title",
+        "description": "Example description",
+        "published": "Wed, 23 Sep 2026 10:00:00 GMT",
+        "link": rss_url,
+        "source": {"href": "https://example.com"},
+    }
+
+    result = client._process(item)
+
+    assert result is not None
+    assert result["url"] == rss_url
+    assert result["title"] == "Example title"
+    assert result["published date"] == "Wed, 23 Sep 2026 10:00:00 GMT"
+
 @pytest.mark.asyncio
 async def test_news_queries_use_request_scoped_clients(monkeypatch):
-    monkeypatch.setattr(news, "GNews", FakeGNews)
+    monkeypatch.setattr(news, "_DeferredUrlGNews", FakeGNews)
     process = AsyncMock(return_value=[])
     monkeypatch.setattr(news, "process_gnews_articles", process)
 
@@ -76,7 +94,7 @@ async def test_news_queries_use_request_scoped_clients(monkeypatch):
 async def test_news_queries_use_configured_google_news_locale(monkeypatch):
     monkeypatch.setenv("GOOGLE_NEWS_LANGUAGE", "sl")
     monkeypatch.setenv("GOOGLE_NEWS_COUNTRY", "si")
-    monkeypatch.setattr(news, "GNews", FakeGNews)
+    monkeypatch.setattr(news, "_DeferredUrlGNews", FakeGNews)
     monkeypatch.setattr(news, "process_gnews_articles", AsyncMock(return_value=[]))
 
     await news.get_news_by_keyword("Ljubljana", period=2, max_results=3, nlp=False)
@@ -93,7 +111,7 @@ async def test_empty_provider_result_skips_article_processing(monkeypatch):
             self.calls.append(("keyword", keyword))
             return []
 
-    monkeypatch.setattr(news, "GNews", EmptyGNews)
+    monkeypatch.setattr(news, "_DeferredUrlGNews", EmptyGNews)
     process = AsyncMock(return_value=[])
     monkeypatch.setattr(news, "process_gnews_articles", process)
 

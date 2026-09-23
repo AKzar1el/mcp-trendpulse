@@ -223,9 +223,31 @@ def get_scraper():
     return scraper_instance
 
 
+class _DeferredUrlGNews(GNews):
+    """Leave Google News RSS links unresolved for TrendPulse's article pipeline."""
+
+    def _process(self, item):
+        source = item.get("source").get("href")
+        excluded_patterns = [
+            f"^http(s)?://(www.)?{website.lower()}.*" for website in self._exclude_websites
+        ]
+        if not all(not re.match(pattern, source) for pattern in excluded_patterns):
+            return None
+
+        url = item.get("link")
+        if not url:
+            return None
+        return {
+            "title": item.get("title", ""),
+            "description": self._clean(item.get("description", "")),
+            "published date": item.get("published", ""),
+            "url": url,
+            "publisher": item.get("source", " "),
+        }
+
 def _new_google_news(period: int, max_results: int) -> GNews:
     """Create an isolated Google News client for one request."""
-    client = GNews(
+    client = _DeferredUrlGNews(
         language=get_google_news_language(),
         country=get_google_news_country(),
     )
