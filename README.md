@@ -176,6 +176,16 @@ Cursor also supports global and project MCP configuration. Add the server to the
 }
 ```
 
+### Devin CLI and Devin Desktop
+
+[Devin CLI plugins](https://docs.devin.ai/cli/extensibility/plugins/overview) can load Claude plugin packages and Agent Plugins 1.0 packages directly from GitHub. TrendPulse already ships both compatible layouts (`.claude-plugin/plugin.json` + `.mcp.json`, and root `plugin.json` + `mcp.json`). Install it with:
+
+```bash
+devin plugins install AKzar1el/mcp-trendpulse
+```
+
+Devin requires a signed-in CLI session to manage plugins. The installed TrendPulse plugin starts the published Community MCP locally over stdio with `uvx mcp-trendpulse`; it does not use the unreleased hosted TrendPulse endpoint. The same plugin is available in Devin Desktop after installation.
+
 ### Kiro
 
 [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=mcp-trendpulse&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-trendpulse%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D)

@@ -61,6 +61,18 @@ def test_openai_desktop_clients_use_local_stdio_with_stable_pypi_package():
     assert "not released" in web_section
 
 
+def test_devin_plugin_install_reuses_stable_community_mcp():
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    devin_section = readme.split("### Devin CLI and Devin Desktop", 1)[1].split("### Kiro", 1)[0]
+
+    assert "https://docs.devin.ai/cli/extensibility/plugins/overview" in devin_section
+    assert "devin plugins install AKzar1el/mcp-trendpulse" in devin_section
+    assert ".claude-plugin/plugin.json" in devin_section
+    assert "Agent Plugins 1.0" in devin_section
+    assert "`uvx mcp-trendpulse`" in devin_section
+    assert "locally over stdio" in devin_section
+    assert "unreleased hosted TrendPulse endpoint" in devin_section
+
 def test_kiro_docs_link_community_privacy_notice_and_support():
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     privacy = (PROJECT_ROOT / "PRIVACY.md").read_text(encoding="utf-8")
