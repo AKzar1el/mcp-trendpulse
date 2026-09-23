@@ -167,6 +167,10 @@ def brief_pack(keywords, markets, timeframe):
             series = defaultdict(list)
             for point in points:
                 series[str(point.get("keyword", ""))].append(point)
+            latest_trends_date = max(
+                (str(point["date"])[:10] for point in points if point.get("date")),
+                default=None,
+            )
             growth = {
                 str(row.get("keyword", "")): row.get("growth") or {}
                 for row in growth_rows
@@ -174,6 +178,9 @@ def brief_pack(keywords, markets, timeframe):
 
             click.echo()
             click.echo(f"## {market}")
+            if latest_trends_date:
+                click.echo()
+                click.echo(f"Latest complete Trends point: **{latest_trends_date}**")
             click.echo()
             click.echo("| Keyword | Latest index | 3M growth | 1Y growth |")
             click.echo("| --- | ---: | ---: | ---: |")
