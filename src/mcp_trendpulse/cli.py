@@ -5,6 +5,7 @@ from collections import defaultdict
 
 from mcp_trendpulse.config import load_environment
 from mcp_trendpulse.news import (
+    _growth_from_trend_points,
     get_news_by_keyword,
     get_news_by_location,
     get_news_by_topic,
@@ -157,12 +158,15 @@ def brief_pack(keywords, markets, timeframe):
                 geo=market,
                 timeframe=timeframe,
             )
-            growth_rows = await providers.trends.get_growth(
-                keyword=cleaned_keywords,
-                source="google search",
-                percent_growth=["3M", "1Y"],
-                geo=market,
-            )
+            if timeframe.strip().lower() == "today 12-m":
+                growth_rows = _growth_from_trend_points(points, cleaned_keywords, ["3M", "1Y"])
+            else:
+                growth_rows = await providers.trends.get_growth(
+                    keyword=cleaned_keywords,
+                    source="google search",
+                    percent_growth=["3M", "1Y"],
+                    geo=market,
+                )
 
             series = defaultdict(list)
             for point in points:

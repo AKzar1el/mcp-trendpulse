@@ -877,6 +877,21 @@ def _completed_trends_frame(df: pandas.DataFrame) -> pandas.DataFrame:
     return completed
 
 
+def _trends_frame_to_points(df: pandas.DataFrame, keywords: list[str]) -> list[dict]:
+    """Flatten one completed Trends frame into the package's stable point shape."""
+    results: list[dict] = []
+    for dt, row in df.iterrows():
+        date_str = dt.strftime("%Y-%m-%d") if hasattr(dt, "strftime") else str(dt)[:10]
+        for keyword in keywords:
+            if keyword in df.columns:
+                results.append({
+                    "date": date_str,
+                    "value": float(row[keyword]),
+                    "keyword": keyword,
+                })
+    return results
+
+
 def _growth_window_days(window: str) -> int:
     """Parse a growth window without silently relabeling unsupported input."""
     match = re.fullmatch(r"([1-9]\d*)([DWMY])", window.strip().upper())
@@ -897,6 +912,57 @@ def _growth_fetch_timeframe(windows: list[str]) -> str:
     if max_days <= 365 * 5:
         return "today 5-y"
     return "all"
+
+
+def _growth_from_trend_points(
+    points: list[dict],
+    keywords: list[str],
+    percent_growth: list[str],
+) -> list[dict]:
+    """Calculate growth from already-fetched completed Trends points."""
+    results: list[dict] = []
+    for keyword in keywords:
+        keyword_points = sorted(
+            (
+                point
+                for point in points
+                if point.get("keyword") == keyword
+                and point.get("date") is not None
+                and point.get("value") is not None
+            ),
+            key=lambda point: str(point["date"]),
+        )
+        if not keyword_points:
+            continue
+
+        dates = pandas.to_datetime([point["date"] for point in keyword_points])
+        series = pandas.Series(
+            [float(point["value"]) for point in keyword_points],
+            index=dates,
+            dtype=float,
+        )
+        current_val = float(series.tail(4).mean())
+        latest_date = series.index[-1]
+
+        growth_dict: dict[str, float | None] = {}
+        for window in percent_growth:
+            target_date = latest_date - pandas.Timedelta(days=_growth_window_days(window))
+            indices = series.index.get_indexer([target_date], method="nearest")
+            idx = len(series) - 1 if len(indices) == 0 or indices[0] < 0 else indices[0]
+            start_idx = max(0, idx - 2)
+            end_idx = min(len(series), idx + 2)
+            past_val = float(series.iloc[start_idx:end_idx].mean())
+
+            if past_val > 0:
+                growth_pct = ((current_val - past_val) / past_val) * 100
+            elif current_val == 0:
+                growth_pct = 0.0
+            else:
+                growth_pct = None
+            growth_dict[window] = round(growth_pct, 2) if growth_pct is not None else None
+
+        results.append({"keyword": keyword, "growth": growth_dict})
+    return results
 
 
 def _required_news_lookup(value: str, label: str) -> str:
@@ -991,17 +1057,7 @@ async def get_trends(
     if df.empty:
         return []
 
-    results = []
-    for dt, row in df.iterrows():
-        date_str = dt.strftime("%Y-%m-%d") if hasattr(dt, "strftime") else str(dt)[:10]
-        for kw in keywords:
-            if kw in df.columns:
-                results.append({
-                    "date": date_str,
-                    "value": float(row[kw]),
-                    "keyword": kw
-                })
-    return results
+    return _trends_frame_to_points(df, keywords)
 
 
 async def get_growth(
@@ -1032,45 +1088,8 @@ async def get_growth(
     if df.empty:
         return []
 
-    results = []
-    for kw in keywords:
-        if kw not in df.columns:
-            continue
-
-        series = df[kw]
-        current_val = float(series.tail(4).mean())
-
-        growth_dict = {}
-        for pg in percent_growth:
-            latest_date = df.index[-1]
-            days_offset = _growth_window_days(pg)
-            target_date = latest_date - pandas.Timedelta(days=days_offset)
-            indices = df.index.get_indexer([target_date], method='nearest')
-            if len(indices) == 0 or indices[0] < 0:
-                idx = len(df) - 1
-            else:
-                idx = indices[0]
-
-            start_idx = max(0, idx - 2)
-            end_idx = min(len(df), idx + 2)
-            past_val = float(series.iloc[start_idx:end_idx].mean())
-
-            if past_val > 0:
-                growth_pct = ((current_val - past_val) / past_val) * 100
-            elif current_val == 0:
-                growth_pct = 0.0
-            else:
-                growth_pct = None
-
-            growth_dict[pg] = (
-                round(growth_pct, 2) if growth_pct is not None else None
-            )
-
-        results.append({
-            "keyword": kw,
-            "growth": growth_dict
-        })
-    return results
+    points = _trends_frame_to_points(df, keywords)
+    return _growth_from_trend_points(points, keywords, percent_growth)
 
 
 async def get_ranked_trends(
