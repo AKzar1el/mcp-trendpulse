@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "mcp-trendpulse",
-  "version": "0.2.29",
+  "version": "0.2.30",
   "description": "Research current Google News and Google Trends data for keyword, market, and demand analysis.",
   "author": {
     "name": "Tomi Šeregi",
