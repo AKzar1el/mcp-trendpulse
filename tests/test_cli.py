@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
 
 from click.testing import CliRunner
@@ -67,10 +68,22 @@ class FakeBriefTrendsProvider:
     async def get_trends(self, **kwargs):
         geo = kwargs["geo"]
         base = 80 if geo == "US" else 60
-        return [
-            {"date": "2026-09-06", "value": base, "keyword": "ChatGPT"},
-            {"date": "2026-09-06", "value": base // 2, "keyword": "Claude"},
-        ]
+        start = date(2025, 9, 14)
+        points = []
+        for week in range(53):
+            current_period = week >= 49
+            point_date = (start + timedelta(weeks=week)).isoformat()
+            points.extend(
+                [
+                    {
+                        "date": point_date,
+                        "value": base if current_period else base / 2,
+                        "keyword": "ChatGPT",
+                    },
+                    {"date": point_date, "value": base // 2, "keyword": "Claude"},
+                ]
+            )
+        return points
 
     async def get_growth(self, **kwargs):
         return [
@@ -80,12 +93,15 @@ class FakeBriefTrendsProvider:
 
 
 class FakeBriefProviders:
-    trends = FakeBriefTrendsProvider()
+    def __init__(self):
+        self.trends = FakeBriefTrendsProvider()
 
 
 def test_brief_pack_emits_two_market_evidence_tables():
     runner = CliRunner()
-    with patch("mcp_trendpulse.cli.get_provider_set", return_value=FakeBriefProviders()):
+    providers = FakeBriefProviders()
+    providers.trends.get_growth = AsyncMock(side_effect=AssertionError("default brief pack should reuse trend points"))
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
         result = runner.invoke(
             cli_module.cli,
             [
@@ -101,12 +117,48 @@ def test_brief_pack_emits_two_market_evidence_tables():
     assert "# TrendPulse Demand Brief evidence pack" in result.output
     assert "Google Trends property: **Google Search**" in result.output
     assert "Data source: **Google Trends** (https://trends.google.com/trends/)" in result.output
-    assert result.output.count("Latest complete Trends point: **2026-09-06**") == 2
+    assert result.output.count("Latest complete Trends point: **2026-09-13**") == 2
     assert "## US" in result.output
     assert "## GB" in result.output
-    assert "| ChatGPT | 80 | +5.00% | -1.25% |" in result.output
-    assert "| Claude | 30 | -15.50% | +300.00% |" in result.output
+    assert "| ChatGPT | 80 | +100.00% | +100.00% |" in result.output
+    assert "| Claude | 40 | +0.00% | +0.00% |" in result.output
+    assert "| ChatGPT | 60 | +100.00% | +100.00% |" in result.output
+    assert "| Claude | 30 | +0.00% | +0.00% |" in result.output
     assert "do not compare index values directly across markets" in result.output
+    providers.trends.get_growth.assert_not_awaited()
+
+
+def test_brief_pack_keeps_dedicated_growth_fetch_for_custom_timeframe():
+    runner = CliRunner()
+    providers = FakeBriefProviders()
+    providers.trends.get_growth = AsyncMock(
+        return_value=[
+            {"keyword": "ChatGPT", "growth": {"3M": 5.0, "1Y": -1.25}},
+            {"keyword": "Claude", "growth": {"3M": -15.5, "1Y": 300.0}},
+        ]
+    )
+
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = runner.invoke(
+            cli_module.cli,
+            [
+                "brief-pack",
+                "--keyword", "ChatGPT",
+                "--keyword", "Claude",
+                "--market", "US",
+                "--timeframe", "today 5-y",
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert "| ChatGPT | 80 | +5.00% | -1.25% |" in result.output
+    assert "| Claude | 40 | -15.50% | +300.00% |" in result.output
+    providers.trends.get_growth.assert_awaited_once_with(
+        keyword=["ChatGPT", "Claude"],
+        source="google search",
+        percent_growth=["3M", "1Y"],
+        geo="US",
+    )
 
 
 def test_brief_pack_enforces_offer_keyword_and_market_limits():
