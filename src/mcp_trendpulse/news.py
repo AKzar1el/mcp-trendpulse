@@ -861,6 +861,12 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
     )
     for trend in trends:
         trend.keyword = _decode_provider_text(trend.keyword)
+        if hasattr(trend, "picture_source"):
+            trend.picture_source = _decode_provider_text(trend.picture_source)
+        for article in getattr(trend, "news", None) or []:
+            article.title = _decode_provider_text(article.title)
+            article.source = _decode_provider_text(article.source)
+            article.snippet = _decode_provider_text(article.snippet)
     trends = sorted(trends, key=lambda trend: parse_trending_volume(trend.volume), reverse=True)
     if not full_data:
         return [{"keyword": trend.keyword, "volume": trend.volume} for trend in trends]

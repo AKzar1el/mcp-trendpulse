@@ -59,3 +59,25 @@ async def test_get_trending_terms_full_data_decodes_provider_keyword_html_entiti
         result = await news.get_trending_terms(full_data=True)
 
     assert result[0].keyword == "arby's"
+
+
+async def test_get_trending_terms_full_data_decodes_nested_provider_display_text():
+    article = SimpleNamespace(
+        title="The &apos;90s Arby&apos;s Deal",
+        source="What&apos;s on Netflix",
+        snippet="Arby&apos;s fans remember it.",
+    )
+    trend = SimpleNamespace(
+        keyword="arby&apos;s",
+        volume="200+",
+        picture_source="What&apos;s on Netflix",
+        news=[article],
+    )
+
+    with patch.object(news.tr, "trending_now_by_rss", return_value=[trend]):
+        result = await news.get_trending_terms(full_data=True)
+
+    assert result[0].picture_source == "What's on Netflix"
+    assert result[0].news[0].title == "The '90s Arby's Deal"
+    assert result[0].news[0].source == "What's on Netflix"
+    assert result[0].news[0].snippet == "Arby's fans remember it."
