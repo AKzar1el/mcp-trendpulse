@@ -859,6 +859,8 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
         list[TrendKeywordLite],
         await asyncio.to_thread(lambda: tr.trending_now_by_rss(geo=geo)),
     )
+    for trend in trends:
+        trend.keyword = _decode_provider_text(trend.keyword)
     trends = sorted(trends, key=lambda trend: parse_trending_volume(trend.volume), reverse=True)
     if not full_data:
         return [{"keyword": trend.keyword, "volume": trend.volume} for trend in trends]
