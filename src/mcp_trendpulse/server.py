@@ -162,8 +162,8 @@ COMMUNITY_SERVER_INSTRUCTIONS = (
     "when the user needs discovery; use get_trends or get_growth for known keywords and historical momentum. "
     "Google Trends values are normalized relative interest (0-100), not absolute search volume, so do not infer "
     "raw demand without independent evidence. Use Google News discovery tools for current context and call "
-    "get_article_content only after you have a specific article URL; call get_categories before using a "
-    "non-default category ID. Preserve geography and timeframe when summarizing conclusions, and combine trend "
+    "get_article_content only after you have a specific article URL; call get_categories, using a name query when "
+    "possible, before using a non-default category ID. Preserve geography and timeframe when summarizing conclusions, and combine trend "
     "and news evidence when the user is making a decision."
 )
 
@@ -881,15 +881,35 @@ async def get_suggestions(
 
 @mcp.tool(
     description=(
-        "Return Google Trends category IDs and names for use in the cat parameter of trend tools. Call this when a "
-        "category filter is needed; do not guess category IDs."
+        "Return a bounded page of Google Trends category IDs and names for use in the cat parameter of trend tools. "
+        "Use query to find categories by name and offset/limit to page through broader results; do not guess category IDs."
     ),
     tags={"trends", "google", "categories"},
     annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
-async def get_categories() -> list[CategoryItem]:
+async def get_categories(
+    query: Annotated[
+        Optional[str],
+        Field(
+            description="Optional case-insensitive substring to match against category names.",
+            min_length=1,
+            pattern=r".*\S.*",
+        ),
+    ] = None,
+    limit: Annotated[
+        int,
+        Field(description="Maximum categories to return in this page.", ge=1, le=100),
+    ] = 50,
+    offset: Annotated[
+        int,
+        Field(description="Zero-based offset into the filtered category list.", ge=0),
+    ] = 0,
+) -> list[CategoryItem]:
     results = await get_provider_set().trends.get_categories()
-    return [CategoryItem(**item) for item in results]
+    if query is not None:
+        normalized_query = query.casefold()
+        results = [item for item in results if normalized_query in str(item["name"]).casefold()]
+    return [CategoryItem(**item) for item in results[offset:offset + limit]]
 
 
 def main():

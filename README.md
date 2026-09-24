@@ -256,7 +256,7 @@ The community MCP server currently exposes **16 tools**.
 | `get_related_queries` | Retrieve top and rising related search queries. |
 | `get_related_topics` | Retrieve top and rising related Google Trends topics. |
 | `get_suggestions` | Resolve autocomplete/topic suggestions for a query. |
-| `get_categories` | Retrieve Google Trends category IDs and names. |
+| `get_categories` | Search or page through Google Trends category IDs and names before using `cat`. |
 
 ### Example: explicit trend window
 
