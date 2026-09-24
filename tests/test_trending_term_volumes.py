@@ -41,3 +41,21 @@ async def test_get_trending_terms_sorts_abbreviated_volumes_without_normalizing_
         result = await news.get_trending_terms()
 
     assert [trend["volume"] for trend in result] == ["1B", "5.2M", "900K", "500K+", "1200"]
+
+
+async def test_get_trending_terms_decodes_provider_keyword_html_entities():
+    trends = [SimpleNamespace(keyword="mcdonald&apos;s", volume="2K+")]
+
+    with patch.object(news.tr, "trending_now_by_rss", return_value=trends):
+        result = await news.get_trending_terms()
+
+    assert result == [{"keyword": "mcdonald's", "volume": "2K+"}]
+
+
+async def test_get_trending_terms_full_data_decodes_provider_keyword_html_entities():
+    trends = [SimpleNamespace(keyword="arby&apos;s", volume="200+")]
+
+    with patch.object(news.tr, "trending_now_by_rss", return_value=trends):
+        result = await news.get_trending_terms(full_data=True)
+
+    assert result[0].keyword == "arby's"
