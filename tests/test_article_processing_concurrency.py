@@ -154,6 +154,28 @@ async def test_download_article_rejects_challenge_page_after_playwright_fallback
     assert result is None
 
 
+@pytest.mark.asyncio
+async def test_download_article_retries_publisher_shell_with_playwright(monkeypatch):
+    scraper_article = FakeArticle("Real publisher headline")
+    scraper_article.text = "There are no new alerts at this time"
+    browser_article = FakeArticle("Real publisher headline")
+    browser_article.text = "The actual article body is available after the rendered page loads."
+    playwright_download = AsyncMock(return_value=browser_article)
+
+    class FakeValidator:
+        def validate_url(self, url: str) -> str:
+            return url
+
+    monkeypatch.setattr(news, "ArticleTargetValidator", FakeValidator)
+    monkeypatch.setattr(news, "download_article_with_scraper", lambda url, target_validator: scraper_article)
+    monkeypatch.setattr(news, "download_article_with_playwright", playwright_download)
+
+    result = await news.download_article("https://example.com/article")
+
+    assert result is browser_article
+    playwright_download.assert_awaited_once()
+
+
 def test_scraper_is_reused_per_thread_but_not_shared_between_threads(monkeypatch):
     created: list[object] = []
     barrier = threading.Barrier(2)
