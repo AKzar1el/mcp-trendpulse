@@ -92,6 +92,11 @@ _ARTICLE_STRONG_CHALLENGE_BODY_MARKERS = (
     "this website uses a security service to protect against malicious bots",
     "this page is displayed while the website verifies you are not a bot",
 )
+_ARTICLE_SHELL_TEXT_PLACEHOLDERS = frozenset(
+    {
+        "there are no new alerts at this time",
+    }
+)
 _SUPPORTED_NEWS_TOPICS = frozenset(
     topic.upper() for topic in (*GNEWS_TOPICS, *GNEWS_SECTIONS.keys())
 )
@@ -144,6 +149,14 @@ def _is_challenge_page(article: newspaper.Article) -> bool:
         title in _ARTICLE_TITLE_PLACEHOLDERS
         and any(marker in text for marker in _ARTICLE_CHALLENGE_BODY_MARKERS)
     )
+
+
+def _is_unusable_article_page(article: newspaper.Article) -> bool:
+    """Reject challenge pages and known publisher UI shells with no article content."""
+    if _is_challenge_page(article):
+        return True
+    text = " ".join(str(getattr(article, "text", "") or "").casefold().split())
+    return text in _ARTICLE_SHELL_TEXT_PLACEHOLDERS
 
 
 
@@ -637,11 +650,11 @@ async def download_article(url: str) -> newspaper.Article | None:
             return None
         url = await asyncio.to_thread(target_validator.validate_url, decoded)
     article = await asyncio.to_thread(download_article_with_scraper, url, target_validator)
-    if article is None or not article.text or _is_challenge_page(article):
+    if article is None or not article.text or _is_unusable_article_page(article):
         logger.debug("Attempting to download article with playwright")
         article = await download_article_with_playwright(url, target_validator)
-    if article is not None and _is_challenge_page(article):
-        logger.debug(f"Rejected anti-bot challenge page from {url}")
+    if article is not None and _is_unusable_article_page(article):
+        logger.debug(f"Rejected unusable article page from {url}")
         return None
     return article
 
@@ -686,8 +699,8 @@ async def process_gnews_articles(
             if article is None or not article.text:
                 logger.debug(f"Failed to download article from {gnews_article['url']}:\n{article}")
                 return idx, None
-            if _is_challenge_page(article):
-                logger.debug(f"Rejected anti-bot challenge page from {gnews_article['url']}")
+            if _is_unusable_article_page(article):
+                logger.debug(f"Rejected unusable article page from {gnews_article['url']}")
                 return idx, None
 
             article_publish_date = _parse_news_publish_date(getattr(article, "publish_date", None))
