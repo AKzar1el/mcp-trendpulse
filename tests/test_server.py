@@ -430,6 +430,30 @@ async def test_get_interest_by_region(mcp_server):
             assert regions[0]["values"]["python"] == 100.0
 
 
+async def test_get_interest_by_region_supports_city_coordinates_without_geo_code(mcp_server):
+    mock_df = pd.DataFrame({
+        "geoName": ["New York", "Los Angeles"],
+        "lat": [40.7128, 34.0522],
+        "lng": [-74.0060, -118.2437],
+        "python": [100.0, 80.0]
+    })
+    with patch('mcp_trendpulse.news.tr') as mock_tr:
+        mock_tr.interest_by_region.return_value = mock_df
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("get_interest_by_region", {
+                "keywords": "python",
+                "geo": "US",
+                "resolution": "CITY"
+            })
+            cities = _articles(result)
+            assert len(cities) == 2
+            assert cities[0]["geo_name"] == "New York"
+            assert "geo_code" not in cities[0]
+            assert cities[0]["latitude"] == 40.7128
+            assert cities[0]["longitude"] == -74.006
+            assert cities[0]["values"]["python"] == 100.0
+
+
 async def test_get_related_queries(mcp_server):
     mock_res = {
         "top": pd.DataFrame({"query": ["python download", "python tutorial"], "value": [100, 50]}),

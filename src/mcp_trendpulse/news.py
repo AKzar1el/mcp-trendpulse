@@ -1352,11 +1352,17 @@ async def get_interest_by_region(
         for kw in kw_list:
             if kw in df.columns:
                 values[kw] = float(row[kw])
-        results.append({
+        region = {
             "geoName": str(row["geoName"]),
-            "geoCode": str(row["geoCode"]),
             "values": values
-        })
+        }
+        if "geoCode" in df.columns and pandas.notna(row["geoCode"]):
+            region["geoCode"] = str(row["geoCode"])
+        if "lat" in df.columns and pandas.notna(row["lat"]):
+            region["lat"] = float(row["lat"])
+        if "lng" in df.columns and pandas.notna(row["lng"]):
+            region["lng"] = float(row["lng"])
+        results.append(region)
     return results
 
 
