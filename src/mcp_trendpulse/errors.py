@@ -75,7 +75,14 @@ def classify_provider_exception(exc: BaseException, *, provider: str, operation:
     type_name = type(exc).__name__.lower()
     message = str(exc).lower()
 
-    if status == 429 or "too many requests" in message or "rate limit" in message or "ratelimit" in type_name:
+    if (
+        status == 429
+        or "too many requests" in message
+        or "rate limit" in message
+        or "quota exceeded" in message
+        or "ratelimit" in type_name
+        or "quotaexceeded" in type_name
+    ):
         return ProviderRateLimitError(provider, operation)
 
     if (

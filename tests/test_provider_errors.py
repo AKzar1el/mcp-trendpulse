@@ -21,6 +21,10 @@ class RateLimitError(RuntimeError):
         self.response = SimpleNamespace(status_code=429)
 
 
+class TrendsQuotaExceededError(RuntimeError):
+    pass
+
+
 def test_classify_provider_exception_uses_stable_categories():
     rate_limit = classify_provider_exception(
         RateLimitError(),
@@ -88,6 +92,24 @@ async def test_google_trends_rate_limit_is_not_reported_as_empty_results(monkeyp
 
     assert exc_info.value.provider == "google_trends"
     assert exc_info.value.operation == "trending_now_by_rss"
+
+
+def test_related_queries_classifies_quota_exhaustion_as_rate_limit_without_retry(monkeypatch):
+    attempts = []
+
+    class QuotaLimitedTrends:
+        def related_queries(self, **kwargs):
+            attempts.append(kwargs)
+            raise TrendsQuotaExceededError("API quota exceeded for related queries/topics")
+
+    monkeypatch.setattr(news, "_get_trends_client", lambda: QuotaLimitedTrends())
+
+    with pytest.raises(ProviderRateLimitError) as exc_info:
+        news._call_related_queries_with_unavailable_retry(keyword="python", geo="US")
+
+    assert exc_info.value.provider == "google_trends"
+    assert exc_info.value.operation == "related_queries"
+    assert len(attempts) == 1
 
 
 def test_related_queries_retries_unavailable_once_with_fresh_client(monkeypatch):

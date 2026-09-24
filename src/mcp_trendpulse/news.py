@@ -665,7 +665,15 @@ async def process_gnews_articles(
             ):
                 return idx, None
 
-            article = await download_article(gnews_article["url"])
+            try:
+                article = await download_article(gnews_article["url"])
+            except ValueError as exc:
+                logger.debug(
+                    "Skipping unusable Google News provider item %s: %s",
+                    gnews_article["url"],
+                    exc,
+                )
+                return idx, None
             if article is None or not article.text:
                 logger.debug(f"Failed to download article from {gnews_article['url']}:\n{article}")
                 return idx, None
