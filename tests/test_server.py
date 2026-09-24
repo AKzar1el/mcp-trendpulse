@@ -500,3 +500,33 @@ async def test_get_categories(mcp_server):
             assert cats[0]["id"] == 0
 
 
+async def test_get_categories_defaults_to_bounded_page(mcp_server):
+    mock_cats = [{"name": f"Category {index}", "id": index} for index in range(75)]
+    with patch('mcp_trendpulse.news.tr') as mock_tr:
+        mock_tr.categories.return_value = mock_cats
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("get_categories", {})
+            cats = _articles(result)
+            assert len(cats) == 50
+            assert cats[0]["id"] == 0
+            assert cats[-1]["id"] == 49
+
+
+async def test_get_categories_filters_and_paginates(mcp_server):
+    mock_cats = [
+        {"name": "All categories", "id": 0},
+        {"name": "Search Engine Optimization & Marketing", "id": 84},
+        {"name": "Search Engines", "id": 485},
+        {"name": "Arts & Entertainment", "id": 3},
+    ]
+    with patch('mcp_trendpulse.news.tr') as mock_tr:
+        mock_tr.categories.return_value = mock_cats
+        async with Client(mcp_server) as client:
+            result = await client.call_tool(
+                "get_categories",
+                {"query": "SEARCH", "limit": 1, "offset": 1},
+            )
+            cats = _articles(result)
+            assert cats == [{"id": 485, "name": "Search Engines"}]
+
+
