@@ -81,6 +81,31 @@ async def test_process_gnews_articles_enforces_requested_period(monkeypatch):
     ]
 
 
+async def test_process_gnews_articles_skips_one_unresolvable_provider_item(monkeypatch):
+    valid = SimpleNamespace(
+        title="Valid article",
+        text="Valid article body",
+        publish_date=None,
+    )
+
+    async def download(url):
+        if url.endswith("/unresolvable"):
+            raise ValueError("Article URL hostname could not be resolved safely.")
+        return valid
+
+    monkeypatch.setattr(news, "download_article", download)
+
+    result = await news.process_gnews_articles(
+        [
+            {"url": "https://example.invalid/unresolvable", "title": "Broken provider item"},
+            {"url": "https://example.com/valid", "title": "Valid article"},
+        ],
+        nlp=False,
+    )
+
+    assert result == [valid]
+
+
 async def test_process_gnews_articles_restores_feed_title_for_challenge_placeholder(monkeypatch):
     article = SimpleNamespace(
         title="Attention Required!",
