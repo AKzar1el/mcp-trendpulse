@@ -160,6 +160,22 @@ def _is_unusable_article_page(article: newspaper.Article) -> bool:
 
 
 
+def _strip_known_article_shell_prefix(article: newspaper.Article | None) -> None:
+    """Remove a standalone known publisher shell prefix from substantive article text."""
+    if article is None:
+        return
+    text = str(getattr(article, "text", "") or "").lstrip()
+    folded = text.casefold()
+    for placeholder in _ARTICLE_SHELL_TEXT_PLACEHOLDERS:
+        if not folded.startswith(placeholder):
+            continue
+        boundary = len(placeholder)
+        if boundary < len(text) and text[boundary].isspace():
+            remainder = text[boundary:].lstrip()
+            if remainder:
+                article.text = remainder
+        return
+
 def _get_trends_client() -> Trends:
     """Return one lazily-created TrendSpy client per worker thread."""
     client = getattr(_trends_local, "instance", None)
@@ -650,9 +666,11 @@ async def download_article(url: str) -> newspaper.Article | None:
             return None
         url = await asyncio.to_thread(target_validator.validate_url, decoded)
     article = await asyncio.to_thread(download_article_with_scraper, url, target_validator)
+    _strip_known_article_shell_prefix(article)
     if article is None or not article.text or _is_unusable_article_page(article):
         logger.debug("Attempting to download article with playwright")
         article = await download_article_with_playwright(url, target_validator)
+        _strip_known_article_shell_prefix(article)
     if article is not None and _is_unusable_article_page(article):
         logger.debug(f"Rejected unusable article page from {url}")
         return None
