@@ -113,7 +113,9 @@ class TopTrendOut(BaseModelClean):
 
 class RegionInterestOut(BaseModelClean):
     geo_name: Annotated[str, Field(description="Name of the geographic region.")]
-    geo_code: Annotated[str, Field(description="ISO code of the region.")]
+    geo_code: Annotated[Optional[str], Field(description="ISO code when supplied by Google Trends.")] = None
+    latitude: Annotated[Optional[float], Field(description="Latitude when supplied for geographic results.")] = None
+    longitude: Annotated[Optional[float], Field(description="Longitude when supplied for geographic results.")] = None
     values: Annotated[dict[str, float], Field(description="Search interest score (0-100) per keyword.")]
 
 
@@ -790,7 +792,9 @@ async def get_interest_by_region(
     )
     return [RegionInterestOut(
         geo_name=item["geoName"],
-        geo_code=item["geoCode"],
+        geo_code=item.get("geoCode"),
+        latitude=item.get("lat"),
+        longitude=item.get("lng"),
         values=item["values"]
     ) for item in results]
 
