@@ -176,6 +176,52 @@ async def test_download_article_retries_publisher_shell_with_playwright(monkeypa
     playwright_download.assert_awaited_once()
 
 
+@pytest.mark.asyncio
+async def test_download_article_strips_shell_prefix_from_substantive_scraper_text(monkeypatch):
+    article = FakeArticle("Where the U.S. and China differ on global AI regulation")
+    article.text = (
+        "There are no new alerts at this time "
+        "NBC News reports substantive details about global AI regulation."
+    )
+    playwright_download = AsyncMock()
+
+    class FakeValidator:
+        def validate_url(self, url: str) -> str:
+            return url
+
+    monkeypatch.setattr(news, "ArticleTargetValidator", FakeValidator)
+    monkeypatch.setattr(news, "download_article_with_scraper", lambda url, target_validator: article)
+    monkeypatch.setattr(news, "download_article_with_playwright", playwright_download)
+
+    result = await news.download_article("https://example.com/article")
+
+    assert result is article
+    assert article.text == "NBC News reports substantive details about global AI regulation."
+    playwright_download.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_download_article_preserves_natural_sentence_starting_with_shell_phrase(monkeypatch):
+    article = FakeArticle("Emergency system remains quiet during policy debate")
+    original_text = (
+        "There are no new alerts at this time, but officials say the policy debate "
+        "is changing quickly and published a detailed update for residents."
+    )
+    article.text = original_text
+
+    class FakeValidator:
+        def validate_url(self, url: str) -> str:
+            return url
+
+    monkeypatch.setattr(news, "ArticleTargetValidator", FakeValidator)
+    monkeypatch.setattr(news, "download_article_with_scraper", lambda url, target_validator: article)
+
+    result = await news.download_article("https://example.com/article")
+
+    assert result is article
+    assert article.text == original_text
+
+
 def test_scraper_is_reused_per_thread_but_not_shared_between_threads(monkeypatch):
     created: list[object] = []
     barrier = threading.Barrier(2)
