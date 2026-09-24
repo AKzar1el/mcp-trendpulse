@@ -1,3 +1,5 @@
+import io
+import sys
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
 
@@ -53,6 +55,21 @@ def test_trending_command_emits_results():
     assert "AI" in result.output
     assert "1M" in result.output
     get_trending_terms.assert_awaited_once_with(geo="GB", full_data=False)
+
+
+def test_trending_command_uses_utf8_when_stdout_is_redirected(monkeypatch):
+    raw_output = io.BytesIO()
+    redirected_stdout = io.TextIOWrapper(raw_output, encoding="cp1250", errors="strict")
+    monkeypatch.setattr(sys, "stdout", redirected_stdout)
+
+    with patch(
+        "mcp_trendpulse.cli.get_trending_terms",
+        new=AsyncMock(return_value=[{"keyword": "한국", "volume": "1K+"}]),
+    ):
+        cli_module.cli.main(args=["trending", "--geo", "US"], standalone_mode=False)
+
+    redirected_stdout.flush()
+    assert "한국" in raw_output.getvalue().decode("utf-8")
 
 
 def test_trending_command_emits_no_results_message():

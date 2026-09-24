@@ -1,8 +1,8 @@
-import click
 import asyncio
+import sys
 from collections import defaultdict
 
-
+import click
 from mcp_trendpulse.config import load_environment
 from mcp_trendpulse.news import (
     _growth_from_trend_points,
@@ -17,8 +17,23 @@ from mcp_trendpulse.news import (
 from mcp_trendpulse.providers import get_provider_set
 
 
+def _configure_redirected_output():
+    """Use UTF-8 for redirected CLI output without changing interactive consoles."""
+    for stream in (sys.stdout, sys.stderr):
+        if stream.isatty():
+            continue
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="strict")
+        except (OSError, ValueError):
+            pass
+
+
 @click.group()
 def cli():
+    _configure_redirected_output()
     load_environment()
 
 
