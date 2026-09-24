@@ -198,6 +198,51 @@ async def test_process_gnews_articles_rejects_verification_successful_challenge_
     assert result == []
 
 
+async def test_process_gnews_articles_rejects_security_verification_interstitial(monkeypatch):
+    article = SimpleNamespace(
+        title="Publisher's canonical headline",
+        text=(
+            "Performing security verification. This website uses a security service to protect against malicious bots. "
+            "This page is displayed while the website verifies you are not a bot."
+        ),
+        publish_date=None,
+    )
+    monkeypatch.setattr(news, "download_article", AsyncMock(return_value=article))
+
+    result = await news.process_gnews_articles(
+        [
+            {
+                "url": "https://example.com/article",
+                "title": "Google News feed headline",
+            }
+        ],
+        nlp=False,
+    )
+
+    assert result == []
+
+
+async def test_process_gnews_articles_preserves_real_article_with_one_security_phrase(monkeypatch):
+    article = SimpleNamespace(
+        title="How publishers are performing security verification",
+        text="A newsroom explains how it is performing security verification without blocking readers.",
+        publish_date=None,
+    )
+    monkeypatch.setattr(news, "download_article", AsyncMock(return_value=article))
+
+    result = await news.process_gnews_articles(
+        [
+            {
+                "url": "https://example.com/article",
+                "title": "Google News feed headline",
+            }
+        ],
+        nlp=False,
+    )
+
+    assert result == [article]
+
+
 async def test_process_gnews_articles_preserves_real_extracted_title(monkeypatch):
     article = SimpleNamespace(
         title="Publisher's canonical title",

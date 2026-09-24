@@ -87,6 +87,11 @@ _ARTICLE_CHALLENGE_BODY_MARKERS = (
     "make sure your browser supports javascript and cookies",
     "block reference id:",
 )
+_ARTICLE_STRONG_CHALLENGE_BODY_MARKERS = (
+    "performing security verification",
+    "this website uses a security service to protect against malicious bots",
+    "this page is displayed while the website verifies you are not a bot",
+)
 _SUPPORTED_NEWS_TOPICS = frozenset(
     topic.upper() for topic in (*GNEWS_TOPICS, *GNEWS_SECTIONS.keys())
 )
@@ -134,7 +139,11 @@ def _is_challenge_page(article: newspaper.Article) -> bool:
     """Reject known anti-bot pages instead of returning their challenge copy as news."""
     title = str(getattr(article, "title", "") or "").strip().casefold()
     text = str(getattr(article, "text", "") or "").casefold()
-    return title in _ARTICLE_TITLE_PLACEHOLDERS and any(marker in text for marker in _ARTICLE_CHALLENGE_BODY_MARKERS)
+    strong_marker_count = sum(marker in text for marker in _ARTICLE_STRONG_CHALLENGE_BODY_MARKERS)
+    return strong_marker_count >= 2 or (
+        title in _ARTICLE_TITLE_PLACEHOLDERS
+        and any(marker in text for marker in _ARTICLE_CHALLENGE_BODY_MARKERS)
+    )
 
 
 
