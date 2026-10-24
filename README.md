@@ -76,6 +76,14 @@ TrendPulse is published on PyPI, so the shortest install path is:
 uvx mcp-trendpulse
 ```
 
+For the latest upstream image-decoder security fixes, **Python 3.11 or newer is recommended**. Python 3.10.18 remains installable, but Pillow 13 (the patched upstream release) requires Python 3.11+. On a machine where `uvx` would otherwise select Python 3.10, select a newer interpreter explicitly:
+
+```bash
+uvx --python 3.11 mcp-trendpulse
+```
+
+See the [security policy](SECURITY.md) for the Python 3.10 compatibility/security tradeoff. This recommendation does not change the package's declared Python support.
+
 To run the current repository head instead of the published package:
 
 ```bash
