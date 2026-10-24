@@ -6,7 +6,7 @@ This file is for AI agents such as Cline installing the current **community/loca
 
 - `uv` / `uvx` installed and available on `PATH`
 - Internet access for Google News, Google Trends, article retrieval, and the initial PyPI package install
-- Python 3.10.18+ (normally managed automatically by `uv`)
+- Python 3.11+ recommended for patched Pillow 13; Python 3.10.18 remains installable but cannot receive those upstream image-decoder fixes (see `SECURITY.md`)
 - Optional: Playwright Chromium only when browser fallback is needed for difficult article pages
 
 No API keys or environment variables are required for the community server.
@@ -18,6 +18,8 @@ Run the published package from PyPI:
 ```bash
 uvx mcp-trendpulse
 ```
+
+For Python 3.10 hosts, prefer `uvx --python 3.11 mcp-trendpulse`. In Cline server configuration, the equivalent `args` value is `["--python", "3.11", "mcp-trendpulse"]`; the existing unpinned configuration remains supported.
 
 Use `uvx --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse` only when repository-head code is explicitly required.
 
