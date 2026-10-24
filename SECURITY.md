@@ -4,6 +4,8 @@
 
 Security fixes target the latest published TrendPulse release. If you can reproduce an issue only on an older release, upgrade first and confirm whether the issue still exists.
 
+For the latest dependency security fixes, use Python 3.11 or newer. TrendPulse retains Python 3.10 compatibility, but the patched Pillow 13 release requires Python 3.11+, so Python 3.10 environments cannot receive those upstream image-decoder fixes. Prefer Python 3.11+ when researching untrusted third-party content.
+
 ## Reporting a vulnerability
 
 Please do not open a public GitHub issue for an undisclosed security vulnerability.
