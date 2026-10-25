@@ -815,6 +815,30 @@ async def get_rss_headlines_by_keyword(
     return await _rss_headlines_from_feed("get_news", keyword, period, max_results, now)
 
 
+async def get_rss_headlines_by_location(
+    location: str,
+    period: int = 7,
+    max_results: int = 10,
+    now: Optional[datetime] = None,
+) -> list[dict[str, object]]:
+    """Return dated location RSS metadata without article extraction."""
+    location = _required_news_lookup(location, "location")
+    return await _rss_headlines_from_feed(
+        "get_news_by_location", quote(location, safe=""), period, max_results, now
+    )
+
+
+async def get_rss_headlines_by_site(
+    site: str,
+    period: int = 7,
+    max_results: int = 10,
+    now: Optional[datetime] = None,
+) -> list[dict[str, object]]:
+    """Return dated publisher-site RSS metadata without article extraction."""
+    site = _required_news_lookup(site, "site")
+    return await _rss_headlines_from_feed("get_news_by_site", site, period, max_results, now)
+
+
 async def get_rss_headlines_by_topic(
     topic: str,
     period: int = 7,
