@@ -645,7 +645,7 @@ def decode_url(url: str) -> Optional[str]:
     if url.startswith("https://news.google.com/rss/"):
         try:
             decoded_url = gnewsdecoder(url)
-            if decoded_url.get("status"):
+            if decoded_url.get("status") or decoded_url.get("success") is True:
                 return decoded_url["decoded_url"]
             else:
                 logger.debug("Failed to decode Google News RSS link:")

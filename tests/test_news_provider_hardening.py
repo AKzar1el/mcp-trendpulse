@@ -318,3 +318,18 @@ async def test_invalid_news_topic_is_rejected_before_provider_call(monkeypatch):
         await news.get_news_by_topic("NOT_A_REAL_TOPIC", nlp=False)
 
     provider_factory.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        ({"status": True, "decoded_url": "https://example.com/legacy"}, "https://example.com/legacy"),
+        ({"success": True, "decoded_url": "https://example.com/current"}, "https://example.com/current"),
+        ({"success": False, "message": "Failed to fetch data attributes."}, None),
+        ({"status": False, "message": "Legacy failure."}, None),
+    ],
+)
+def test_google_news_decoder_supports_legacy_and_current_result_keys(monkeypatch, result, expected):
+    """Upstream googlenewsdecoder 0.2.x uses success, older releases use status."""
+    monkeypatch.setattr(news, "gnewsdecoder", lambda _url: result)
+    assert news.decode_url("https://news.google.com/rss/articles/test") == expected
