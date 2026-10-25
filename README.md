@@ -292,15 +292,15 @@ The separate Click CLI is included in the public PyPI package. Run its published
 uvx --python 3.11 --from mcp-trendpulse mcp-trendpulse-cli --help
 ```
 
-**Version boundary:** as of the published v0.2.42 package, the `site` command and the `--headlines-only` options for `keyword`, `location`, `topic`, `top`, and `site` exist on GitHub `main` but have **not yet been released to PyPI**. To use those capabilities before the next package release, explicitly run the repository-head CLI:
+**Published CLI (v0.2.43+):** The `site` command and the `--headlines-only` options for `keyword`, `location`, `topic`, `top`, and `site` are available in the published PyPI package. Run the stable release rather than repository HEAD:
 
 ```bash
-uvx --python 3.11 --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse-cli keyword "OpenAI" --headlines-only
+uvx --python 3.11 --from mcp-trendpulse mcp-trendpulse-cli keyword "OpenAI" --headlines-only
 ```
 
 From a local source checkout, `uv run mcp-trendpulse-cli --help` uses that checkout. The opt-in headline-only commands return genuine Google News RSS titles, publishers, dates, and Google News links labeled as metadata, **not** extracted article bodies. Default news commands continue to attempt publisher-article extraction.
 
-CLI commands on GitHub `main` (the published package may lag):
+CLI commands in published v0.2.43 (also on GitHub `main`):
 
 ```text
 brief-pack
