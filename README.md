@@ -286,13 +286,21 @@ Google Trends values are normalized interest scores. Do not interpret a 0-100 in
 
 ## CLI
 
-The separate Click CLI offers news commands and opt-in headline-only RSS metadata. Use --headlines-only with keyword, location, topic, top, or site to return genuine Google News headline metadata instead of publisher article text. The default commands still extract articles.
+The separate Click CLI is included in the public PyPI package. Run its published commands without a source checkout:
 
 ```bash
-uv run mcp-trendpulse-cli --help
+uvx --python 3.11 --from mcp-trendpulse mcp-trendpulse-cli --help
 ```
 
-Current CLI commands:
+**Version boundary:** as of the published v0.2.42 package, the `site` command and the `--headlines-only` options for `keyword`, `location`, `topic`, `top`, and `site` exist on GitHub `main` but have **not yet been released to PyPI**. To use those capabilities before the next package release, explicitly run the repository-head CLI:
+
+```bash
+uvx --python 3.11 --from git+https://github.com/AKzar1el/mcp-trendpulse.git mcp-trendpulse-cli keyword "OpenAI" --headlines-only
+```
+
+From a local source checkout, `uv run mcp-trendpulse-cli --help` uses that checkout. The opt-in headline-only commands return genuine Google News RSS titles, publishers, dates, and Google News links labeled as metadata, **not** extracted article bodies. Default news commands continue to attempt publisher-article extraction.
+
+CLI commands on GitHub `main` (the published package may lag):
 
 ```text
 brief-pack
