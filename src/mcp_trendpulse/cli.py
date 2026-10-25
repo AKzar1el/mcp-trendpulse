@@ -5,7 +5,7 @@ from collections import defaultdict
 import click
 from mcp_trendpulse.config import load_environment
 # Delay heavyweight news/browser/NLP imports until a CLI command needs them.
-# Click help metadata stays identical to the underlying news API docstrings.
+# Click help text preserves the underlying news API documentation.
 def _news_export(name):
     from mcp_trendpulse import news
     return getattr(news, name)

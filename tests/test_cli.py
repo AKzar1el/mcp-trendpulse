@@ -250,9 +250,13 @@ def test_cli_rejects_unlabeled_rss_claims():
     ],
 )
 def test_cli_help_preserves_news_api_docstrings(command, api_name):
+    from inspect import cleandoc
+
     from mcp_trendpulse import news
 
-    assert cli_module.cli.commands[command].help == getattr(news, api_name).__doc__
+    assert cleandoc(cli_module.cli.commands[command].help) == cleandoc(
+        getattr(news, api_name).__doc__
+    )
 
 
 def test_cli_help_remains_lazy_in_fresh_python_process():
