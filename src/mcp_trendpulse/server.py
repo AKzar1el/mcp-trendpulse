@@ -544,7 +544,22 @@ async def get_top_news(
             description="Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp"
         ),
     ] = True,
+    headlines_only: Annotated[
+        bool,
+        Field(
+            description="Return dated Google News RSS top-story headline, publisher and link metadata only. "
+            "No article body, original publisher URL, or summary is fetched or inferred. "
+            "meta_data identifies the limited RSS evidence level."
+        ),
+    ] = False,
 ) -> list[ArticleOut]:
+    if headlines_only:
+        items = await get_provider_set().news.get_rss_headlines_for_top_news(
+            period=period,
+            max_results=max_results,
+        )
+        return [ArticleOut(**item) for item in items]
+
     set_newspaper_article_fields(full_data)
 
     async def progress_callback(progress: float, total: Optional[float]):
