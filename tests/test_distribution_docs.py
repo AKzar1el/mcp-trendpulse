@@ -183,3 +183,20 @@ def test_pages_top_trends_copy_matches_current_provider_paths():
 
     assert "realtime RSS feed or the 24-hour Trending Now feed" in page
     assert "Real-time spike feed from Google Trends RSS" not in page
+
+
+def test_news_headline_modes_documented_for_agents():
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    for name in (
+        "get_news_by_keyword",
+        "get_news_by_location",
+        "get_news_by_topic",
+        "get_top_news",
+        "get_news_by_site",
+    ):
+        row = next(line for line in readme.splitlines() if line.startswith(f"| `{name}` |"))
+        assert "`headlines_only=true`" in row
+
+    server = (PROJECT_ROOT / "src/mcp_trendpulse/server.py").read_text(encoding="utf-8")
+    assert "set headlines_only=True on the matching news-discovery tool" in server
+    assert "as headline metadata only, never original publisher URLs" in server

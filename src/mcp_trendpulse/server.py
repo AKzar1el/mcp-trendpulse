@@ -167,8 +167,9 @@ COMMUNITY_SERVER_INSTRUCTIONS = (
     "get_article_content only after you have a specific article URL; call get_categories, using a name query when "
     "possible, before using a non-default category ID. Preserve geography and timeframe when summarizing conclusions, and combine trend "
     "and news evidence when the user is making a decision. If article extraction is blocked, "
-    "get_news_by_keyword(headlines_only=True) provides only labeled Google News RSS headlines, "
-    "not original publisher links or article bodies."
+    "set headlines_only=True on the matching news-discovery tool (keyword, location, topic, "
+    "top news, or publisher site). Treat RSS titles, publishers, dates, and Google News links "
+    "as headline metadata only, never original publisher URLs, article bodies, or summaries."
 )
 
 
