@@ -23,6 +23,13 @@ class NewsProvider(Protocol):
         max_results: int = 10,
     ) -> list[dict[str, object]]: ...
 
+    async def get_rss_headlines_by_topic(
+        self,
+        topic: str,
+        period: int = 7,
+        max_results: int = 10,
+    ) -> list[dict[str, object]]: ...
+
     async def get_news_by_keyword(
         self,
         keyword: str,
@@ -168,6 +175,18 @@ class CommunityNewsProvider:
     ) -> list[dict[str, object]]:
         return await news.get_rss_headlines_by_keyword(
             keyword=keyword,
+            period=period,
+            max_results=max_results,
+        )
+
+    async def get_rss_headlines_by_topic(
+        self,
+        topic: str,
+        period: int = 7,
+        max_results: int = 10,
+    ) -> list[dict[str, object]]:
+        return await news.get_rss_headlines_by_topic(
+            topic=topic,
             period=period,
             max_results=max_results,
         )

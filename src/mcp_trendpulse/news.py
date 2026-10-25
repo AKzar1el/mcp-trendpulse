@@ -752,16 +752,16 @@ async def process_gnews_articles(
     return articles
 
 
-async def get_rss_headlines_by_keyword(
-    keyword: str,
-    period: int = 7,
-    max_results: int = 10,
+async def _rss_headlines_from_feed(
+    method: str,
+    query: str,
+    period: int,
+    max_results: int,
     now: Optional[datetime] = None,
 ) -> list[dict[str, object]]:
-    """Return only dated Google News RSS headlines, without article extraction."""
-    keyword = _required_news_lookup(keyword, "keyword")
+    """Convert a Google News RSS feed to dated, explicitly limited metadata."""
     client = _new_google_news(period, max_results)
-    items = await _call_google_news_async(client, "get_news", keyword)
+    items = await _call_google_news_async(client, method, query)
     reference_now = _parse_news_publish_date(now) if now is not None else datetime.now(timezone.utc)
     cutoff = reference_now - timedelta(days=period)
     result: list[dict[str, object]] = []
@@ -802,6 +802,30 @@ async def get_rss_headlines_by_keyword(
         if len(result) >= max_results:
             break
     return result
+
+
+async def get_rss_headlines_by_keyword(
+    keyword: str,
+    period: int = 7,
+    max_results: int = 10,
+    now: Optional[datetime] = None,
+) -> list[dict[str, object]]:
+    """Return dated keyword RSS metadata without article extraction."""
+    keyword = _required_news_lookup(keyword, "keyword")
+    return await _rss_headlines_from_feed("get_news", keyword, period, max_results, now)
+
+
+async def get_rss_headlines_by_topic(
+    topic: str,
+    period: int = 7,
+    max_results: int = 10,
+    now: Optional[datetime] = None,
+) -> list[dict[str, object]]:
+    """Return dated topic RSS metadata without article extraction."""
+    topic = _required_news_lookup(topic, "topic").upper()
+    if topic not in _SUPPORTED_NEWS_TOPICS:
+        raise ValueError(f"Unsupported news topic: {topic!r}.")
+    return await _rss_headlines_from_feed("get_news_by_topic", topic, period, max_results, now)
 
 
 async def get_news_by_keyword(

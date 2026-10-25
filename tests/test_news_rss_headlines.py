@@ -101,3 +101,60 @@ async def test_community_adapter_forwards_rss_only(monkeypatch):
     adapter = providers.CommunityNewsProvider()
     assert await adapter.get_rss_headlines_by_keyword("OpenAI", period=2, max_results=3) == []
     operation.assert_awaited_once_with(keyword="OpenAI", period=2, max_results=3)
+
+
+async def test_topic_rss_headlines_are_labeled_and_never_download(monkeypatch):
+    feed = AsyncMock(return_value=[{
+        "title": "Latest &amp; Technology",
+        "url": GOOGLE_LINK,
+        "published date": "Sun, 25 Oct 2026 01:30:00 GMT",
+        "publisher": {"title": "Tech Publisher"},
+    }])
+    forbidden = AsyncMock(side_effect=AssertionError("article extraction forbidden"))
+    monkeypatch.setattr(news, "_new_google_news", lambda period, max_results: object())
+    monkeypatch.setattr(news, "_call_google_news_async", feed)
+    monkeypatch.setattr(news, "download_article", forbidden)
+    rows = await news.get_rss_headlines_by_topic("technology", period=2, max_results=3, now=NOW)
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Latest & Technology"
+    assert rows[0]["url"] == GOOGLE_LINK
+    assert rows[0]["meta_data"]["content_level"] == "rss_headline_only"
+    assert "text" not in rows[0] and "summary" not in rows[0]
+    assert feed.await_args.args[1:] == ("get_news_by_topic", "TECHNOLOGY")
+    forbidden.assert_not_awaited()
+
+
+async def test_topic_rss_rejects_unknown_topic_before_fetch(monkeypatch):
+    feed = AsyncMock()
+    monkeypatch.setattr(news, "_call_google_news_async", feed)
+    with pytest.raises(ValueError, match="Unsupported news topic"):
+        await news.get_rss_headlines_by_topic("invented-topic")
+    feed.assert_not_awaited()
+
+
+async def test_topic_headline_only_server_skips_article_and_summary(monkeypatch):
+    provider = SimpleNamespace(get_rss_headlines_by_topic=AsyncMock(return_value=[{
+        "title": "Technology report",
+        "url": GOOGLE_LINK,
+        "publish_date": "2026-10-25T01:30:00+00:00",
+        "meta_site_name": "Tech Publisher",
+        "meta_data": {"content_level": "rss_headline_only", "source": "google_news_rss"},
+    }]))
+    monkeypatch.setattr(server, "get_provider_set", lambda: SimpleNamespace(news=provider))
+    summary = AsyncMock(side_effect=AssertionError("summary must not run"))
+    monkeypatch.setattr(server, "summarize_articles", summary)
+    monkeypatch.setattr(server, "set_newspaper_article_fields", Mock(side_effect=AssertionError("article fields must not change")))
+    result = await server.get_news_by_topic(None, topic="TECHNOLOGY", period=1, max_results=2, headlines_only=True)
+    assert len(result) == 1
+    assert result[0].title == "Technology report"
+    assert result[0].meta_data["content_level"] == "rss_headline_only"
+    assert result[0].text is None and result[0].summary is None
+    provider.get_rss_headlines_by_topic.assert_awaited_once_with(topic="TECHNOLOGY", period=1, max_results=2)
+    summary.assert_not_awaited()
+
+
+async def test_community_adapter_forwards_topic_rss_only(monkeypatch):
+    fn = AsyncMock(return_value=[])
+    monkeypatch.setattr(news, "get_rss_headlines_by_topic", fn)
+    assert await providers.CommunityNewsProvider().get_rss_headlines_by_topic("TECHNOLOGY", period=2, max_results=3) == []
+    fn.assert_awaited_once_with(topic="TECHNOLOGY", period=2, max_results=3)
