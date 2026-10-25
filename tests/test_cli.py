@@ -235,3 +235,45 @@ def test_cli_rejects_unlabeled_rss_claims():
         result = CliRunner().invoke(cli_module.cli, ["keyword", "ai", "--headlines-only"])
     assert result.exit_code != 0
     assert "Unexpected RSS headline evidence level" in result.output
+
+
+
+@pytest.mark.parametrize(
+    ("command", "api_name"),
+    [
+        ("keyword", "get_news_by_keyword"),
+        ("location", "get_news_by_location"),
+        ("site", "get_news_by_site"),
+        ("topic", "get_news_by_topic"),
+        ("top", "get_top_news"),
+        ("trending", "get_trending_terms"),
+    ],
+)
+def test_cli_help_preserves_news_api_docstrings(command, api_name):
+    from inspect import cleandoc
+
+    from mcp_trendpulse import news
+
+    assert cleandoc(cli_module.cli.commands[command].help) == cleandoc(
+        getattr(news, api_name).__doc__
+    )
+
+
+def test_cli_help_remains_lazy_in_fresh_python_process():
+    import subprocess
+
+    script = (
+        "import sys; from click.testing import CliRunner; "
+        "from mcp_trendpulse.cli import cli; "
+        "result = CliRunner().invoke(cli, ['keyword', '--help']); "
+        "assert result.exit_code == 0, result.output; "
+        "assert 'mcp_trendpulse.news' not in sys.modules"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr

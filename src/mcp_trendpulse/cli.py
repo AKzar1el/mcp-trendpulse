@@ -4,18 +4,50 @@ from collections import defaultdict
 
 import click
 from mcp_trendpulse.config import load_environment
-from mcp_trendpulse.news import (
-    _growth_from_trend_points,
-    get_news_by_keyword,
-    get_news_by_location,
-    get_news_by_site,
-    get_news_by_topic,
-    get_trending_terms,
-    get_top_news,
-    save_article_to_json,
-    BrowserManager,
-)
-from mcp_trendpulse.providers import get_provider_set
+# Delay heavyweight news/browser/NLP imports until a CLI command needs them.
+# Click help text preserves the underlying news API documentation.
+def _news_export(name):
+    from mcp_trendpulse import news
+    return getattr(news, name)
+
+def get_provider_set(*args, **kwargs):
+    from mcp_trendpulse.providers import get_provider_set as provider_set
+    return provider_set(*args, **kwargs)
+
+def _growth_from_trend_points(*args, **kwargs):
+    return _news_export('_growth_from_trend_points')(*args, **kwargs)
+_growth_from_trend_points.__doc__ = 'Calculate growth from already-fetched completed Trends points.'
+
+async def get_news_by_keyword(*args, **kwargs):
+    return await _news_export('get_news_by_keyword')(*args, **kwargs)
+get_news_by_keyword.__doc__ = '\n    Find articles by keyword using Google News.\n    '
+
+async def get_news_by_location(*args, **kwargs):
+    return await _news_export('get_news_by_location')(*args, **kwargs)
+get_news_by_location.__doc__ = 'Find articles by location using Google News.'
+
+async def get_news_by_site(*args, **kwargs):
+    return await _news_export('get_news_by_site')(*args, **kwargs)
+get_news_by_site.__doc__ = 'Find articles from a specific publisher site using Google News.'
+
+async def get_news_by_topic(*args, **kwargs):
+    return await _news_export('get_news_by_topic')(*args, **kwargs)
+get_news_by_topic.__doc__ = 'Find articles by topic using Google News.\n    topic is one of\n    WORLD, NATION, BUSINESS, TECHNOLOGY, ENTERTAINMENT, SPORTS, SCIENCE, HEALTH,\n    POLITICS, CELEBRITIES, TV, MUSIC, MOVIES, THEATER, SOCCER, CYCLING, MOTOR SPORTS,\n    TENNIS, COMBAT SPORTS, BASKETBALL, BASEBALL, FOOTBALL, SPORTS BETTING, WATER SPORTS,\n    HOCKEY, GOLF, CRICKET, RUGBY, ECONOMY, PERSONAL FINANCE, FINANCE, DIGITAL CURRENCIES,\n    MOBILE, ENERGY, GAMING, INTERNET SECURITY, GADGETS, VIRTUAL REALITY, ROBOTICS, NUTRITION,\n    PUBLIC HEALTH, MENTAL HEALTH, MEDICINE, SPACE, WILDLIFE, ENVIRONMENT, NEUROSCIENCE, PHYSICS,\n    GEOLOGY, PALEONTOLOGY, SOCIAL SCIENCES, EDUCATION, JOBS, ONLINE EDUCATION, HIGHER EDUCATION,\n    VEHICLES, ARTS-DESIGN, BEAUTY, FOOD, TRAVEL, SHOPPING, HOME, OUTDOORS, FASHION.\n    '
+
+async def get_trending_terms(*args, **kwargs):
+    return await _news_export('get_trending_terms')(*args, **kwargs)
+get_trending_terms.__doc__ = '\n    Returns google trends for a specific geo location.\n    '
+
+async def get_top_news(*args, **kwargs):
+    return await _news_export('get_top_news')(*args, **kwargs)
+get_top_news.__doc__ = '\n    Get top news stories from Google News.\n    '
+
+def save_article_to_json(*args, **kwargs):
+    return _news_export('save_article_to_json')(*args, **kwargs)
+save_article_to_json.__doc__ = 'Save an article to a JSON file.'
+
+def BrowserManager(*args, **kwargs):
+    return _news_export('BrowserManager')(*args, **kwargs)
 
 
 def _configure_redirected_output():
