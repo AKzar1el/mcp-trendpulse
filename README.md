@@ -244,7 +244,7 @@ The community MCP server currently exposes **16 tools**.
 
 | Tool | Purpose |
 | --- | --- |
-| `get_news_by_keyword` | Find recent news articles matching a keyword. |
+| `get_news_by_keyword` | Find recent news articles matching a keyword, or set `headlines_only=true` for clearly labeled Google News RSS headline metadata without publisher article extraction or summaries. |
 | `get_news_by_location` | Find recent news associated with a location. |
 | `get_news_by_topic` | Find recent news for a supported Google News topic. |
 | `get_top_news` | Retrieve top Google News stories. |

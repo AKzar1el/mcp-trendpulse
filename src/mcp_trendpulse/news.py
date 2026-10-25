@@ -752,6 +752,58 @@ async def process_gnews_articles(
     return articles
 
 
+async def get_rss_headlines_by_keyword(
+    keyword: str,
+    period: int = 7,
+    max_results: int = 10,
+    now: Optional[datetime] = None,
+) -> list[dict[str, object]]:
+    """Return only dated Google News RSS headlines, without article extraction."""
+    keyword = _required_news_lookup(keyword, "keyword")
+    client = _new_google_news(period, max_results)
+    items = await _call_google_news_async(client, "get_news", keyword)
+    reference_now = _parse_news_publish_date(now) if now is not None else datetime.now(timezone.utc)
+    cutoff = reference_now - timedelta(days=period)
+    result: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        title = _decode_provider_text(item.get("title"))
+        link = item.get("url")
+        if not isinstance(title, str) or not title.strip() or not isinstance(link, str):
+            continue
+        parsed = urlsplit(link)
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != "news.google.com"
+            or parsed.username is not None
+            or parsed.password is not None
+            or not parsed.path.startswith("/rss/articles/")
+            or link in seen
+        ):
+            continue
+        published = _parse_news_publish_date(item.get("published date"))
+        if published is None or not cutoff <= published <= reference_now:
+            continue
+        publisher = item.get("publisher")
+        publisher_name = publisher.get("title") if isinstance(publisher, dict) else None
+        result.append({
+            "title": title.strip(),
+            "url": link,
+            "publish_date": published.isoformat(),
+            "meta_site_name": _decode_provider_text(publisher_name) if isinstance(publisher_name, str) else None,
+            "meta_data": {
+                "content_level": "rss_headline_only",
+                "source": "google_news_rss",
+            },
+        })
+        seen.add(link)
+        if len(result) >= max_results:
+            break
+    return result
+
+
 async def get_news_by_keyword(
     keyword: str,
     period=7,

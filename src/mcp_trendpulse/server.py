@@ -33,7 +33,7 @@ class BaseModelClean(BaseModel):
 
 class ArticleOut(BaseModelClean):
     title: Annotated[str, Field(description="Title of the article.")]
-    url: Annotated[str, Field(description="Original article URL.")]
+    url: Annotated[str, Field(description="Original article URL, or a Google News RSS link when headlines_only=True.")]
     read_more_link: Annotated[Optional[str], Field(description="Link to read more about the article.")] = None
     language: Annotated[Optional[str], Field(description="Language code of the article.")] = None
     meta_img: Annotated[Optional[str], Field(description="Meta image URL.")] = None
@@ -166,7 +166,9 @@ COMMUNITY_SERVER_INSTRUCTIONS = (
     "raw demand without independent evidence. Use Google News discovery tools for current context and call "
     "get_article_content only after you have a specific article URL; call get_categories, using a name query when "
     "possible, before using a non-default category ID. Preserve geography and timeframe when summarizing conclusions, and combine trend "
-    "and news evidence when the user is making a decision."
+    "and news evidence when the user is making a decision. If article extraction is blocked, "
+    "get_news_by_keyword(headlines_only=True) provides only labeled Google News RSS headlines, "
+    "not original publisher links or article bodies."
 )
 
 
@@ -355,7 +357,23 @@ async def get_news_by_keyword(
             description="Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp"
         ),
     ] = True,
+    headlines_only: Annotated[
+        bool,
+        Field(
+            description="Return only dated Google News RSS title, publisher, and link metadata. "
+            "No original publisher URL, full article text, or summary is fetched or inferred. "
+            "The url field is a Google News RSS link; meta_data marks its limited evidence level."
+        ),
+    ] = False,
 ) -> list[ArticleOut]:
+    if headlines_only:
+        items = await get_provider_set().news.get_rss_headlines_by_keyword(
+            keyword=keyword,
+            period=period,
+            max_results=max_results,
+        )
+        return [ArticleOut(**item) for item in items]
+
     set_newspaper_article_fields(full_data)
 
     async def progress_callback(progress: float, total: Optional[float]):

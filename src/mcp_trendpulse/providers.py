@@ -16,6 +16,13 @@ class NewsProvider(Protocol):
 
     provider_id: str
 
+    async def get_rss_headlines_by_keyword(
+        self,
+        keyword: str,
+        period: int = 7,
+        max_results: int = 10,
+    ) -> list[dict[str, object]]: ...
+
     async def get_news_by_keyword(
         self,
         keyword: str,
@@ -152,6 +159,18 @@ class CommunityNewsProvider:
     """Adapter exposing the existing Community news implementation."""
 
     provider_id: ClassVar[str] = "google_news"
+
+    async def get_rss_headlines_by_keyword(
+        self,
+        keyword: str,
+        period: int = 7,
+        max_results: int = 10,
+    ) -> list[dict[str, object]]:
+        return await news.get_rss_headlines_by_keyword(
+            keyword=keyword,
+            period=period,
+            max_results=max_results,
+        )
 
     async def get_news_by_keyword(
         self,
