@@ -207,3 +207,89 @@ async def test_community_adapter_forwards_top_news_rss_only(monkeypatch):
     monkeypatch.setattr(news, "get_rss_headlines_for_top_news", fn)
     assert await providers.CommunityNewsProvider().get_rss_headlines_for_top_news(period=2, max_results=3) == []
     fn.assert_awaited_once_with(period=2, max_results=3)
+
+
+@pytest.mark.parametrize(
+    ("method", "value", "gnews_method", "expected_arg"),
+    [
+        ("get_rss_headlines_by_location", "New York", "get_news_by_location", "New%20York"),
+        ("get_rss_headlines_by_site", "bbc.com", "get_news_by_site", "bbc.com"),
+    ],
+)
+async def test_location_and_site_rss_are_real_metadata_only(
+    monkeypatch, method, value, gnews_method, expected_arg
+):
+    feed = object()
+    operation = AsyncMock(return_value=[{
+        "title": "Verified headline",
+        "url": GOOGLE_LINK,
+        "published date": "Sun, 25 Oct 2026 01:30:00 GMT",
+        "publisher": {"title": "Example publisher"},
+    }])
+    forbidden_download = AsyncMock(side_effect=AssertionError("article fetch forbidden"))
+    monkeypatch.setattr(news, "_new_google_news", lambda period, max_results: feed)
+    monkeypatch.setattr(news, "_call_google_news_async", operation)
+    monkeypatch.setattr(news, "download_article", forbidden_download)
+    result = await getattr(news, method)(value, period=1, max_results=2, now=NOW)
+    assert len(result) == 1
+    assert result[0]["title"] == "Verified headline"
+    assert result[0]["meta_site_name"] == "Example publisher"
+    assert result[0]["meta_data"]["content_level"] == "rss_headline_only"
+    assert "summary" not in result[0] and "text" not in result[0]
+    operation.assert_awaited_once_with(feed, gnews_method, expected_arg)
+    forbidden_download.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("method", "field"),
+    [
+        ("get_rss_headlines_by_location", "location"),
+        ("get_rss_headlines_by_site", "site"),
+    ],
+)
+async def test_location_and_site_rss_reject_blank_without_provider_calls(monkeypatch, method, field):
+    operation = AsyncMock()
+    monkeypatch.setattr(news, "_call_google_news_async", operation)
+    with pytest.raises(ValueError, match=field):
+        await getattr(news, method)("   ")
+    operation.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("tool", "field", "method", "value"),
+    [
+        ("get_news_by_location", "location", "get_rss_headlines_by_location", "New York"),
+        ("get_news_by_site", "site", "get_rss_headlines_by_site", "bbc.com"),
+    ],
+)
+async def test_location_and_site_server_rss_bypass_extraction_and_summary(
+    monkeypatch, tool, field, method, value
+):
+    operation = AsyncMock(return_value=[{
+        "title": "RSS title",
+        "url": GOOGLE_LINK,
+        "meta_data": {"content_level": "rss_headline_only", "source": "google_news_rss"},
+    }])
+    monkeypatch.setattr(server, "get_provider_set", lambda: SimpleNamespace(news=SimpleNamespace(**{method: operation})))
+    monkeypatch.setattr(server, "summarize_articles", AsyncMock(side_effect=AssertionError("summary forbidden")))
+    monkeypatch.setattr(server, "set_newspaper_article_fields", Mock(side_effect=AssertionError("article extraction forbidden")))
+    result = await getattr(server, tool)(None, **{field: value}, period=1, max_results=2, headlines_only=True)
+    assert len(result) == 1
+    assert result[0].text is None and result[0].summary is None
+    assert result[0].meta_data["content_level"] == "rss_headline_only"
+    operation.assert_awaited_once_with(**{field: value}, period=1, max_results=2)
+
+
+@pytest.mark.parametrize(
+    ("method", "source", "field", "value"),
+    [
+        ("get_rss_headlines_by_location", "get_rss_headlines_by_location", "location", "Paris"),
+        ("get_rss_headlines_by_site", "get_rss_headlines_by_site", "site", "bbc.com"),
+    ],
+)
+async def test_community_adapter_forwards_location_and_site(monkeypatch, method, source, field, value):
+    operation = AsyncMock(return_value=[])
+    monkeypatch.setattr(news, source, operation)
+    result = await getattr(providers.COMMUNITY_PROVIDERS.news, method)(**{field: value}, period=2, max_results=3)
+    assert result == []
+    operation.assert_awaited_once_with(**{field: value}, period=2, max_results=3)
