@@ -754,14 +754,14 @@ async def process_gnews_articles(
 
 async def _rss_headlines_from_feed(
     method: str,
-    query: str,
+    query: str | None,
     period: int,
     max_results: int,
     now: Optional[datetime] = None,
 ) -> list[dict[str, object]]:
     """Convert a Google News RSS feed to dated, explicitly limited metadata."""
     client = _new_google_news(period, max_results)
-    items = await _call_google_news_async(client, method, query)
+    items = await _call_google_news_async(client, method, *((query,) if query is not None else ()))
     reference_now = _parse_news_publish_date(now) if now is not None else datetime.now(timezone.utc)
     cutoff = reference_now - timedelta(days=period)
     result: list[dict[str, object]] = []
@@ -826,6 +826,15 @@ async def get_rss_headlines_by_topic(
     if topic not in _SUPPORTED_NEWS_TOPICS:
         raise ValueError(f"Unsupported news topic: {topic!r}.")
     return await _rss_headlines_from_feed("get_news_by_topic", topic, period, max_results, now)
+
+
+async def get_rss_headlines_for_top_news(
+    period: int = 3,
+    max_results: int = 10,
+    now: Optional[datetime] = None,
+) -> list[dict[str, object]]:
+    """Return dated top-news RSS metadata without publisher article extraction."""
+    return await _rss_headlines_from_feed("get_top_news", None, period, max_results, now)
 
 
 async def get_news_by_keyword(

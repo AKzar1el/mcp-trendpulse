@@ -158,3 +158,52 @@ async def test_community_adapter_forwards_topic_rss_only(monkeypatch):
     monkeypatch.setattr(news, "get_rss_headlines_by_topic", fn)
     assert await providers.CommunityNewsProvider().get_rss_headlines_by_topic("TECHNOLOGY", period=2, max_results=3) == []
     fn.assert_awaited_once_with(topic="TECHNOLOGY", period=2, max_results=3)
+
+
+async def test_top_news_rss_headlines_no_query_argument_and_no_extraction(monkeypatch):
+    feed = AsyncMock(return_value=[{
+        "title": "World &amp; research",
+        "url": GOOGLE_LINK,
+        "published date": "Sun, 25 Oct 2026 01:30:00 GMT",
+        "publisher": {"title": "News publisher"},
+    }])
+    forbidden_download = AsyncMock(side_effect=AssertionError("article extraction forbidden"))
+    monkeypatch.setattr(news, "_new_google_news", lambda period, max_results: object())
+    monkeypatch.setattr(news, "_call_google_news_async", feed)
+    monkeypatch.setattr(news, "download_article", forbidden_download)
+    rows = await news.get_rss_headlines_for_top_news(period=2, max_results=3, now=NOW)
+    assert len(rows) == 1
+    assert rows[0]["title"] == "World & research"
+    assert rows[0]["url"] == GOOGLE_LINK
+    assert rows[0]["meta_data"]["content_level"] == "rss_headline_only"
+    assert "text" not in rows[0] and "summary" not in rows[0]
+    assert feed.await_args.args[1:] == ("get_top_news",)
+    forbidden_download.assert_not_awaited()
+
+
+async def test_top_news_headline_only_server_skips_article_and_summary(monkeypatch):
+    provider = SimpleNamespace(get_rss_headlines_for_top_news=AsyncMock(return_value=[{
+        "title": "World research",
+        "url": GOOGLE_LINK,
+        "publish_date": "2026-10-25T01:30:00+00:00",
+        "meta_site_name": "Publisher",
+        "meta_data": {"content_level": "rss_headline_only", "source": "google_news_rss"},
+    }]))
+    monkeypatch.setattr(server, "get_provider_set", lambda: SimpleNamespace(news=provider))
+    summary = AsyncMock(side_effect=AssertionError("summary must not run"))
+    monkeypatch.setattr(server, "summarize_articles", summary)
+    monkeypatch.setattr(server, "set_newspaper_article_fields", Mock(side_effect=AssertionError("article fields must not change")))
+    result = await server.get_top_news(None, period=1, max_results=2, headlines_only=True)
+    assert len(result) == 1
+    assert result[0].title == "World research"
+    assert result[0].text is None and result[0].summary is None
+    assert result[0].meta_data["content_level"] == "rss_headline_only"
+    provider.get_rss_headlines_for_top_news.assert_awaited_once_with(period=1, max_results=2)
+    summary.assert_not_awaited()
+
+
+async def test_community_adapter_forwards_top_news_rss_only(monkeypatch):
+    fn = AsyncMock(return_value=[])
+    monkeypatch.setattr(news, "get_rss_headlines_for_top_news", fn)
+    assert await providers.CommunityNewsProvider().get_rss_headlines_for_top_news(period=2, max_results=3) == []
+    fn.assert_awaited_once_with(period=2, max_results=3)

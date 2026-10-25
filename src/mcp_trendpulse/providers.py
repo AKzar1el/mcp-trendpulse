@@ -30,6 +30,12 @@ class NewsProvider(Protocol):
         max_results: int = 10,
     ) -> list[dict[str, object]]: ...
 
+    async def get_rss_headlines_for_top_news(
+        self,
+        period: int = 3,
+        max_results: int = 10,
+    ) -> list[dict[str, object]]: ...
+
     async def get_news_by_keyword(
         self,
         keyword: str,
@@ -187,6 +193,16 @@ class CommunityNewsProvider:
     ) -> list[dict[str, object]]:
         return await news.get_rss_headlines_by_topic(
             topic=topic,
+            period=period,
+            max_results=max_results,
+        )
+
+    async def get_rss_headlines_for_top_news(
+        self,
+        period: int = 3,
+        max_results: int = 10,
+    ) -> list[dict[str, object]]:
+        return await news.get_rss_headlines_for_top_news(
             period=period,
             max_results=max_results,
         )
