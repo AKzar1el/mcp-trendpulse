@@ -286,7 +286,7 @@ Google Trends values are normalized interest scores. Do not interpret a 0-100 in
 
 ## CLI
 
-The separate Click CLI exposes a smaller news-oriented command set than the MCP server:
+The separate Click CLI offers news commands and opt-in headline-only RSS metadata. Use --headlines-only with keyword, location, topic, top, or site to return genuine Google News headline metadata instead of publisher article text. The default commands still extract articles.
 
 ```bash
 uv run mcp-trendpulse-cli --help
@@ -298,6 +298,7 @@ Current CLI commands:
 brief-pack
 keyword
 location
+site
 top
 topic
 trending

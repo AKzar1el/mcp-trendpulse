@@ -8,6 +8,7 @@ from mcp_trendpulse.news import (
     _growth_from_trend_points,
     get_news_by_keyword,
     get_news_by_location,
+    get_news_by_site,
     get_news_by_topic,
     get_trending_terms,
     get_top_news,
@@ -48,7 +49,14 @@ def cli():
     help="Maximum number of results to return.",
 )
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
-def keyword(keyword, period, max_results, no_nlp):
+@click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
+def keyword(keyword, period, max_results, no_nlp, headlines_only):
+    if headlines_only:
+        items = asyncio.run(get_provider_set().news.get_rss_headlines_by_keyword(keyword=keyword, period=period, max_results=max_results))
+        print_rss_headlines(items)
+        click.echo(f"Found {len(items)} RSS headlines for keyword '{keyword}'.")
+        return
+
     @BrowserManager()
     async def _keyword():
         articles = await get_news_by_keyword(keyword, period=period, max_results=max_results, nlp=not no_nlp)
@@ -69,7 +77,14 @@ def keyword(keyword, period, max_results, no_nlp):
     help="Maximum number of results to return.",
 )
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
-def location(location, period, max_results, no_nlp):
+@click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
+def location(location, period, max_results, no_nlp, headlines_only):
+    if headlines_only:
+        items = asyncio.run(get_provider_set().news.get_rss_headlines_by_location(location=location, period=period, max_results=max_results))
+        print_rss_headlines(items)
+        click.echo(f"Found {len(items)} RSS headlines for location '{location}'.")
+        return
+
     @BrowserManager()
     async def _location():
         articles = await get_news_by_location(location, period=period, max_results=max_results, nlp=not no_nlp)
@@ -90,7 +105,14 @@ def location(location, period, max_results, no_nlp):
     help="Maximum number of results to return.",
 )
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
-def topic(topic, period, max_results, no_nlp):
+@click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
+def topic(topic, period, max_results, no_nlp, headlines_only):
+    if headlines_only:
+        items = asyncio.run(get_provider_set().news.get_rss_headlines_by_topic(topic=topic, period=period, max_results=max_results))
+        print_rss_headlines(items)
+        click.echo(f"Found {len(items)} RSS headlines for topic '{topic}'.")
+        return
+
     @BrowserManager()
     async def _topic():
         articles = await get_news_by_topic(topic, period=period, max_results=max_results, nlp=not no_nlp)
@@ -130,7 +152,14 @@ def trending(geo, full_data):
     help="Maximum number of results to return.",
 )
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
-def top(period, max_results, no_nlp):
+@click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
+def top(period, max_results, no_nlp, headlines_only):
+    if headlines_only:
+        items = asyncio.run(get_provider_set().news.get_rss_headlines_for_top_news(period=period, max_results=max_results))
+        print_rss_headlines(items)
+        click.echo(f"Found {len(items)} RSS headlines for top news.")
+        return
+
     @BrowserManager()
     async def _top():
         articles = await get_top_news(max_results=max_results, period=period, nlp=not no_nlp)
@@ -138,6 +167,30 @@ def top(period, max_results, no_nlp):
         click.echo(f"Found {len(articles)} top articles.")
 
     asyncio.run(_top())
+
+
+@cli.command(help=get_news_by_site.__doc__)
+@click.argument("site")
+@click.option("--period", type=int, default=7, help="Period in days to search for articles.")
+@click.option("--max-results", "max_results", type=int, default=10, help="Maximum number of results.")
+@click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
+@click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
+def site(site, period, max_results, no_nlp, headlines_only):
+    if headlines_only:
+        items = asyncio.run(get_provider_set().news.get_rss_headlines_by_site(
+            site=site, period=period, max_results=max_results,
+        ))
+        print_rss_headlines(items)
+        click.echo(f"Found {len(items)} RSS headlines for site '{site}'.")
+        return
+
+    @BrowserManager()
+    async def _site():
+        articles = await get_news_by_site(site, period=period, max_results=max_results, nlp=not no_nlp)
+        print_articles(articles)
+        click.echo(f"Found {len(articles)} articles for site '{site}'.")
+
+    asyncio.run(_site())
 
 
 @cli.command("brief-pack", help="Build the core trend/growth evidence table for a TrendPulse Demand Brief.")
@@ -232,6 +285,19 @@ def _brief_percent(value):
     except (TypeError, ValueError):
         return str(value)
     return f"{number:+.2f}%"
+
+
+def print_rss_headlines(items):
+    """Print genuine RSS metadata without treating headlines as full articles."""
+    for item in items:
+        meta = item.get("meta_data") or {}
+        if meta.get("content_level") != "rss_headline_only" or meta.get("source") != "google_news_rss":
+            raise click.ClickException("Unexpected RSS headline evidence level.")
+        click.echo(f"Title: {item['title']}")
+        click.echo(f"Google News URL: {item['url']}")
+        click.echo(f"Publisher: {item.get('meta_site_name') or 'Unknown'}")
+        click.echo(f"Publish Date: {item['publish_date']}")
+        click.echo("Content level: rss_headline_only (metadata, not article text)\n")
 
 
 def print_articles(articles):

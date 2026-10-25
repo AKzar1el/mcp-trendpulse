@@ -4,6 +4,8 @@ from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
 
 from click.testing import CliRunner
+import pytest
+from types import SimpleNamespace
 
 from mcp_trendpulse import cli as cli_module
 
@@ -191,3 +193,45 @@ def test_brief_pack_enforces_offer_keyword_and_market_limits():
     )
     assert result.exit_code == 2
     assert "one or two" in result.output
+
+@pytest.mark.parametrize(
+    ("command", "method", "kwargs"),
+    [
+        (["keyword", "python"], "get_rss_headlines_by_keyword", {"keyword": "python", "period": 7, "max_results": 10}),
+        (["location", "London"], "get_rss_headlines_by_location", {"location": "London", "period": 7, "max_results": 10}),
+        (["topic", "TECHNOLOGY"], "get_rss_headlines_by_topic", {"topic": "TECHNOLOGY", "period": 7, "max_results": 10}),
+        (["top"], "get_rss_headlines_for_top_news", {"period": 3, "max_results": 10}),
+        (["site", "bbc.com"], "get_rss_headlines_by_site", {"site": "bbc.com", "period": 7, "max_results": 10}),
+    ],
+)
+def test_cli_headlines_are_labeled_without_article_extraction(command, method, kwargs):
+    headline = {
+        "title": "Real feed headline", "url": "https://news.google.com/rss/articles/example",
+        "meta_site_name": "Example News", "publish_date": "2026-10-25T09:00:00+00:00",
+        "meta_data": {"content_level": "rss_headline_only", "source": "google_news_rss"},
+    }
+    provider = AsyncMock(return_value=[headline])
+    news = SimpleNamespace(**{method: provider})
+    with (
+        patch("mcp_trendpulse.cli.get_provider_set", return_value=SimpleNamespace(news=news)),
+        patch("mcp_trendpulse.cli.BrowserManager", side_effect=AssertionError("RSS must not open browser")),
+        patch("mcp_trendpulse.cli.save_article_to_json", side_effect=AssertionError("RSS must not save article")),
+    ):
+        result = CliRunner().invoke(cli_module.cli, [*command, "--headlines-only"])
+    assert result.exit_code == 0, result.output
+    assert "Title: Real feed headline" in result.output
+    assert "Google News URL: https://news.google.com/rss/articles/example" in result.output
+    assert "Publisher: Example News" in result.output
+    assert "Content level: rss_headline_only (metadata, not article text)" in result.output
+    assert "Summary:" not in result.output
+    provider.assert_awaited_once_with(**kwargs)
+
+
+def test_cli_rejects_unlabeled_rss_claims():
+    news = SimpleNamespace(get_rss_headlines_by_keyword=AsyncMock(return_value=[{
+        "title": "Not RSS", "meta_data": {"content_level": "article_full", "source": "google_news_rss"},
+    }]))
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=SimpleNamespace(news=news)):
+        result = CliRunner().invoke(cli_module.cli, ["keyword", "ai", "--headlines-only"])
+    assert result.exit_code != 0
+    assert "Unexpected RSS headline evidence level" in result.output
