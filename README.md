@@ -245,10 +245,10 @@ The community MCP server currently exposes **16 tools**.
 | Tool | Purpose |
 | --- | --- |
 | `get_news_by_keyword` | Find recent news articles matching a keyword, or set `headlines_only=true` for clearly labeled Google News RSS headline metadata without publisher article extraction or summaries. |
-| `get_news_by_location` | Find recent news associated with a location. |
+| `get_news_by_location` | Find recent news associated with a location, or set `headlines_only=true` for clearly labeled RSS location headlines without publisher article extraction or summaries. |
 | `get_news_by_topic` | Find recent news for a supported Google News topic, or set `headlines_only=true` for explicitly labeled RSS topic headlines without publisher article extraction or summaries. |
 | `get_top_news` | Retrieve top Google News stories, or set `headlines_only=true` for explicitly labeled RSS headline metadata without article extraction or summaries. |
-| `get_news_by_site` | Find recent news from a specific publisher domain. |
+| `get_news_by_site` | Find recent news from a specific publisher domain, or set `headlines_only=true` for clearly labeled RSS publisher headlines without publisher article extraction or summaries. |
 | `get_article_content` | Download, validate, extract, and optionally summarize one article URL. |
 
 ### Trend tools
