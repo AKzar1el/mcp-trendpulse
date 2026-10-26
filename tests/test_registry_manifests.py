@@ -111,3 +111,30 @@ async def test_registry_manifests_match_live_input_property_names():
                 f"extra={sorted(declared_params - live_params)}"
             )
             assert set(declared_schema.get("required", [])) == set(live_schema.get("required", []))
+
+async def test_registry_manifests_preserve_live_validation_shapes():
+    """Static schemas must retain blank-text rejection and nullable growth windows."""
+    validated_text_fields = (
+        ("get_news_by_keyword", "keyword"),
+        ("get_news_by_location", "location"),
+        ("get_news_by_topic", "topic"),
+        ("get_news_by_site", "site"),
+        ("get_related_queries", "keyword"),
+        ("get_related_topics", "keyword"),
+        ("get_suggestions", "keyword"),
+    )
+    async with Client(server.mcp) as client:
+        live_tools = {tool.name: tool for tool in await client.list_tools()}
+
+    for filename in REGISTRY_FILES:
+        declared = {tool["name"]: tool for tool in _load_json(filename)["tools"]}
+        for tool_name, property_name in validated_text_fields:
+            live = live_tools[tool_name].inputSchema["properties"][property_name]
+            static = declared[tool_name]["inputSchema"]["properties"][property_name]
+            for key in ("minLength", "pattern"):
+                assert static.get(key) == live.get(key), f"{filename} {tool_name}.{property_name} {key}"
+
+        live_growth = live_tools["get_growth"].inputSchema["properties"]["percent_growth"]
+        static_growth = declared["get_growth"]["inputSchema"]["properties"]["percent_growth"]
+        assert static_growth.get("anyOf") == live_growth.get("anyOf")
+        assert static_growth.get("type") == live_growth.get("type")

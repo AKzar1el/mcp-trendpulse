@@ -25,7 +25,9 @@
         "properties": {
           "keyword": {
             "description": "Search term to find articles.",
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*"
           },
           "period": {
             "default": 7,
@@ -69,7 +71,9 @@
         "properties": {
           "location": {
             "description": "Name of city/state/country.",
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*"
           },
           "period": {
             "default": 7,
@@ -113,7 +117,9 @@
         "properties": {
           "topic": {
             "description": "Topic to search for articles.",
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*"
           },
           "period": {
             "default": 7,
@@ -320,10 +326,17 @@
           "percent_growth": {
             "default": null,
             "description": "Timeframes to calculate growth (e.g. ['3M', '1Y']).",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "geo": {
             "default": "US",
@@ -413,7 +426,9 @@
         "properties": {
           "site": {
             "description": "Domain of the news site, e.g. 'cnn.com'.",
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*"
           },
           "period": {
             "default": 7,
@@ -558,7 +573,9 @@
         "properties": {
           "keyword": {
             "description": "Search keyword to analyze.",
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*"
           },
           "timeframe": {
             "default": "today 12-m",
@@ -602,7 +619,9 @@
         "properties": {
           "keyword": {
             "description": "Search keyword to analyze.",
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*"
           },
           "timeframe": {
             "default": "today 12-m",
@@ -646,7 +665,9 @@
         "properties": {
           "keyword": {
             "description": "Query string to autocomplete.",
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*"
           },
           "language": {
             "anyOf": [
