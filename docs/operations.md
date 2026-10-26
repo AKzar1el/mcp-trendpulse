@@ -61,6 +61,25 @@ Expected codes are `provider_timeout`, `provider_rate_limited`, and `provider_un
 
 Do not add raw upstream exception text to this event unless it has been explicitly reviewed for credentials, URLs, user data, and third-party response content.
 
+### `provider_metrics`
+
+The Community and Hosted Google Trends provider share bounded, **process-local**
+aggregate counters. Every 128 recorded events, the provider logs a JSON snapshot
+under `provider_metrics` with only approved counter names and latency buckets
+(milliseconds: 250, 1000, 5000, 20000, >20000). These logs never contain
+keywords, URLs, user identities, or provider payloads.
+
+- `trends_http_request` and `trends_http_429` count outbound TrendSpy HTTP calls and rejected responses, including batch POST operations.
+- `trends_cooldown_open` and `trends_cooldown_block` show throttling pressure.
+- `trends_cache_hit`, `trends_cache_miss`, `trends_cache_wait`, and `trends_cache_eviction` show local cache effectiveness.
+- `news_feed_request`, `news_feed_error`, `news_feed_429`, and `news_feed_timeout` describe GNews lookups. **These are logical feed operations**, not a claim to count all HTTP retries or subsequent publisher/article fetches.
+
+Operators can inspect an in-process snapshot without exposing a new public HTTP
+endpoint: `from mcp_trendpulse.provider_metrics import provider_metrics; print(provider_metrics.snapshot())`.
+The snapshot resets on process restart and is not aggregated across replicas.
+Use the configured log collector for cross-instance trends; do not enable
+per-request query or URL logging to troubleshoot quotas.
+
 ## Initial monitoring signals
 
 These are starting operational thresholds, not contractual SLOs. Re-baseline them after real production traffic exists.

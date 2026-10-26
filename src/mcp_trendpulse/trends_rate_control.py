@@ -19,6 +19,7 @@ from typing import Any
 
 from mcp_trendpulse.config import get_google_trends_delay
 from mcp_trendpulse.errors import ProviderRateLimitError, ProviderTimeoutError
+from mcp_trendpulse.provider_metrics import provider_metrics
 
 
 class TrendsCooldownError(RuntimeError):
@@ -74,10 +75,12 @@ class TrendsRequestPacer:
         hinted = self._retry_after_seconds(headers) or 0.0
         cooldown = max(exponential + self._jitter(), hinted)
         self._cooldown_until = max(self._cooldown_until, self._clock() + cooldown)
+        provider_metrics.count("trends_cooldown_open")
 
     def ensure_available(self, operation: str) -> None:
         with self._lock:
             if self._clock() < self._cooldown_until:
+                provider_metrics.count("trends_cooldown_block")
                 raise ProviderRateLimitError("google_trends", operation)
 
     def note_rate_limit(self, exc: BaseException) -> None:
@@ -92,19 +95,27 @@ class TrendsRequestPacer:
         """Pace all TrendSpy session HTTP requests, including its batch POST path."""
         with self._lock:
             if self._clock() < self._cooldown_until:
+                provider_metrics.count("trends_cooldown_block")
                 raise TrendsCooldownError("Google Trends rate limit cooldown is active")
             wait = self._next_request_at - self._clock()
             if wait > 0:
                 self._sleep(wait)
             # A stalled unofficial endpoint must not indefinitely monopolize the gate.
             kwargs.setdefault("timeout", 20.0)
+            started = self._clock()
+            provider_metrics.count("trends_http_request")
             try:
                 response = send_request(*args, **kwargs)
+            except Exception:
+                provider_metrics.count("trends_http_error")
+                raise
             finally:
+                provider_metrics.observe_ms("trends_http", max(0.0, self._clock() - started) * 1000)
                 self._next_request_at = self._clock() + self._minimum_delay()
 
             status = getattr(response, "status_code", None)
             if status == 429:
+                provider_metrics.count("trends_http_429")
                 self._record_limit_locked(getattr(response, "headers", None))
             elif status == 200:
                 self._consecutive_limits = 0
@@ -184,14 +195,18 @@ class InterestResultCache:
                 entry = self._entries.get(key)
                 if entry is not None and entry[0] > self._clock():
                     self._entries.move_to_end(key)
+                    provider_metrics.count("trends_cache_hit")
                     return deepcopy(entry[1])
                 if entry is not None:
                     del self._entries[key]
                 event = self._inflight.get(key)
                 leader = event is None
                 if leader:
+                    provider_metrics.count("trends_cache_miss")
                     event = Event()
                     self._inflight[key] = event
+                else:
+                    provider_metrics.count("trends_cache_wait")
 
             if not leader:
                 if not event.wait(timeout=45):
@@ -211,6 +226,7 @@ class InterestResultCache:
                     self._entries.move_to_end(key)
                     while len(self._entries) > self._max_entries:
                         self._entries.popitem(last=False)
+                        provider_metrics.count("trends_cache_eviction")
                 return result
             finally:
                 with self._lock:
