@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from math import isfinite
 from random import random
+import sqlite3
 from threading import Event, Lock
 from time import monotonic, sleep
 from typing import Any
@@ -20,6 +21,12 @@ from typing import Any
 from mcp_trendpulse.config import get_google_trends_delay
 from mcp_trendpulse.errors import ProviderRateLimitError, ProviderTimeoutError
 from mcp_trendpulse.provider_metrics import provider_metrics
+from mcp_trendpulse.shared_state import (
+    SharedCooldownError,
+    SharedQueueFullError,
+    SharedTrendsState,
+    get_shared_state,
+)
 
 
 class TrendsCooldownError(RuntimeError):
@@ -36,11 +43,13 @@ class TrendsRequestPacer:
         clock: Callable[[], float] = monotonic,
         sleeper: Callable[[float], None] = sleep,
         jitter: Callable[[], float] = random,
+        shared_provider: Callable[[], SharedTrendsState | None] = get_shared_state,
     ):
         self._delay_provider = delay_provider
         self._clock = clock
         self._sleep = sleeper
         self._jitter = jitter
+        self._shared_provider = shared_provider
         self._lock = Lock()
         self._next_request_at = 0.0
         self._cooldown_until = 0.0
@@ -76,6 +85,12 @@ class TrendsRequestPacer:
         cooldown = max(exponential + self._jitter(), hinted)
         self._cooldown_until = max(self._cooldown_until, self._clock() + cooldown)
         provider_metrics.count("trends_cooldown_open")
+        try:
+            state = self._shared_provider()
+            if state is not None:
+                state.extend_cooldown(cooldown)
+        except (OSError, ValueError, sqlite3.DatabaseError):
+            provider_metrics.count("trends_shared_state_fallback")
 
     def ensure_available(self, operation: str) -> None:
         with self._lock:
@@ -100,6 +115,16 @@ class TrendsRequestPacer:
             wait = self._next_request_at - self._clock()
             if wait > 0:
                 self._sleep(wait)
+            try:
+                state = self._shared_provider()
+                if state is not None:
+                    state.reserve(delay_seconds=self._minimum_delay())
+            except (SharedCooldownError, SharedQueueFullError) as exc:
+                provider_metrics.count("trends_shared_queue_reject")
+                raise TrendsCooldownError("Google Trends shared rate limit queue unavailable") from exc
+            except (OSError, ValueError, sqlite3.DatabaseError):
+                # Preserve local availability while still using the local gate.
+                provider_metrics.count("trends_shared_state_fallback")
             # A stalled unofficial endpoint must not indefinitely monopolize the gate.
             kwargs.setdefault("timeout", 20.0)
             started = self._clock()
@@ -149,10 +174,12 @@ class InterestResultCache:
         ttl_seconds: float = 90.0,
         max_entries: int = 128,
         clock: Callable[[], float] = monotonic,
+        shared_provider: Callable[[], SharedTrendsState | None] = get_shared_state,
     ):
         self._ttl = ttl_seconds
         self._max_entries = max_entries
         self._clock = clock
+        self._shared_provider = shared_provider
         self._lock = Lock()
         self._entries: OrderedDict[tuple[Any, ...], tuple[float, Any]] = OrderedDict()
         self._inflight: dict[tuple[Any, ...], Event] = {}
@@ -214,7 +241,37 @@ class InterestResultCache:
                 continue
 
             try:
-                result = loader()
+                shared = None
+                lease_owner = None
+                try:
+                    shared = self._shared_provider()
+                    restored = shared.get_series(key) if shared is not None else None
+                    if shared is not None and restored is None:
+                        lease_owner = shared.claim_series_fill(key)
+                        if lease_owner is None:
+                            provider_metrics.count("trends_shared_cache_wait")
+                            deadline = monotonic() + 10
+                            while monotonic() < deadline:
+                                sleep(0.25)
+                                restored = shared.get_series(key)
+                                if restored is not None:
+                                    break
+                                lease_owner = shared.claim_series_fill(key)
+                                if lease_owner is not None:
+                                    break
+                        # The previous owner may have filled the cache just
+                        # before releasing its lease. Do not fetch it twice.
+                        if lease_owner is not None and restored is None:
+                            restored = shared.get_series(key)
+                except (OSError, ValueError, sqlite3.DatabaseError):
+                    provider_metrics.count("trends_shared_state_fallback")
+                    restored = None
+                    shared = None
+                if shared is not None:
+                    provider_metrics.count(
+                        "trends_shared_cache_hit" if restored is not None else "trends_shared_cache_miss"
+                    )
+                result = restored if restored is not None else loader()
                 if getattr(result, "empty", False):
                     return result  # Do not persist transient empty provider results.
                 try:
@@ -227,8 +284,19 @@ class InterestResultCache:
                     while len(self._entries) > self._max_entries:
                         self._entries.popitem(last=False)
                         provider_metrics.count("trends_cache_eviction")
+                if restored is None and shared is not None:
+                    try:
+                        if shared.put_series(key, result):
+                            provider_metrics.count("trends_shared_cache_write")
+                    except (OSError, ValueError, sqlite3.DatabaseError):
+                        provider_metrics.count("trends_shared_state_fallback")
                 return result
             finally:
+                if shared is not None and lease_owner is not None:
+                    try:
+                        shared.release_series_fill(key, lease_owner)
+                    except (OSError, ValueError, sqlite3.DatabaseError):
+                        provider_metrics.count("trends_shared_state_fallback")
                 with self._lock:
                     self._inflight.pop(key, None)
                     event.set()

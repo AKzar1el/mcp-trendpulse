@@ -72,6 +72,7 @@ keywords, URLs, user identities, or provider payloads.
 - `trends_http_request` and `trends_http_429` count outbound TrendSpy HTTP calls and rejected responses, including batch POST operations.
 - `trends_cooldown_open` and `trends_cooldown_block` show throttling pressure.
 - `trends_cache_hit`, `trends_cache_miss`, `trends_cache_wait`, and `trends_cache_eviction` show local cache effectiveness.
+- `trends_shared_cache_hit`, `trends_shared_cache_miss`, `trends_shared_cache_write`, `trends_shared_queue_reject`, and `trends_shared_state_fallback` describe the optional same-host coordination layer.
 - `news_feed_request`, `news_feed_error`, `news_feed_429`, and `news_feed_timeout` describe GNews lookups. **These are logical feed operations**, not a claim to count all HTTP retries or subsequent publisher/article fetches.
 
 Operators can inspect an in-process snapshot without exposing a new public HTTP
@@ -79,6 +80,25 @@ endpoint: `from mcp_trendpulse.provider_metrics import provider_metrics; print(p
 The snapshot resets on process restart and is not aggregated across replicas.
 Use the configured log collector for cross-instance trends; do not enable
 per-request query or URL logging to troubleshoot quotas.
+
+### Optional same-host coordination
+
+Set `TRENDPULSE_SHARED_STATE_DIR` to an **absolute directory on private local storage**
+for every TrendPulse process you intend to coordinate. If unset, no SQLite
+state or cache files are created. A fresh per-directory 32-byte HMAC key
+protects cached query identities against casual dictionary inspection; only
+numeric search-interest series and timestamps are stored, never raw keywords,
+user IDs, URLs, or publisher content. Restrict the directory and backups to
+the account running the MCP. The SQLite cache holds at most 256 series with
+freshness bounds of 2 minutes, 30 minutes, 90 minutes, or two hours depending
+on the requested Trends window. Request scheduling allows at most 12 seconds
+of queueing before failing fast rather than exhausting hosted request timeouts.
+Errors in the shared store fall back to local pacing and are counted.
+
+SQLite WAL is designed here for one trusted host on local disk. **Do not**
+point independent Kubernetes nodes or containers at an unsafe network
+filesystem and assume it is a distributed rate limiter. This feature also
+does not authorize provider access for the still-gated public hosted edition.
 
 ## Initial monitoring signals
 
