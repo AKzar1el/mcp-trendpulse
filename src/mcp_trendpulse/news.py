@@ -12,6 +12,7 @@ import asyncio
 import ipaddress
 import socket
 import threading
+from time import perf_counter
 from html import unescape
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -42,6 +43,7 @@ from mcp_trendpulse.errors import (
     ProviderUnavailableError,
     classify_provider_exception,
 )
+from mcp_trendpulse.provider_metrics import provider_metrics
 from mcp_trendpulse.trends_rate_control import (
     install_trends_session_pacing,
     trends_interest_cache,
@@ -322,16 +324,27 @@ GOOGLE_NEWS_OPERATION_TIMEOUT_SECONDS = 30
 
 def _call_google_news(client: GNews, operation: str, *args, **kwargs):
     """Run one GNews operation and normalize upstream failures."""
+    started = perf_counter()
+    provider_metrics.count("news_feed_request")
     try:
         return getattr(client, operation)(*args, **kwargs)
-    except (ProviderError, ValueError, TypeError):
+    except (ProviderError, ValueError, TypeError) as exc:
+        provider_metrics.count("news_feed_error")
+        if isinstance(exc, ProviderRateLimitError):
+            provider_metrics.count("news_feed_429")
         raise
     except Exception as exc:
-        raise classify_provider_exception(
+        classified = classify_provider_exception(
             exc,
             provider="google_news",
             operation=operation,
-        ) from exc
+        )
+        provider_metrics.count("news_feed_error")
+        if isinstance(classified, ProviderRateLimitError):
+            provider_metrics.count("news_feed_429")
+        raise classified from exc
+    finally:
+        provider_metrics.observe_ms("news_feed", max(0.0, (perf_counter() - started) * 1000))
 
 
 async def _call_google_news_async(client: GNews, operation: str, *args, **kwargs):
@@ -342,6 +355,7 @@ async def _call_google_news_async(client: GNews, operation: str, *args, **kwargs
             timeout=GOOGLE_NEWS_OPERATION_TIMEOUT_SECONDS,
         )
     except (TimeoutError, asyncio.TimeoutError) as exc:
+        provider_metrics.count("news_feed_timeout")
         raise classify_provider_exception(
             exc,
             provider="google_news",
