@@ -8,6 +8,7 @@ import pandas
 import pytest
 
 from mcp_trendpulse import trends_rate_control
+from mcp_trendpulse.errors import ProviderTimeoutError
 from mcp_trendpulse.provider_metrics import ProviderMetrics
 from mcp_trendpulse.shared_state import (
     SharedCooldownError,
@@ -142,6 +143,84 @@ def test_independent_cache_instances_coalesce_concurrent_misses(tmp_path):
         release.set()
         pandas.testing.assert_frame_equal(first.result(timeout=5), second.result(timeout=5))
     assert len(provider_calls) == 1
+
+
+def test_slow_cross_process_fill_times_out_without_duplicate_provider_request(tmp_path, monkeypatch):
+    now = [1000.0]
+
+    def clock():
+        return now[0]
+
+    monkeypatch.setattr(trends_rate_control, "monotonic", clock)
+    monkeypatch.setattr(trends_rate_control, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds))
+
+    owner_state = SharedTrendsState(tmp_path, clock=clock)
+    waiter_state = SharedTrendsState(tmp_path, clock=clock)
+    waiter_cache = InterestResultCache(shared_provider=lambda: waiter_state)
+    args, kwargs = (["alpha"],), {"geo": "US", "timeframe": "today 12-m"}
+    key = waiter_cache._key("interest_over_time", args, kwargs)
+    owner = owner_state.claim_series_fill(key)
+    assert owner is not None
+    provider_calls = []
+
+    def load():
+        provider_calls.append(1)
+        return pandas.DataFrame(
+            {"alpha": [25.0]},
+            index=pandas.date_range("2026-10-01", periods=1),
+        )
+
+    # The other process still owns its 90-second lease when our 10-second
+    # wait expires. The caller must time out, not issue a second Google call.
+    with pytest.raises(ProviderTimeoutError):
+        waiter_cache.get_or_load("interest_over_time", args, kwargs, load)
+    assert now[0] >= 1010.0
+    assert provider_calls == []
+
+    # The original process can still publish its result, and the waiting
+    # process can recover on the next call using the shared cache.
+    owner_state.put_series(key, load())
+    owner_state.release_series_fill(key, owner)
+    restored = waiter_cache.get_or_load("interest_over_time", args, kwargs, load)
+    assert restored["alpha"].tolist() == [25.0]
+    assert len(provider_calls) == 1
+
+
+def test_slow_cross_process_fill_completes_before_wait_deadline(tmp_path, monkeypatch):
+    now = [1000.0]
+
+    def clock():
+        return now[0]
+
+    owner_state = SharedTrendsState(tmp_path, clock=clock)
+    waiter_state = SharedTrendsState(tmp_path, clock=clock)
+    cache = InterestResultCache(shared_provider=lambda: waiter_state)
+    args, kwargs = (["alpha"],), {"geo": "US", "timeframe": "today 12-m"}
+    key = cache._key("interest_over_time", args, kwargs)
+    owner = owner_state.claim_series_fill(key)
+    assert owner is not None
+    original = pandas.DataFrame(
+        {"alpha": [75.0]},
+        index=pandas.date_range("2026-10-01", periods=1),
+    )
+    finished = [False]
+
+    def advance(seconds):
+        now[0] += seconds
+        if now[0] >= 1008.0 and not finished[0]:
+            assert owner_state.put_series(key, original)
+            owner_state.release_series_fill(key, owner)
+            finished[0] = True
+
+    monkeypatch.setattr(trends_rate_control, "monotonic", clock)
+    monkeypatch.setattr(trends_rate_control, "sleep", advance)
+
+    def unexpected_provider_call():
+        pytest.fail("A waiting process must reuse the first process's result")
+
+    restored = cache.get_or_load("interest_over_time", args, kwargs, unexpected_provider_call)
+    assert finished[0]
+    assert restored["alpha"].tolist() == [75.0]
 
 
 def test_expired_lease_cannot_be_deleted_by_old_owner(tmp_path):
