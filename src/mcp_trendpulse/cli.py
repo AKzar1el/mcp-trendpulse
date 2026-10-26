@@ -70,6 +70,31 @@ def cli():
     load_environment()
 
 
+@cli.command("bigquery-sql", help="Print Google public Trends Top 25 SQL without starting a query or spending credits.")
+@click.option("--country", required=True, help="Two-letter ISO country code, e.g. US or GB.")
+@click.option("--kind", type=click.Choice(["top", "rising"]), default="top", show_default=True)
+@click.option("--limit", type=click.IntRange(1, 25), default=25, show_default=True)
+@click.option("--snapshot-date", default=None, help="Optional YYYY-MM-DD snapshot date.")
+@click.option("--region-code", default=None, help="Optional international ISO 3166-2 subdivision.")
+@click.option("--dma-id", default=None, help="Optional US three-digit Designated Market Area.")
+def bigquery_sql(country, kind, limit, snapshot_date, region_code, dma_id):
+    """Generate read-only BigQuery SQL but never run a BigQuery job."""
+    from mcp_trendpulse.bigquery_trends import build_discovery_sql
+
+    try:
+        sql = build_discovery_sql(
+            country=country.strip().upper(),
+            kind=kind,
+            limit=limit,
+            snapshot_date=snapshot_date,
+            region_code=region_code,
+            dma_id=dma_id,
+        )
+    except ValueError as exc:
+        raise click.BadParameter(str(exc)) from exc
+    click.echo(sql)
+
+
 @cli.command(help=get_news_by_keyword.__doc__)
 @click.argument("keyword")
 @click.option("--period", type=int, default=7, help="Period in days to search for articles.")
