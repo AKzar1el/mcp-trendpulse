@@ -38,8 +38,14 @@ from mcp_trendpulse.config import (
 )
 from mcp_trendpulse.errors import (
     ProviderError,
+    ProviderRateLimitError,
     ProviderUnavailableError,
     classify_provider_exception,
+)
+from mcp_trendpulse.trends_rate_control import (
+    install_trends_session_pacing,
+    trends_interest_cache,
+    trends_request_pacer,
 )
 
 logger = logging.getLogger(__name__)
@@ -181,6 +187,7 @@ def _get_trends_client() -> Trends:
     client = getattr(_trends_local, "instance", None)
     if client is None:
         client = Trends(request_delay=get_google_trends_delay())
+        install_trends_session_pacing(client, trends_request_pacer)
         _trends_local.instance = client
     return client
 
@@ -189,21 +196,37 @@ class _ThreadLocalTrendsProxy:
     """Resolve TrendSpy attributes and normalize provider failures per worker thread."""
 
     def __getattr__(self, name: str):
-        attribute = getattr(_get_trends_client(), name)
+        client = _get_trends_client()
+        attribute = getattr(client, name)
         if not callable(attribute):
             return attribute
+        coordinated = bool(getattr(getattr(client, "session", None), "_trendpulse_paced", False))
 
         def provider_call(*args, **kwargs):
-            try:
-                return attribute(*args, **kwargs)
-            except (ProviderError, ValueError, TypeError):
-                raise
-            except Exception as exc:
-                raise classify_provider_exception(
-                    exc,
-                    provider="google_trends",
-                    operation=name,
-                ) from exc
+            def invoke():
+                if coordinated:
+                    trends_request_pacer.ensure_available(name)
+                try:
+                    return attribute(*args, **kwargs)
+                except ProviderError as exc:
+                    if coordinated and isinstance(exc, ProviderRateLimitError):
+                        trends_request_pacer.note_rate_limit(exc)
+                    raise
+                except (ValueError, TypeError):
+                    raise
+                except Exception as exc:
+                    classified = classify_provider_exception(
+                        exc,
+                        provider="google_trends",
+                        operation=name,
+                    )
+                    if coordinated and isinstance(classified, ProviderRateLimitError):
+                        trends_request_pacer.note_rate_limit(exc)
+                    raise classified from exc
+
+            if coordinated:
+                return trends_interest_cache.get_or_load(name, args, kwargs, invoke)
+            return invoke()
 
         return provider_call
 
