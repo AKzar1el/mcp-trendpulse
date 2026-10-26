@@ -259,6 +259,10 @@ class InterestResultCache:
                                 lease_owner = shared.claim_series_fill(key)
                                 if lease_owner is not None:
                                     break
+                        # The previous owner may have filled the cache just
+                        # before releasing its lease. Do not fetch it twice.
+                        if lease_owner is not None and restored is None:
+                            restored = shared.get_series(key)
                 except (OSError, ValueError, sqlite3.DatabaseError):
                     provider_metrics.count("trends_shared_state_fallback")
                     restored = None
