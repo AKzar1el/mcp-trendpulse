@@ -259,6 +259,15 @@ class InterestResultCache:
                                 lease_owner = shared.claim_series_fill(key)
                                 if lease_owner is not None:
                                     break
+                        if lease_owner is None and restored is None:
+                            # Never bypass a live fill lease when a slow peer
+                            # exceeds our bounded wait: that would duplicate
+                            # the very provider traffic this cache protects.
+                            restored = shared.get_series(key)
+                            if restored is None:
+                                lease_owner = shared.claim_series_fill(key)
+                                if lease_owner is None:
+                                    raise ProviderTimeoutError("google_trends", name)
                         # The previous owner may have filled the cache just
                         # before releasing its lease. Do not fetch it twice.
                         if lease_owner is not None and restored is None:

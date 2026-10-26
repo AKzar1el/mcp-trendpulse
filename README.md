@@ -1,7 +1,7 @@
 # mcp-trendpulse
 
 [![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-MCP-blue.svg)](https://modelcontextprotocol.io)
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![mcp-trendpulse MCP server](https://glama.ai/mcp/servers/AKzar1el/mcp-trendpulse/badges/score.svg)](https://glama.ai/mcp/servers/AKzar1el/mcp-trendpulse)
 [![MCPVault: verified](https://mcpvault.io/badge/mcp-trendpulse.svg)](https://mcpvault.io/servers/mcp-trendpulse/health?utm_source=external_badge&utm_medium=referral&utm_campaign=mcp_health_report)
@@ -76,13 +76,13 @@ TrendPulse is published on PyPI, so the shortest install path is:
 uvx mcp-trendpulse
 ```
 
-For the latest upstream image-decoder security fixes, **Python 3.11 or newer is recommended**. Python 3.10.18 remains installable, but Pillow 13 (the patched upstream release) requires Python 3.11+. On a machine where `uvx` would otherwise select Python 3.10, select a newer interpreter explicitly:
+**Python 3.11 or newer is required.** Python 3.10 reached end-of-life in October 2026 and cannot use Pillow 13, which patches upstream image-decoder vulnerabilities. To run TrendPulse on a machine with Python 3.10 as its default, select a supported interpreter explicitly:
 
 ```bash
 uvx --python 3.11 mcp-trendpulse
 ```
 
-See the [security policy](SECURITY.md) for the Python 3.10 compatibility/security tradeoff. This recommendation does not change the package's declared Python support.
+See the [security policy](SECURITY.md) for the supported-runtime decision. Users on Python 3.10 must upgrade their interpreter; the new package will not install into a Python 3.10-only environment.
 
 To run the current repository head instead of the published package:
 
