@@ -136,5 +136,14 @@ async def test_registry_manifests_preserve_live_validation_shapes():
 
         live_growth = live_tools["get_growth"].inputSchema["properties"]["percent_growth"]
         static_growth = declared["get_growth"]["inputSchema"]["properties"]["percent_growth"]
-        assert static_growth.get("anyOf") == live_growth.get("anyOf")
-        assert static_growth.get("type") == live_growth.get("type")
+        def _variants(schema: dict) -> list[dict]:
+            variants = schema.get("anyOf")
+            if variants is None:
+                return [schema]
+            return [leaf for variant in variants for leaf in _variants(variant)]
+
+        for schema in (static_growth, live_growth):
+            variants = _variants(schema)
+            assert {variant.get("type") for variant in variants} == {"array", "null"}
+            array = next(variant for variant in variants if variant.get("type") == "array")
+            assert array["items"]["type"] == "string"
