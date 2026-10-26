@@ -1291,7 +1291,7 @@ async def get_growth(
     loop = asyncio.get_running_loop()
     df = await loop.run_in_executor(
         None,
-        lambda: tr.interest_over_time(keywords, timeframe=timeframe, geo=geo, cat=0, gprop=gprop)
+        lambda: tr.interest_over_time(keywords, timeframe=timeframe, geo=geo, gprop=gprop)
     )
 
     df = _completed_trends_frame(df)
