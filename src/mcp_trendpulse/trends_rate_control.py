@@ -161,9 +161,12 @@ class InterestResultCache:
         # Only scalar provider inputs are safe to key without lossy coercion.
         if not terms or any(not term for term in terms):
             return None
-        if any(not isinstance(value, (str, int, float, bool, type(None))) for value in kwargs.values()):
+        # TrendSpy defaults cat to zero; normalize the omitted default so
+        # get_trends and get_growth can reuse one identical provider series.
+        normalized = {"cat": 0, **kwargs}
+        if any(not isinstance(value, (str, int, float, bool, type(None))) for value in normalized.values()):
             return None
-        return (terms, tuple(sorted(kwargs.items())))
+        return (terms, tuple(sorted(normalized.items())))
 
     def get_or_load(
         self,
