@@ -300,7 +300,7 @@ uvx --python 3.11 --from mcp-trendpulse mcp-trendpulse-cli keyword "OpenAI" --he
 
 From a local source checkout, `uv run mcp-trendpulse-cli --help` uses that checkout. The opt-in headline-only commands return genuine Google News RSS titles, publishers, dates, and Google News links labeled as metadata, **not** extracted article bodies. Default news commands continue to attempt publisher-article extraction.
 
-CLI commands in published v0.2.43 (also on GitHub `main`):
+CLI commands available since v0.2.43 (also on GitHub `main`):
 
 ```text
 brief-pack

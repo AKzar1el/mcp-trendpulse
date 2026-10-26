@@ -10,7 +10,7 @@
       "sizes": ["400x400"]
     }
   ],
-  "version": "0.2.43",
+  "version": "0.2.44",
   "repository": {
     "url": "https://github.com/AKzar1el/mcp-trendpulse",
     "source": "github"
@@ -748,7 +748,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "mcp-trendpulse",
-      "version": "0.2.43",
+      "version": "0.2.44",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
