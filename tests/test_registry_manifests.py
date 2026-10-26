@@ -92,3 +92,22 @@ def test_release_aligned_distribution_versions_match_package_version():
     for filename in RELEASE_ALIGNED_VERSION_FILES:
         manifest = _load_json(filename)
         assert manifest["version"] == package_version, f"{filename} version is stale"
+
+async def test_registry_manifests_match_live_input_property_names():
+    """Static discovery metadata must not hide supported MCP tool parameters."""
+    async with Client(server.mcp) as client:
+        live_tools = {tool.name: tool for tool in await client.list_tools()}
+
+    for filename in REGISTRY_FILES:
+        declared = {tool["name"]: tool for tool in _load_json(filename)["tools"]}
+        for tool_name, live_tool in live_tools.items():
+            live_schema = live_tool.inputSchema
+            declared_schema = declared[tool_name]["inputSchema"]
+            live_params = set(live_schema.get("properties", {}))
+            declared_params = set(declared_schema.get("properties", {}))
+            assert declared_params == live_params, (
+                f"{filename} {tool_name} omitted/added MCP parameters: "
+                f"missing={sorted(live_params - declared_params)}, "
+                f"extra={sorted(declared_params - live_params)}"
+            )
+            assert set(declared_schema.get("required", [])) == set(live_schema.get("required", []))

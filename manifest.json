@@ -57,6 +57,11 @@
             "default": true,
             "description": "Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp",
             "type": "boolean"
+          },
+          "headlines_only": {
+            "default": false,
+            "description": "Return only dated Google News RSS title, publisher, and link metadata. No original publisher URL, full article text, or summary is fetched or inferred. The url field is a Google News RSS link; meta_data marks its limited evidence level.",
+            "type": "boolean"
           }
         },
         "required": [
@@ -95,6 +100,11 @@
           "summarize": {
             "default": true,
             "description": "Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp",
+            "type": "boolean"
+          },
+          "headlines_only": {
+            "default": false,
+            "description": "Return dated Google News RSS location headlines and publisher/link metadata only. No article body, original publisher URL, or summary is fetched or inferred. meta_data marks the limited RSS evidence level.",
             "type": "boolean"
           }
         },
@@ -135,6 +145,11 @@
             "default": true,
             "description": "Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp",
             "type": "boolean"
+          },
+          "headlines_only": {
+            "default": false,
+            "description": "Return dated Google News RSS topic headlines and publisher/link metadata only. No article body, original publisher URL, or summary is fetched or inferred. meta_data identifies the limited RSS evidence level.",
+            "type": "boolean"
           }
         },
         "required": [
@@ -169,6 +184,11 @@
           "summarize": {
             "default": true,
             "description": "Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp",
+            "type": "boolean"
+          },
+          "headlines_only": {
+            "default": false,
+            "description": "Return dated Google News RSS top-story headline, publisher and link metadata only. No article body, original publisher URL, or summary is fetched or inferred. meta_data identifies the limited RSS evidence level.",
             "type": "boolean"
           }
         },
@@ -425,6 +445,11 @@
             "default": true,
             "description": "Generate a summary of the article, will first try LLM Sampling but if unavailable will use nlp",
             "type": "boolean"
+          },
+          "headlines_only": {
+            "default": false,
+            "description": "Return dated Google News RSS publisher-site headlines and publisher/link metadata only. No article body, original publisher URL, or summary is fetched or inferred. meta_data marks the limited RSS evidence level.",
+            "type": "boolean"
           }
         },
         "required": [
@@ -656,7 +681,35 @@
       "description": "Retrieves category list from Google Trends.",
       "inputSchema": {
         "additionalProperties": false,
-        "properties": {},
+        "properties": {
+          "query": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "pattern": ".*\\S.*",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional case-insensitive substring to match against category names."
+          },
+          "limit": {
+            "default": 50,
+            "description": "Maximum categories to return in this page.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "description": "Zero-based offset into the filtered category list.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
         "type": "object"
       }
     }
