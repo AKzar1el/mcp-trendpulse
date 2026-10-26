@@ -1,6 +1,9 @@
 import asyncio
+import json
 import sys
 from collections import defaultdict
+from dataclasses import asdict
+from pathlib import Path
 
 import click
 from mcp_trendpulse.config import load_environment
@@ -93,6 +96,73 @@ def bigquery_sql(country, kind, limit, snapshot_date, region_code, dma_id):
     except ValueError as exc:
         raise click.BadParameter(str(exc)) from exc
     click.echo(sql)
+
+
+@cli.group("watch", help="Manage local manual Trend Watch rules; no polling or external alerts.")
+def watch():
+    """Trend Watch operates on user-supplied JSON evidence only."""
+
+
+@watch.command("create")
+@click.option("--keyword", required=True, help="Watch query (stored locally, not uploaded).")
+@click.option("--market", required=True, help="ISO country code.")
+@click.option("--growth-pct", type=click.FloatRange(1, 1000), default=30.0, show_default=True)
+@click.option("--minimum-interest", type=click.FloatRange(0, 100), default=20.0, show_default=True)
+@click.option("--window", type=click.IntRange(2, 12), default=4, show_default=True)
+@click.option("--cooldown-days", type=click.IntRange(1, 90), default=7, show_default=True)
+def watch_create(keyword, market, growth_pct, minimum_interest, window, cooldown_days):
+    from mcp_trendpulse.trend_watch import WatchStore
+
+    try:
+        rule = WatchStore().create(
+            keyword=keyword,
+            market=market.strip().upper(),
+            growth_pct=growth_pct,
+            minimum_interest=minimum_interest,
+            window=window,
+            cooldown_days=cooldown_days,
+        )
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(asdict(rule), sort_keys=True))
+
+
+@watch.command("list")
+def watch_list():
+    from mcp_trendpulse.trend_watch import WatchStore
+
+    try:
+        rules = WatchStore().list_rules()
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps([asdict(rule) for rule in rules], sort_keys=True))
+
+
+@watch.command("remove")
+@click.option("--id", "rule_id", required=True, help="Existing watch rule ID.")
+def watch_remove(rule_id):
+    from mcp_trendpulse.trend_watch import WatchStore
+
+    try:
+        deleted = WatchStore().delete(rule_id)
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps({"id": rule_id, "deleted": deleted}, sort_keys=True))
+
+
+@watch.command("evaluate")
+@click.option("--id", "rule_id", required=True, help="Existing watch rule ID.")
+@click.option("--evidence", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
+def watch_evaluate(rule_id, evidence):
+    from mcp_trendpulse.trend_watch import MAX_EVIDENCE_BYTES, WatchStore
+
+    try:
+        if evidence.stat().st_size > MAX_EVIDENCE_BYTES:
+            raise ValueError("Evidence file exceeds 256 KiB")
+        result = WatchStore().evaluate_and_record(rule_id, evidence.read_bytes())
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(result.as_json())
 
 
 @cli.command(help=get_news_by_keyword.__doc__)

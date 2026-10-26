@@ -306,6 +306,8 @@ From a local source checkout, `uv run mcp-trendpulse-cli --help` uses that check
 
 The operator-only `bigquery-sql` command generates a fixed-table, partition-filtered SQL preview for Google's official public Top 25 / Rising datasets. It never submits a job or incurs API usage automatically. See `docs/bigquery-trends.md` for sandbox, query-cost guardrails, and market-coverage limitations.
 
+`watch` provides opt-in **local manual** threshold rules and idempotent evaluation of user-supplied normalized interest evidence; it does not poll providers, schedule runs, or send external alerts. See `docs/trend-watch.md` before using the commands.
+
 CLI commands available since v0.2.43 (also on GitHub `main`):
 
 ```text
