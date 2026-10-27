@@ -84,6 +84,7 @@ jobs:
           uv venv --python 3.12 "$SMOKE_VENV"
           uv pip install --python "$SMOKE_VENV/bin/python" dist/*.whl
           "$SMOKE_VENV/bin/python" -c "import mcp_trendpulse"
+          "$SMOKE_VENV/bin/python" scripts/smoke_installed_wheel.py
 
       - name: Upload package distributions
         if: github.event_name != 'pull_request'
