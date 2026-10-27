@@ -17,3 +17,12 @@ def test_python_floor_and_pillow_security_floor():
         parts = re.match(r"^(\d+)\.(\d+)\.(\d+)", version)
         assert parts is not None
         assert tuple(map(int, parts.groups())) >= (13, 0, 0)
+
+def test_agent_install_guide_matches_python_floor():
+    project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]
+    guide = Path("llms-install.md").read_text(encoding="utf-8")
+
+    assert project["requires-python"] == ">=3.11"
+    assert "Python 3.11 or newer is required" in guide
+    assert "Python 3.10.18 remains installable" not in guide
+    assert "uvx --python 3.11 mcp-trendpulse" in guide
