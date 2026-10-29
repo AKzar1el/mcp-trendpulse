@@ -1168,9 +1168,20 @@ def _growth_from_trend_points(
         current_val = float(series.tail(4).mean())
         latest_date = series.index[-1]
 
+        # Avoid labeling a truncated provider history as full-window growth.
+        # Allow one sample interval for weekly/monthly bucket alignment.
+        sample_gaps = series.index.to_series().diff().dropna()
+        edge_slack = (
+            min(pandas.Timedelta(days=31), sample_gaps.median() + pandas.Timedelta(days=1))
+            if not sample_gaps.empty
+            else pandas.Timedelta(0)
+        )
         growth_dict: dict[str, float | None] = {}
         for window in percent_growth:
             target_date = latest_date - pandas.Timedelta(days=_growth_window_days(window))
+            if target_date < series.index[0] - edge_slack:
+                growth_dict[window] = None
+                continue
             indices = series.index.get_indexer([target_date], method="nearest")
             idx = len(series) - 1 if len(indices) == 0 or indices[0] < 0 else indices[0]
             start_idx = max(0, idx - 2)

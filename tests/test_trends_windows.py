@@ -118,3 +118,36 @@ async def test_get_growth_rejects_invalid_window_instead_of_mislabeling_it():
             raise AssertionError("invalid growth window should fail")
 
     request.assert_not_called()
+
+
+async def test_get_growth_rejects_short_observed_history():
+    """Do not label 21 observed days as 3-month or 1-year growth."""
+    dates = pd.date_range(start="2026-09-06", periods=4, freq="W")
+    frame = pd.DataFrame(
+        {"keyword": [10.0, 20.0, 30.0, 40.0]},
+        index=pd.DatetimeIndex(dates, name="time [UTC]"),
+    )
+
+    with patch.object(news.tr, "interest_over_time", return_value=frame) as request:
+        result = await news.get_growth(
+            "keyword", percent_growth=["3M", "1Y"], geo="US"
+        )
+
+    request.assert_called_once_with(
+        ["keyword"], timeframe="today 12-m", geo="US", gprop=""
+    )
+    assert result == [{"keyword": "keyword", "growth": {"3M": None, "1Y": None}}]
+
+
+async def test_get_growth_preserves_short_valid_window_when_year_missing():
+    dates = pd.date_range(start="2026-07-05", periods=15, freq="W")
+    frame = pd.DataFrame(
+        {"keyword": [20.0] * 4 + [40.0] * 11},
+        index=pd.DatetimeIndex(dates, name="time [UTC]"),
+    )
+
+    with patch.object(news.tr, "interest_over_time", return_value=frame):
+        result = await news.get_growth("keyword", percent_growth=["3M", "1Y"])
+
+    assert result[0]["growth"]["3M"] == 100.0
+    assert result[0]["growth"]["1Y"] is None
