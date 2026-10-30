@@ -258,6 +258,10 @@ def trending(geo, full_data):
         trending_terms = await get_trending_terms(geo=geo, full_data=full_data)
         if trending_terms:
             click.echo("Trending terms:")
+            click.echo(
+                "Traffic values are approximate Google Trends Trending Now buckets, "
+                "not exact search volumes."
+            )
             for term in trending_terms:
                 if isinstance(term, dict):
                     click.echo(f"{term['keyword']:<40} - {term['volume']}")
