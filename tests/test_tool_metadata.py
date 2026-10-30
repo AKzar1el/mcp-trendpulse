@@ -52,3 +52,15 @@ def test_community_server_instructions_cover_cross_tool_workflows():
     assert "get_article_content" in instructions
     assert "get_categories" in instructions
     assert "geography and timeframe" in instructions
+
+
+def test_trending_volume_schema_preserves_estimate_provenance():
+    for model in (server.TrendingTermOut, server.RankedTrendOut, server.TopTrendOut):
+        description = model.model_fields["volume"].description.lower()
+        assert "approximate" in description
+        assert "not exact" in description
+
+    instructions = server.mcp.instructions.lower()
+    assert "normalized relative interest (0-100)" in instructions
+    assert "approximate traffic" in instructions
+    assert "not exact" in instructions

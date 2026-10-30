@@ -67,7 +67,7 @@ class TrendingTermArticleOut(BaseModelClean):
 
 class TrendingTermOut(BaseModelClean):
     keyword: Annotated[str, Field(description="Trending keyword.")]
-    volume: Annotated[Optional[str], Field(description="Search volume.")] = None
+    volume: Annotated[Optional[str], Field(description="Approximate Google Trends traffic bucket (e.g. 1000+), not exact search volume.")] = None
     trend_keywords: Annotated[Optional[list[str]], Field(description="Related keywords.")] = None
     link: Annotated[Optional[str], Field(description="URL to more information.")] = None
     started: Annotated[Optional[int], Field(description="Unix timestamp when the trend started.")] = None
@@ -96,7 +96,7 @@ TrendKeywordInput = TrendKeyword | Annotated[list[TrendKeyword], Field(min_lengt
 
 class RankedTrendOut(BaseModelClean):
     keyword: Annotated[str, Field(description="The trending keyword.")]
-    volume: Annotated[Optional[int], Field(description="Search volume count.")] = None
+    volume: Annotated[Optional[int], Field(description="Approximate provider-reported trending traffic, not exact search volume.")] = None
     growth_pct: Annotated[Optional[float], Field(description="Percentage growth in volume.")] = None
     started: Annotated[Optional[int], Field(description="Unix timestamp when trend started.")] = None
     news: Annotated[Optional[list[TrendingTermArticleOut]], Field(description="Related news articles.")] = None
@@ -104,7 +104,7 @@ class RankedTrendOut(BaseModelClean):
 
 class TopTrendOut(BaseModelClean):
     keyword: Annotated[str, Field(description="The trending keyword.")]
-    volume: Annotated[Optional[str], Field(description="Approximate search volume.")] = None
+    volume: Annotated[Optional[str], Field(description="Approximate Google Trends traffic bucket (e.g. 1000+), not exact search volume.")] = None
     link: Annotated[Optional[str], Field(description="URL to more information.")] = None
     started: Annotated[Optional[int], Field(description="Unix timestamp when trend started.")] = None
     picture: Annotated[Optional[str], Field(description="URL to related image.")] = None
@@ -162,8 +162,9 @@ async def lifespan(app: FastMCP):
 COMMUNITY_SERVER_INSTRUCTIONS = (
     "Use TrendPulse for evidence-led trend research. Start with get_trending_terms or get_top_trends "
     "when the user needs discovery; use get_trends or get_growth for known keywords and historical momentum. "
-    "Google Trends values are normalized relative interest (0-100), not absolute search volume, so do not infer "
-    "raw demand without independent evidence. Use Google News discovery tools for current context and call "
+    "Historical Google Trends values are normalized relative interest (0-100), not absolute search volume. "
+    "Trending Now volume fields are approximate traffic buckets or provider estimates, not exact counts; "
+    "do not infer precise demand without independent evidence. Use Google News discovery tools for current context and call "
     "get_article_content only after you have a specific article URL; call get_categories, using a name query when "
     "possible, before using a non-default category ID. Preserve geography and timeframe when summarizing conclusions, and combine trend "
     "and news evidence when the user is making a decision. If article extraction is blocked, "
