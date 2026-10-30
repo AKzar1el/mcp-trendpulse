@@ -81,3 +81,24 @@ async def test_get_trending_terms_full_data_decodes_nested_provider_display_text
     assert result[0].news[0].title == "The '90s Arby's Deal"
     assert result[0].news[0].source == "What's on Netflix"
     assert result[0].news[0].snippet == "Arby's fans remember it."
+
+
+def test_trending_cli_discloses_approximate_traffic(monkeypatch):
+    """Trending RSS CLI must not present provider buckets as precise search counts."""
+    from click.testing import CliRunner
+
+    import mcp_trendpulse.cli as cli_module
+
+    async def fake_trending_terms(*, geo, full_data):
+        assert geo == "US"
+        assert full_data is False
+        return [{"keyword": "example topic", "volume": "2000+"}]
+
+    monkeypatch.setattr(cli_module, "get_trending_terms", fake_trending_terms)
+    result = CliRunner().invoke(cli_module.cli, ["trending", "--geo", "US"])
+    assert result.exit_code == 0, result.output
+    assert "Trending terms:" in result.output
+    assert "example topic" in result.output
+    assert "2000+" in result.output
+    assert "approximate" in result.output.lower()
+    assert "not exact" in result.output.lower()
