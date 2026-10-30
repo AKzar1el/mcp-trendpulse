@@ -242,6 +242,22 @@ async def test_analyze_and_compare_return_bounded_series(fake_providers):
     assert all(len(item.series) <= 10 for item in comparison.comparisons)
 
 
+def test_hosted_excludes_nonfinite_trend_numbers():
+    assert hosted._as_float("nan") is None
+    assert hosted._as_float("-Infinity") is None
+    points = [
+        {"date": "2026-10-01", "value": 25},
+        {"date": "2026-10-02", "value": float("nan")},
+        {"date": "2026-10-03", "value": float("inf")},
+        {"date": "2026-10-04", "value": "75"},
+    ]
+    metrics = hosted._interest_metrics(points)
+    assert (metrics.latest, metrics.average, metrics.peak, metrics.points_observed) == (75.0, 50.0, 75.0, 2)
+    assert [point.value for point in hosted._bounded_series(points, max_points=10)] == [25.0, 75.0]
+    assert hosted._growth_by_keyword([
+        {"keyword": "seo", "growth": {"3M": float("nan"), "1Y": 15.0, "2Y": float("inf")}}
+    ]) == {"seo": {"1Y": 15.0}}
+
 async def test_compare_rejects_duplicate_keywords(fake_providers):
     with use_provider_set(fake_providers), pytest.raises(ValueError, match="unique"):
         await hosted.compare_keyword_trends(

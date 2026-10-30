@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from math import isfinite
 from statistics import fmean
 from typing import Annotated, Any, Literal
 
@@ -230,9 +231,10 @@ def _as_float(value: Any) -> float | None:
     if value is None:
         return None
     try:
-        return float(value)
-    except (TypeError, ValueError):
+        numeric = float(value)
+    except (TypeError, ValueError, OverflowError):
         return None
+    return numeric if isfinite(numeric) else None
 
 
 def _bounded_series(points: list[dict[str, Any]], max_points: int) -> list[TrendSeriesPoint]:
