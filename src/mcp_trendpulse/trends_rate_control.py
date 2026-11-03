@@ -63,7 +63,12 @@ class TrendsRequestPacer:
     def _retry_after_seconds(headers: Mapping[str, Any] | None) -> float | None:
         if not headers:
             return None
-        raw_value = headers.get("Retry-After") or headers.get("retry-after")
+        # HTTP field names are case-insensitive, including when a proxy provides
+        # an ordinary dict instead of requests' CaseInsensitiveDict.
+        raw_value = next(
+            (value for key, value in headers.items() if isinstance(key, str) and key.casefold() == "retry-after"),
+            None,
+        )
         if raw_value is None:
             return None
         try:
@@ -106,6 +111,12 @@ class TrendsRequestPacer:
                 return  # Already registered by the HTTP wrapper; do not double-count.
             self._record_limit_locked(getattr(response, "headers", None))
 
+    def note_success(self) -> None:
+        """Reset 429 strikes only after a successfully decoded provider operation."""
+        with self._lock:
+            if self._clock() >= self._cooldown_until:
+                self._consecutive_limits = 0
+
     def send(self, send_request: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """Pace all TrendSpy session HTTP requests, including its batch POST path."""
         with self._lock:
@@ -126,7 +137,9 @@ class TrendsRequestPacer:
                 # Preserve local availability while still using the local gate.
                 provider_metrics.count("trends_shared_state_fallback")
             # A stalled unofficial endpoint must not indefinitely monopolize the gate.
-            kwargs.setdefault("timeout", 20.0)
+            # Explicit timeout=None is also unbounded in requests; normalize it.
+            if kwargs.get("timeout") is None:
+                kwargs["timeout"] = 20.0
             started = self._clock()
             provider_metrics.count("trends_http_request")
             try:
@@ -142,8 +155,6 @@ class TrendsRequestPacer:
             if status == 429:
                 provider_metrics.count("trends_http_429")
                 self._record_limit_locked(getattr(response, "headers", None))
-            elif status == 200:
-                self._consecutive_limits = 0
             return response
 
 

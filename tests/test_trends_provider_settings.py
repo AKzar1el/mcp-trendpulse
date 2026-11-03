@@ -31,6 +31,9 @@ def test_google_trends_delay_defaults_and_invalid_values():
     assert get_google_trends_delay({}) == DEFAULT_GOOGLE_TRENDS_DELAY
     assert get_google_trends_delay({"GOOGLE_TRENDS_DELAY": "1.25"}) == 1.25
     assert get_google_trends_delay({"GOOGLE_TRENDS_DELAY": "invalid"}) == DEFAULT_GOOGLE_TRENDS_DELAY
+    # Reject non-finite and negative user settings before constructing TrendSpy clients.
+    for invalid_delay in ("nan", "inf", "-inf", "-1"):
+        assert get_google_trends_delay({"GOOGLE_TRENDS_DELAY": invalid_delay}) == DEFAULT_GOOGLE_TRENDS_DELAY
 
 
 @pytest.mark.asyncio

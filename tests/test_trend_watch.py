@@ -2,6 +2,7 @@
 
 import json
 from datetime import date, timedelta
+from pathlib import Path
 from threading import Barrier
 from concurrent.futures import ThreadPoolExecutor
 
@@ -59,6 +60,19 @@ def test_rule_cooldown_prevents_new_alert_on_following_day(tmp_path):
     decision = store.evaluate_and_record(rule.id, evidence("AI", "US", [10, 10, 45, 55]))
     assert decision.status == "cooldown"
     assert store.get(rule.id).last_alert_date == (date.today() - timedelta(days=1)).isoformat()
+
+
+def test_watch_store_rejects_symlinked_database(tmp_path, monkeypatch):
+    original = Path.is_symlink
+
+    def detect_database_link(path):
+        if path.name == "watches.sqlite3":
+            return True
+        return original(path)
+
+    monkeypatch.setattr(Path, "is_symlink", detect_database_link)
+    with pytest.raises(ValueError, match="Watch database must not be a symlink"):
+        WatchStore(tmp_path)
 
 
 def test_evidence_validation_rejects_mixed_market_and_invalid_data(tmp_path):
