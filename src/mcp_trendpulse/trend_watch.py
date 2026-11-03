@@ -156,6 +156,8 @@ class WatchStore:
             raise ValueError("Watch directory must be an absolute, non-symlink directory")
         root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._database = root / "watches.sqlite3"
+        if self._database.is_symlink():
+            raise ValueError("Watch database must not be a symlink")
         with self._connection() as db:
             db.execute(
                 "CREATE TABLE IF NOT EXISTS rules ("

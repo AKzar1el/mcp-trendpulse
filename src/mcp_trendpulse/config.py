@@ -69,7 +69,10 @@ def get_google_trends_delay(env: Mapping[str, str] | None = None) -> float:
     source = os.environ if env is None else env
     raw_value = source.get("GOOGLE_TRENDS_DELAY", str(DEFAULT_GOOGLE_TRENDS_DELAY))
     try:
-        return float(raw_value)
+        delay = float(raw_value)
+        if not (0.0 <= delay < float("inf")):
+            raise ValueError("delay must be finite and non-negative")
+        return delay
     except (TypeError, ValueError):
         logger.warning(
             "Invalid GOOGLE_TRENDS_DELAY environment variable %r; using default %.1f",

@@ -209,7 +209,10 @@ class _ThreadLocalTrendsProxy:
                 if coordinated:
                     trends_request_pacer.ensure_available(name)
                 try:
-                    return attribute(*args, **kwargs)
+                    result = attribute(*args, **kwargs)
+                    if coordinated:
+                        trends_request_pacer.note_success()
+                    return result
                 except ProviderError as exc:
                     if coordinated and isinstance(exc, ProviderRateLimitError):
                         trends_request_pacer.note_rate_limit(exc)
@@ -290,11 +293,17 @@ class _DeferredUrlGNews(GNews):
     """Leave Google News RSS links unresolved for TrendPulse's article pipeline."""
 
     def _process(self, item):
-        source = item.get("source").get("href")
+        feed_source = item.get("source")
+        source_url = feed_source.get("href") if isinstance(feed_source, dict) else None
+        if not isinstance(source_url, str):
+            if self._exclude_websites:
+                return None
+            source_url = ""
         excluded_patterns = [
-            f"^http(s)?://(www.)?{website.lower()}.*" for website in self._exclude_websites
+            rf"^https?://(?:www\.)?{re.escape(website.lower())}(?::\d+)?(?=[/?#]|$)"
+            for website in self._exclude_websites
         ]
-        if not all(not re.match(pattern, source) for pattern in excluded_patterns):
+        if any(re.match(pattern, source_url, re.IGNORECASE) for pattern in excluded_patterns):
             return None
 
         url = item.get("link")

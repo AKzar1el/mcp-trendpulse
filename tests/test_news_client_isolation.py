@@ -60,6 +60,24 @@ def test_google_news_client_defers_rss_url_resolution():
     assert result["title"] == "Example title"
     assert result["published date"] == "Wed, 23 Sep 2026 10:00:00 GMT"
 
+@pytest.mark.parametrize(
+    ("source", "excluded", "accepted"),
+    [
+        (None, [], True),
+        (None, ["example.com"], False),
+        ({"href": "https://example.com/path"}, ["example.com"], False),
+        ({"href": "https://example.com:443/path"}, ["example.com"], False),
+        ({"href": "https://example.com.evil.test/"}, ["example.com"], True),
+    ],
+)
+def test_news_source_filter_handles_missing_and_similar_publisher_domains(source, excluded, accepted):
+    client = news._DeferredUrlGNews(language="en", country="US")
+    client._exclude_websites = excluded
+    item = {"link": "https://news.google.com/rss/articles/example", "source": source}
+
+    assert (client._process(item) is not None) is accepted
+
+
 @pytest.mark.asyncio
 async def test_news_queries_use_request_scoped_clients(monkeypatch):
     monkeypatch.setattr(news, "_DeferredUrlGNews", FakeGNews)

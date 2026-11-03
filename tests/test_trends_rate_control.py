@@ -77,6 +77,37 @@ def test_google_429_enforces_retry_after_and_avoids_additional_requests():
     pacer.ensure_available("interest_over_time")
 
 
+def test_lowercase_retry_after_header_from_proxy_is_respected():
+    clock = FakeClock()
+    pacer = make_pacer(clock, delay=0)
+    sent = []
+
+    def send(*args, **kwargs):
+        sent.append(clock.now)
+        return response(429, {"retry-after": "120"})
+
+    assert pacer.send(send, "GET", "https://trends.google.com").status_code == 429
+    clock.sleep(119)
+    with pytest.raises(ProviderRateLimitError):
+        pacer.ensure_available("interest_over_time")
+    clock.sleep(1)
+    pacer.ensure_available("interest_over_time")
+    assert sent == [0.0]
+
+
+def test_one_http_429_cannot_be_counted_twice_by_embedded_quota_handler():
+    clock = FakeClock()
+    pacer = make_pacer(clock, delay=0)
+
+    assert pacer.send(
+        lambda *args, **kwargs: response(429), "GET", "https://trends.google.com"
+    ).status_code == 429
+    # TrendSpy can also surface this same response as a provider exception.
+    pacer.note_rate_limit(RuntimeError("quota exceeded"))
+    clock.sleep(30)
+    pacer.ensure_available("interest_over_time")
+
+
 def test_embedded_quota_failure_opens_bounded_cooldown():
     clock = FakeClock()
     pacer = make_pacer(clock, delay=0)
@@ -87,12 +118,34 @@ def test_embedded_quota_failure_opens_bounded_cooldown():
     pacer.ensure_available("related_queries")
 
 
-def test_successful_http_response_resets_exponential_strikes():
+def test_successfully_decoded_operation_resets_exponential_strikes():
     clock = FakeClock()
     pacer = make_pacer(clock, delay=0)
     pacer.send(lambda *_a, **_k: response(429), "GET", "https://trends.google.com")
     clock.sleep(30)
     pacer.send(lambda *_a, **_k: response(200), "GET", "https://trends.google.com")
+    # HTTP 200 alone is insufficient: TrendSpy can embed a quota error in its body.
+    pacer.note_success()
+    pacer.send(lambda *_a, **_k: response(429), "GET", "https://trends.google.com")
+    clock.sleep(30)
+    pacer.ensure_available("interest_over_time")
+
+
+def test_consecutive_embedded_quota_responses_back_off_exponentially():
+    clock = FakeClock()
+    pacer = make_pacer(clock, delay=0)
+    for expected_cooldown in (30, 60):
+        pacer.send(lambda *_a, **_k: response(200), "GET", "https://trends.google.com")
+        pacer.note_rate_limit(RuntimeError("embedded quota exceeded"))
+        clock.sleep(30)
+        if expected_cooldown == 60:
+            with pytest.raises(ProviderRateLimitError):
+                pacer.ensure_available("interest_over_time")
+            clock.sleep(30)
+        pacer.ensure_available("interest_over_time")
+
+    # A decoded provider success, not another HTTP 200, clears the strikes.
+    pacer.note_success()
     pacer.send(lambda *_a, **_k: response(429), "GET", "https://trends.google.com")
     clock.sleep(30)
     pacer.ensure_available("interest_over_time")
