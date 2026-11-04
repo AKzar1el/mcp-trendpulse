@@ -302,6 +302,8 @@ def test_brief_pack_keeps_dedicated_growth_fetch_for_custom_timeframe():
     assert result.exit_code == 0
     assert "| ChatGPT | 80 | +5.00% | -1.25% |" in result.output
     assert "| Claude | 40 | -15.50% | +300.00% |" in result.output
+    assert "3M and 1Y growth use separate Google Trends lookback requests" in result.output
+    assert "not calculated from the selected today 5-y time series" in result.output
     providers.trends.get_growth.assert_awaited_once_with(
         keyword=["ChatGPT", "Claude"],
         source="google search",

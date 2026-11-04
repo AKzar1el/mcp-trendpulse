@@ -404,6 +404,12 @@ def brief_pack(keywords, markets, timeframe):
 
             click.echo()
             click.echo(f"## {market}")
+            if timeframe.strip().lower() != "today 12-m":
+                click.echo()
+                click.echo(
+                    f"> 3M and 1Y growth use separate Google Trends lookback requests; "
+                    f"they are not calculated from the selected {timeframe} time series."
+                )
             if latest_trends_date:
                 click.echo()
                 click.echo(f"Latest complete Trends point: **{latest_trends_date}**")
