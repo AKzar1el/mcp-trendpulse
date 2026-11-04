@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import html
 import json
 import re
 import sys
@@ -414,10 +415,18 @@ def brief_pack(keywords, markets, timeframe):
                 latest = keyword_points[-1].get("value") if keyword_points else None
                 keyword_growth = growth.get(keyword, {})
                 click.echo(
-                    f"| {keyword} | {_brief_value(latest)} | {_brief_percent(keyword_growth.get('3M'))} | {_brief_percent(keyword_growth.get('1Y'))} |"
+                    f"| {_brief_table_cell(keyword)} | {_brief_value(latest)} | {_brief_percent(keyword_growth.get('3M'))} | {_brief_percent(keyword_growth.get('1Y'))} |"
                 )
 
     asyncio.run(_build())
+
+
+def _brief_table_cell(value):
+    """Render literal keyword text without changing Markdown table structure."""
+    text = html.escape(str(value), quote=False).replace("\r", " ").replace("\n", " ")
+    for marker in ("\\", "|", "*", "_", "`", "[", "]", "~"):
+        text = text.replace(marker, "\\" + marker)
+    return text
 
 
 def _brief_value(value):

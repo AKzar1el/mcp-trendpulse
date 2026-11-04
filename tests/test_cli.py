@@ -256,6 +256,27 @@ def test_brief_pack_emits_two_market_evidence_tables():
     providers.trends.get_growth.assert_not_awaited()
 
 
+def test_brief_pack_escapes_untrusted_keyword_markdown_table_cell():
+    keyword = "AI | **Retail**\n<img src=x>"
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(
+        return_value=[{"date": "2026-09-13", "value": 42, "keyword": keyword}]
+    )
+    providers.trends.get_growth = AsyncMock(
+        return_value=[{"keyword": keyword, "growth": {"3M": 5, "1Y": 1}}]
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", keyword, "--market", "US", "--timeframe", "today 5-y"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "| AI \\| \\*\\*Retail\\*\\* &lt;img src=x&gt; | 42 | +5.00% | +1.00% |" in result.output
+    assert "<img src=x>" not in result.output
+    assert result.output.count("| 42 |") == 1
+
+
 def test_brief_pack_keeps_dedicated_growth_fetch_for_custom_timeframe():
     runner = CliRunner()
     providers = FakeBriefProviders()
