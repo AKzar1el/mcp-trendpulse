@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from mcp_trendpulse.config import load_environment
 from mcp_trendpulse.digestseo import fetch_digestseo_project_context
+from mcp_trendpulse.errors import ProviderRateLimitError
 from mcp_trendpulse.middleware import ProviderErrorMiddleware
 from mcp_trendpulse.news import BrowserManager
 from mcp_trendpulse.providers import get_provider_set
@@ -136,6 +137,7 @@ class RelatedDemandResult(BaseModel):
     top_topics: list[RelatedTopic]
     rising_topics: list[RelatedTopic]
     suggestions: list[DemandSuggestion]
+    limitations: list[str] = Field(default_factory=list)
 
 
 class ContextArticle(BaseModel):
@@ -546,13 +548,31 @@ async def discover_related_demand(
         geo=geo,
         gprop=gprop,
     )
-    topics = await providers.trends.get_related_topics(
-        keyword=keyword,
-        timeframe=timeframe,
-        geo=geo,
-        gprop=gprop,
-    )
-    suggestions = await providers.trends.get_suggestions(keyword=keyword)
+    limitations: list[str] = []
+    topics: dict[str, list[dict[str, Any]]] = {"top": [], "rising": []}
+    suggestions: list[dict[str, Any]] = []
+    skip_suggestions = False
+    try:
+        topics = await providers.trends.get_related_topics(
+            keyword=keyword,
+            timeframe=timeframe,
+            geo=geo,
+            gprop=gprop,
+        )
+    except ProviderRateLimitError:
+        limitations.append("Related topics are unavailable due to a provider rate limit.")
+        skip_suggestions = True
+        limitations.append("Suggestions were skipped to avoid additional provider requests during rate limiting.")
+    except Exception:
+        limitations.append("Related topics could not be retrieved; related queries remain available.")
+
+    if not skip_suggestions:
+        try:
+            suggestions = await providers.trends.get_suggestions(keyword=keyword)
+        except ProviderRateLimitError:
+            limitations.append("Suggestions are unavailable due to a provider rate limit.")
+        except Exception:
+            limitations.append("Suggestions could not be retrieved; related queries remain available.")
 
     return RelatedDemandResult(
         provider=providers.trends.provider_id,
@@ -565,6 +585,7 @@ async def discover_related_demand(
         top_topics=[RelatedTopic(**item) for item in (topics.get("top") or [])[:limit]],
         rising_topics=[RelatedTopic(**item) for item in (topics.get("rising") or [])[:limit]],
         suggestions=[DemandSuggestion(**item) for item in suggestions[:limit]],
+        limitations=limitations,
     )
 
 
