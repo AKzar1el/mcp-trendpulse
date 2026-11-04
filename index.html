@@ -724,6 +724,14 @@
   .config-code .k { color: var(--indigo-soft); }
   .config-code .s { color: var(--text); }
   .config-code .c { color: var(--text-faint); }
+  .config-note {
+    margin-top: 18px;
+    max-width: 780px;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .config-note a { color: var(--indigo-soft); text-decoration: underline; }
 
   /* === Footer === */
   footer {
@@ -881,7 +889,7 @@
           </a>
         </div>
         <div class="hero-meta mono">
-          <span>python ≥ 3.10</span>
+          <span>python ≥ 3.11</span>
           <span>·</span>
           <span>stdio transport</span>
           <span>·</span>
@@ -1105,8 +1113,8 @@
           <span class="client-path mono">.cursor/mcp.json</span>
         </button>
         <button class="client-tab" data-client="codex">
-          <span class="client-name">ChatGPT Desktop · Codex</span>
-          <span class="client-path mono">shared local MCP config</span>
+          <span class="client-name">Codex CLI · IDE</span>
+          <span class="client-path mono">shared Codex MCP config</span>
         </button>
         <button class="client-tab" data-client="gemini">
           <span class="client-name">Gemini · Antigravity</span>
@@ -1117,6 +1125,7 @@
         <pre id="configCode"></pre>
       </div>
     </div>
+    <p class="config-note">ChatGPT does not automatically use the local Codex MCP configuration. ChatGPT connections require a separate plugin connection to an HTTPS MCP endpoint or an available Secure MCP Tunnel. The managed TrendPulse endpoint is not released yet. <a href="https://developers.openai.com/plugins/deploy/connect-chatgpt">See OpenAI's connection guide.</a></p>
   </div>
 </section>
 
@@ -1260,7 +1269,7 @@
     }
   }
 }`,
-    codex: `<span class="c">// ChatGPT Desktop / Codex CLI / IDE</span>
+    codex: `<span class="c">// Codex CLI / Codex IDE extension</span>
 <span class="s">codex mcp add mcp-trendpulse -- uvx mcp-trendpulse</span>`,
     gemini: `<span class="c">// ~/.antigravity/mcp.json</span>
 {
