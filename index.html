@@ -722,6 +722,21 @@
     padding: 28px;
     overflow-x: auto;
   }
+  .config-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .config-filename {
+    color: var(--text-faint);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .config-copy-btn {
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
   .config-code pre {
     font-family: 'JetBrains Mono', monospace;
     font-size: 13px;
@@ -1142,7 +1157,16 @@
         </button>
       </aside>
       <div class="config-code">
+        <div class="config-toolbar">
+          <span class="config-filename mono" id="configFilename">claude_desktop_config.json</span>
+          <button type="button" class="copy-btn config-copy-btn" id="configCopyBtn" aria-label="Copy selected MCP client configuration">
+            <svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="4" y="4" width="9" height="9" rx="1"/><path d="M11 4V3a1 1 0 00-1-1H3a1 1 0 00-1 1v7a1 1 0 001 1h1"/></svg>
+            <svg class="icon-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l3 3 7-7"/></svg>
+            <span class="copy-label">Copy config</span>
+          </button>
+        </div>
         <p class="sr-only" role="status" id="configStatus" aria-live="polite"></p>
+        <p class="sr-only" role="status" id="configCopyStatus" aria-live="polite"></p>
         <pre id="configCode" tabindex="0" aria-label="Selected MCP client configuration"></pre>
       </div>
     </div>
@@ -1248,18 +1272,23 @@
       });
       currentCmd = tab.dataset.cmd;
       cmdText.textContent = currentCmd;
+      clearTimeout(copyReset);
+      copyBtn.classList.remove('copied', 'copy-failed');
+      copyBtn.querySelector('.copy-label').textContent = 'Copy';
+      copyBtn.setAttribute('aria-label', 'Copy install command');
+      document.getElementById('copyStatus').textContent = '';
     });
   });
 
-  copyBtn.addEventListener('click', async () => {
+  async function copyPlainText(value) {
     let copied = false;
     try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
-      await navigator.clipboard.writeText(currentCmd);
+      await navigator.clipboard.writeText(value);
       copied = true;
     } catch (_) {
       const ta = document.createElement('textarea');
-      ta.value = currentCmd;
+      ta.value = value;
       ta.style.position = 'fixed';
       ta.style.opacity = '0';
       const previouslyFocused = document.activeElement;
@@ -1269,6 +1298,13 @@
       ta.remove();
       if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus({ preventScroll: true });
     }
+    return copied;
+  }
+
+  copyBtn.addEventListener('click', async () => {
+    const cmdAtClick = currentCmd;
+    const copied = await copyPlainText(cmdAtClick);
+    if (cmdAtClick !== currentCmd) return;
     copyBtn.classList.toggle('copied', copied);
     copyBtn.classList.toggle('copy-failed', !copied);
     copyBtn.querySelector('.copy-label').textContent = copied ? 'Copied' : 'Copy failed';
@@ -1287,8 +1323,7 @@
 
   // Config switcher
   const configs = {
-    claude: `<span class="c">// claude_desktop_config.json</span>
-{
+    claude: `{
   <span class="k">"mcpServers"</span>: {
     <span class="k">"mcp-trendpulse"</span>: {
       <span class="k">"command"</span>: <span class="s">"uvx"</span>,
@@ -1296,8 +1331,7 @@
     }
   }
 }`,
-    cursor: `<span class="c">// .cursor/mcp.json — project-scoped</span>
-{
+    cursor: `{
   <span class="k">"mcpServers"</span>: {
     <span class="k">"mcp-trendpulse"</span>: {
       <span class="k">"command"</span>: <span class="s">"uvx"</span>,
@@ -1305,10 +1339,8 @@
     }
   }
 }`,
-    codex: `<span class="c">// Codex CLI / Codex IDE extension</span>
-<span class="s">codex mcp add mcp-trendpulse -- uvx mcp-trendpulse</span>`,
-    gemini: `<span class="c">// ~/.antigravity/mcp.json</span>
-{
+    codex: `<span class="s">codex mcp add mcp-trendpulse -- uvx mcp-trendpulse</span>`,
+    gemini: `{
   <span class="k">"mcpServers"</span>: {
     <span class="k">"mcp-trendpulse"</span>: {
       <span class="k">"command"</span>: <span class="s">"uvx"</span>,
@@ -1319,22 +1351,58 @@
 }`
   };
 
+  const configFilenames = {
+    claude: 'claude_desktop_config.json',
+    cursor: '.cursor/mcp.json - project-scoped',
+    codex: 'Codex CLI / IDE terminal command',
+    gemini: '~/.antigravity/mcp.json'
+  };
   const clientTabs = document.querySelectorAll('.client-tab');
   const configCode = document.getElementById('configCode');
+  const configCopyBtn = document.getElementById('configCopyBtn');
+  const configCopyStatus = document.getElementById('configCopyStatus');
+  let currentClient;
+  let configCopyReset;
 
   function setClient(client) {
+    currentClient = client;
     clientTabs.forEach(t => {
       const selected = t.dataset.client === client;
       t.classList.toggle('active', selected);
       t.setAttribute('aria-pressed', String(selected));
     });
     configCode.innerHTML = configs[client];
+    document.getElementById('configFilename').textContent = configFilenames[client];
+    clearTimeout(configCopyReset);
+    configCopyBtn.classList.remove('copied', 'copy-failed');
+    configCopyBtn.querySelector('.copy-label').textContent = 'Copy config';
+    configCopyBtn.setAttribute('aria-label', 'Copy selected MCP client configuration');
+    configCopyStatus.textContent = '';
     const selectedTab = [...clientTabs].find(t => t.dataset.client === client);
     document.getElementById('configStatus').textContent =
       `Showing ${selectedTab.querySelector('.client-name').textContent} configuration`;
   }
   clientTabs.forEach(tab => {
     tab.addEventListener('click', () => setClient(tab.dataset.client));
+  });
+  configCopyBtn.addEventListener('click', async () => {
+    const clientAtClick = currentClient;
+    const copied = await copyPlainText(configCode.textContent.trim());
+    if (clientAtClick !== currentClient) return;
+    configCopyBtn.classList.toggle('copied', copied);
+    configCopyBtn.classList.toggle('copy-failed', !copied);
+    configCopyBtn.querySelector('.copy-label').textContent = copied ? 'Copied' : 'Copy failed';
+    configCopyBtn.setAttribute('aria-label', copied ? 'Configuration copied' : 'Copy failed; select configuration manually');
+    configCopyStatus.textContent = copied
+      ? 'Selected client configuration copied.'
+      : 'Copy failed. Focus the configuration and copy it manually.';
+    clearTimeout(configCopyReset);
+    configCopyReset = setTimeout(() => {
+      configCopyBtn.classList.remove('copied', 'copy-failed');
+      configCopyBtn.querySelector('.copy-label').textContent = 'Copy config';
+      configCopyBtn.setAttribute('aria-label', 'Copy selected MCP client configuration');
+      configCopyStatus.textContent = '';
+    }, 1800);
   });
   setClient('claude');
 </script>
