@@ -1,4 +1,5 @@
 import json
+import tomllib
 from pathlib import Path
 
 
@@ -175,14 +176,27 @@ def test_pages_publish_current_mcpvault_verification_badge():
     assert 'alt="MCPVault: verified"' in page
 
 
-def test_pages_offer_openai_desktop_local_stdio_install():
+def test_pages_python_floor_matches_installed_package():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+    project = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+
+    assert project["requires-python"] == ">=3.11"
+    assert "python ≥ 3.11" in page
+    assert "python ≥ 3.10" not in page
+
+
+def test_pages_distinguish_codex_local_stdio_from_chatgpt_plugin_connections():
     page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
 
     assert 'data-client="codex"' in page
-    assert "ChatGPT Desktop · Codex" in page
-    assert "shared local MCP config" in page
-    assert "// ChatGPT Desktop / Codex CLI / IDE" in page
+    assert "Codex CLI · IDE" in page
+    assert "shared Codex MCP config" in page
+    assert "// Codex CLI / Codex IDE extension" in page
     assert "codex mcp add mcp-trendpulse -- uvx mcp-trendpulse" in page
+    assert "ChatGPT does not automatically use the local Codex MCP configuration" in page
+    assert "ChatGPT connections require a separate plugin connection" in page
+    assert "https://developers.openai.com/plugins/deploy/connect-chatgpt" in page
+    assert "ChatGPT Desktop · Codex" not in page
 
 
 def test_pages_top_trends_copy_matches_current_provider_paths():
