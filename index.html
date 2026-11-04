@@ -1152,8 +1152,12 @@
           <span class="client-path mono">shared Codex MCP config</span>
         </button>
         <button type="button" class="client-tab" data-client="gemini" aria-pressed="false" aria-controls="configCode">
-          <span class="client-name">Gemini · Antigravity</span>
-          <span class="client-path mono">~/.antigravity/mcp.json</span>
+          <span class="client-name">Gemini CLI</span>
+          <span class="client-path mono">~/.gemini/settings.json</span>
+        </button>
+        <button type="button" class="client-tab" data-client="antigravity" aria-pressed="false" aria-controls="configCode">
+          <span class="client-name">Google Antigravity</span>
+          <span class="client-path mono">~/.gemini/config/mcp_config.json</span>
         </button>
       </aside>
       <div class="config-code">
@@ -1170,6 +1174,7 @@
         <pre id="configCode" tabindex="0" aria-label="Selected MCP client configuration"></pre>
       </div>
     </div>
+    <p class="config-note">Gemini CLI and Google Antigravity use different configuration files; their local stdio examples above follow the <a href="https://geminicli.com/docs/cli/tutorials/mcp-setup/">Gemini CLI setup guide</a> and <a href="https://antigravity.google/docs/mcp">Antigravity MCP guide</a>.</p>
     <p class="config-note">ChatGPT does not automatically use the local Codex MCP configuration. ChatGPT connections require a separate plugin connection to an HTTPS MCP endpoint or an available Secure MCP Tunnel. The managed TrendPulse endpoint is not released yet. <a href="https://developers.openai.com/plugins/deploy/connect-chatgpt">See OpenAI's connection guide.</a></p>
   </div>
 </section>
@@ -1344,8 +1349,15 @@
   <span class="k">"mcpServers"</span>: {
     <span class="k">"mcp-trendpulse"</span>: {
       <span class="k">"command"</span>: <span class="s">"uvx"</span>,
-      <span class="k">"args"</span>: [<span class="s">"mcp-trendpulse@latest"</span>],
-      <span class="k">"transport"</span>: <span class="s">"stdio"</span>
+      <span class="k">"args"</span>: [<span class="s">"mcp-trendpulse@latest"</span>]
+    }
+  }
+}`,
+    antigravity: `{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"mcp-trendpulse"</span>: {
+      <span class="k">"command"</span>: <span class="s">"uvx"</span>,
+      <span class="k">"args"</span>: [<span class="s">"mcp-trendpulse@latest"</span>]
     }
   }
 }`
@@ -1355,7 +1367,8 @@
     claude: 'claude_desktop_config.json',
     cursor: '.cursor/mcp.json - project-scoped',
     codex: 'Codex CLI / IDE terminal command',
-    gemini: '~/.antigravity/mcp.json'
+    gemini: '~/.gemini/settings.json',
+    antigravity: '~/.gemini/config/mcp_config.json'
   };
   const clientTabs = document.querySelectorAll('.client-tab');
   const configCode = document.getElementById('configCode');
