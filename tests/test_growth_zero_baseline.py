@@ -19,11 +19,15 @@ def _growth_frame(historical_value: float, current_value: float) -> pd.DataFrame
 
 @pytest.mark.parametrize(
     ("historical_value", "current_value", "expected_growth"),
-    [(10.0, 20.0, 100.0), (0.0, 0.0, 0.0), (0.0, 20.0, None)],
+    [
+        (10.0, 20.0, 100.0),
+        (10.0, 10.0, 0.0),
+        (10.0, 0.0, -100.0),
+        (0.0, 0.0, None),
+        (0.0, 20.0, None),
+    ],
 )
-async def test_get_growth_handles_zero_historical_baselines(
-    historical_value, current_value, expected_growth
-):
+async def test_get_growth_handles_zero_historical_baselines(historical_value, current_value, expected_growth):
     with patch.object(
         news.tr,
         "interest_over_time",
@@ -34,14 +38,13 @@ async def test_get_growth_handles_zero_historical_baselines(
     assert result[0]["growth"]["3M"] == expected_growth
 
 
-async def test_get_growth_structured_output_serializes_undefined_growth_as_null():
-    with patch.object(
-        news.tr, "interest_over_time", return_value=_growth_frame(0.0, 20.0)
-    ):
+@pytest.mark.parametrize("current_value", [0.0, 20.0])
+async def test_get_growth_structured_output_serializes_undefined_growth_as_null(
+    current_value,
+):
+    with patch.object(news.tr, "interest_over_time", return_value=_growth_frame(0.0, current_value)):
         async with Client(server.mcp) as client:
-            result = await client.call_tool(
-                "get_growth", {"keyword": "example", "percent_growth": ["3M"]}
-            )
+            result = await client.call_tool("get_growth", {"keyword": "example", "percent_growth": ["3M"]})
 
     assert result.structured_content["result"][0]["growth"]["3M"] is None
     assert '"3M":null' in result.content[0].text.replace(" ", "")
