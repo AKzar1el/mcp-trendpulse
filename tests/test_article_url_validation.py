@@ -269,6 +269,55 @@ def test_scraper_timeout_returns_article_download_failure():
         assert news.download_article_with_scraper("https://93.184.216.34/article") is None
 
 
+def test_scraper_stops_slow_drip_stream_before_parsing():
+    clock = {"elapsed": 0, "chunks": 0}
+
+    def slowly_arriving_chunks():
+        for _ in range(100):
+            clock["elapsed"] += 4
+            clock["chunks"] += 1
+            yield b"<p>article</p>"
+
+    response = _article_response(chunks=slowly_arriving_chunks())
+    scraper = MagicMock()
+    scraper.get.return_value = response
+
+    with (
+        patch("mcp_trendpulse.news.perf_counter", side_effect=lambda: clock["elapsed"]),
+        patch("mcp_trendpulse.news.get_scraper", return_value=scraper),
+        patch("mcp_trendpulse.news.newspaper.article") as parse_article,
+    ):
+        assert news.download_article_with_scraper("https://93.184.216.34/article") is None
+
+    assert clock["chunks"] < 100
+    parse_article.assert_not_called()
+    response.close.assert_called_once()
+
+
+def test_scraper_shares_download_deadline_across_redirects():
+    clock = {"elapsed": 0}
+    responses = []
+
+    def slow_redirect(_url, **_kwargs):
+        clock["elapsed"] += 11
+        response = _article_response(status_code=302, headers={"Location": "/next"})
+        responses.append(response)
+        return response
+
+    scraper = MagicMock()
+    scraper.get.side_effect = slow_redirect
+
+    with (
+        patch("mcp_trendpulse.news.perf_counter", side_effect=lambda: clock["elapsed"]),
+        patch("mcp_trendpulse.news.get_scraper", return_value=scraper),
+    ):
+        assert news.download_article_with_scraper("https://93.184.216.34/article") is None
+
+    assert scraper.get.call_count <= 3
+    assert scraper.get.call_args_list[-1].kwargs["timeout"] < news.ARTICLE_HTTP_TIMEOUT_SECONDS
+    assert all(response.close.call_count == 1 for response in responses)
+
+
 async def test_playwright_navigation_uses_explicit_timeout():
     page = MagicMock()
     page.goto = AsyncMock()

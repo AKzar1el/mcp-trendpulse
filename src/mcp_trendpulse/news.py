@@ -379,6 +379,7 @@ async def _call_google_news_async(client: GNews, operation: str, *args, **kwargs
 _ALLOWED_ARTICLE_URL_SCHEMES = {"http", "https"}
 _MAX_ARTICLE_REDIRECTS = 10
 ARTICLE_HTTP_TIMEOUT_SECONDS = 12
+ARTICLE_HTTP_DOWNLOAD_DEADLINE_SECONDS = 30
 ARTICLE_BROWSER_NAVIGATION_TIMEOUT_MS = 15_000
 ARTICLE_MAX_HTML_BYTES = 5 * 1024 * 1024
 ARTICLE_PROCESS_CONCURRENCY = 4
@@ -621,7 +622,7 @@ def _is_unsupported_article_response(response) -> bool:
     )
 
 
-def _read_article_response(response, url: str) -> Optional[str]:
+def _read_article_response(response, url: str, *, deadline: float) -> Optional[str]:
     content_length = response.headers.get("Content-Length")
     try:
         if content_length is not None and int(content_length) > ARTICLE_MAX_HTML_BYTES:
@@ -636,6 +637,10 @@ def _read_article_response(response, url: str) -> Optional[str]:
 
     body = bytearray()
     for chunk in response.iter_content(chunk_size=_ARTICLE_RESPONSE_CHUNK_SIZE):
+        # A per-socket read timeout alone cannot stop a steady slow-drip stream.
+        if perf_counter() >= deadline:
+            logger.warning("Aborted article response after the total HTTP download deadline")
+            return None
         if not chunk:
             continue
         body.extend(chunk)
@@ -643,6 +648,9 @@ def _read_article_response(response, url: str) -> Optional[str]:
             logger.warning("Rejected article response from %s because it exceeds the HTML size limit", url)
             return None
 
+    if perf_counter() >= deadline:
+        logger.warning("Aborted article response after the total HTTP download deadline")
+        return None
     return body.decode(response.encoding or "utf-8", errors="replace")
 
 
@@ -659,14 +667,22 @@ def download_article_with_scraper(
         if scraper_inst is None:
             return None
 
+        deadline = perf_counter() + ARTICLE_HTTP_DOWNLOAD_DEADLINE_SECONDS
         for _ in range(_MAX_ARTICLE_REDIRECTS):
+            remaining = deadline - perf_counter()
+            if remaining <= 0:
+                logger.warning("Aborted article download after the total HTTP deadline")
+                return None
             response = scraper_inst.get(
                 url,
-                timeout=ARTICLE_HTTP_TIMEOUT_SECONDS,
+                timeout=min(ARTICLE_HTTP_TIMEOUT_SECONDS, remaining),
                 allow_redirects=False,
                 stream=True,
             )
             try:
+                if perf_counter() >= deadline:
+                    logger.warning("Aborted article download after the total HTTP deadline")
+                    return None
                 if 300 <= response.status_code < 400:
                     location = response.headers.get("Location")
                     if not location:
@@ -675,7 +691,7 @@ def download_article_with_scraper(
                     continue
 
                 if response.status_code < 400:
-                    html = _read_article_response(response, url)
+                    html = _read_article_response(response, url, deadline=deadline)
                     if html is None:
                         return None
                     return newspaper.article(url, input_html=html)
