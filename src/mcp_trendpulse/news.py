@@ -12,6 +12,7 @@ import asyncio
 import ipaddress
 import socket
 import threading
+from math import isfinite
 from time import perf_counter
 from html import unescape
 from datetime import datetime, timedelta, timezone
@@ -1139,6 +1140,15 @@ def _completed_trends_frame(df: pandas.DataFrame) -> pandas.DataFrame:
     return completed
 
 
+def _finite_trend_number(value: object) -> float | None:
+    """Exclude missing, unparseable, and nonfinite provider measurements."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if isfinite(number) else None
+
+
 def _trends_frame_to_points(df: pandas.DataFrame, keywords: list[str]) -> list[dict]:
     """Flatten one completed Trends frame into the package's stable point shape."""
     results: list[dict] = []
@@ -1146,9 +1156,12 @@ def _trends_frame_to_points(df: pandas.DataFrame, keywords: list[str]) -> list[d
         date_str = dt.strftime("%Y-%m-%d") if hasattr(dt, "strftime") else str(dt)[:10]
         for keyword in keywords:
             if keyword in df.columns:
+                value = _finite_trend_number(row[keyword])
+                if value is None:
+                    continue
                 results.append({
                     "date": date_str,
-                    "value": float(row[keyword]),
+                    "value": value,
                     "keyword": keyword,
                 })
     return results
@@ -1190,7 +1203,7 @@ def _growth_from_trend_points(
                 for point in points
                 if point.get("keyword") == keyword
                 and point.get("date") is not None
-                and point.get("value") is not None
+                and _finite_trend_number(point.get("value")) is not None
             ),
             key=lambda point: str(point["date"]),
         )
@@ -1231,7 +1244,8 @@ def _growth_from_trend_points(
             else:
                 # A zero baseline cannot define a percentage, even for 0 -> 0.
                 growth_pct = None
-            growth_dict[window] = round(growth_pct, 2) if growth_pct is not None else None
+            finite_growth = _finite_trend_number(growth_pct)
+            growth_dict[window] = round(finite_growth, 2) if finite_growth is not None else None
 
         results.append({"keyword": keyword, "growth": growth_dict})
     return results
@@ -1545,17 +1559,21 @@ async def get_interest_by_region(
         values = {}
         for kw in kw_list:
             if kw in df.columns:
-                values[kw] = float(row[kw])
+                value = _finite_trend_number(row[kw])
+                if value is not None:
+                    values[kw] = value
+        if not values:
+            continue
         region = {
             "geoName": str(row["geoName"]),
             "values": values
         }
         if "geoCode" in df.columns and pandas.notna(row["geoCode"]):
             region["geoCode"] = str(row["geoCode"])
-        if "lat" in df.columns and pandas.notna(row["lat"]):
-            region["lat"] = float(row["lat"])
-        if "lng" in df.columns and pandas.notna(row["lng"]):
-            region["lng"] = float(row["lng"])
+        if "lat" in df.columns and (latitude := _finite_trend_number(row["lat"])) is not None:
+            region["lat"] = latitude
+        if "lng" in df.columns and (longitude := _finite_trend_number(row["lng"])) is not None:
+            region["lng"] = longitude
         results.append(region)
     return results
 
@@ -1587,9 +1605,12 @@ async def get_related_queries(
         df = res.get(key)
         if df is not None and not df.empty:
             for _, row in df.iterrows():
+                value = _finite_trend_number(row["value"])
+                if value is None:
+                    continue
                 out[key].append({
                     "query": str(row["query"]),
-                    "value": float(row["value"])
+                    "value": value
                 })
     return out
 
@@ -1621,11 +1642,14 @@ async def get_related_topics(
         df = res.get(key)
         if df is not None and not df.empty:
             for _, row in df.iterrows():
+                value = _finite_trend_number(row["value"])
+                if value is None:
+                    continue
                 out[key].append({
                     "mid": str(row["mid"]),
                     "title": str(row["title"]),
                     "type": str(row["type"]),
-                    "value": float(row["value"])
+                    "value": value
                 })
     return out
 
