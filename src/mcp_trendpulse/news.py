@@ -1208,9 +1208,8 @@ def _growth_from_trend_points(
 
             if past_val > 0:
                 growth_pct = ((current_val - past_val) / past_val) * 100
-            elif current_val == 0:
-                growth_pct = 0.0
             else:
+                # A zero baseline cannot define a percentage, even for 0 -> 0.
                 growth_pct = None
             growth_dict[window] = round(growth_pct, 2) if growth_pct is not None else None
 
