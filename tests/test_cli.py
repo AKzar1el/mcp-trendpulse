@@ -312,6 +312,27 @@ def test_brief_pack_keeps_dedicated_growth_fetch_for_custom_timeframe():
     )
 
 
+def test_brief_pack_labels_stale_keyword_observations_and_uses_latest_by_date():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(
+        return_value=[
+            {"date": "2026-09-13", "keyword": "ChatGPT", "value": 80},
+            {"date": "2026-08-30", "keyword": "Claude", "value": 40},
+            {"date": "2026-08-23", "keyword": "Claude", "value": 20},
+        ]
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--keyword", "Claude", "--market", "US", "--timeframe", "today 5-y"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "| Claude | 40 | -15.50% | +300.00% |" in result.output
+    assert "Claude: last observation **2026-08-30** (market latest **2026-09-13**)" in result.output
+    assert "Latest complete Trends point: **2026-09-13**" in result.output
+
+
 def test_brief_pack_enforces_offer_keyword_and_market_limits():
     runner = CliRunner()
     too_many_keywords = [item for value in ["a", "b", "c", "d", "e", "f"] for item in ("--keyword", value)]
