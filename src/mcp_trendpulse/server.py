@@ -8,7 +8,7 @@ from fastmcp.server.middleware.logging import LoggingMiddleware
 from fastmcp.server.middleware.rate_limiting import RateLimitingMiddleware
 from fastmcp.server.middleware.error_handling import ErrorHandlingMiddleware
 from pydantic import BaseModel, Field, model_serializer
-from mcp_trendpulse.config import load_environment
+from mcp_trendpulse.config import GOOGLE_NEWS_MAX_RESULTS, load_environment
 from mcp_trendpulse.news import BrowserManager
 from mcp_trendpulse.middleware import ProviderErrorMiddleware
 from mcp_trendpulse.providers import get_provider_set
@@ -346,7 +346,7 @@ async def get_news_by_keyword(
     ctx: Context,
     keyword: Annotated[str, Field(description="Search term to find articles.", min_length=1, pattern=r".*\S.*")],
     period: Annotated[int, Field(description="Number of days to look back for articles.", ge=1)] = 7,
-    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
+    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1, le=GOOGLE_NEWS_MAX_RESULTS)] = 10,
     full_data: Annotated[
         bool,
         Field(
@@ -414,7 +414,7 @@ async def get_news_by_location(
     ctx: Context,
     location: Annotated[str, Field(description="Name of city/state/country.", min_length=1, pattern=r".*\S.*")],
     period: Annotated[int, Field(description="Number of days to look back for articles.", ge=1)] = 7,
-    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
+    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1, le=GOOGLE_NEWS_MAX_RESULTS)] = 10,
     full_data: Annotated[
         bool,
         Field(
@@ -481,7 +481,7 @@ async def get_news_by_topic(
     ctx: Context,
     topic: Annotated[str, Field(description="Topic to search for articles.", min_length=1, pattern=r".*\S.*")],
     period: Annotated[int, Field(description="Number of days to look back for articles.", ge=1)] = 7,
-    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
+    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1, le=GOOGLE_NEWS_MAX_RESULTS)] = 10,
     full_data: Annotated[
         bool,
         Field(
@@ -548,7 +548,7 @@ async def get_news_by_topic(
 async def get_top_news(
     ctx: Context,
     period: Annotated[int, Field(description="Number of days to look back for top articles.", ge=1)] = 3,
-    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
+    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1, le=GOOGLE_NEWS_MAX_RESULTS)] = 10,
     full_data: Annotated[
         bool,
         Field(
@@ -756,7 +756,7 @@ async def get_news_by_site(
     ctx: Context,
     site: Annotated[str, Field(description="Domain of the news site, e.g. 'cnn.com'.", min_length=1, pattern=r".*\S.*")],
     period: Annotated[int, Field(description="Number of days to look back for articles.", ge=1)] = 7,
-    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1)] = 10,
+    max_results: Annotated[int, Field(description="Maximum number of results to return.", ge=1, le=GOOGLE_NEWS_MAX_RESULTS)] = 10,
     full_data: Annotated[
         bool,
         Field(

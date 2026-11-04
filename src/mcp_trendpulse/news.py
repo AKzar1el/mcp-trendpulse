@@ -32,6 +32,7 @@ from collections.abc import Callable
 from urllib.parse import quote, urljoin, urlsplit
 
 from mcp_trendpulse.config import (
+    GOOGLE_NEWS_MAX_RESULTS,
     get_browser_sandbox_enabled,
     get_google_news_country,
     get_google_news_language,
@@ -319,6 +320,9 @@ class _DeferredUrlGNews(GNews):
 
 def _new_google_news(period: int, max_results: int) -> GNews:
     """Create an isolated Google News client for one request."""
+    # GNews drops its configured date window when paginating over 100 items.
+    if not 1 <= max_results <= GOOGLE_NEWS_MAX_RESULTS:
+        raise ValueError(f"Google News max_results must be between 1 and {GOOGLE_NEWS_MAX_RESULTS}.")
     client = _DeferredUrlGNews(
         language=get_google_news_language(),
         country=get_google_news_country(),

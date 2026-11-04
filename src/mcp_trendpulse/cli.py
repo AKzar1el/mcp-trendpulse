@@ -6,7 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 import click
-from mcp_trendpulse.config import load_environment
+from mcp_trendpulse.config import GOOGLE_NEWS_MAX_RESULTS, load_environment
 # Delay heavyweight news/browser/NLP imports until a CLI command needs them.
 # Click help text preserves the underlying news API documentation.
 def _news_export(name):
@@ -171,7 +171,7 @@ def watch_evaluate(rule_id, evidence):
 @click.option(
     "--max-results",
     "max_results",
-    type=int,
+    type=click.IntRange(1, GOOGLE_NEWS_MAX_RESULTS),
     default=10,
     help="Maximum number of results to return.",
 )
@@ -199,7 +199,7 @@ def keyword(keyword, period, max_results, no_nlp, headlines_only):
 @click.option(
     "--max-results",
     "max_results",
-    type=int,
+    type=click.IntRange(1, GOOGLE_NEWS_MAX_RESULTS),
     default=10,
     help="Maximum number of results to return.",
 )
@@ -227,7 +227,7 @@ def location(location, period, max_results, no_nlp, headlines_only):
 @click.option(
     "--max-results",
     "max_results",
-    type=int,
+    type=click.IntRange(1, GOOGLE_NEWS_MAX_RESULTS),
     default=10,
     help="Maximum number of results to return.",
 )
@@ -278,7 +278,7 @@ def trending(geo, full_data):
 @click.option(
     "--max-results",
     "max_results",
-    type=int,
+    type=click.IntRange(1, GOOGLE_NEWS_MAX_RESULTS),
     default=10,
     help="Maximum number of results to return.",
 )
@@ -303,7 +303,7 @@ def top(period, max_results, no_nlp, headlines_only):
 @cli.command(help=get_news_by_site.__doc__)
 @click.argument("site")
 @click.option("--period", type=int, default=7, help="Period in days to search for articles.")
-@click.option("--max-results", "max_results", type=int, default=10, help="Maximum number of results.")
+@click.option("--max-results", "max_results", type=click.IntRange(1, GOOGLE_NEWS_MAX_RESULTS), default=10, help="Maximum number of results.")
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
 def site(site, period, max_results, no_nlp, headlines_only):
