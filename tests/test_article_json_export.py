@@ -61,9 +61,28 @@ def test_save_article_to_json_handles_invalid_path(caplog, tmp_path):
     assert f"Failed to save article to {filename}" in caplog.text
 
 
+def test_save_article_exclusive_export_preserves_existing_file(tmp_path):
+    filename = tmp_path / "article.json"
+    filename.write_text("prior report", encoding="utf-8")
+
+    with pytest.raises(FileExistsError):
+        save_article_to_json(_article(), str(filename), fail_if_exists=True, raise_on_error=True)
+
+    assert filename.read_text(encoding="utf-8") == "prior report"
+
+
+def test_save_article_exclusive_export_creates_new_json(tmp_path):
+    filename = tmp_path / "article.json"
+
+    save_article_to_json(_article(), str(filename), fail_if_exists=True, raise_on_error=True)
+
+    assert json.loads(filename.read_text(encoding="utf-8"))["url"] == "https://example.com/article"
+
+
 def test_save_article_to_json_does_not_stringify_unsupported_values(tmp_path):
     article = _article()
     article.meta_data = {"unsupported": object()}
 
     with pytest.raises(TypeError, match="not JSON serializable"):
         save_article_to_json(article, str(tmp_path / "article.json"))
+    assert not (tmp_path / "article.json").exists()

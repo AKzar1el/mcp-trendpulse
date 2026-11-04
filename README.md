@@ -312,6 +312,8 @@ uvx --python 3.11 --from mcp-trendpulse mcp-trendpulse-cli keyword "OpenAI" --he
 
 From a local source checkout, `uv run mcp-trendpulse-cli --help` uses that checkout. The opt-in headline-only commands return genuine Google News RSS titles, publishers, dates, and Google News links labeled as metadata, **not** extracted article bodies. Default news commands continue to attempt publisher-article extraction.
 
+**Source checkout (not yet in the published PyPI version):** Extracted-article CLI commands print results without creating JSON files. To opt into file export, pass `--save-json-dir` with an existing directory, for example `uv run mcp-trendpulse-cli keyword "OpenAI" --save-json-dir ./exports`. Output filenames include a short URL hash to distinguish similarly titled articles; existing files are never overwritten, and duplicate destinations or export failures produce errors. The `--headlines-only` mode does not export article JSON.
+
 The operator-only `bigquery-sql` command generates a fixed-table, partition-filtered SQL preview for Google's official public Top 25 / Rising datasets. It never submits a job or incurs API usage automatically. See `docs/bigquery-trends.md` for sandbox, query-cost guardrails, and market-coverage limitations.
 
 `watch` provides opt-in **local manual** threshold rules and idempotent evaluation of user-supplied normalized interest evidence; it does not poll providers, schedule runs, or send external alerts. See `docs/trend-watch.md` before using the commands.
