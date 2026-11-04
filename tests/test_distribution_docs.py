@@ -147,11 +147,24 @@ def test_pages_install_and_client_switchers_expose_accessible_selection():
     assert all('aria-controls="configCode"' in button for button in client_buttons)
     assert 'role="group" aria-label="Installation command and copy"' in page
     assert 'role="group" aria-label="MCP client configuration choices"' in page
-    assert 'id="cmdText" aria-live="polite"' in page
+    assert 'id="cmdText" tabindex="0" aria-live="polite"' in page
     assert 'id="configCode" tabindex="0"' in page
     assert 'role="status" id="configStatus"' in page
     assert page.count("t.setAttribute('aria-pressed', String(selected));") == 2
     assert "configStatus').textContent" in page
+
+
+def test_pages_install_copy_reports_failure_instead_of_false_success():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="copyStatus" role="status" aria-live="polite"' in page
+    assert 'id="cmdText" tabindex="0"' in page
+    assert "if (!navigator.clipboard?.writeText)" in page
+    assert "copied = document.execCommand('copy')" in page
+    assert "copied ? 'Copied' : 'Copy failed'" in page
+    assert "copyBtn.classList.toggle('copy-failed', !copied)" in page
+    assert "Copy failed. Focus the command and copy it manually." in page
+    assert "copyBtn.setAttribute('aria-label', 'Copy install command')" in page
 
 
 def test_pages_publish_agentic_resource_discovery_metadata():

@@ -453,7 +453,7 @@
     color: var(--text);
     border-bottom-color: var(--lime);
   }
-  .term-tab:focus-visible, .client-tab:focus-visible, .copy-btn:focus-visible {
+  .term-tab:focus-visible, .client-tab:focus-visible, .copy-btn:focus-visible, .term-cmd:focus-visible {
     outline: 2px solid var(--lime);
     outline-offset: -3px;
   }
@@ -480,6 +480,10 @@
   .copy-btn.copied {
     color: var(--lime);
     border-color: var(--lime);
+  }
+  .copy-btn.copy-failed {
+    color: #FCA5A5;
+    border-color: #FCA5A5;
   }
   .copy-btn .icon-check { display: none; }
   .copy-btn.copied .icon-copy { display: none; }
@@ -988,11 +992,12 @@
           <svg class="icon-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"/></svg>
           <span class="copy-label">Copy</span>
         </button>
+        <span class="sr-only" id="copyStatus" role="status" aria-live="polite"></span>
       </div>
       <div class="term-body">
         <div class="term-line">
           <span class="term-prompt mono">$</span>
-          <code class="term-cmd mono" id="cmdText" aria-live="polite" aria-atomic="true">uvx mcp-trendpulse@latest</code>
+          <code class="term-cmd mono" id="cmdText" tabindex="0" aria-live="polite" aria-atomic="true">uvx mcp-trendpulse@latest</code>
         </div>
         <div class="term-output mono">
           <div>Example output — exact resolver details may differ</div>
@@ -1247,24 +1252,36 @@
   });
 
   copyBtn.addEventListener('click', async () => {
+    let copied = false;
     try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
       await navigator.clipboard.writeText(currentCmd);
-    } catch (e) {
+      copied = true;
+    } catch (_) {
       const ta = document.createElement('textarea');
       ta.value = currentCmd;
       ta.style.position = 'fixed';
       ta.style.opacity = '0';
+      const previouslyFocused = document.activeElement;
       document.body.appendChild(ta);
       ta.select();
-      try { document.execCommand('copy'); } catch (_) {}
-      document.body.removeChild(ta);
+      try { copied = document.execCommand('copy'); } catch (_) { copied = false; }
+      ta.remove();
+      if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus({ preventScroll: true });
     }
-    copyBtn.classList.add('copied');
-    copyBtn.querySelector('.copy-label').textContent = 'Copied';
+    copyBtn.classList.toggle('copied', copied);
+    copyBtn.classList.toggle('copy-failed', !copied);
+    copyBtn.querySelector('.copy-label').textContent = copied ? 'Copied' : 'Copy failed';
+    copyBtn.setAttribute('aria-label', copied ? 'Install command copied' : 'Copy failed; copy the command manually');
+    document.getElementById('copyStatus').textContent = copied
+      ? 'Install command copied to clipboard.'
+      : 'Copy failed. Focus the command and copy it manually.';
     clearTimeout(copyReset);
     copyReset = setTimeout(() => {
-      copyBtn.classList.remove('copied');
+      copyBtn.classList.remove('copied', 'copy-failed');
       copyBtn.querySelector('.copy-label').textContent = 'Copy';
+      copyBtn.setAttribute('aria-label', 'Copy install command');
+      document.getElementById('copyStatus').textContent = '';
     }, 1800);
   });
 
