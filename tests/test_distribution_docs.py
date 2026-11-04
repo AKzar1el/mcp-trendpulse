@@ -1,4 +1,7 @@
 import json
+import re
+import tomllib
+from html import unescape
 from pathlib import Path
 
 
@@ -80,6 +83,22 @@ def test_devin_plugin_install_reuses_stable_community_mcp():
     assert "unreleased hosted TrendPulse endpoint" in devin_section
 
 
+def test_devin_local_docs_do_not_reuse_legacy_windsurf_mcp_path():
+    guide = (PROJECT_ROOT / "docs/windsurf.md").read_text(encoding="utf-8")
+    devin_section = guide.split("## Devin Desktop / Devin Local (current)", 1)[1].split(
+        "## Legacy Windsurf Cascade", 1
+    )[0]
+    legacy_section = guide.split("## Legacy Windsurf Cascade", 1)[1]
+
+    assert "Customize > MCPs" in devin_section
+    assert "~/.config/devin/mcp_config.json" in devin_section
+    assert ".devin/mcp_config.json" in devin_section
+    assert ".devin/mcp_config.local.json" in devin_section
+    assert "~/.codeium/windsurf/mcp_config.json" not in devin_section
+    assert "~/.codeium/windsurf/mcp_config.json" in legacy_section
+    assert "https://docs.devin.ai/desktop/devin-local/customizations#configuration" in guide
+
+
 def test_kiro_docs_link_community_privacy_notice_and_support():
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     privacy = (PROJECT_ROOT / "PRIVACY.md").read_text(encoding="utf-8")
@@ -130,6 +149,94 @@ def test_pages_visual_examples_are_not_presented_as_live_evidence():
     assert "+196%" not in page
 
 
+def test_pages_install_and_client_switchers_expose_accessible_selection():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+    install_buttons = re.findall(r'<button[^>]+class="term-tab(?: active)?"[^>]*>', page)
+    client_buttons = re.findall(r'<button[^>]+class="client-tab(?: active)?"[^>]*>', page)
+
+    assert len(install_buttons) == 2
+    assert len(client_buttons) == 5
+    for group in (install_buttons, client_buttons):
+        assert all('type="button"' in button for button in group)
+        assert sum('aria-pressed="true"' in button for button in group) == 1
+        assert sum('aria-pressed="false"' in button for button in group) == len(group) - 1
+
+    assert all('aria-controls="configCode"' in button for button in client_buttons)
+    assert 'role="group" aria-label="Installation command and copy"' in page
+    assert 'role="group" aria-label="MCP client configuration choices"' in page
+    assert 'id="cmdText" tabindex="0" aria-live="polite"' in page
+    assert 'id="configCode" tabindex="0"' in page
+    assert 'role="status" id="configStatus"' in page
+    assert page.count("t.setAttribute('aria-pressed', String(selected));") == 2
+    assert "configStatus').textContent" in page
+
+
+def test_pages_install_copy_reports_failure_instead_of_false_success():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="copyStatus" role="status" aria-live="polite"' in page
+    assert 'id="cmdText" tabindex="0"' in page
+    assert "if (!navigator.clipboard?.writeText)" in page
+    assert "copied = document.execCommand('copy')" in page
+    assert "copied ? 'Copied' : 'Copy failed'" in page
+    assert "copyBtn.classList.toggle('copy-failed', !copied)" in page
+    assert "Copy failed. Focus the command and copy it manually." in page
+    assert "copyBtn.setAttribute('aria-label', 'Copy install command')" in page
+    assert "if (cmdAtClick !== currentCmd) return" in page
+    assert "copyBtn.classList.remove('copied', 'copy-failed')" in page
+
+
+def _rendered_client_snippet(page: str, client: str) -> str:
+    configs = page.split("const configs = {", 1)[1].split("\n  };", 1)[0]
+    match = re.search(rf"\b{client}: `([\s\S]*?)`", configs)
+    assert match, f"Missing {client} client snippet"
+    return unescape(re.sub(r"</?span[^>]*>", "", match.group(1))).strip()
+
+
+def test_pages_client_config_snippets_are_copy_paste_valid():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+
+    for client in ("claude", "cursor", "gemini", "antigravity"):
+        snippet = _rendered_client_snippet(page, client)
+        parsed = json.loads(snippet)
+        assert parsed["mcpServers"]["mcp-trendpulse"]["command"] == "uvx"
+        assert parsed["mcpServers"]["mcp-trendpulse"]["args"] == ["mcp-trendpulse@latest"]
+        assert not snippet.startswith("//")
+        assert "transport" not in parsed["mcpServers"]["mcp-trendpulse"]
+
+    assert (
+        _rendered_client_snippet(page, "codex")
+        == "codex mcp add mcp-trendpulse -- uvx mcp-trendpulse"
+    )
+
+
+def test_pages_use_official_distinct_gemini_and_antigravity_config_paths():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+
+    assert 'data-client="gemini"' in page
+    assert 'data-client="antigravity"' in page
+    assert '<span class="client-name">Gemini CLI</span>' in page
+    assert '<span class="client-name">Google Antigravity</span>' in page
+    assert "gemini: '~/.gemini/settings.json'" in page
+    assert "antigravity: '~/.gemini/config/mcp_config.json'" in page
+    assert "~/.antigravity/mcp.json" not in page
+    assert "https://geminicli.com/docs/cli/tutorials/mcp-setup/" in page
+    assert "https://antigravity.google/docs/mcp" in page
+
+
+def test_pages_client_config_copy_is_accessible_and_reports_failure():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="configFilename"' in page
+    assert 'id="configCopyBtn" aria-label="Copy selected MCP client configuration"' in page
+    assert 'id="configCopyStatus" aria-live="polite"' in page
+    assert "copyPlainText(configCode.textContent.trim())" in page
+    assert "configCopyStatus.textContent = copied" in page
+    assert "Copy failed. Focus the configuration and copy it manually." in page
+    assert "if (clientAtClick !== currentClient) return" in page
+    assert "configCopyBtn.classList.remove('copied', 'copy-failed')" in page
+
+
 def test_pages_publish_agentic_resource_discovery_metadata():
     page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
     marker = '<script id="ard-discovery" type="application/ld+json">'
@@ -175,14 +282,27 @@ def test_pages_publish_current_mcpvault_verification_badge():
     assert 'alt="MCPVault: verified"' in page
 
 
-def test_pages_offer_openai_desktop_local_stdio_install():
+def test_pages_python_floor_matches_installed_package():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+    project = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+
+    assert project["requires-python"] == ">=3.11"
+    assert "python ≥ 3.11" in page
+    assert "python ≥ 3.10" not in page
+
+
+def test_pages_distinguish_codex_local_stdio_from_chatgpt_plugin_connections():
     page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
 
     assert 'data-client="codex"' in page
-    assert "ChatGPT Desktop · Codex" in page
-    assert "shared local MCP config" in page
-    assert "// ChatGPT Desktop / Codex CLI / IDE" in page
+    assert "Codex CLI · IDE" in page
+    assert "shared Codex MCP config" in page
+    assert "Codex CLI / IDE terminal command" in page
     assert "codex mcp add mcp-trendpulse -- uvx mcp-trendpulse" in page
+    assert "ChatGPT does not automatically use the local Codex MCP configuration" in page
+    assert "ChatGPT connections require a separate plugin connection" in page
+    assert "https://developers.openai.com/plugins/deploy/connect-chatgpt" in page
+    assert "ChatGPT Desktop · Codex" not in page
 
 
 def test_pages_top_trends_copy_matches_current_provider_paths():
