@@ -1,4 +1,5 @@
 import json
+import re
 import tomllib
 from pathlib import Path
 
@@ -129,6 +130,28 @@ def test_pages_visual_examples_are_not_presented_as_live_evidence():
     assert "+412%" not in page
     assert "+287%" not in page
     assert "+196%" not in page
+
+
+def test_pages_install_and_client_switchers_expose_accessible_selection():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+    install_buttons = re.findall(r'<button[^>]+class="term-tab(?: active)?"[^>]*>', page)
+    client_buttons = re.findall(r'<button[^>]+class="client-tab(?: active)?"[^>]*>', page)
+
+    assert len(install_buttons) == 2
+    assert len(client_buttons) == 4
+    for group in (install_buttons, client_buttons):
+        assert all('type="button"' in button for button in group)
+        assert sum('aria-pressed="true"' in button for button in group) == 1
+        assert sum('aria-pressed="false"' in button for button in group) == len(group) - 1
+
+    assert all('aria-controls="configCode"' in button for button in client_buttons)
+    assert 'role="group" aria-label="Installation command and copy"' in page
+    assert 'role="group" aria-label="MCP client configuration choices"' in page
+    assert 'id="cmdText" aria-live="polite"' in page
+    assert 'id="configCode" tabindex="0"' in page
+    assert 'role="status" id="configStatus"' in page
+    assert page.count("t.setAttribute('aria-pressed', String(selected));") == 2
+    assert "configStatus').textContent" in page
 
 
 def test_pages_publish_agentic_resource_discovery_metadata():

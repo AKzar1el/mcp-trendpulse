@@ -453,6 +453,10 @@
     color: var(--text);
     border-bottom-color: var(--lime);
   }
+  .term-tab:focus-visible, .client-tab:focus-visible, .copy-btn:focus-visible {
+    outline: 2px solid var(--lime);
+    outline-offset: -3px;
+  }
   .copy-btn {
     margin-left: auto;
     background: var(--bg-elev);
@@ -724,6 +728,17 @@
   .config-code .k { color: var(--indigo-soft); }
   .config-code .s { color: var(--text); }
   .config-code .c { color: var(--text-faint); }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
   .config-note {
     margin-top: 18px;
     max-width: 780px;
@@ -965,10 +980,10 @@
         <div class="term-dots"><span></span><span></span><span></span></div>
         <span class="mono term-title">~/projects/agent</span>
       </div>
-      <div class="term-tabs">
-        <button class="term-tab active" data-cmd="uvx mcp-trendpulse@latest">uvx</button>
-        <button class="term-tab" data-cmd="pip install mcp-trendpulse">pip</button>
-        <button class="copy-btn" id="copyBtn" aria-label="Copy install command">
+      <div class="term-tabs" role="group" aria-label="Installation command and copy">
+        <button type="button" class="term-tab active" aria-pressed="true" data-cmd="uvx mcp-trendpulse@latest">uvx</button>
+        <button type="button" class="term-tab" aria-pressed="false" data-cmd="pip install mcp-trendpulse">pip</button>
+        <button type="button" class="copy-btn" id="copyBtn" aria-label="Copy install command">
           <svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="9" height="9" rx="1"/><path d="M11 4V3a1 1 0 00-1-1H3a1 1 0 00-1 1v7a1 1 0 001 1h1"/></svg>
           <svg class="icon-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"/></svg>
           <span class="copy-label">Copy</span>
@@ -977,7 +992,7 @@
       <div class="term-body">
         <div class="term-line">
           <span class="term-prompt mono">$</span>
-          <code class="term-cmd mono" id="cmdText">uvx mcp-trendpulse@latest</code>
+          <code class="term-cmd mono" id="cmdText" aria-live="polite" aria-atomic="true">uvx mcp-trendpulse@latest</code>
         </div>
         <div class="term-output mono">
           <div>Example output — exact resolver details may differ</div>
@@ -1103,26 +1118,27 @@
       </div>
     </div>
     <div class="config-panel">
-      <aside class="config-clients">
-        <button class="client-tab active" data-client="claude">
+      <aside class="config-clients" role="group" aria-label="MCP client configuration choices">
+        <button type="button" class="client-tab active" data-client="claude" aria-pressed="true" aria-controls="configCode">
           <span class="client-name">Claude Desktop</span>
           <span class="client-path mono">~/Library/Application Support/Claude/claude_desktop_config.json</span>
         </button>
-        <button class="client-tab" data-client="cursor">
+        <button type="button" class="client-tab" data-client="cursor" aria-pressed="false" aria-controls="configCode">
           <span class="client-name">Cursor</span>
           <span class="client-path mono">.cursor/mcp.json</span>
         </button>
-        <button class="client-tab" data-client="codex">
+        <button type="button" class="client-tab" data-client="codex" aria-pressed="false" aria-controls="configCode">
           <span class="client-name">Codex CLI · IDE</span>
           <span class="client-path mono">shared Codex MCP config</span>
         </button>
-        <button class="client-tab" data-client="gemini">
+        <button type="button" class="client-tab" data-client="gemini" aria-pressed="false" aria-controls="configCode">
           <span class="client-name">Gemini · Antigravity</span>
           <span class="client-path mono">~/.antigravity/mcp.json</span>
         </button>
       </aside>
       <div class="config-code">
-        <pre id="configCode"></pre>
+        <p class="sr-only" role="status" id="configStatus" aria-live="polite"></p>
+        <pre id="configCode" tabindex="0" aria-label="Selected MCP client configuration"></pre>
       </div>
     </div>
     <p class="config-note">ChatGPT does not automatically use the local Codex MCP configuration. ChatGPT connections require a separate plugin connection to an HTTPS MCP endpoint or an available Secure MCP Tunnel. The managed TrendPulse endpoint is not released yet. <a href="https://developers.openai.com/plugins/deploy/connect-chatgpt">See OpenAI's connection guide.</a></p>
@@ -1220,8 +1236,11 @@
 
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
-      tabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
+      tabs.forEach(t => {
+        const selected = t === tab;
+        t.classList.toggle('active', selected);
+        t.setAttribute('aria-pressed', String(selected));
+      });
       currentCmd = tab.dataset.cmd;
       cmdText.textContent = currentCmd;
     });
@@ -1287,8 +1306,15 @@
   const configCode = document.getElementById('configCode');
 
   function setClient(client) {
-    clientTabs.forEach(t => t.classList.toggle('active', t.dataset.client === client));
+    clientTabs.forEach(t => {
+      const selected = t.dataset.client === client;
+      t.classList.toggle('active', selected);
+      t.setAttribute('aria-pressed', String(selected));
+    });
     configCode.innerHTML = configs[client];
+    const selectedTab = [...clientTabs].find(t => t.dataset.client === client);
+    document.getElementById('configStatus').textContent =
+      `Showing ${selectedTab.querySelector('.client-name').textContent} configuration`;
   }
   clientTabs.forEach(tab => {
     tab.addEventListener('click', () => setClient(tab.dataset.client));
