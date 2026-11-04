@@ -1152,8 +1152,15 @@ def _finite_trend_number(value: object) -> float | None:
 def _trends_frame_to_points(df: pandas.DataFrame, keywords: list[str]) -> list[dict]:
     """Flatten one completed Trends frame into the package's stable point shape."""
     results: list[dict] = []
+    intraday = False
+    if isinstance(df.index, pandas.DatetimeIndex):
+        days = df.index.normalize()
+        intraday = not df.index.equals(days) or days.has_duplicates
     for dt, row in df.iterrows():
-        date_str = dt.strftime("%Y-%m-%d") if hasattr(dt, "strftime") else str(dt)[:10]
+        if intraday:
+            date_str = dt.isoformat()
+        else:
+            date_str = dt.strftime("%Y-%m-%d") if hasattr(dt, "strftime") else str(dt)[:10]
         for keyword in keywords:
             if keyword in df.columns:
                 value = _finite_trend_number(row[keyword])

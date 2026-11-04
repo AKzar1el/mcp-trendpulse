@@ -29,6 +29,27 @@ async def test_get_trends_forwards_explicit_timeframe_and_category():
     )
 
 
+async def test_get_trends_preserves_hourly_timestamps_and_utc_offset():
+    times = pd.date_range("2026-11-04", periods=3, freq="h", tz="UTC")
+    frame = pd.DataFrame({"python": [10.0, 20.0, 30.0]}, index=times)
+
+    with patch.object(news.tr, "interest_over_time", return_value=frame):
+        points = await news.get_trends("python", timeframe="now 1-d")
+
+    assert [point["date"] for point in points] == [timestamp.isoformat() for timestamp in times]
+    assert len({point["date"] for point in points}) == 3
+
+
+async def test_get_trends_preserves_legacy_date_only_daily_labels():
+    dates = pd.date_range("2026-10-01", periods=3, freq="D", tz="UTC")
+    frame = pd.DataFrame({"python": [10.0, 20.0, 30.0]}, index=dates)
+
+    with patch.object(news.tr, "interest_over_time", return_value=frame):
+        points = await news.get_trends("python", timeframe="today 3-m")
+
+    assert [point["date"] for point in points] == [timestamp.strftime("%Y-%m-%d") for timestamp in dates]
+
+
 async def test_get_trends_preserves_legacy_data_mode_when_timeframe_is_omitted():
     dates = pd.date_range(start="2021-01-01", periods=1, freq="YS")
     frame = pd.DataFrame(
