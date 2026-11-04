@@ -1,6 +1,7 @@
 import json
 import re
 import tomllib
+from html import unescape
 from pathlib import Path
 
 
@@ -165,6 +166,44 @@ def test_pages_install_copy_reports_failure_instead_of_false_success():
     assert "copyBtn.classList.toggle('copy-failed', !copied)" in page
     assert "Copy failed. Focus the command and copy it manually." in page
     assert "copyBtn.setAttribute('aria-label', 'Copy install command')" in page
+    assert "if (cmdAtClick !== currentCmd) return" in page
+    assert "copyBtn.classList.remove('copied', 'copy-failed')" in page
+
+
+def _rendered_client_snippet(page: str, client: str) -> str:
+    configs = page.split("const configs = {", 1)[1].split("\n  };", 1)[0]
+    match = re.search(rf"\b{client}: `([\s\S]*?)`", configs)
+    assert match, f"Missing {client} client snippet"
+    return unescape(re.sub(r"</?span[^>]*>", "", match.group(1))).strip()
+
+
+def test_pages_client_config_snippets_are_copy_paste_valid():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+
+    for client in ("claude", "cursor", "gemini"):
+        snippet = _rendered_client_snippet(page, client)
+        parsed = json.loads(snippet)
+        assert parsed["mcpServers"]["mcp-trendpulse"]["command"] == "uvx"
+        assert parsed["mcpServers"]["mcp-trendpulse"]["args"] == ["mcp-trendpulse@latest"]
+        assert not snippet.startswith("//")
+
+    assert (
+        _rendered_client_snippet(page, "codex")
+        == "codex mcp add mcp-trendpulse -- uvx mcp-trendpulse"
+    )
+
+
+def test_pages_client_config_copy_is_accessible_and_reports_failure():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="configFilename"' in page
+    assert 'id="configCopyBtn" aria-label="Copy selected MCP client configuration"' in page
+    assert 'id="configCopyStatus" aria-live="polite"' in page
+    assert "copyPlainText(configCode.textContent.trim())" in page
+    assert "configCopyStatus.textContent = copied" in page
+    assert "Copy failed. Focus the configuration and copy it manually." in page
+    assert "if (clientAtClick !== currentClient) return" in page
+    assert "configCopyBtn.classList.remove('copied', 'copy-failed')" in page
 
 
 def test_pages_publish_agentic_resource_discovery_metadata():
@@ -227,7 +266,7 @@ def test_pages_distinguish_codex_local_stdio_from_chatgpt_plugin_connections():
     assert 'data-client="codex"' in page
     assert "Codex CLI · IDE" in page
     assert "shared Codex MCP config" in page
-    assert "// Codex CLI / Codex IDE extension" in page
+    assert "Codex CLI / IDE terminal command" in page
     assert "codex mcp add mcp-trendpulse -- uvx mcp-trendpulse" in page
     assert "ChatGPT does not automatically use the local Codex MCP configuration" in page
     assert "ChatGPT connections require a separate plugin connection" in page
