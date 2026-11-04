@@ -1,6 +1,8 @@
 import io
+import json
 import sys
 from datetime import date, timedelta
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from click.testing import CliRunner
@@ -41,7 +43,114 @@ def test_keyword_command_emits_article_fields_and_result_count():
     assert "Summary: CLI summary" in result.output
     assert "Found 1 articles for keyword 'python'." in result.output
     get_news.assert_awaited_once_with("python", period=7, max_results=10, nlp=False)
-    save_article.assert_called_once_with(article)
+    save_article.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("command", "argument", "provider"),
+    [
+        ("keyword", "python", "get_news_by_keyword"),
+        ("location", "London", "get_news_by_location"),
+        ("topic", "TECHNOLOGY", "get_news_by_topic"),
+        ("site", "example.com", "get_news_by_site"),
+        ("top", None, "get_top_news"),
+    ],
+)
+def test_article_cli_explicit_json_export_uses_exclusive_mode(tmp_path, command, argument, provider):
+    article = MockArticle()
+    args = [command] + ([argument] if argument else []) + ["--save-json-dir", str(tmp_path)]
+    with (
+        patch("mcp_trendpulse.cli.BrowserManager", return_value=NoopBrowserManager()),
+        patch(f"mcp_trendpulse.cli.{provider}", new=AsyncMock(return_value=[article])),
+        patch("mcp_trendpulse.cli.save_article_to_json") as save_article,
+    ):
+        result = CliRunner().invoke(cli_module.cli, args)
+
+    assert result.exit_code == 0, result.output
+    save_article.assert_called_once()
+    saved_args, saved_kwargs = save_article.call_args
+    assert saved_args[0] is article
+    assert Path(saved_args[1]).parent == tmp_path
+    assert Path(saved_args[1]).name.startswith("CLI_article-")
+    assert saved_kwargs == {"fail_if_exists": True, "raise_on_error": True}
+
+
+def test_article_cli_refuses_existing_json_without_overwriting(tmp_path):
+    article = MockArticle()
+    path = tmp_path / cli_module._article_export_filename(article)
+    path.write_text("existing contents", encoding="utf-8")
+    with (
+        patch("mcp_trendpulse.cli.BrowserManager", return_value=NoopBrowserManager()),
+        patch("mcp_trendpulse.cli.get_news_by_keyword", new=AsyncMock(return_value=[article])),
+        patch("mcp_trendpulse.cli.save_article_to_json") as save_article,
+    ):
+        result = CliRunner().invoke(cli_module.cli, ["keyword", "python", "--save-json-dir", str(tmp_path)])
+
+    assert result.exit_code != 0
+    assert "refusing to overwrite" in result.output
+    assert path.read_text(encoding="utf-8") == "existing contents"
+    save_article.assert_not_called()
+
+
+def test_article_cli_detects_duplicate_export_destinations(tmp_path):
+    articles = [MockArticle(), MockArticle()]
+    with (
+        patch("mcp_trendpulse.cli.BrowserManager", return_value=NoopBrowserManager()),
+        patch("mcp_trendpulse.cli.get_news_by_keyword", new=AsyncMock(return_value=articles)),
+        patch("mcp_trendpulse.cli.save_article_to_json") as save_article,
+    ):
+        result = CliRunner().invoke(cli_module.cli, ["keyword", "python", "--save-json-dir", str(tmp_path)])
+
+    assert result.exit_code != 0
+    assert "Duplicate article URLs" in result.output
+    assert list(tmp_path.iterdir()) == []
+    save_article.assert_not_called()
+
+
+def test_article_export_different_urls_same_title_get_distinct_filenames():
+    first = SimpleNamespace(title="A/B", original_url="https://example.com/1")
+    second = SimpleNamespace(title="A/B", original_url="https://example.com/2")
+    assert cli_module._article_export_filename(first) != cli_module._article_export_filename(second)
+    assert cli_module._article_export_filename(first).startswith("A_B-")
+
+
+def test_keyword_cli_json_export_is_opt_in_and_non_clobbering(tmp_path, monkeypatch):
+    article = SimpleNamespace(
+        title="Interesting article", original_url="https://example.com/interesting",
+        authors=[], publish_date=None, top_image="", images=set(), text="Article text",
+        summary="Summary", keywords=[], keyword_scores={}, tags=set(), meta_keywords=[],
+        meta_description="", canonical_link="", meta_data={}, meta_lang="en", source_url="https://example.com",
+    )
+    monkeypatch.chdir(tmp_path)
+    with (
+        patch("mcp_trendpulse.cli.BrowserManager", return_value=NoopBrowserManager()),
+        patch("mcp_trendpulse.cli.get_news_by_keyword", new=AsyncMock(return_value=[article])),
+    ):
+        output_only = CliRunner().invoke(cli_module.cli, ["keyword", "example"])
+        assert output_only.exit_code == 0, output_only.output
+        assert list(tmp_path.glob("*.json")) == []
+
+        args = ["keyword", "example", "--save-json-dir", str(tmp_path)]
+        first_export = CliRunner().invoke(cli_module.cli, args)
+        assert first_export.exit_code == 0, first_export.output
+        saved = list(tmp_path.glob("*.json"))
+        assert len(saved) == 1
+        original_bytes = saved[0].read_bytes()
+        assert json.loads(original_bytes)["url"] == article.original_url
+
+        second_export = CliRunner().invoke(cli_module.cli, args)
+        assert second_export.exit_code != 0
+        assert "refusing to overwrite" in second_export.output
+        assert saved[0].read_bytes() == original_bytes
+
+
+@pytest.mark.parametrize("command,argument", [("keyword", "ai"), ("location", "London"),
+                                          ("topic", "WORLD"), ("top", None), ("site", "example.com")])
+def test_article_cli_headline_mode_rejects_json_export(tmp_path, command, argument):
+    args = [command] + ([argument] if argument else [])
+    result = CliRunner().invoke(cli_module.cli, args + ["--headlines-only", "--save-json-dir", str(tmp_path)])
+    assert result.exit_code != 0
+    assert "not supported with --headlines-only" in result.output
 
 
 def test_trending_command_emits_results():

@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import pytest
 from fastmcp import Client
 
@@ -129,16 +127,23 @@ class FakeTrendsProvider:
 class FakeNewsProvider:
     provider_id = "fake_news"
 
-    async def get_news_by_keyword(self, keyword, period=7, max_results=10, **kwargs):
+    def __init__(self):
+        self.rss_calls = []
+
+    async def get_rss_headlines_by_keyword(self, keyword, period=7, max_results=10):
+        self.rss_calls.append((keyword, period, max_results))
         return [
-            SimpleNamespace(
-                title=f"{keyword} article {index}",
-                original_url=f"https://example.com/{index}",
-                publish_date="2026-08-23",
-                meta_site_name="Example News",
-            )
+            {
+                "title": f"{keyword} headline {index}",
+                "url": f"https://news.google.com/rss/articles/{index}",
+                "publish_date": "2026-08-23T00:00:00+00:00",
+                "meta_site_name": "Example News",
+            }
             for index in range(max_results + 3)
         ]
+
+    async def get_news_by_keyword(self, **kwargs):
+        raise AssertionError("Hosted trend context must not download publisher articles")
 
 
 @pytest.fixture
@@ -285,6 +290,7 @@ async def test_trend_context_combines_trend_and_news_provider_metadata(fake_prov
         result = await hosted.get_trend_context(
             keyword="AI search",
             geo="US",
+            news_period_days=3,
             max_articles=2,
         )
 
@@ -293,7 +299,23 @@ async def test_trend_context_combines_trend_and_news_provider_metadata(fake_prov
     assert result.metrics.points_observed == 30
     assert len(result.recent_articles) == 2
     assert result.recent_articles[0].source == "Example News"
-    assert result.recent_articles[0].url == "https://example.com/0"
+    assert result.recent_articles[0].url == "https://news.google.com/rss/articles/0"
+    assert result.recent_articles[0].link_type == "google_news_rss"
+    assert result.recent_articles[0].publish_date == "2026-08-23T00:00:00+00:00"
+    assert fake_providers.news.rss_calls == [("AI search", 3, 2)]
+    assert "not downloaded publisher articles" in result.note
+
+
+async def test_trend_context_handles_empty_rss_headlines(fake_providers, monkeypatch):
+    async def no_headlines(keyword, period, max_results):
+        return []
+
+    monkeypatch.setattr(fake_providers.news, "get_rss_headlines_by_keyword", no_headlines)
+    with use_provider_set(fake_providers):
+        result = await hosted.get_trend_context(keyword="AI search")
+
+    assert result.recent_articles == []
+    assert result.metrics.points_observed == 30
 
 
 async def test_find_seo_opportunities_remains_trend_only_without_project(fake_providers):

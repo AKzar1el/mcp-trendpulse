@@ -1,5 +1,7 @@
 import asyncio
+import hashlib
 import json
+import re
 import sys
 from collections import defaultdict
 from dataclasses import asdict
@@ -177,8 +179,12 @@ def watch_evaluate(rule_id, evidence):
 )
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
-def keyword(keyword, period, max_results, no_nlp, headlines_only):
+@click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
+              help="Save extracted article JSON in this existing directory without overwriting files.")
+def keyword(keyword, period, max_results, no_nlp, headlines_only, save_json_dir):
     if headlines_only:
+        if save_json_dir is not None:
+            raise click.UsageError("--save-json-dir is not supported with --headlines-only.")
         items = asyncio.run(get_provider_set().news.get_rss_headlines_by_keyword(keyword=keyword, period=period, max_results=max_results))
         print_rss_headlines(items)
         click.echo(f"Found {len(items)} RSS headlines for keyword '{keyword}'.")
@@ -187,7 +193,7 @@ def keyword(keyword, period, max_results, no_nlp, headlines_only):
     @BrowserManager()
     async def _keyword():
         articles = await get_news_by_keyword(keyword, period=period, max_results=max_results, nlp=not no_nlp)
-        print_articles(articles)
+        print_articles(articles, export_dir=save_json_dir)
         click.echo(f"Found {len(articles)} articles for keyword '{keyword}'.")
 
     asyncio.run(_keyword())
@@ -205,8 +211,12 @@ def keyword(keyword, period, max_results, no_nlp, headlines_only):
 )
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
-def location(location, period, max_results, no_nlp, headlines_only):
+@click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
+              help="Save extracted article JSON in this existing directory without overwriting files.")
+def location(location, period, max_results, no_nlp, headlines_only, save_json_dir):
     if headlines_only:
+        if save_json_dir is not None:
+            raise click.UsageError("--save-json-dir is not supported with --headlines-only.")
         items = asyncio.run(get_provider_set().news.get_rss_headlines_by_location(location=location, period=period, max_results=max_results))
         print_rss_headlines(items)
         click.echo(f"Found {len(items)} RSS headlines for location '{location}'.")
@@ -215,7 +225,7 @@ def location(location, period, max_results, no_nlp, headlines_only):
     @BrowserManager()
     async def _location():
         articles = await get_news_by_location(location, period=period, max_results=max_results, nlp=not no_nlp)
-        print_articles(articles)
+        print_articles(articles, export_dir=save_json_dir)
         click.echo(f"Found {len(articles)} articles for location '{location}'.")
 
     asyncio.run(_location())
@@ -233,8 +243,12 @@ def location(location, period, max_results, no_nlp, headlines_only):
 )
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
-def topic(topic, period, max_results, no_nlp, headlines_only):
+@click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
+              help="Save extracted article JSON in this existing directory without overwriting files.")
+def topic(topic, period, max_results, no_nlp, headlines_only, save_json_dir):
     if headlines_only:
+        if save_json_dir is not None:
+            raise click.UsageError("--save-json-dir is not supported with --headlines-only.")
         items = asyncio.run(get_provider_set().news.get_rss_headlines_by_topic(topic=topic, period=period, max_results=max_results))
         print_rss_headlines(items)
         click.echo(f"Found {len(items)} RSS headlines for topic '{topic}'.")
@@ -243,7 +257,7 @@ def topic(topic, period, max_results, no_nlp, headlines_only):
     @BrowserManager()
     async def _topic():
         articles = await get_news_by_topic(topic, period=period, max_results=max_results, nlp=not no_nlp)
-        print_articles(articles)
+        print_articles(articles, export_dir=save_json_dir)
         click.echo(f"Found {len(articles)} articles for topic '{topic}'.")
 
     asyncio.run(_topic())
@@ -284,8 +298,12 @@ def trending(geo, full_data):
 )
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
-def top(period, max_results, no_nlp, headlines_only):
+@click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
+              help="Save extracted article JSON in this existing directory without overwriting files.")
+def top(period, max_results, no_nlp, headlines_only, save_json_dir):
     if headlines_only:
+        if save_json_dir is not None:
+            raise click.UsageError("--save-json-dir is not supported with --headlines-only.")
         items = asyncio.run(get_provider_set().news.get_rss_headlines_for_top_news(period=period, max_results=max_results))
         print_rss_headlines(items)
         click.echo(f"Found {len(items)} RSS headlines for top news.")
@@ -294,7 +312,7 @@ def top(period, max_results, no_nlp, headlines_only):
     @BrowserManager()
     async def _top():
         articles = await get_top_news(max_results=max_results, period=period, nlp=not no_nlp)
-        print_articles(articles)
+        print_articles(articles, export_dir=save_json_dir)
         click.echo(f"Found {len(articles)} top articles.")
 
     asyncio.run(_top())
@@ -306,8 +324,12 @@ def top(period, max_results, no_nlp, headlines_only):
 @click.option("--max-results", "max_results", type=click.IntRange(1, GOOGLE_NEWS_MAX_RESULTS), default=10, help="Maximum number of results.")
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
-def site(site, period, max_results, no_nlp, headlines_only):
+@click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
+              help="Save extracted article JSON in this existing directory without overwriting files.")
+def site(site, period, max_results, no_nlp, headlines_only, save_json_dir):
     if headlines_only:
+        if save_json_dir is not None:
+            raise click.UsageError("--save-json-dir is not supported with --headlines-only.")
         items = asyncio.run(get_provider_set().news.get_rss_headlines_by_site(
             site=site, period=period, max_results=max_results,
         ))
@@ -318,7 +340,7 @@ def site(site, period, max_results, no_nlp, headlines_only):
     @BrowserManager()
     async def _site():
         articles = await get_news_by_site(site, period=period, max_results=max_results, nlp=not no_nlp)
-        print_articles(articles)
+        print_articles(articles, export_dir=save_json_dir)
         click.echo(f"Found {len(articles)} articles for site '{site}'.")
 
     asyncio.run(_site())
@@ -431,15 +453,37 @@ def print_rss_headlines(items):
         click.echo("Content level: rss_headline_only (metadata, not article text)\n")
 
 
-def print_articles(articles):
-    for article in articles:
+def _article_export_filename(article):
+    title = str(article.title or "article")
+    safe_title = re.sub(r"[^A-Za-z0-9._-]+", "_", title).strip("._")[:48] or "article"
+    identity = str(article.original_url or title)
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:12]
+    return f"{safe_title}-{digest}.json"
+
+
+def print_articles(articles, *, export_dir=None):
+    paths = []
+    if export_dir is not None:
+        paths = [Path(export_dir) / _article_export_filename(article) for article in articles]
+        if len(paths) != len(set(paths)):
+            raise click.ClickException("Duplicate article URLs in this result; no JSON files were written.")
+        for path in paths:
+            if path.exists():
+                raise click.ClickException(f"Article JSON already exists; refusing to overwrite: {path}")
+
+    for index, article in enumerate(articles):
         click.echo(f"Title: {article.title}")
         click.echo(f"URL: {article.original_url}")
         click.echo(f"Authors: {article.authors}")
         click.echo(f"Publish Date: {article.publish_date}")
         click.echo(f"Top Image: {article.top_image}")
         click.echo(f"Summary: {article.summary}\n")
-        save_article_to_json(article)
+        if export_dir is not None:
+            path = paths[index]
+            try:
+                save_article_to_json(article, str(path), fail_if_exists=True, raise_on_error=True)
+            except (OSError, TypeError) as exc:
+                raise click.ClickException(f"Article JSON was not saved to {path}: {exc}") from exc
 
 
 if __name__ == "__main__":

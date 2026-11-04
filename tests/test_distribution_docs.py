@@ -83,6 +83,22 @@ def test_devin_plugin_install_reuses_stable_community_mcp():
     assert "unreleased hosted TrendPulse endpoint" in devin_section
 
 
+def test_devin_local_docs_do_not_reuse_legacy_windsurf_mcp_path():
+    guide = (PROJECT_ROOT / "docs/windsurf.md").read_text(encoding="utf-8")
+    devin_section = guide.split("## Devin Desktop / Devin Local (current)", 1)[1].split(
+        "## Legacy Windsurf Cascade", 1
+    )[0]
+    legacy_section = guide.split("## Legacy Windsurf Cascade", 1)[1]
+
+    assert "Customize > MCPs" in devin_section
+    assert "~/.config/devin/mcp_config.json" in devin_section
+    assert ".devin/mcp_config.json" in devin_section
+    assert ".devin/mcp_config.local.json" in devin_section
+    assert "~/.codeium/windsurf/mcp_config.json" not in devin_section
+    assert "~/.codeium/windsurf/mcp_config.json" in legacy_section
+    assert "https://docs.devin.ai/desktop/devin-local/customizations#configuration" in guide
+
+
 def test_kiro_docs_link_community_privacy_notice_and_support():
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     privacy = (PROJECT_ROOT / "PRIVACY.md").read_text(encoding="utf-8")

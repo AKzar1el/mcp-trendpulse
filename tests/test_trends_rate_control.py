@@ -8,7 +8,8 @@ import pandas
 import pytest
 
 from mcp_trendpulse import news
-from mcp_trendpulse.errors import ProviderRateLimitError
+from mcp_trendpulse.errors import ProviderRateLimitError, ProviderTimeoutError
+from mcp_trendpulse.provider_metrics import provider_metrics
 from mcp_trendpulse.trends_rate_control import (
     InterestResultCache,
     TrendsRequestPacer,
@@ -65,7 +66,7 @@ def test_google_429_enforces_retry_after_and_avoids_additional_requests():
         sent.append(1)
         return response(429, {"Retry-After": "75"})
 
-    assert pacer.send(send, "GET", "https://trends.google.com") .status_code == 429
+    assert pacer.send(send, "GET", "https://trends.google.com").status_code == 429
 
     with pytest.raises(ProviderRateLimitError):
         pacer.ensure_available("interest_over_time")
@@ -99,9 +100,7 @@ def test_one_http_429_cannot_be_counted_twice_by_embedded_quota_handler():
     clock = FakeClock()
     pacer = make_pacer(clock, delay=0)
 
-    assert pacer.send(
-        lambda *args, **kwargs: response(429), "GET", "https://trends.google.com"
-    ).status_code == 429
+    assert pacer.send(lambda *args, **kwargs: response(429), "GET", "https://trends.google.com").status_code == 429
     # TrendSpy can also surface this same response as a provider exception.
     pacer.note_rate_limit(RuntimeError("quota exceeded"))
     clock.sleep(30)
@@ -244,6 +243,61 @@ def test_interest_series_single_flight_deduplicates_concurrent_callers():
         assert first.result(timeout=5)["alpha"].tolist() == [42]
         assert second.result(timeout=5)["alpha"].tolist() == [42]
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("first_outcome", ["empty", "rate_limit", "timeout"])
+def test_interest_single_flight_shares_noncacheable_outcome_with_current_waiters(monkeypatch, first_outcome):
+    cache = InterestResultCache(shared_provider=lambda: None)
+    entered = threading.Event()
+    waiting = threading.Event()
+    release = threading.Event()
+    calls = []
+    original_count = provider_metrics.count
+
+    def observe_count(event):
+        if event == "trends_cache_wait":
+            waiting.set()
+        original_count(event)
+
+    monkeypatch.setattr(provider_metrics, "count", observe_count)
+
+    def load():
+        calls.append(1)
+        if len(calls) == 1:
+            entered.set()
+            assert release.wait(timeout=5)
+            if first_outcome == "empty":
+                return pandas.DataFrame(columns=["alpha"])
+            if first_outcome == "rate_limit":
+                raise ProviderRateLimitError("google_trends", "interest_over_time")
+            raise ProviderTimeoutError("google_trends", "interest_over_time")
+        return pandas.DataFrame({"alpha": [17]})
+
+    def fetch():
+        return cache.get_or_load("interest_over_time", (["alpha"],), {"geo": "US"}, load)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(fetch)
+        assert entered.wait(timeout=5)
+        second = pool.submit(fetch)
+        assert waiting.wait(timeout=5)
+        release.set()
+        if first_outcome == "empty":
+            original = first.result(timeout=5)
+            follower = second.result(timeout=5)
+            assert original.empty and follower.empty
+            assert original is not follower
+        else:
+            expected = ProviderRateLimitError if first_outcome == "rate_limit" else ProviderTimeoutError
+            with pytest.raises(expected) as first_error:
+                first.result(timeout=5)
+            with pytest.raises(expected) as second_error:
+                second.result(timeout=5)
+            assert first_error.value.provider == second_error.value.provider == "google_trends"
+
+    # A later independent request is allowed to recover after the first group.
+    assert fetch()["alpha"].tolist() == [17]
+    assert len(calls) == 2
 
 
 def test_trendspy_proxy_uses_cache_for_identical_normalized_interest_requests(monkeypatch):

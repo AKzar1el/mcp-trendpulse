@@ -8,13 +8,14 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Callable, Mapping
+from concurrent.futures import Future, TimeoutError as FutureTimeoutError
 from copy import deepcopy
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from math import isfinite
 from random import random
 import sqlite3
-from threading import Event, Lock
+from threading import Lock
 from time import monotonic, sleep
 from typing import Any
 
@@ -193,7 +194,8 @@ class InterestResultCache:
         self._shared_provider = shared_provider
         self._lock = Lock()
         self._entries: OrderedDict[tuple[Any, ...], tuple[float, Any]] = OrderedDict()
-        self._inflight: dict[tuple[Any, ...], Event] = {}
+        # Only callers already in this flight share empty results or failures.
+        self._inflight: dict[tuple[Any, ...], Future[Any]] = {}
 
     @staticmethod
     def _key(name: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> tuple[Any, ...] | None:
@@ -228,29 +230,36 @@ class InterestResultCache:
         if key is None:
             return loader()
 
-        while True:
-            with self._lock:
-                entry = self._entries.get(key)
-                if entry is not None and entry[0] > self._clock():
-                    self._entries.move_to_end(key)
-                    provider_metrics.count("trends_cache_hit")
-                    return deepcopy(entry[1])
-                if entry is not None:
-                    del self._entries[key]
-                event = self._inflight.get(key)
-                leader = event is None
-                if leader:
-                    provider_metrics.count("trends_cache_miss")
-                    event = Event()
-                    self._inflight[key] = event
-                else:
-                    provider_metrics.count("trends_cache_wait")
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is not None and entry[0] > self._clock():
+                self._entries.move_to_end(key)
+                provider_metrics.count("trends_cache_hit")
+                return deepcopy(entry[1])
+            if entry is not None:
+                del self._entries[key]
+            flight = self._inflight.get(key)
+            leader = flight is None
+            if leader:
+                provider_metrics.count("trends_cache_miss")
+                flight = Future()
+                self._inflight[key] = flight
+            else:
+                provider_metrics.count("trends_cache_wait")
 
-            if not leader:
-                if not event.wait(timeout=45):
-                    raise ProviderTimeoutError("google_trends", name)
-                continue
+        if not leader:
+            try:
+                result = flight.result(timeout=45)
+            except FutureTimeoutError:
+                if not flight.done():
+                    raise ProviderTimeoutError("google_trends", name) from None
+                raise
+            try:
+                return deepcopy(result)
+            except (TypeError, ValueError):
+                return result
 
+        else:
             try:
                 shared = None
                 lease_owner = None
@@ -293,10 +302,12 @@ class InterestResultCache:
                     )
                 result = restored if restored is not None else loader()
                 if getattr(result, "empty", False):
+                    flight.set_result(result)
                     return result  # Do not persist transient empty provider results.
                 try:
                     cached_copy = deepcopy(result)
                 except (TypeError, ValueError):
+                    flight.set_result(result)
                     return result
                 with self._lock:
                     self._entries[key] = (self._clock() + self._ttl, cached_copy)
@@ -310,7 +321,11 @@ class InterestResultCache:
                             provider_metrics.count("trends_shared_cache_write")
                     except (OSError, ValueError, sqlite3.DatabaseError):
                         provider_metrics.count("trends_shared_state_fallback")
+                flight.set_result(result)
                 return result
+            except BaseException as exc:
+                flight.set_exception(exc)
+                raise
             finally:
                 if shared is not None and lease_owner is not None:
                     try:
@@ -319,7 +334,6 @@ class InterestResultCache:
                         provider_metrics.count("trends_shared_state_fallback")
                 with self._lock:
                     self._inflight.pop(key, None)
-                    event.set()
 
 
 trends_request_pacer = TrendsRequestPacer()
