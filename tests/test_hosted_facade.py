@@ -2,6 +2,7 @@ import pytest
 from fastmcp import Client
 
 from mcp_trendpulse import hosted, server
+from mcp_trendpulse.errors import ProviderRateLimitError
 from mcp_trendpulse.providers import ProviderSet, use_provider_set
 
 
@@ -283,6 +284,60 @@ async def test_related_demand_caps_every_section(fake_providers):
     assert len(result.top_topics) == 2
     assert len(result.rising_topics) == 2
     assert len(result.suggestions) == 2
+    assert result.limitations == []
+
+
+@pytest.mark.parametrize(
+    ("failed_enrichment", "topic_count", "suggestion_count"),
+    [("get_related_topics", 0, 2), ("get_suggestions", 2, 0)],
+)
+async def test_related_demand_preserves_queries_on_optional_failure(
+    fake_providers, monkeypatch, failed_enrichment, topic_count, suggestion_count
+):
+    async def unavailable(*args, **kwargs):
+        raise RuntimeError("optional provider temporarily unavailable")
+
+    monkeypatch.setattr(fake_providers.trends, failed_enrichment, unavailable)
+    with use_provider_set(fake_providers):
+        result = await hosted.discover_related_demand(keyword="technical seo", limit=2)
+
+    assert len(result.top_queries) == 2
+    assert len(result.rising_queries) == 2
+    assert len(result.top_topics) == topic_count
+    assert len(result.suggestions) == suggestion_count
+    assert len(result.limitations) == 1
+    assert ("topics" if failed_enrichment == "get_related_topics" else "suggestions") in result.limitations[0].lower()
+
+
+async def test_related_demand_skips_extra_lookup_after_optional_rate_limit(fake_providers, monkeypatch):
+    suggestion_calls = []
+
+    async def rate_limited(*args, **kwargs):
+        raise ProviderRateLimitError("google_trends", "related_topics")
+
+    async def tracked_suggestions(*args, **kwargs):
+        suggestion_calls.append(True)
+        return []
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_topics", rate_limited)
+    monkeypatch.setattr(fake_providers.trends, "get_suggestions", tracked_suggestions)
+    with use_provider_set(fake_providers):
+        result = await hosted.discover_related_demand(keyword="technical seo", limit=2)
+
+    assert len(result.top_queries) == 2
+    assert result.top_topics == []
+    assert result.suggestions == []
+    assert suggestion_calls == []
+    assert any("rate limit" in limitation for limitation in result.limitations)
+
+
+async def test_related_demand_still_surfaces_primary_query_failure(fake_providers, monkeypatch):
+    async def unavailable(*args, **kwargs):
+        raise RuntimeError("primary query fetch unavailable")
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_queries", unavailable)
+    with use_provider_set(fake_providers), pytest.raises(RuntimeError, match="primary query"):
+        await hosted.discover_related_demand(keyword="technical seo")
 
 
 async def test_trend_context_combines_trend_and_news_provider_metadata(fake_providers):
