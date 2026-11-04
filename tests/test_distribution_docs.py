@@ -139,7 +139,7 @@ def test_pages_install_and_client_switchers_expose_accessible_selection():
     client_buttons = re.findall(r'<button[^>]+class="client-tab(?: active)?"[^>]*>', page)
 
     assert len(install_buttons) == 2
-    assert len(client_buttons) == 4
+    assert len(client_buttons) == 5
     for group in (install_buttons, client_buttons):
         assert all('type="button"' in button for button in group)
         assert sum('aria-pressed="true"' in button for button in group) == 1
@@ -180,17 +180,32 @@ def _rendered_client_snippet(page: str, client: str) -> str:
 def test_pages_client_config_snippets_are_copy_paste_valid():
     page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
 
-    for client in ("claude", "cursor", "gemini"):
+    for client in ("claude", "cursor", "gemini", "antigravity"):
         snippet = _rendered_client_snippet(page, client)
         parsed = json.loads(snippet)
         assert parsed["mcpServers"]["mcp-trendpulse"]["command"] == "uvx"
         assert parsed["mcpServers"]["mcp-trendpulse"]["args"] == ["mcp-trendpulse@latest"]
         assert not snippet.startswith("//")
+        assert "transport" not in parsed["mcpServers"]["mcp-trendpulse"]
 
     assert (
         _rendered_client_snippet(page, "codex")
         == "codex mcp add mcp-trendpulse -- uvx mcp-trendpulse"
     )
+
+
+def test_pages_use_official_distinct_gemini_and_antigravity_config_paths():
+    page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+
+    assert 'data-client="gemini"' in page
+    assert 'data-client="antigravity"' in page
+    assert '<span class="client-name">Gemini CLI</span>' in page
+    assert '<span class="client-name">Google Antigravity</span>' in page
+    assert "gemini: '~/.gemini/settings.json'" in page
+    assert "antigravity: '~/.gemini/config/mcp_config.json'" in page
+    assert "~/.antigravity/mcp.json" not in page
+    assert "https://geminicli.com/docs/cli/tutorials/mcp-setup/" in page
+    assert "https://antigravity.google/docs/mcp" in page
 
 
 def test_pages_client_config_copy_is_accessible_and_reports_failure():
