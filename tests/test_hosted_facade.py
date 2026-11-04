@@ -390,6 +390,36 @@ async def test_find_seo_opportunities_remains_trend_only_without_project(fake_pr
     assert any("No site-specific Search Console" in limitation for limitation in result.limitations)
 
 
+async def test_find_seo_opportunities_distinguishes_missing_interest_from_zero(
+    fake_providers, monkeypatch
+):
+    trend_calls = []
+
+    async def sparse_trends(keyword, **kwargs):
+        trend_calls.append((keyword, kwargs))
+        return [
+            {"keyword": keyword[1], "date": "2026-10-01", "value": float("nan")},
+            {"keyword": keyword[2], "date": "2026-10-01", "value": 0},
+            {"keyword": keyword[3], "date": "2026-10-01", "value": 32},
+        ]
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", sparse_trends)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(seed_keyword="seo", limit=4)
+
+    assert len(trend_calls) == 1
+    assert trend_calls[0][0] == [f"seo rising {index}" for index in range(4)]
+    assert len(result.candidates) == 4
+    assert all(candidate.signal_type == "rising_related_query" for candidate in result.candidates)
+    assert [candidate.interest_points_observed for candidate in result.candidates] == [0, 0, 1, 1]
+    assert [candidate.interest_validation_status for candidate in result.candidates] == [
+        "unavailable", "unavailable", "observed", "observed"
+    ]
+    assert result.candidates[2].latest_interest == 0
+    assert result.candidates[0].latest_interest is None
+    assert any("no usable" in item for item in result.limitations)
+
+
 async def test_find_seo_opportunities_adds_exact_query_gsc_annotations(
     fake_providers,
     monkeypatch,

@@ -193,6 +193,8 @@ class SeoOpportunityCandidate(BaseModel):
     latest_interest: float | None = None
     average_interest: float | None = None
     peak_interest: float | None = None
+    interest_points_observed: int = 0
+    interest_validation_status: Literal["observed", "unavailable"] = "unavailable"
     search_console: SearchConsoleKeywordMetric | None = None
 
 
@@ -705,6 +707,10 @@ async def find_seo_opportunities(
                 latest_interest=metrics.latest,
                 average_interest=metrics.average,
                 peak_interest=metrics.peak,
+                interest_points_observed=metrics.points_observed,
+                interest_validation_status=(
+                    "observed" if metrics.points_observed > 0 else "unavailable"
+                ),
             )
         )
 
@@ -719,6 +725,14 @@ async def find_seo_opportunities(
         for candidate in candidates:
             candidate.search_console = search_console_by_keyword.get(candidate.keyword)
 
+    limitations = _seo_limitations(project_context)
+    if any(candidate.interest_points_observed == 0 for candidate in candidates):
+        limitations.append(
+            "Some related-query candidates have no usable Google Trends interest-series "
+            "observations; their related-query signals are not independently verified "
+            "by a series. Zero-valued observations are valid evidence."
+        )
+
     return SeoOpportunityResult(
         provider=providers.trends.provider_id,
         seed_keyword=seed_keyword,
@@ -727,5 +741,5 @@ async def find_seo_opportunities(
         timeframe=timeframe,
         candidates=candidates,
         project_context=project_context,
-        limitations=_seo_limitations(project_context),
+        limitations=limitations,
     )
