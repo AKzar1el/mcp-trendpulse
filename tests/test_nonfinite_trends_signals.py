@@ -1,0 +1,106 @@
+"""Offline regression tests for malformed Google Trends numeric observations."""
+
+import json
+from math import isfinite
+from unittest.mock import patch
+
+import pandas as pd
+
+from mcp_trendpulse import news
+
+
+async def test_trends_drop_nonfinite_points_without_discarding_valid_observations():
+    frame = pd.DataFrame(
+        {"python": [20.0, float("nan"), float("inf"), 40.0]},
+        index=pd.date_range("2026-09-01", periods=4, freq="W"),
+    )
+    with patch.object(news.tr, "interest_over_time", return_value=frame):
+        points = await news.get_trends("python", timeframe="today 12-m")
+
+    assert [point["value"] for point in points] == [20.0, 40.0]
+    json.dumps(points, allow_nan=False)
+
+
+async def test_growth_ignores_nonfinite_samples_and_has_no_invalid_percentages():
+    frame = pd.DataFrame(
+        {"python": [20.0] * 16 + [40.0, float("nan"), float("inf"), 40.0]},
+        index=pd.date_range("2026-05-03", periods=20, freq="W"),
+    )
+    with patch.object(news.tr, "interest_over_time", return_value=frame):
+        growth = await news.get_growth("python", percent_growth=["3M"])
+
+    value = growth[0]["growth"]["3M"]
+    assert value is not None and isfinite(value)
+    json.dumps(growth, allow_nan=False)
+
+
+def test_growth_does_not_serialize_overflowed_calculated_percentage():
+    points = [
+        {"keyword": "example", "date": date.date().isoformat(), "value": 1e-300}
+        for date in pd.date_range("2025-01-05", periods=16, freq="W")
+    ] + [
+        {"keyword": "example", "date": date.date().isoformat(), "value": 1e300}
+        for date in pd.date_range("2025-04-27", periods=4, freq="W")
+    ]
+
+    growth = news._growth_from_trend_points(points, ["example"], ["3M"])
+    assert growth == [{"keyword": "example", "growth": {"3M": None}}]
+    json.dumps(growth, allow_nan=False)
+
+
+async def test_region_discards_unusable_measurements_and_coordinates():
+    frame = pd.DataFrame(
+        {
+            "geoName": ["California", "Texas", "Oregon"],
+            "geoCode": ["US-CA", "US-TX", "US-OR"],
+            "python": [float("nan"), 55.0, float("inf")],
+            "lat": [36.0, float("nan"), 44.0],
+            "lng": [-119.0, float("-inf"), -120.0],
+        }
+    )
+    with patch.object(news.tr, "interest_by_region", return_value=frame):
+        regions = await news.get_interest_by_region("python")
+
+    assert regions == [{"geoName": "Texas", "geoCode": "US-TX", "values": {"python": 55.0}}]
+    json.dumps(regions, allow_nan=False)
+
+
+async def test_related_queries_skip_invalid_provider_values_only():
+    related = {
+        "top": pd.DataFrame({"query": ["valid", "bad", "infinite"], "value": [80, float("nan"), float("inf")]}),
+        "rising": pd.DataFrame({"query": ["growing", "missing"], "value": [120, None]}),
+    }
+    with patch.object(news, "_call_related_queries_with_unavailable_retry", return_value=related):
+        rows = await news.get_related_queries("python")
+
+    assert rows == {"top": [{"query": "valid", "value": 80.0}], "rising": [{"query": "growing", "value": 120.0}]}
+    json.dumps(rows, allow_nan=False)
+
+
+async def test_related_topics_skip_invalid_provider_values_only():
+    related = {
+        "top": pd.DataFrame(
+            {
+                "mid": ["/m/good", "/m/bad"],
+                "title": ["Good", "Bad"],
+                "type": ["Topic", "Topic"],
+                "value": [90, float("nan")],
+            }
+        ),
+        "rising": pd.DataFrame(
+            {
+                "mid": ["/m/new", "/m/invalid"],
+                "title": ["New", "Invalid"],
+                "type": ["Topic", "Topic"],
+                "value": [250, float("-inf")],
+            }
+        ),
+    }
+    with patch.object(news.tr, "related_topics", return_value=related):
+        rows = await news.get_related_topics("python")
+
+    assert rows == {
+        "top": [{"mid": "/m/good", "title": "Good", "type": "Topic", "value": 90.0}],
+        "rising": [{"mid": "/m/new", "title": "New", "type": "Topic", "value": 250.0}],
+    }
+    json.dumps(rows, allow_nan=False)
