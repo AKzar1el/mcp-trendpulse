@@ -453,6 +453,10 @@
     color: var(--text);
     border-bottom-color: var(--lime);
   }
+  .term-tab:focus-visible, .client-tab:focus-visible, .copy-btn:focus-visible, .term-cmd:focus-visible {
+    outline: 2px solid var(--lime);
+    outline-offset: -3px;
+  }
   .copy-btn {
     margin-left: auto;
     background: var(--bg-elev);
@@ -476,6 +480,10 @@
   .copy-btn.copied {
     color: var(--lime);
     border-color: var(--lime);
+  }
+  .copy-btn.copy-failed {
+    color: #FCA5A5;
+    border-color: #FCA5A5;
   }
   .copy-btn .icon-check { display: none; }
   .copy-btn.copied .icon-copy { display: none; }
@@ -714,6 +722,21 @@
     padding: 28px;
     overflow-x: auto;
   }
+  .config-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .config-filename {
+    color: var(--text-faint);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .config-copy-btn {
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
   .config-code pre {
     font-family: 'JetBrains Mono', monospace;
     font-size: 13px;
@@ -724,6 +747,25 @@
   .config-code .k { color: var(--indigo-soft); }
   .config-code .s { color: var(--text); }
   .config-code .c { color: var(--text-faint); }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .config-note {
+    margin-top: 18px;
+    max-width: 780px;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .config-note a { color: var(--indigo-soft); text-decoration: underline; }
 
   /* === Footer === */
   footer {
@@ -881,7 +923,7 @@
           </a>
         </div>
         <div class="hero-meta mono">
-          <span>python ≥ 3.10</span>
+          <span>python ≥ 3.11</span>
           <span>·</span>
           <span>stdio transport</span>
           <span>·</span>
@@ -957,19 +999,20 @@
         <div class="term-dots"><span></span><span></span><span></span></div>
         <span class="mono term-title">~/projects/agent</span>
       </div>
-      <div class="term-tabs">
-        <button class="term-tab active" data-cmd="uvx mcp-trendpulse@latest">uvx</button>
-        <button class="term-tab" data-cmd="pip install mcp-trendpulse">pip</button>
-        <button class="copy-btn" id="copyBtn" aria-label="Copy install command">
+      <div class="term-tabs" role="group" aria-label="Installation command and copy">
+        <button type="button" class="term-tab active" aria-pressed="true" data-cmd="uvx mcp-trendpulse@latest">uvx</button>
+        <button type="button" class="term-tab" aria-pressed="false" data-cmd="pip install mcp-trendpulse">pip</button>
+        <button type="button" class="copy-btn" id="copyBtn" aria-label="Copy install command">
           <svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="9" height="9" rx="1"/><path d="M11 4V3a1 1 0 00-1-1H3a1 1 0 00-1 1v7a1 1 0 001 1h1"/></svg>
           <svg class="icon-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"/></svg>
           <span class="copy-label">Copy</span>
         </button>
+        <span class="sr-only" id="copyStatus" role="status" aria-live="polite"></span>
       </div>
       <div class="term-body">
         <div class="term-line">
           <span class="term-prompt mono">$</span>
-          <code class="term-cmd mono" id="cmdText">uvx mcp-trendpulse@latest</code>
+          <code class="term-cmd mono" id="cmdText" tabindex="0" aria-live="polite" aria-atomic="true">uvx mcp-trendpulse@latest</code>
         </div>
         <div class="term-output mono">
           <div>Example output — exact resolver details may differ</div>
@@ -1095,28 +1138,44 @@
       </div>
     </div>
     <div class="config-panel">
-      <aside class="config-clients">
-        <button class="client-tab active" data-client="claude">
+      <aside class="config-clients" role="group" aria-label="MCP client configuration choices">
+        <button type="button" class="client-tab active" data-client="claude" aria-pressed="true" aria-controls="configCode">
           <span class="client-name">Claude Desktop</span>
           <span class="client-path mono">~/Library/Application Support/Claude/claude_desktop_config.json</span>
         </button>
-        <button class="client-tab" data-client="cursor">
+        <button type="button" class="client-tab" data-client="cursor" aria-pressed="false" aria-controls="configCode">
           <span class="client-name">Cursor</span>
           <span class="client-path mono">.cursor/mcp.json</span>
         </button>
-        <button class="client-tab" data-client="codex">
-          <span class="client-name">ChatGPT Desktop · Codex</span>
-          <span class="client-path mono">shared local MCP config</span>
+        <button type="button" class="client-tab" data-client="codex" aria-pressed="false" aria-controls="configCode">
+          <span class="client-name">Codex CLI · IDE</span>
+          <span class="client-path mono">shared Codex MCP config</span>
         </button>
-        <button class="client-tab" data-client="gemini">
-          <span class="client-name">Gemini · Antigravity</span>
-          <span class="client-path mono">~/.antigravity/mcp.json</span>
+        <button type="button" class="client-tab" data-client="gemini" aria-pressed="false" aria-controls="configCode">
+          <span class="client-name">Gemini CLI</span>
+          <span class="client-path mono">~/.gemini/settings.json</span>
+        </button>
+        <button type="button" class="client-tab" data-client="antigravity" aria-pressed="false" aria-controls="configCode">
+          <span class="client-name">Google Antigravity</span>
+          <span class="client-path mono">~/.gemini/config/mcp_config.json</span>
         </button>
       </aside>
       <div class="config-code">
-        <pre id="configCode"></pre>
+        <div class="config-toolbar">
+          <span class="config-filename mono" id="configFilename">claude_desktop_config.json</span>
+          <button type="button" class="copy-btn config-copy-btn" id="configCopyBtn" aria-label="Copy selected MCP client configuration">
+            <svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="4" y="4" width="9" height="9" rx="1"/><path d="M11 4V3a1 1 0 00-1-1H3a1 1 0 00-1 1v7a1 1 0 001 1h1"/></svg>
+            <svg class="icon-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l3 3 7-7"/></svg>
+            <span class="copy-label">Copy config</span>
+          </button>
+        </div>
+        <p class="sr-only" role="status" id="configStatus" aria-live="polite"></p>
+        <p class="sr-only" role="status" id="configCopyStatus" aria-live="polite"></p>
+        <pre id="configCode" tabindex="0" aria-label="Selected MCP client configuration"></pre>
       </div>
     </div>
+    <p class="config-note">Gemini CLI and Google Antigravity use different configuration files; their local stdio examples above follow the <a href="https://geminicli.com/docs/cli/tutorials/mcp-setup/">Gemini CLI setup guide</a> and <a href="https://antigravity.google/docs/mcp">Antigravity MCP guide</a>.</p>
+    <p class="config-note">ChatGPT does not automatically use the local Codex MCP configuration. ChatGPT connections require a separate plugin connection to an HTTPS MCP endpoint or an available Secure MCP Tunnel. The managed TrendPulse endpoint is not released yet. <a href="https://developers.openai.com/plugins/deploy/connect-chatgpt">See OpenAI's connection guide.</a></p>
   </div>
 </section>
 
@@ -1211,39 +1270,65 @@
 
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
-      tabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
+      tabs.forEach(t => {
+        const selected = t === tab;
+        t.classList.toggle('active', selected);
+        t.setAttribute('aria-pressed', String(selected));
+      });
       currentCmd = tab.dataset.cmd;
       cmdText.textContent = currentCmd;
+      clearTimeout(copyReset);
+      copyBtn.classList.remove('copied', 'copy-failed');
+      copyBtn.querySelector('.copy-label').textContent = 'Copy';
+      copyBtn.setAttribute('aria-label', 'Copy install command');
+      document.getElementById('copyStatus').textContent = '';
     });
   });
 
-  copyBtn.addEventListener('click', async () => {
+  async function copyPlainText(value) {
+    let copied = false;
     try {
-      await navigator.clipboard.writeText(currentCmd);
-    } catch (e) {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+      await navigator.clipboard.writeText(value);
+      copied = true;
+    } catch (_) {
       const ta = document.createElement('textarea');
-      ta.value = currentCmd;
+      ta.value = value;
       ta.style.position = 'fixed';
       ta.style.opacity = '0';
+      const previouslyFocused = document.activeElement;
       document.body.appendChild(ta);
       ta.select();
-      try { document.execCommand('copy'); } catch (_) {}
-      document.body.removeChild(ta);
+      try { copied = document.execCommand('copy'); } catch (_) { copied = false; }
+      ta.remove();
+      if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus({ preventScroll: true });
     }
-    copyBtn.classList.add('copied');
-    copyBtn.querySelector('.copy-label').textContent = 'Copied';
+    return copied;
+  }
+
+  copyBtn.addEventListener('click', async () => {
+    const cmdAtClick = currentCmd;
+    const copied = await copyPlainText(cmdAtClick);
+    if (cmdAtClick !== currentCmd) return;
+    copyBtn.classList.toggle('copied', copied);
+    copyBtn.classList.toggle('copy-failed', !copied);
+    copyBtn.querySelector('.copy-label').textContent = copied ? 'Copied' : 'Copy failed';
+    copyBtn.setAttribute('aria-label', copied ? 'Install command copied' : 'Copy failed; copy the command manually');
+    document.getElementById('copyStatus').textContent = copied
+      ? 'Install command copied to clipboard.'
+      : 'Copy failed. Focus the command and copy it manually.';
     clearTimeout(copyReset);
     copyReset = setTimeout(() => {
-      copyBtn.classList.remove('copied');
+      copyBtn.classList.remove('copied', 'copy-failed');
       copyBtn.querySelector('.copy-label').textContent = 'Copy';
+      copyBtn.setAttribute('aria-label', 'Copy install command');
+      document.getElementById('copyStatus').textContent = '';
     }, 1800);
   });
 
   // Config switcher
   const configs = {
-    claude: `<span class="c">// claude_desktop_config.json</span>
-{
+    claude: `{
   <span class="k">"mcpServers"</span>: {
     <span class="k">"mcp-trendpulse"</span>: {
       <span class="k">"command"</span>: <span class="s">"uvx"</span>,
@@ -1251,8 +1336,7 @@
     }
   }
 }`,
-    cursor: `<span class="c">// .cursor/mcp.json — project-scoped</span>
-{
+    cursor: `{
   <span class="k">"mcpServers"</span>: {
     <span class="k">"mcp-trendpulse"</span>: {
       <span class="k">"command"</span>: <span class="s">"uvx"</span>,
@@ -1260,29 +1344,78 @@
     }
   }
 }`,
-    codex: `<span class="c">// ChatGPT Desktop / Codex CLI / IDE</span>
-<span class="s">codex mcp add mcp-trendpulse -- uvx mcp-trendpulse</span>`,
-    gemini: `<span class="c">// ~/.antigravity/mcp.json</span>
-{
+    codex: `<span class="s">codex mcp add mcp-trendpulse -- uvx mcp-trendpulse</span>`,
+    gemini: `{
   <span class="k">"mcpServers"</span>: {
     <span class="k">"mcp-trendpulse"</span>: {
       <span class="k">"command"</span>: <span class="s">"uvx"</span>,
-      <span class="k">"args"</span>: [<span class="s">"mcp-trendpulse@latest"</span>],
-      <span class="k">"transport"</span>: <span class="s">"stdio"</span>
+      <span class="k">"args"</span>: [<span class="s">"mcp-trendpulse@latest"</span>]
+    }
+  }
+}`,
+    antigravity: `{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"mcp-trendpulse"</span>: {
+      <span class="k">"command"</span>: <span class="s">"uvx"</span>,
+      <span class="k">"args"</span>: [<span class="s">"mcp-trendpulse@latest"</span>]
     }
   }
 }`
   };
 
+  const configFilenames = {
+    claude: 'claude_desktop_config.json',
+    cursor: '.cursor/mcp.json - project-scoped',
+    codex: 'Codex CLI / IDE terminal command',
+    gemini: '~/.gemini/settings.json',
+    antigravity: '~/.gemini/config/mcp_config.json'
+  };
   const clientTabs = document.querySelectorAll('.client-tab');
   const configCode = document.getElementById('configCode');
+  const configCopyBtn = document.getElementById('configCopyBtn');
+  const configCopyStatus = document.getElementById('configCopyStatus');
+  let currentClient;
+  let configCopyReset;
 
   function setClient(client) {
-    clientTabs.forEach(t => t.classList.toggle('active', t.dataset.client === client));
+    currentClient = client;
+    clientTabs.forEach(t => {
+      const selected = t.dataset.client === client;
+      t.classList.toggle('active', selected);
+      t.setAttribute('aria-pressed', String(selected));
+    });
     configCode.innerHTML = configs[client];
+    document.getElementById('configFilename').textContent = configFilenames[client];
+    clearTimeout(configCopyReset);
+    configCopyBtn.classList.remove('copied', 'copy-failed');
+    configCopyBtn.querySelector('.copy-label').textContent = 'Copy config';
+    configCopyBtn.setAttribute('aria-label', 'Copy selected MCP client configuration');
+    configCopyStatus.textContent = '';
+    const selectedTab = [...clientTabs].find(t => t.dataset.client === client);
+    document.getElementById('configStatus').textContent =
+      `Showing ${selectedTab.querySelector('.client-name').textContent} configuration`;
   }
   clientTabs.forEach(tab => {
     tab.addEventListener('click', () => setClient(tab.dataset.client));
+  });
+  configCopyBtn.addEventListener('click', async () => {
+    const clientAtClick = currentClient;
+    const copied = await copyPlainText(configCode.textContent.trim());
+    if (clientAtClick !== currentClient) return;
+    configCopyBtn.classList.toggle('copied', copied);
+    configCopyBtn.classList.toggle('copy-failed', !copied);
+    configCopyBtn.querySelector('.copy-label').textContent = copied ? 'Copied' : 'Copy failed';
+    configCopyBtn.setAttribute('aria-label', copied ? 'Configuration copied' : 'Copy failed; select configuration manually');
+    configCopyStatus.textContent = copied
+      ? 'Selected client configuration copied.'
+      : 'Copy failed. Focus the configuration and copy it manually.';
+    clearTimeout(configCopyReset);
+    configCopyReset = setTimeout(() => {
+      configCopyBtn.classList.remove('copied', 'copy-failed');
+      configCopyBtn.querySelector('.copy-label').textContent = 'Copy config';
+      configCopyBtn.setAttribute('aria-label', 'Copy selected MCP client configuration');
+      configCopyStatus.textContent = '';
+    }, 1800);
   });
   setClient('claude');
 </script>

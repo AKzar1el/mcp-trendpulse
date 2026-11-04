@@ -157,15 +157,23 @@ For workspace-level configuration, put this in `.vscode/mcp.json`. The same top-
 }
 ```
 
-### ChatGPT desktop, Codex CLI, and IDE extension
+### Codex CLI and Codex IDE extension
 
-OpenAI's local ChatGPT desktop and Codex clients support local stdio MCP servers and share the same MCP configuration on a Codex host. Add the published TrendPulse package once with:
+Codex CLI and the Codex IDE extension share MCP configuration and support local stdio servers. Register the published TrendPulse Community MCP package with:
 
 ```bash
 codex mcp add mcp-trendpulse -- uvx mcp-trendpulse
 ```
 
-The same local server is then available to the ChatGPT desktop app, Codex CLI, and the Codex IDE extension. In ChatGPT desktop, you can also open **Settings -> MCP Servers** and add an **STDIO** server with command `uvx mcp-trendpulse`, then restart the app. This runs the published Community MCP package from PyPI; it does not use the unreleased hosted TrendPulse endpoint. ChatGPT on the web is separate and does not read this local Codex MCP configuration.
+This makes TrendPulse available to Codex CLI and its IDE extension; it does **not** automatically install the server in ChatGPT desktop or web. See [OpenAI's Codex MCP guidance](https://developers.openai.com/resources/docs-mcp) for the shared Codex configuration model.
+
+### ChatGPT custom MCP connections
+
+ChatGPT uses a separate plugin connection workflow; it does not import the local Codex MCP registration above. Where permitted by your account and workspace, use **Plugins -> Add custom MCP server** with a reachable HTTPS Streamable HTTP endpoint, or an available Secure MCP Tunnel for a private server. See [OpenAI's connection instructions](https://developers.openai.com/plugins/deploy/connect-chatgpt) for current requirements and access controls.
+
+Local stdio execution through a *desktop-only ChatGPT plugin* is a distinct, partner-allowlisted submission route, not a general **Settings -> MCP Servers** command-entry option. See [OpenAI's desktop-only plugin policy](https://developers.openai.com/plugins/deploy/desktop-only).
+
+TrendPulse's managed HTTPS endpoint and public ChatGPT plugin are **not released**. The current published Community MCP runs locally via `uvx mcp-trendpulse` in supported stdio clients; the Codex command alone does not connect it to ChatGPT.
 
 ### Cursor and portable Agent Plugins
 
