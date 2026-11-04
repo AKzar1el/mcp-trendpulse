@@ -416,13 +416,26 @@ def brief_pack(keywords, markets, timeframe):
             click.echo()
             click.echo("| Keyword | Latest index | 3M growth | 1Y growth |")
             click.echo("| --- | ---: | ---: | ---: |")
+            older_observations = []
             for keyword in cleaned_keywords:
                 keyword_points = series.get(keyword, [])
-                latest = keyword_points[-1].get("value") if keyword_points else None
+                latest_point = max(keyword_points, key=lambda point: str(point.get("date") or ""), default=None)
+                latest = latest_point.get("value") if latest_point else None
+                last_date = str(latest_point.get("date") or "")[:10] if latest_point else ""
+                if last_date and latest_trends_date and last_date < latest_trends_date:
+                    older_observations.append((keyword, last_date))
                 keyword_growth = growth.get(keyword, {})
                 click.echo(
                     f"| {_brief_table_cell(keyword)} | {_brief_value(latest)} | {_brief_percent(keyword_growth.get('3M'))} | {_brief_percent(keyword_growth.get('1Y'))} |"
                 )
+            if older_observations:
+                click.echo()
+                click.echo("> Some latest keyword indices are older than the newest market observation:")
+                for keyword, last_date in older_observations:
+                    click.echo(
+                        f"> {_brief_table_cell(keyword)}: last observation **{last_date}** "
+                        f"(market latest **{latest_trends_date}**)"
+                    )
 
     asyncio.run(_build())
 
