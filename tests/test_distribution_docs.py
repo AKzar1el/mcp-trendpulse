@@ -44,18 +44,24 @@ def test_vscode_one_click_install_uses_stable_pypi_package():
     assert "git%2Bhttps%3A%2F%2Fgithub.com%2FAKzar1el%2Fmcp-trendpulse.git" not in vscode_section
 
 
-def test_openai_desktop_clients_use_local_stdio_with_stable_pypi_package():
+def test_codex_stdio_setup_is_separate_from_chatgpt_plugin_connection():
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
-    client_section = readme.split("### ChatGPT desktop, Codex CLI, and IDE extension", 1)[1].split("### Cursor", 1)[0]
+    codex_section = readme.split("### Codex CLI and Codex IDE extension", 1)[1].split(
+        "### ChatGPT custom MCP connections", 1
+    )[0]
+    chatgpt_section = readme.split("### ChatGPT custom MCP connections", 1)[1].split("### Cursor", 1)[0]
 
-    assert "codex mcp add mcp-trendpulse -- uvx mcp-trendpulse" in client_section
-    assert "ChatGPT desktop app" in client_section
-    assert "Settings -> MCP Servers" in client_section
-    assert "STDIO" in client_section
-    assert "published Community MCP package from PyPI" in client_section
-    assert "ChatGPT on the web is separate" in client_section
-    assert "unreleased hosted TrendPulse endpoint" in client_section
-    assert "git+https://github.com/AKzar1el/mcp-trendpulse.git" not in client_section
+    assert "codex mcp add mcp-trendpulse -- uvx mcp-trendpulse" in codex_section
+    assert "does **not** automatically install the server in ChatGPT" in codex_section
+    assert "https://developers.openai.com/resources/docs-mcp" in codex_section
+    assert "Plugins -> Add custom MCP server" in chatgpt_section
+    assert "HTTPS Streamable HTTP" in chatgpt_section
+    assert "Secure MCP Tunnel" in chatgpt_section
+    assert "partner-allowlisted" in chatgpt_section
+    assert "https://developers.openai.com/plugins/deploy/desktop-only" in chatgpt_section
+    assert "not a general **Settings -> MCP Servers** command-entry option" in chatgpt_section
+    assert "not released" in chatgpt_section
+    assert "git+https://github.com/AKzar1el/mcp-trendpulse.git" not in codex_section
 
     web_section = readme.split("### ChatGPT web and other cloud MCP clients", 1)[1].split("## Configuration", 1)[0]
     assert "not released" in web_section
@@ -72,6 +78,7 @@ def test_devin_plugin_install_reuses_stable_community_mcp():
     assert "`uvx mcp-trendpulse`" in devin_section
     assert "locally over stdio" in devin_section
     assert "unreleased hosted TrendPulse endpoint" in devin_section
+
 
 def test_kiro_docs_link_community_privacy_notice_and_support():
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
