@@ -6,6 +6,7 @@ import re
 import sys
 from collections import defaultdict
 from dataclasses import asdict
+from math import isfinite
 from pathlib import Path
 
 import click
@@ -455,6 +456,8 @@ def _brief_value(value):
         number = float(value)
     except (TypeError, ValueError):
         return str(value)
+    if not isfinite(number):
+        return "n/a"
     return f"{number:g}"
 
 
@@ -465,6 +468,8 @@ def _brief_percent(value):
         number = float(value)
     except (TypeError, ValueError):
         return str(value)
+    if not isfinite(number):
+        return "n/a"
     return f"{number:+.2f}%"
 
 
