@@ -277,6 +277,28 @@ def test_brief_pack_escapes_untrusted_keyword_markdown_table_cell():
     assert result.output.count("| 42 |") == 1
 
 
+def test_brief_pack_does_not_present_nonfinite_provider_values_as_evidence():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-09-13", "value": float("nan"), "keyword": "ChatGPT"},
+        {"date": "2026-09-13", "value": 42, "keyword": "Claude"},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[
+        {"keyword": "ChatGPT", "growth": {"3M": float("inf"), "1Y": float("-inf")}},
+        {"keyword": "Claude", "growth": {"3M": 5.0, "1Y": -1.25}},
+    ])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--keyword", "Claude", "--market", "US", "--timeframe", "today 5-y"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "| ChatGPT | n/a | n/a | n/a |" in result.output
+    assert "| Claude | 42 | +5.00% | -1.25% |" in result.output
+    providers.trends.get_growth.assert_awaited_once()
+
+
 def test_brief_pack_keeps_dedicated_growth_fetch_for_custom_timeframe():
     runner = CliRunner()
     providers = FakeBriefProviders()
