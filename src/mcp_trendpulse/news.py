@@ -1046,8 +1046,14 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
     return trends
 
 
-def save_article_to_json(article: newspaper.Article, filename: Optional[str] = None) -> None:
-    """Save an article to a JSON file."""
+def save_article_to_json(
+    article: newspaper.Article,
+    filename: Optional[str] = None,
+    *,
+    fail_if_exists: bool = False,
+    raise_on_error: bool = False,
+) -> None:
+    """Save an article to JSON, optionally refusing to replace an existing file."""
     def sanitize_filename(title: str) -> str:
         """Generate safe filename from article title (max 50 chars, no special chars)."""
         sanitized_title = re.sub(r'[\\/*?:"<>|\s]', "_", title)[:50]
@@ -1094,12 +1100,15 @@ def save_article_to_json(article: newspaper.Article, filename: Optional[str] = N
         "source_url": article.source_url,
     }
 
+    payload = json.dumps(normalize_collections(article_data), indent=4)
     try:
-        with open(filename, "w") as f:
-            json.dump(normalize_collections(article_data), f, indent=4)
+        with open(filename, "x" if fail_if_exists else "w", encoding="utf-8") as f:
+            f.write(payload)
         logger.debug(f"Article saved to {filename}")
-    except (OSError, IOError) as e:
+    except OSError as e:
         logger.error(f"Failed to save article to {filename}: {e}")
+        if raise_on_error:
+            raise
 
 
 def _completed_trends_frame(df: pandas.DataFrame) -> pandas.DataFrame:
