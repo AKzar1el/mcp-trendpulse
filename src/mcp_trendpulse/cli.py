@@ -455,7 +455,7 @@ def _brief_value(value):
     try:
         number = float(value)
     except (TypeError, ValueError):
-        return str(value)
+        return "n/a"
     if not isfinite(number):
         return "n/a"
     return f"{number:g}"
@@ -467,7 +467,7 @@ def _brief_percent(value):
     try:
         number = float(value)
     except (TypeError, ValueError):
-        return str(value)
+        return "n/a"
     if not isfinite(number):
         return "n/a"
     return f"{number:+.2f}%"
