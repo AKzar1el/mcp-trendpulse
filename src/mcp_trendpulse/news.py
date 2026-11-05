@@ -30,7 +30,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.response import HTTPResponse
 from playwright.async_api import async_playwright, Browser, Playwright
 from trendspy import Trends, TrendKeywordLite
-from typing import Optional, cast, overload, Literal, Awaitable
+from typing import Any, Optional, cast, overload, Literal, Awaitable
 from contextlib import asynccontextmanager, AsyncContextDecorator
 import logging
 from collections.abc import Callable
@@ -243,6 +243,47 @@ class _ThreadLocalTrendsProxy:
 
 
 tr = _ThreadLocalTrendsProxy()
+
+TRENDS_OPERATION_TIMEOUT_SECONDS = 30
+TRENDS_MAX_ACTIVE_WORKERS = 4
+_TRENDS_WORKER_SLOTS = threading.BoundedSemaphore(TRENDS_MAX_ACTIVE_WORKERS)
+_trends_worker_tasks: set[asyncio.Task] = set()
+
+
+def _run_trends_with_slot(slot: threading.BoundedSemaphore, invoke: Callable[[], Any]):
+    try:
+        return invoke()
+    finally:
+        # Caller cancellation cannot interrupt a synchronous TrendSpy request.
+        slot.release()
+
+
+def _finish_trends_worker(task: asyncio.Task) -> None:
+    _trends_worker_tasks.discard(task)
+    if not task.cancelled():
+        task.exception()
+
+
+async def _call_trends_async(operation: str, invoke: Callable[[], Any]):
+    """Limit actual blocking TrendSpy workers, not merely waiting async callers."""
+    slot = _TRENDS_WORKER_SLOTS
+    if not slot.acquire(blocking=False):
+        provider_metrics.count("trends_worker_saturation")
+        raise ProviderUnavailableError("google_trends", operation)
+    try:
+        worker = asyncio.create_task(asyncio.to_thread(_run_trends_with_slot, slot, invoke))
+    except BaseException:
+        slot.release()
+        raise
+    _trends_worker_tasks.add(worker)
+    worker.add_done_callback(_finish_trends_worker)
+    try:
+        return await asyncio.wait_for(asyncio.shield(worker), timeout=TRENDS_OPERATION_TIMEOUT_SECONDS)
+    except TimeoutError as exc:
+        provider_metrics.count("trends_worker_timeout")
+        raise classify_provider_exception(
+            exc, provider="google_trends", operation=operation
+        ) from exc
 
 
 def _call_related_queries_with_unavailable_retry(**kwargs):
@@ -1262,7 +1303,7 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
     """
     trends = cast(
         list[TrendKeywordLite],
-        await asyncio.to_thread(lambda: tr.trending_now_by_rss(geo=geo)),
+        await _call_trends_async("trending_now_by_rss", lambda: tr.trending_now_by_rss(geo=geo)),
     )
     for trend in trends:
         trend.keyword = _decode_provider_text(trend.keyword)
@@ -1551,9 +1592,8 @@ async def get_trends(
 
     keywords = _comparison_keywords(keyword)
 
-    loop = asyncio.get_running_loop()
-    df = await loop.run_in_executor(
-        None,
+    df = await _call_trends_async(
+        "interest_over_time",
         lambda: tr.interest_over_time(keywords, timeframe=timeframe, geo=geo, cat=cat, gprop=gprop)
     )
 
@@ -1582,9 +1622,8 @@ async def get_growth(
 
     gprop = _google_property(source)
 
-    loop = asyncio.get_running_loop()
-    df = await loop.run_in_executor(
-        None,
+    df = await _call_trends_async(
+        "interest_over_time",
         lambda: tr.interest_over_time(keywords, timeframe=timeframe, geo=geo, gprop=gprop)
     )
 
@@ -1613,9 +1652,8 @@ async def get_ranked_trends(
         allowed = ", ".join(sorted(_ALLOWED_RANK_SORTS))
         raise ValueError(f"Unsupported sort {sort!r}; expected one of: {allowed}.")
 
-    loop = asyncio.get_running_loop()
-    trends = await loop.run_in_executor(
-        None,
+    trends = await _call_trends_async(
+        "trending_now",
         lambda: tr.trending_now(geo=geo, hours=24)
     )
 
@@ -1678,15 +1716,12 @@ async def get_top_trends(
         )
 
     if normalized_type in ("daily trends", "daily"):
-        trends = await asyncio.to_thread(
-            tr.trending_now,
-            geo=geo,
-            hours=24,
+        trends = await _call_trends_async(
+            "trending_now", lambda: tr.trending_now(geo=geo, hours=24)
         )
     else:
-        trends = await asyncio.to_thread(
-            tr.trending_now_by_rss,
-            geo=geo,
+        trends = await _call_trends_async(
+            "trending_now_by_rss", lambda: tr.trending_now_by_rss(geo=geo)
         )
 
     trends = trends[:limit]
@@ -1757,9 +1792,8 @@ async def get_interest_by_region(
     gprop = _validated_google_property(gprop)
     resolution = _validated_region_resolution(resolution)
     kw_list = _comparison_keywords(keywords)
-    loop = asyncio.get_running_loop()
-    df = await loop.run_in_executor(
-        None,
+    df = await _call_trends_async(
+        "interest_by_region",
         lambda: tr.interest_by_region(
             keywords=kw_list,
             timeframe=timeframe,
@@ -1806,9 +1840,8 @@ async def get_related_queries(
     """Retrieves related queries for a single search term."""
     keyword = _required_seed_keyword(keyword)
     gprop = _validated_google_property(gprop)
-    loop = asyncio.get_running_loop()
-    res = await loop.run_in_executor(
-        None,
+    res = await _call_trends_async(
+        "related_queries",
         lambda: _call_related_queries_with_unavailable_retry(
             keyword=keyword,
             timeframe=timeframe,
@@ -1843,9 +1876,8 @@ async def get_related_topics(
     """Retrieves related topics for a single search term."""
     keyword = _required_seed_keyword(keyword)
     gprop = _validated_google_property(gprop)
-    loop = asyncio.get_running_loop()
-    res = await loop.run_in_executor(
-        None,
+    res = await _call_trends_async(
+        "related_topics",
         lambda: tr.related_topics(
             keyword=keyword,
             timeframe=timeframe,
@@ -1875,9 +1907,8 @@ async def get_related_topics(
 async def get_suggestions(keyword: str, language: Optional[str] = None) -> list[dict]:
     """Retrieves autocomplete suggestions for a search term."""
     keyword = _required_seed_keyword(keyword)
-    loop = asyncio.get_running_loop()
-    df = await loop.run_in_executor(
-        None,
+    df = await _call_trends_async(
+        "suggestions",
         lambda: tr.suggestions(keyword=keyword, language=language)
     )
     if df.empty:
@@ -1894,9 +1925,8 @@ async def get_suggestions(keyword: str, language: Optional[str] = None) -> list[
 
 async def get_categories() -> list[dict]:
     """Retrieves category list from Google Trends."""
-    loop = asyncio.get_running_loop()
-    cats = await loop.run_in_executor(
-        None,
+    cats = await _call_trends_async(
+        "categories",
         lambda: tr.categories()
     )
     return cats
