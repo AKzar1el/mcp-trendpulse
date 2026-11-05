@@ -324,6 +324,9 @@ async def test_playwright_navigation_uses_explicit_timeout():
     page.content = AsyncMock(return_value="<html>article</html>")
     context = MagicMock()
     context.route = AsyncMock()
+    context.set_offline = AsyncMock()
+    context.route_web_socket = AsyncMock()
+    context.add_init_script = AsyncMock()
     context.new_page = AsyncMock(return_value=page)
     article = MagicMock()
 
@@ -351,6 +354,9 @@ async def test_playwright_rejects_oversized_html():
     page.content = AsyncMock(return_value="a" * (news.ARTICLE_MAX_HTML_BYTES + 1))
     context = MagicMock()
     context.route = AsyncMock()
+    context.set_offline = AsyncMock()
+    context.route_web_socket = AsyncMock()
+    context.add_init_script = AsyncMock()
     context.new_page = AsyncMock(return_value=page)
 
     @asynccontextmanager
@@ -372,6 +378,9 @@ async def test_playwright_navigation_failure_returns_article_download_failure():
     page.goto = AsyncMock(side_effect=TimeoutError("navigation timed out"))
     context = MagicMock()
     context.route = AsyncMock()
+    context.set_offline = AsyncMock()
+    context.route_web_socket = AsyncMock()
+    context.add_init_script = AsyncMock()
     context.new_page = AsyncMock(return_value=page)
 
     @asynccontextmanager

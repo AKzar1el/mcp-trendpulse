@@ -24,6 +24,8 @@ from gnews.gnews import SECTIONS as GNEWS_SECTIONS, TOPICS as GNEWS_TOPICS
 import newspaper  # newspaper4k
 from googlenewsdecoder import gnewsdecoder
 import cloudscraper
+from requests import Session
+from mcp_trendpulse.article_safe_transport import secure_article_session, fetch_public_article_resource
 from playwright.async_api import async_playwright, Browser, Playwright
 from trendspy import Trends, TrendKeywordLite
 from typing import Optional, cast, overload, Literal, Awaitable
@@ -560,60 +562,111 @@ class BrowserManager(AsyncContextDecorator):
         return False
 
 
-async def guard_playwright_route(route, target_validator: ArticleTargetValidator) -> Optional[ValueError]:
-    """Allow only browser requests whose targets passed article network validation."""
+async def guard_playwright_route(
+    route,
+    target_validator: ArticleTargetValidator,
+    resource_fetcher: Optional[Callable] = None,
+) -> Optional[ValueError]:
+    """Fulfill browser requests through verified Python sockets, never route.continue_."""
     try:
         await asyncio.to_thread(target_validator.validate_url, route.request.url)
-    except ValueError as exc:
-        await route.abort("blockedbyclient")
-        return exc
-    else:
-        await route.continue_()
+        if resource_fetcher is None:
+            raise ValueError("Browser request has no verified article transport")
+        req = route.request
+        resource = await asyncio.to_thread(
+            resource_fetcher,
+            req.url,
+            req.method,
+            dict(req.headers),
+        )
+        await route.fulfill(
+            status=resource.status,
+            headers=resource.headers,
+            body=resource.body,
+        )
         return None
+    except (ValueError, OSError) as exc:
+        await route.abort("blockedbyclient")
+        return ValueError(str(exc))
+    except Exception:
+        # Egress must never fall back to Chromium's unpinned network stack.
+        await route.abort("blockedbyclient")
+        return ValueError("Unable to fetch article resource with verified transport")
 
 
 async def download_article_with_playwright(
     url: str,
     target_validator: Optional[ArticleTargetValidator] = None,
 ) -> newspaper.Article | None:
-    """
-    Download an article using Playwright to handle complex websites (async).
-    """
+    """Render public articles in offline Chromium with pinned Python HTTP fetches."""
     target_validator = target_validator or ArticleTargetValidator()
     url = target_validator.validate_url(url)
     blocked_target_error: Optional[ValueError] = None
+    resource_session = Session()
+    secure_article_session(resource_session, target_validator)
+    session_lock = threading.Lock()
+
+    def pinned_fetch(resource_url: str, method: str, headers: dict[str, str]):
+        with session_lock:
+            return fetch_public_article_resource(
+                resource_session,
+                target_validator,
+                resource_url,
+                method,
+                headers,
+                max_bytes=ARTICLE_MAX_HTML_BYTES,
+                timeout=ARTICLE_HTTP_TIMEOUT_SECONDS,
+                max_redirects=_MAX_ARTICLE_REDIRECTS,
+            )
 
     async def route_handler(route) -> None:
         nonlocal blocked_target_error
-        error = await guard_playwright_route(route, target_validator)
+        error = await guard_playwright_route(route, target_validator, pinned_fetch)
         if error is not None:
             blocked_target_error = error
 
-    async with BrowserManager.browser_context() as context:
-        try:
-            await context.route("**/*", route_handler)
-            page = await context.new_page()
-            await page.goto(
-                url,
-                wait_until="domcontentloaded",
-                timeout=ARTICLE_BROWSER_NAVIGATION_TIMEOUT_MS,
-            )
-            if blocked_target_error:
-                raise blocked_target_error
-            await asyncio.sleep(2)  # Wait for the page to load completely
-            if blocked_target_error:
-                raise blocked_target_error
-            content = await page.content()
-            if len(content.encode("utf-8")) > ARTICLE_MAX_HTML_BYTES:
-                logger.warning("Rejected browser article content from %s because it exceeds the HTML size limit", url)
+    async def block_web_socket(route) -> None:
+        await route.close()
+
+    try:
+        async with BrowserManager.browser_context() as context:
+            try:
+                # The page's own network stack is offline, including on handler errors.
+                # Every HTTP resource must be served by the verified Python transport.
+                await context.set_offline(True)
+                await context.route_web_socket("**/*", block_web_socket)
+                await context.add_init_script(
+                    """(() => {
+                      for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'WebTransport', 'Worker', 'SharedWorker']) {
+                        try { Object.defineProperty(window, name, { value: undefined, configurable: false }); }
+                        catch (_) {}
+                      }
+                    })();"""
+                )
+                await context.route("**/*", route_handler)
+                page = await context.new_page()
+                await page.goto(
+                    url,
+                    wait_until="domcontentloaded",
+                    timeout=ARTICLE_BROWSER_NAVIGATION_TIMEOUT_MS,
+                )
+                if blocked_target_error:
+                    raise blocked_target_error
+                await asyncio.sleep(2)
+                if blocked_target_error:
+                    raise blocked_target_error
+                content = await page.content()
+                if len(content.encode("utf-8")) > ARTICLE_MAX_HTML_BYTES:
+                    logger.warning("Rejected browser article content from %s because it exceeds the HTML size limit", url)
+                    return None
+                return newspaper.article(url, input_html=content)
+            except ValueError:
+                raise
+            except Exception as exc:
+                logger.debug("Unable to download article in offline browser: %s", type(exc).__name__)
                 return None
-            article = newspaper.article(url, input_html=content)
-            return article
-        except ValueError:
-            raise
-        except Exception as e:
-            logger.warning(f"Error downloading article with Playwright from {url}\n {e.args}")
-            return None
+    finally:
+        resource_session.close()
 
 
 def _is_unsupported_article_response(response) -> bool:
@@ -668,6 +721,7 @@ def download_article_with_scraper(
         if scraper_inst is None:
             return None
 
+        scraper_inst = secure_article_session(scraper_inst, target_validator)
         deadline = perf_counter() + ARTICLE_HTTP_DOWNLOAD_DEADLINE_SECONDS
         for _ in range(_MAX_ARTICLE_REDIRECTS):
             remaining = deadline - perf_counter()
