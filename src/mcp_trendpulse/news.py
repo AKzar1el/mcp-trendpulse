@@ -3,7 +3,8 @@
 This module provides functions to find and download news articles using Google News.
 It allows searching for articles by keyword, location, or topic, and can also retrieve google trending terms.
 It uses the `gnews` library to search for news articles and trendspy to get Google Trends data.
-It will fallback to using Playwright for websites that are difficult to scrape with newspaper4k or cloudscraper.
+Untrusted article requests use a public-IP-pinned HTTP transport. The browser
+fallback is disabled until it can enforce the same network boundary.
 """
 
 import re
@@ -24,6 +25,7 @@ from gnews.gnews import SECTIONS as GNEWS_SECTIONS, TOPICS as GNEWS_TOPICS
 import newspaper  # newspaper4k
 from googlenewsdecoder import gnewsdecoder
 import cloudscraper
+from requests.adapters import HTTPAdapter
 from playwright.async_api import async_playwright, Browser, Playwright
 from trendspy import Trends, TrendKeywordLite
 from typing import Optional, cast, overload, Literal, Awaitable
@@ -284,6 +286,12 @@ def get_scraper():
                 browser="chrome",
                 debug=False,
             )
+            # All requests, including challenge retries, must use a dial-pinned
+            # transport. Environment proxies must not change the egress route.
+            scraper_instance.trust_env = False
+            scraper_instance.proxies = {}
+            scraper_instance.mount("http://", ArticlePinnedHTTPAdapter())
+            scraper_instance.mount("https://", ArticlePinnedHTTPAdapter())
         except Exception as e:
             logger.error(f"Failed to initialize cloudscraper: {e}")
             return None
@@ -489,6 +497,50 @@ class ArticleTargetValidator:
         return url
 
 
+class ArticlePinnedHTTPAdapter(HTTPAdapter):
+    """Connect only to a vetted public IP, retaining URL-host TLS verification."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._target_validator = ArticleTargetValidator()
+
+    def get_connection_with_tls_context(self, request, verify, proxies=None, cert=None):
+        if proxies:
+            raise ValueError("Article transport cannot use a proxy.")
+        if verify is False:
+            raise ValueError("Article transport requires TLS certificate verification.")
+
+        url = self._target_validator.validate_url(request.url)
+        parsed = urlsplit(url)
+        hostname = self._target_validator._normalize_hostname(parsed.hostname or "")
+        try:
+            literal = ipaddress.ip_address(hostname)
+        except ValueError:
+            addresses = self._target_validator._resolve_hostname(hostname)
+        else:
+            self._target_validator._require_public_address(literal)
+            addresses = (literal,)
+
+        # urllib3 resolves the pool host, which is an IP literal, not the DNS
+        # name that might have changed after the validator's DNS lookup.
+        address = sorted(addresses, key=lambda ip: (ip.version, int(ip)))[0]
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        host_header = f"[{hostname}]" if ":" in hostname else hostname
+        if port != (443 if parsed.scheme == "https" else 80):
+            host_header += f":{port}"
+        request.headers["Host"] = host_header
+
+        _, pool_kwargs = self.build_connection_pool_key_attributes(request, verify, cert)
+        pool_kwargs = dict(pool_kwargs)
+        if parsed.scheme == "https":
+            # SNI and certificate hostname validation stay on the original
+            # requested host, even though TCP connects to a vetted IP.
+            pool_kwargs.update(server_hostname=hostname, assert_hostname=hostname)
+        return self.poolmanager.connection_from_host(
+            host=str(address), port=port, scheme=parsed.scheme, pool_kwargs=pool_kwargs
+        )
+
+
 class BrowserManager(AsyncContextDecorator):
     _playwright: Optional[Playwright] = None
     _browser: Optional[Browser] = None
@@ -561,15 +613,9 @@ class BrowserManager(AsyncContextDecorator):
 
 
 async def guard_playwright_route(route, target_validator: ArticleTargetValidator) -> Optional[ValueError]:
-    """Allow only browser requests whose targets passed article network validation."""
-    try:
-        await asyncio.to_thread(target_validator.validate_url, route.request.url)
-    except ValueError as exc:
-        await route.abort("blockedbyclient")
-        return exc
-    else:
-        await route.continue_()
-        return None
+    """Never let the unsupported browser route open an unpinned socket."""
+    await route.abort("blockedbyclient")
+    return ValueError("Article browser transport is disabled until pinned browser egress is available.")
 
 
 async def download_article_with_playwright(
@@ -577,43 +623,9 @@ async def download_article_with_playwright(
     target_validator: Optional[ArticleTargetValidator] = None,
 ) -> newspaper.Article | None:
     """
-    Download an article using Playwright to handle complex websites (async).
+    Fail closed until Chromium requests have connection-level egress pinning.
     """
-    target_validator = target_validator or ArticleTargetValidator()
-    url = target_validator.validate_url(url)
-    blocked_target_error: Optional[ValueError] = None
-
-    async def route_handler(route) -> None:
-        nonlocal blocked_target_error
-        error = await guard_playwright_route(route, target_validator)
-        if error is not None:
-            blocked_target_error = error
-
-    async with BrowserManager.browser_context() as context:
-        try:
-            await context.route("**/*", route_handler)
-            page = await context.new_page()
-            await page.goto(
-                url,
-                wait_until="domcontentloaded",
-                timeout=ARTICLE_BROWSER_NAVIGATION_TIMEOUT_MS,
-            )
-            if blocked_target_error:
-                raise blocked_target_error
-            await asyncio.sleep(2)  # Wait for the page to load completely
-            if blocked_target_error:
-                raise blocked_target_error
-            content = await page.content()
-            if len(content.encode("utf-8")) > ARTICLE_MAX_HTML_BYTES:
-                logger.warning("Rejected browser article content from %s because it exceeds the HTML size limit", url)
-                return None
-            article = newspaper.article(url, input_html=content)
-            return article
-        except ValueError:
-            raise
-        except Exception as e:
-            logger.warning(f"Error downloading article with Playwright from {url}\n {e.args}")
-            return None
+    raise ValueError("Article browser transport is disabled until pinned browser egress is available.")
 
 
 def _is_unsupported_article_response(response) -> bool:
@@ -735,9 +747,8 @@ async def download_article(url: str) -> newspaper.Article | None:
     article = await asyncio.to_thread(download_article_with_scraper, url, target_validator)
     _strip_known_article_shell_prefix(article)
     if article is None or not article.text or _is_unusable_article_page(article):
-        logger.debug("Attempting to download article with playwright")
-        article = await download_article_with_playwright(url, target_validator)
-        _strip_known_article_shell_prefix(article)
+        logger.debug("Article HTTP transport did not return usable text; unsafe browser fallback is disabled")
+        return None
     if article is not None and _is_unusable_article_page(article):
         logger.debug(f"Rejected unusable article page from {url}")
         return None

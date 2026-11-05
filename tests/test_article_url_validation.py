@@ -1,4 +1,3 @@
-from contextlib import asynccontextmanager
 import socket
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -192,6 +191,17 @@ async def test_playwright_route_guard_aborts_private_subrequests():
     route.continue_.assert_not_awaited()
 
 
+async def test_playwright_route_guard_aborts_public_subrequests_without_egress_pin():
+    route = SimpleNamespace(
+        request=SimpleNamespace(url="https://93.184.216.34/article"),
+        abort=AsyncMock(),
+        continue_=AsyncMock(),
+    )
+    await news.guard_playwright_route(route, news.ArticleTargetValidator())
+    route.abort.assert_awaited_once_with("blockedbyclient")
+    route.continue_.assert_not_awaited()
+
+
 def test_scraper_streams_articles_with_an_explicit_timeout():
     response = _article_response(chunks=[b"<html>article</html>"])
     scraper = MagicMock()
@@ -318,65 +328,22 @@ def test_scraper_shares_download_deadline_across_redirects():
     assert all(response.close.call_count == 1 for response in responses)
 
 
-async def test_playwright_navigation_uses_explicit_timeout():
-    page = MagicMock()
-    page.goto = AsyncMock()
-    page.content = AsyncMock(return_value="<html>article</html>")
-    context = MagicMock()
-    context.route = AsyncMock()
-    context.new_page = AsyncMock(return_value=page)
-    article = MagicMock()
-
-    @asynccontextmanager
-    async def browser_context():
-        yield context
-
-    with (
-        patch("mcp_trendpulse.news.BrowserManager.browser_context", return_value=browser_context()),
-        patch("mcp_trendpulse.news.asyncio.sleep", new_callable=AsyncMock),
-        patch("mcp_trendpulse.news.newspaper.article", return_value=article),
-    ):
-        assert await news.download_article_with_playwright("https://93.184.216.34/article") is article
-
-    page.goto.assert_awaited_once_with(
-        "https://93.184.216.34/article",
-        wait_until="domcontentloaded",
-        timeout=news.ARTICLE_BROWSER_NAVIGATION_TIMEOUT_MS,
-    )
+async def test_playwright_navigation_cannot_open_unpinned_socket():
+    with patch("mcp_trendpulse.news.BrowserManager.browser_context") as browser:
+        with pytest.raises(ValueError, match="browser transport is disabled"):
+            await news.download_article_with_playwright("https://93.184.216.34/article")
+    browser.assert_not_called()
 
 
-async def test_playwright_rejects_oversized_html():
-    page = MagicMock()
-    page.goto = AsyncMock()
-    page.content = AsyncMock(return_value="a" * (news.ARTICLE_MAX_HTML_BYTES + 1))
-    context = MagicMock()
-    context.route = AsyncMock()
-    context.new_page = AsyncMock(return_value=page)
-
-    @asynccontextmanager
-    async def browser_context():
-        yield context
-
-    with (
-        patch("mcp_trendpulse.news.BrowserManager.browser_context", return_value=browser_context()),
-        patch("mcp_trendpulse.news.asyncio.sleep", new_callable=AsyncMock),
-        patch("mcp_trendpulse.news.newspaper.article") as parse_article,
-    ):
-        assert await news.download_article_with_playwright("https://93.184.216.34/article") is None
-
+async def test_playwright_does_not_parse_unverified_browser_html():
+    with patch("mcp_trendpulse.news.newspaper.article") as parse_article:
+        with pytest.raises(ValueError, match="browser transport is disabled"):
+            await news.download_article_with_playwright("https://93.184.216.34/article")
     parse_article.assert_not_called()
 
 
-async def test_playwright_navigation_failure_returns_article_download_failure():
-    page = MagicMock()
-    page.goto = AsyncMock(side_effect=TimeoutError("navigation timed out"))
-    context = MagicMock()
-    context.route = AsyncMock()
-    context.new_page = AsyncMock(return_value=page)
-
-    @asynccontextmanager
-    async def browser_context():
-        yield context
-
-    with patch("mcp_trendpulse.news.BrowserManager.browser_context", return_value=browser_context()):
-        assert await news.download_article_with_playwright("https://93.184.216.34/article") is None
+async def test_playwright_rejects_external_article_even_when_public_literal():
+    with patch("mcp_trendpulse.news.BrowserManager.browser_context") as browser:
+        with pytest.raises(ValueError, match="browser transport is disabled"):
+            await news.download_article_with_playwright("http://93.184.216.34/article")
+    browser.assert_not_called()
