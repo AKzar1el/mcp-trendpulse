@@ -14,9 +14,13 @@ class FakeArticle:
         self.title = label
         self.text = f"text for {label}"
         self.nlp_calls = 0
+        self.summary = ""
+        self.keywords = []
 
     def nlp(self):
         self.nlp_calls += 1
+        self.summary = f"summary for {self.label}"
+        self.keywords = [self.label]
 
 
 @pytest.mark.asyncio
@@ -56,7 +60,9 @@ async def test_process_gnews_articles_bounds_concurrency_and_preserves_order(mon
 
     assert peak == 2
     assert [article.label for article in result] == ["first", "second", "third", "fourth"]
-    assert all(article.nlp_calls == 1 for article in result)
+    assert [article.summary for article in result] == [f"summary for {label}" for label in delays]
+    assert [article.keywords for article in result] == [[label] for label in delays]
+    assert all(article.nlp_calls == 0 for article in result)  # NLP ran on detached copies.
 
 
 @pytest.mark.asyncio
@@ -86,7 +92,8 @@ async def test_process_gnews_articles_preserves_other_items_when_one_nlp_fails(m
     )
 
     assert [article.label for article in result] == ["first", "bad", "third"]
-    assert [article.nlp_calls for article in result] == [1, 1, 1]
+    assert [article.summary for article in result] == ["summary for first", "", "summary for third"]
+    assert [article.nlp_calls for article in result] == [0, 0, 0]
     assert result[1].text == "text for bad"
     assert result[1].summary == ""
     assert result[1].keywords == []

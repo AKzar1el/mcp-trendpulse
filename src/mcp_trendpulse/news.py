@@ -7,6 +7,7 @@ Untrusted article requests use a public-IP-pinned HTTP transport. The browser
 fallback is disabled until it can enforce the same network boundary.
 """
 
+import copy
 import re
 import json
 import asyncio
@@ -426,6 +427,10 @@ ARTICLE_HTTP_DOWNLOAD_DEADLINE_SECONDS = 30
 ARTICLE_BROWSER_NAVIGATION_TIMEOUT_MS = 15_000
 ARTICLE_MAX_HTML_BYTES = 5 * 1024 * 1024
 ARTICLE_PROCESS_CONCURRENCY = 4
+ARTICLE_NLP_TIMEOUT_SECONDS = 8
+ARTICLE_NLP_MAX_ACTIVE_WORKERS = 4
+_ARTICLE_NLP_WORKER_SLOTS = threading.BoundedSemaphore(ARTICLE_NLP_MAX_ACTIVE_WORKERS)
+_article_nlp_worker_tasks: set[asyncio.Task] = set()
 _ARTICLE_RESPONSE_CHUNK_SIZE = 64 * 1024
 _UNSUPPORTED_ARTICLE_CONTENT_TYPES = {
     "application/gzip",
@@ -789,6 +794,58 @@ async def download_article(url: str) -> newspaper.Article | None:
     return article
 
 
+def _run_article_nlp_with_slot(slot: threading.BoundedSemaphore, article: newspaper.Article):
+    try:
+        article.nlp()
+        return getattr(article, "summary", ""), getattr(article, "keywords", [])
+    finally:
+        slot.release()
+
+
+def _finish_article_nlp_worker(task: asyncio.Task) -> None:
+    _article_nlp_worker_tasks.discard(task)
+    if not task.cancelled():
+        task.exception()
+
+
+async def _enrich_article_nlp(article: newspaper.Article, idx: int) -> None:
+    """Bound physical NLP work; only copy completed enrichment onto the returned article."""
+    slot = _ARTICLE_NLP_WORKER_SLOTS
+    if not slot.acquire(blocking=False):
+        provider_metrics.count("article_nlp_saturation")
+        return
+
+    try:
+        # newspaper.nlp mutates its Article; an abandoned thread must never
+        # mutate the article already returned to an MCP caller.
+        detached = copy.copy(article)
+        worker = asyncio.create_task(asyncio.to_thread(_run_article_nlp_with_slot, slot, detached))
+    except BaseException:
+        slot.release()
+        raise
+
+    _article_nlp_worker_tasks.add(worker)
+    worker.add_done_callback(_finish_article_nlp_worker)
+    try:
+        summary, keywords = await asyncio.wait_for(
+            asyncio.shield(worker), timeout=ARTICLE_NLP_TIMEOUT_SECONDS
+        )
+    except (TimeoutError, asyncio.TimeoutError):
+        provider_metrics.count("article_nlp_timeout")
+        logger.warning("NLP enrichment timed out for article %d; preserving extracted text", idx)
+    except Exception as exc:
+        article.summary = ""
+        article.keywords = []
+        logger.warning(
+            "NLP enrichment failed for article %d (%s); preserving extracted text without enrichment",
+            idx,
+            type(exc).__name__,
+        )
+    else:
+        article.summary = summary
+        article.keywords = keywords
+
+
 async def process_gnews_articles(
     gnews_articles: list[dict],
     nlp: bool = True,
@@ -847,17 +904,7 @@ async def process_gnews_articles(
             _restore_feed_title_if_placeholder(article, gnews_article)
 
             if nlp:
-                try:
-                    await asyncio.to_thread(article.nlp)
-                except Exception as exc:
-                    # Optional enrichment must not invalidate extracted article evidence.
-                    article.summary = ""
-                    article.keywords = []
-                    logger.warning(
-                        "NLP enrichment failed for article %d (%s); preserving extracted text without enrichment",
-                        idx,
-                        type(exc).__name__,
-                    )
+                await _enrich_article_nlp(article, idx)
             return idx, article
 
     processed = await asyncio.gather(
