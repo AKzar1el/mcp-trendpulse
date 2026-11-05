@@ -368,9 +368,10 @@ def brief_pack(keywords, markets, timeframe):
 
     async def _build():
         providers = get_provider_set()
+        display_timeframe = _brief_table_cell(" ".join(timeframe.split()))
         click.echo("# TrendPulse Demand Brief evidence pack")
         click.echo()
-        click.echo(f"Timeframe: **{timeframe}** | Google Trends property: **Google Search**")
+        click.echo(f"Timeframe: **{display_timeframe}** | Google Trends property: **Google Search**")
         click.echo("Data source: **Google Trends** (https://trends.google.com/trends/)")
         click.echo()
         click.echo("> Google Trends values are normalized relative-interest indices, not absolute search volume. Compare terms within the same market request; do not compare index values directly across markets.")
@@ -419,7 +420,7 @@ def brief_pack(keywords, markets, timeframe):
                 click.echo()
                 click.echo(
                     f"> 3M and 1Y growth use separate Google Trends lookback requests; "
-                    f"they are not calculated from the selected {timeframe} time series."
+                    f"they are not calculated from the selected {display_timeframe} time series."
                 )
             if latest_trends_date:
                 click.echo()

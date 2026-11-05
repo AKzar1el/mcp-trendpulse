@@ -355,6 +355,33 @@ def test_brief_pack_keeps_dedicated_growth_fetch_for_custom_timeframe():
     )
 
 
+def test_brief_pack_escapes_timeframe_markdown_without_changing_provider_argument():
+    timeframe = "today 5-y\n<img src=x> | **[injected]**"
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(
+        return_value=[{"date": "2026-11-01", "value": 80, "keyword": "Example"}]
+    )
+    providers.trends.get_growth = AsyncMock(return_value=[])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "Example", "--market", "US", "--timeframe", timeframe],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "<img src=x>" not in result.output
+    assert "Timeframe: **today 5-y &lt;img src=x&gt; \\|" in result.output
+    assert "selected today 5-y &lt;img src=x&gt; \\|" in result.output
+    assert r"\*\*\[injected\]\*\*" in result.output
+    providers.trends.get_trends.assert_awaited_once_with(
+        keyword=["Example"],
+        source="google search",
+        geo="US",
+        timeframe=timeframe,
+    )
+    providers.trends.get_growth.assert_awaited_once()
+
+
 def test_brief_pack_labels_stale_keyword_observations_and_uses_latest_by_date():
     providers = FakeBriefProviders()
     providers.trends.get_trends = AsyncMock(
