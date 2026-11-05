@@ -38,6 +38,7 @@ from urllib.parse import quote, urljoin, urlsplit
 
 from mcp_trendpulse.config import (
     GOOGLE_NEWS_MAX_RESULTS,
+    GOOGLE_TRENDS_MAX_RESULTS,
     get_browser_sandbox_enabled,
     get_google_news_country,
     get_google_news_language,
@@ -82,6 +83,14 @@ _ALLOWED_RANK_SORTS = frozenset({"wow_pct_change", "volume"})
 _ALLOWED_TOP_TREND_TYPES = frozenset({"google trends", "daily trends", "daily"})
 _ALLOWED_GOOGLE_PROPERTIES = frozenset(_SEARCH_SOURCE_MAP.values())
 _ALLOWED_REGION_RESOLUTIONS = frozenset({"COUNTRY", "REGION", "CITY", "DMA"})
+
+
+def _validated_trend_result_limit(limit: int) -> int:
+    if not 1 <= limit <= GOOGLE_TRENDS_MAX_RESULTS:
+        raise ValueError(f"Trend result limit must be between 1 and {GOOGLE_TRENDS_MAX_RESULTS}.")
+    return limit
+
+
 _ARTICLE_TITLE_PLACEHOLDERS = frozenset(
     {
         "access denied",
@@ -1644,6 +1653,7 @@ async def get_ranked_trends(
     """
     Get ranked trending keywords on Google Search.
     """
+    limit = _validated_trend_result_limit(limit)
     normalized_source = source.strip().lower()
     if normalized_source != "google search":
         raise ValueError("get_ranked_trends supports only source='google search'.")
@@ -1708,6 +1718,7 @@ async def get_top_trends(
     """
     Get top trends from Google Trends realtime or 24-hour Trending Now feeds.
     """
+    limit = _validated_trend_result_limit(limit)
     normalized_type = type.strip().lower()
     if normalized_type not in _ALLOWED_TOP_TREND_TYPES:
         raise ValueError(
