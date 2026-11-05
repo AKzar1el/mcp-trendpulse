@@ -427,6 +427,10 @@ ARTICLE_HTTP_DOWNLOAD_DEADLINE_SECONDS = 30
 ARTICLE_BROWSER_NAVIGATION_TIMEOUT_MS = 15_000
 ARTICLE_MAX_HTML_BYTES = 5 * 1024 * 1024
 ARTICLE_PROCESS_CONCURRENCY = 4
+ARTICLE_PREFLIGHT_TIMEOUT_SECONDS = 10
+ARTICLE_PREFLIGHT_MAX_ACTIVE_WORKERS = 4
+_ARTICLE_PREFLIGHT_WORKER_SLOTS = threading.BoundedSemaphore(ARTICLE_PREFLIGHT_MAX_ACTIVE_WORKERS)
+_article_preflight_worker_tasks: set[asyncio.Task] = set()
 ARTICLE_NLP_TIMEOUT_SECONDS = 8
 ARTICLE_NLP_MAX_ACTIVE_WORKERS = 4
 _ARTICLE_NLP_WORKER_SLOTS = threading.BoundedSemaphore(ARTICLE_NLP_MAX_ACTIVE_WORKERS)
@@ -776,6 +780,46 @@ def decode_url(url: str) -> Optional[str]:
     return None
 
 
+def _run_article_preflight_with_slot(
+    slot: threading.BoundedSemaphore, operation: Callable, *args
+):
+    try:
+        return operation(*args)
+    finally:
+        # Cancelled callers do not stop DNS resolution or RSS decoding threads.
+        slot.release()
+
+
+def _finish_article_preflight_worker(task: asyncio.Task) -> None:
+    _article_preflight_worker_tasks.discard(task)
+    if not task.cancelled():
+        task.exception()
+
+
+async def _call_article_preflight(operation: Callable, *args):
+    """Bound physical DNS/RSS workers, not merely time spent awaiting them."""
+    slot = _ARTICLE_PREFLIGHT_WORKER_SLOTS
+    if not slot.acquire(blocking=False):
+        provider_metrics.count("article_preflight_saturation")
+        raise ValueError("Article preflight capacity exhausted.")
+    try:
+        worker = asyncio.create_task(
+            asyncio.to_thread(_run_article_preflight_with_slot, slot, operation, *args)
+        )
+    except BaseException:
+        slot.release()
+        raise
+    _article_preflight_worker_tasks.add(worker)
+    worker.add_done_callback(_finish_article_preflight_worker)
+    try:
+        return await asyncio.wait_for(
+            asyncio.shield(worker), timeout=ARTICLE_PREFLIGHT_TIMEOUT_SECONDS
+        )
+    except (TimeoutError, asyncio.TimeoutError) as exc:
+        provider_metrics.count("article_preflight_timeout")
+        raise ValueError("Article preflight exceeded its deadline.") from exc
+
+
 def _run_article_scraper_with_slot(
     slot: threading.BoundedSemaphore, url: str, target_validator: ArticleTargetValidator
 ) -> newspaper.Article | None:
@@ -822,12 +866,16 @@ async def download_article(url: str) -> newspaper.Article | None:
     Download an article from a given URL using newspaper4k and cloudscraper (async).
     """
     target_validator = ArticleTargetValidator()
-    url = await asyncio.to_thread(target_validator.validate_url, url)
+    url = await _call_article_preflight(target_validator.validate_url, url)
     if url.startswith("https://news.google.com/rss/"):
-        decoded = await asyncio.to_thread(decode_url, url)
+        try:
+            decoded = await _call_article_preflight(decode_url, url)
+        except ValueError:
+            # A timed-out or saturated decoder must not trigger an unsafe fetch.
+            return None
         if decoded is None:
             return None
-        url = await asyncio.to_thread(target_validator.validate_url, decoded)
+        url = await _call_article_preflight(target_validator.validate_url, decoded)
     article = await _download_article_with_worker_slot(url, target_validator)
     _strip_known_article_shell_prefix(article)
     if article is None or not article.text or _is_unusable_article_page(article):
