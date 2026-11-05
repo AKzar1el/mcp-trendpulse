@@ -376,6 +376,85 @@ def test_brief_pack_labels_stale_keyword_observations_and_uses_latest_by_date():
     assert "Latest complete Trends point: **2026-09-13**" in result.output
 
 
+def test_brief_pack_does_not_treat_invalid_dates_as_latest_observations():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-11-01", "keyword": "Example", "value": 80},
+        {"date": "bad-date", "keyword": "Example", "value": 10},
+        {"date": "2026-02-30", "keyword": "Other", "value": 90},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "Example", "--keyword", "Other",
+            "--market", "US", "--timeframe", "today 5-y",
+        ])
+
+    assert result.exit_code == 0, result.output
+    assert "Latest complete Trends point: **2026-11-01**" in result.output
+    assert "| Example | 80 | n/a | n/a |" in result.output
+    assert "| Other | n/a | n/a | n/a |" in result.output
+    assert "Excluded 2 Trends observations with invalid dates" in result.output
+    assert "bad-date" not in result.output
+    providers.trends.get_trends.assert_awaited_once()
+    providers.trends.get_growth.assert_awaited_once()
+
+
+def test_brief_pack_excludes_invalid_dates_from_default_growth_computation():
+    providers = FakeBriefProviders()
+    providers.trends.get_growth = AsyncMock(side_effect=AssertionError("default timeframe must reuse valid points"))
+    good = {"date": "2026-11-01", "keyword": "Example", "value": 70}
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "bad-date", "keyword": "Example", "value": 10}, good,
+    ])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers), patch(
+        "mcp_trendpulse.cli._growth_from_trend_points",
+        return_value=[{"keyword": "Example", "growth": {"3M": None, "1Y": None}}],
+    ) as growth:
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "Example", "--market", "US",
+        ])
+
+    assert result.exit_code == 0, result.output
+    assert "| Example | 70 | n/a | n/a |" in result.output
+    growth.assert_called_once_with([good], ["Example"], ["3M", "1Y"])
+    providers.trends.get_growth.assert_not_awaited()
+
+
+def test_brief_pack_does_not_invent_latest_date_when_all_dates_invalid():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-02-30", "keyword": "Example", "value": 99},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "Example", "--market", "US", "--timeframe", "today 5-y",
+        ])
+
+    assert result.exit_code == 0, result.output
+    assert "Latest complete Trends point" not in result.output
+    assert "| Example | n/a | n/a | n/a |" in result.output
+    assert "Excluded 1 Trends observation with invalid dates" in result.output
+
+
+def test_brief_pack_accepts_valid_iso_timestamp_as_dated_observation():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-11-01T12:30:00Z", "keyword": "Example", "value": 80},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "Example", "--market", "US", "--timeframe", "today 5-y",
+        ])
+
+    assert result.exit_code == 0, result.output
+    assert "Latest complete Trends point: **2026-11-01**" in result.output
+    assert "| Example | 80 | n/a | n/a |" in result.output
+    assert "Excluded" not in result.output
+
+
 def test_brief_pack_enforces_offer_keyword_and_market_limits():
     runner = CliRunner()
     too_many_keywords = [item for value in ["a", "b", "c", "d", "e", "f"] for item in ("--keyword", value)]
