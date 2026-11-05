@@ -2,6 +2,7 @@ import pytest
 from fastmcp import Client
 
 from mcp_trendpulse import hosted, server
+from mcp_trendpulse.digestseo import DigestSeoContextError
 from mcp_trendpulse.errors import ProviderRateLimitError
 from mcp_trendpulse.providers import ProviderSet, use_provider_set
 
@@ -539,3 +540,42 @@ async def test_find_seo_opportunities_degrades_when_gsc_is_unavailable(
     assert result.project_context.reason == "no_matching_property"
     assert all(candidate.search_console is None for candidate in result.candidates)
     assert any("remain trend-only" in limitation for limitation in result.limitations)
+
+
+@pytest.mark.parametrize("status", [502, 503, 504])
+async def test_find_seo_opportunities_preserves_trends_on_transient_digestseo_error(
+    fake_providers, monkeypatch, status
+):
+    async def failing_context(**kwargs):
+        raise DigestSeoContextError("Temporary upstream failure", code="upstream_failure", status=status)
+
+    monkeypatch.setattr(hosted, "fetch_digestseo_project_context", failing_context)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(
+            seed_keyword="technical seo", limit=2, project_id="project_123"
+        )
+
+    assert len(result.candidates) == 2
+    assert all(candidate.interest_points_observed > 0 for candidate in result.candidates)
+    assert all(candidate.search_console is None for candidate in result.candidates)
+    assert result.project_context is not None
+    assert result.project_context.project_id == "project_123"
+    assert result.project_context.search_console_available is False
+    assert result.project_context.retryable is True
+    assert result.project_context.reason == "digestseo_temporarily_unavailable"
+    assert any("remain trend-only" in limitation for limitation in result.limitations)
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 404])
+async def test_find_seo_opportunities_does_not_hide_digestseo_client_errors(
+    fake_providers, monkeypatch, status
+):
+    error = DigestSeoContextError("Permission or request failure", status=status)
+
+    async def failing_context(**kwargs):
+        raise error
+
+    monkeypatch.setattr(hosted, "fetch_digestseo_project_context", failing_context)
+    with use_provider_set(fake_providers), pytest.raises(DigestSeoContextError) as caught:
+        await hosted.find_seo_opportunities(seed_keyword="technical seo", project_id="project_123")
+    assert caught.value is error
