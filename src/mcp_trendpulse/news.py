@@ -431,6 +431,10 @@ ARTICLE_NLP_TIMEOUT_SECONDS = 8
 ARTICLE_NLP_MAX_ACTIVE_WORKERS = 4
 _ARTICLE_NLP_WORKER_SLOTS = threading.BoundedSemaphore(ARTICLE_NLP_MAX_ACTIVE_WORKERS)
 _article_nlp_worker_tasks: set[asyncio.Task] = set()
+ARTICLE_SCRAPER_TIMEOUT_SECONDS = 35
+ARTICLE_SCRAPER_MAX_ACTIVE_WORKERS = 4
+_ARTICLE_SCRAPER_WORKER_SLOTS = threading.BoundedSemaphore(ARTICLE_SCRAPER_MAX_ACTIVE_WORKERS)
+_article_scraper_worker_tasks: set[asyncio.Task] = set()
 _ARTICLE_RESPONSE_CHUNK_SIZE = 64 * 1024
 _UNSUPPORTED_ARTICLE_CONTENT_TYPES = {
     "application/gzip",
@@ -772,6 +776,47 @@ def decode_url(url: str) -> Optional[str]:
     return None
 
 
+def _run_article_scraper_with_slot(
+    slot: threading.BoundedSemaphore, url: str, target_validator: ArticleTargetValidator
+) -> newspaper.Article | None:
+    try:
+        return download_article_with_scraper(url, target_validator)
+    finally:
+        # Async cancellation cannot interrupt an already-running HTTP scraper.
+        slot.release()
+
+
+def _finish_article_scraper_worker(task: asyncio.Task) -> None:
+    _article_scraper_worker_tasks.discard(task)
+    if not task.cancelled():
+        task.exception()
+
+
+async def _download_article_with_worker_slot(
+    url: str, target_validator: ArticleTargetValidator
+) -> newspaper.Article | None:
+    slot = _ARTICLE_SCRAPER_WORKER_SLOTS
+    if not slot.acquire(blocking=False):
+        provider_metrics.count("article_scraper_saturation")
+        logger.warning("Article scraper capacity exhausted; preserving worker limit")
+        return None
+    try:
+        worker = asyncio.create_task(
+            asyncio.to_thread(_run_article_scraper_with_slot, slot, url, target_validator)
+        )
+    except BaseException:
+        slot.release()
+        raise
+    _article_scraper_worker_tasks.add(worker)
+    worker.add_done_callback(_finish_article_scraper_worker)
+    try:
+        return await asyncio.wait_for(asyncio.shield(worker), timeout=ARTICLE_SCRAPER_TIMEOUT_SECONDS)
+    except (TimeoutError, asyncio.TimeoutError):
+        provider_metrics.count("article_scraper_timeout")
+        logger.warning("Article scraper exceeded caller deadline; still-running worker remains counted")
+        return None
+
+
 async def download_article(url: str) -> newspaper.Article | None:
     """
     Download an article from a given URL using newspaper4k and cloudscraper (async).
@@ -783,7 +828,7 @@ async def download_article(url: str) -> newspaper.Article | None:
         if decoded is None:
             return None
         url = await asyncio.to_thread(target_validator.validate_url, decoded)
-    article = await asyncio.to_thread(download_article_with_scraper, url, target_validator)
+    article = await _download_article_with_worker_slot(url, target_validator)
     _strip_known_article_shell_prefix(article)
     if article is None or not article.text or _is_unusable_article_page(article):
         logger.debug("Article HTTP transport did not return usable text; unsafe browser fallback is disabled")
