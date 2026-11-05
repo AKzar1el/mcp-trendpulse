@@ -6,6 +6,7 @@ import re
 import sys
 from collections import defaultdict
 from dataclasses import asdict
+from datetime import date, datetime
 from math import isfinite
 from pathlib import Path
 
@@ -381,8 +382,14 @@ def brief_pack(keywords, markets, timeframe):
                 geo=market,
                 timeframe=timeframe,
             )
+            dated_points = [
+                (point, _brief_observation_day(point.get("date"))) for point in points
+            ]
+            dated_points = [(point, day) for point, day in dated_points if day is not None]
             if timeframe.strip().lower() == "today 12-m":
-                growth_rows = _growth_from_trend_points(points, cleaned_keywords, ["3M", "1Y"])
+                growth_rows = _growth_from_trend_points(
+                    [point for point, _ in dated_points], cleaned_keywords, ["3M", "1Y"]
+                )
             else:
                 growth_rows = await providers.trends.get_growth(
                     keyword=cleaned_keywords,
@@ -392,12 +399,10 @@ def brief_pack(keywords, markets, timeframe):
                 )
 
             series = defaultdict(list)
-            for point in points:
-                series[str(point.get("keyword", ""))].append(point)
-            latest_trends_date = max(
-                (str(point["date"])[:10] for point in points if point.get("date")),
-                default=None,
-            )
+            for point, day in dated_points:
+                series[str(point.get("keyword", ""))].append((day, point))
+            latest_trends_day = max((day for _, day in dated_points), default=None)
+            latest_trends_date = latest_trends_day.isoformat() if latest_trends_day else None
             growth = {
                 str(row.get("keyword", "")): row.get("growth") or {}
                 for row in growth_rows
@@ -405,6 +410,11 @@ def brief_pack(keywords, markets, timeframe):
 
             click.echo()
             click.echo(f"## {market}")
+            skipped_dates = len(points) - len(dated_points)
+            if skipped_dates:
+                click.echo()
+                noun = "observation" if skipped_dates == 1 else "observations"
+                click.echo(f"> Excluded {skipped_dates} Trends {noun} with invalid dates from this evidence table.")
             if timeframe.strip().lower() != "today 12-m":
                 click.echo()
                 click.echo(
@@ -420,9 +430,9 @@ def brief_pack(keywords, markets, timeframe):
             older_observations = []
             for keyword in cleaned_keywords:
                 keyword_points = series.get(keyword, [])
-                latest_point = max(keyword_points, key=lambda point: str(point.get("date") or ""), default=None)
-                latest = latest_point.get("value") if latest_point else None
-                last_date = str(latest_point.get("date") or "")[:10] if latest_point else ""
+                latest_point = max(keyword_points, key=lambda entry: entry[0], default=None)
+                latest = latest_point[1].get("value") if latest_point else None
+                last_date = latest_point[0].isoformat() if latest_point else ""
                 if last_date and latest_trends_date and last_date < latest_trends_date:
                     older_observations.append((keyword, last_date))
                 keyword_growth = growth.get(keyword, {})
@@ -439,6 +449,19 @@ def brief_pack(keywords, markets, timeframe):
                     )
 
     asyncio.run(_build())
+
+
+def _brief_observation_day(value):
+    """Accept real ISO dates/timestamps, not lexically plausible invalid metadata."""
+    text = str(value or "").strip()
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}(?:[T ].+)?", text):
+        return None
+    try:
+        if len(text) == 10:
+            return date.fromisoformat(text)
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
+    except ValueError:
+        return None
 
 
 def _brief_table_cell(value):
