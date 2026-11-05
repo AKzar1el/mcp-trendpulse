@@ -1,8 +1,11 @@
+import gzip
+import io
 import socket
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from urllib3.response import HTTPResponse
 
 from mcp_trendpulse import news
 from mcp_trendpulse.server import get_article_content
@@ -302,6 +305,41 @@ def test_scraper_stops_slow_drip_stream_before_parsing():
     assert clock["chunks"] < 100
     parse_article.assert_not_called()
     response.close.assert_called_once()
+
+
+def test_article_response_checks_deadline_between_partial_transport_reads():
+    clock = {"elapsed": 0, "reads": 0}
+    response = _article_response()
+    response.iter_content.side_effect = AssertionError("buffered 64KiB read must not be used")
+    response.raw = HTTPResponse(body=io.BytesIO(b""), preload_content=False)
+
+    def slowly_arriving_byte(*, amt, decode_content):
+        assert amt == news._ARTICLE_RESPONSE_CHUNK_SIZE
+        assert decode_content is True
+        clock["elapsed"] += 4
+        clock["reads"] += 1
+        return b"x"
+
+    response.raw.read1 = slowly_arriving_byte
+    with patch("mcp_trendpulse.news.perf_counter", side_effect=lambda: clock["elapsed"]):
+        assert news._read_article_response(response, "https://example.com/article", deadline=30) is None
+
+    assert clock["reads"] == 8
+    response.iter_content.assert_not_called()
+
+
+def test_article_response_partial_reads_keep_gzip_decoding():
+    html = "<html><body>Compressed article</body></html>"
+    response = _article_response(headers={"Content-Type": "text/html", "Content-Encoding": "gzip"})
+    response.iter_content.side_effect = AssertionError("buffered 64KiB read must not be used")
+    response.raw = HTTPResponse(
+        body=io.BytesIO(gzip.compress(html.encode("utf-8"))),
+        headers={"Content-Encoding": "gzip"},
+        preload_content=False,
+    )
+
+    assert news._read_article_response(response, "https://example.com/article", deadline=news.perf_counter() + 30) == html
+    response.iter_content.assert_not_called()
 
 
 def test_scraper_shares_download_deadline_across_redirects():
