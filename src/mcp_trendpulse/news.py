@@ -27,6 +27,7 @@ import newspaper  # newspaper4k
 from googlenewsdecoder import gnewsdecoder
 import cloudscraper
 from requests.adapters import HTTPAdapter
+from urllib3.response import HTTPResponse
 from playwright.async_api import async_playwright, Browser, Playwright
 from trendspy import Trends, TrendKeywordLite
 from typing import Optional, cast, overload, Literal, Awaitable
@@ -696,7 +697,22 @@ def _read_article_response(response, url: str, *, deadline: float) -> Optional[s
         return None
 
     body = bytearray()
-    for chunk in response.iter_content(chunk_size=_ARTICLE_RESPONSE_CHUNK_SIZE):
+    raw_response = getattr(response, "raw", None)
+    if isinstance(raw_response, HTTPResponse):
+        # read1 may return partial bytes; iter_content's read(64 KiB) can
+        # block indefinitely while a peer trickles bytes below that size.
+        def partial_chunks():
+            while True:
+                chunk = raw_response.read1(amt=_ARTICLE_RESPONSE_CHUNK_SIZE, decode_content=True)
+                if not chunk:
+                    break
+                yield chunk
+
+        chunks = partial_chunks()
+    else:
+        chunks = response.iter_content(chunk_size=_ARTICLE_RESPONSE_CHUNK_SIZE)
+
+    for chunk in chunks:
         # A per-socket read timeout alone cannot stop a steady slow-drip stream.
         if perf_counter() >= deadline:
             logger.warning("Aborted article response after the total HTTP download deadline")
