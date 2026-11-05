@@ -343,6 +343,9 @@ def _new_google_news(period: int, max_results: int) -> GNews:
 
 ProgressCallback = Callable[[float, Optional[float]], Awaitable[None]]
 GOOGLE_NEWS_OPERATION_TIMEOUT_SECONDS = 30
+GOOGLE_NEWS_MAX_INFLIGHT_OPERATIONS = 4
+_GOOGLE_NEWS_WORKER_SLOTS = threading.BoundedSemaphore(GOOGLE_NEWS_MAX_INFLIGHT_OPERATIONS)
+_google_news_worker_tasks: set[asyncio.Task] = set()
 
 def _call_google_news(client: GNews, operation: str, *args, **kwargs):
     """Run one GNews operation and normalize upstream failures."""
@@ -369,11 +372,42 @@ def _call_google_news(client: GNews, operation: str, *args, **kwargs):
         provider_metrics.observe_ms("news_feed", max(0.0, (perf_counter() - started) * 1000))
 
 
+def _call_google_news_with_worker_slot(slot: threading.BoundedSemaphore, client: GNews, operation: str, *args, **kwargs):
+    try:
+        return _call_google_news(client, operation, *args, **kwargs)
+    finally:
+        # A timed-out async caller cannot stop the already-running sync provider.
+        slot.release()
+
+
+def _finish_google_news_worker(task: asyncio.Task) -> None:
+    _google_news_worker_tasks.discard(task)
+    if not task.cancelled():
+        # Consume failures from a worker that outlived its timed-out caller.
+        task.exception()
+
+
 async def _call_google_news_async(client: GNews, operation: str, *args, **kwargs):
-    """Run one blocking GNews operation with a bounded caller-visible wait."""
+    """Bound both caller wait and still-running synchronous GNews operations."""
+    slot = _GOOGLE_NEWS_WORKER_SLOTS
+    if not slot.acquire(blocking=False):
+        provider_metrics.count("news_feed_saturation")
+        raise ProviderUnavailableError("google_news", operation)
+
+    try:
+        worker = asyncio.create_task(
+            asyncio.to_thread(_call_google_news_with_worker_slot, slot, client, operation, *args, **kwargs)
+        )
+    except BaseException:
+        slot.release()
+        raise
+    # Shield the worker from caller cancellation so its slot is not reused
+    # until the blocking operation actually finishes.
+    _google_news_worker_tasks.add(worker)
+    worker.add_done_callback(_finish_google_news_worker)
     try:
         return await asyncio.wait_for(
-            asyncio.to_thread(_call_google_news, client, operation, *args, **kwargs),
+            asyncio.shield(worker),
             timeout=GOOGLE_NEWS_OPERATION_TIMEOUT_SECONDS,
         )
     except (TimeoutError, asyncio.TimeoutError) as exc:
