@@ -268,6 +268,9 @@ def extractive_summary_fallback(article_text: str) -> str:
         extra_chars = len(sentence) + (1 if selected else 0)
         if selected and total_chars + extra_chars > SUMMARY_FALLBACK_MAX_CHARS:
             break
+        if not selected and extra_chars > SUMMARY_FALLBACK_MAX_CHARS:
+            sentence = sentence[: SUMMARY_FALLBACK_MAX_CHARS - 3].rstrip() + "..."
+            extra_chars = len(sentence)
         selected.append(sentence)
         total_chars += extra_chars
         if len(selected) >= SUMMARY_FALLBACK_MAX_SENTENCES:

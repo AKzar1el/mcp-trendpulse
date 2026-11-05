@@ -229,6 +229,17 @@ async def test_summarize_articles_uses_extract_fallback_when_nltk_data_is_missin
     assert article.nlp_calls == 1
 
 
+def test_extractive_summary_fallback_caps_oversized_first_sentence():
+    article_text = "A" * (server.SUMMARY_FALLBACK_MAX_CHARS * 2) + ". More context."
+
+    summary = server.extractive_summary_fallback(article_text)
+
+    assert len(summary) <= server.SUMMARY_FALLBACK_MAX_CHARS
+    assert summary.endswith("...")
+    assert summary.startswith("A" * 30)
+    assert "More context" not in summary
+
+
 async def test_summarize_articles_falls_back_per_article():
     sampled_article = SummarizableMockArticle(nlp_summary="NLP summary A")
     fallback_article = SummarizableMockArticle(nlp_summary="NLP summary B")
