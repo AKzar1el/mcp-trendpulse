@@ -16,7 +16,7 @@ from fastmcp.server.middleware.timing import TimingMiddleware
 from pydantic import BaseModel, Field
 
 from mcp_trendpulse.config import load_environment
-from mcp_trendpulse.digestseo import fetch_digestseo_project_context
+from mcp_trendpulse.digestseo import DigestSeoContextError, fetch_digestseo_project_context
 from mcp_trendpulse.errors import ProviderRateLimitError
 from mcp_trendpulse.middleware import ProviderErrorMiddleware
 from mcp_trendpulse.news import BrowserManager
@@ -716,14 +716,30 @@ async def find_seo_opportunities(
 
     project_context: SeoProjectContext | None = None
     if project_id is not None:
-        context_payload = await fetch_digestseo_project_context(
-            project_id=project_id,
-            keywords=candidate_keywords,
-            days=28,
-        )
-        project_context, search_console_by_keyword = _search_console_context(context_payload)
-        for candidate in candidates:
-            candidate.search_console = search_console_by_keyword.get(candidate.keyword)
+        try:
+            context_payload = await fetch_digestseo_project_context(
+                project_id=project_id,
+                keywords=candidate_keywords,
+                days=28,
+            )
+        except DigestSeoContextError as exc:
+            # Optional context must not discard validated Trends results on a
+            # temporary upstream failure. Auth and project-access errors remain fatal.
+            if exc.status is None or exc.status < 500:
+                raise
+            project_context = SeoProjectContext(
+                project_id=project_id,
+                project_name="",
+                origin="",
+                search_console_available=False,
+                reason="digestseo_temporarily_unavailable",
+                retryable=True,
+                message="DigestSEO Search Console context is temporarily unavailable; retry later.",
+            )
+        else:
+            project_context, search_console_by_keyword = _search_console_context(context_payload)
+            for candidate in candidates:
+                candidate.search_console = search_console_by_keyword.get(candidate.keyword)
 
     limitations = _seo_limitations(project_context)
     if any(candidate.interest_points_observed == 0 for candidate in candidates):
