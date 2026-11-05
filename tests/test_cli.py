@@ -382,6 +382,43 @@ def test_brief_pack_escapes_timeframe_markdown_without_changing_provider_argumen
     providers.trends.get_growth.assert_awaited_once()
 
 
+@pytest.mark.parametrize(
+    "market",
+    ["US\n<img src=x>", "US | extra column", "US**bold", "USA", "US--CA"],
+)
+def test_brief_pack_rejects_malformed_market_before_provider_calls(market):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(side_effect=AssertionError("invalid market reached provider"))
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "Example", "--market", market],
+        )
+
+    assert result.exit_code == 2, result.output
+    assert "Invalid --market" in result.output
+    providers.trends.get_trends.assert_not_awaited()
+
+
+@pytest.mark.parametrize("market,expected", [("US", "US"), ("us-ca", "US-CA"), ("US-CA-803", "US-CA-803")])
+def test_brief_pack_accepts_country_and_subregion_market_codes(market, expected):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(
+        return_value=[{"date": "2026-11-01", "keyword": "Example", "value": 80}]
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "Example", "--market", market],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert f"## {expected}" in result.output
+    providers.trends.get_trends.assert_awaited_once_with(
+        keyword=["Example"], source="google search", geo=expected, timeframe="today 12-m"
+    )
+
+
 def test_brief_pack_labels_stale_keyword_observations_and_uses_latest_by_date():
     providers = FakeBriefProviders()
     providers.trends.get_trends = AsyncMock(

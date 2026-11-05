@@ -351,7 +351,7 @@ def site(site, period, max_results, no_nlp, headlines_only, save_json_dir):
 
 @cli.command("brief-pack", help="Build the core trend/growth evidence table for a TrendPulse Demand Brief.")
 @click.option("--keyword", "keywords", multiple=True, required=True, help="Keyword or phrase; repeat up to five times.")
-@click.option("--market", "markets", multiple=True, required=True, help="Market code such as US or GB; repeat up to twice.")
+@click.option("--market", "markets", multiple=True, required=True, help="Country or subregion code such as US or US-CA; repeat up to twice.")
 @click.option("--timeframe", type=str, default="today 12-m", show_default=True, help="Shared Google Trends timeframe.")
 def brief_pack(keywords, markets, timeframe):
     """Emit a deterministic Markdown evidence pack for human Demand Brief fulfillment."""
@@ -363,6 +363,8 @@ def brief_pack(keywords, markets, timeframe):
         raise click.UsageError("Keywords must be unique.")
     if not 1 <= len(cleaned_markets) <= 2 or len(cleaned_markets) != len(markets):
         raise click.UsageError("Provide one or two non-empty --market values.")
+    if any(not re.fullmatch(r"[A-Z]{2}(?:-[A-Z0-9]{1,6}){0,2}", market) for market in cleaned_markets):
+        raise click.UsageError("Invalid --market: use a two-letter country code, optionally with region suffixes.")
     if len(set(cleaned_markets)) != len(cleaned_markets):
         raise click.UsageError("Markets must be unique.")
 
