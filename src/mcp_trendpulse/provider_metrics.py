@@ -20,6 +20,8 @@ EVENTS: Final[frozenset[str]] = frozenset(
         "trends_http_request",
         "trends_http_429",
         "trends_http_error",
+        "trends_worker_timeout",
+        "trends_worker_saturation",
         "trends_cooldown_open",
         "trends_cooldown_block",
         "trends_cache_hit",
