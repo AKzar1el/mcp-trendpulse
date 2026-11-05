@@ -1,4 +1,6 @@
+import asyncio
 import json
+import threading
 import time
 from types import SimpleNamespace
 
@@ -77,6 +79,78 @@ async def test_google_news_call_has_a_caller_visible_timeout(monkeypatch):
 
     assert exc_info.value.provider == "google_news"
     assert exc_info.value.operation == "get_news"
+
+
+@pytest.mark.asyncio
+async def test_google_news_timeout_keeps_blocking_worker_slot_occupied(monkeypatch):
+    started = threading.Event()
+    release = threading.Event()
+    attempts = []
+
+    class BlockingGoogleNews:
+        def get_news(self, keyword):
+            attempts.append(keyword)
+            if keyword == "first":
+                started.set()
+                release.wait(2)
+            return []
+
+    slots = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(news, "_GOOGLE_NEWS_WORKER_SLOTS", slots)
+    monkeypatch.setattr(news, "GOOGLE_NEWS_OPERATION_TIMEOUT_SECONDS", 0.05)
+    client = BlockingGoogleNews()
+    try:
+        with pytest.raises(ProviderTimeoutError):
+            await news._call_google_news_async(client, "get_news", "first")
+        assert started.is_set()
+
+        with pytest.raises(ProviderUnavailableError):
+            await news._call_google_news_async(client, "get_news", "second")
+        assert attempts == ["first"]
+    finally:
+        release.set()
+
+    # Only the physical completion of the blocked operation frees its slot.
+    for _ in range(100):
+        if slots.acquire(blocking=False):
+            slots.release()
+            break
+        await asyncio.sleep(0.01)
+    else:
+        pytest.fail("The finished Google News worker did not release its capacity")
+    assert await news._call_google_news_async(client, "get_news", "after") == []
+
+
+@pytest.mark.asyncio
+async def test_google_news_cancellation_does_not_release_blocked_worker_slot(monkeypatch):
+    started = threading.Event()
+    release = threading.Event()
+    attempts = []
+
+    class BlockingGoogleNews:
+        def get_news(self, keyword):
+            attempts.append(keyword)
+            if keyword == "first":
+                started.set()
+                release.wait(2)
+            return []
+
+    monkeypatch.setattr(news, "_GOOGLE_NEWS_WORKER_SLOTS", threading.BoundedSemaphore(1))
+    client = BlockingGoogleNews()
+    task = asyncio.create_task(news._call_google_news_async(client, "get_news", "first"))
+    try:
+        assert await asyncio.to_thread(started.wait, 1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        with pytest.raises(ProviderUnavailableError):
+            await news._call_google_news_async(client, "get_news", "second")
+        assert attempts == ["first"]
+    finally:
+        release.set()
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
 
 @pytest.mark.asyncio
