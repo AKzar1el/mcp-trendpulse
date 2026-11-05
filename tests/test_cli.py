@@ -299,6 +299,27 @@ def test_brief_pack_does_not_present_nonfinite_provider_values_as_evidence():
     providers.trends.get_growth.assert_awaited_once()
 
 
+def test_brief_pack_rejects_nonnumeric_provider_values_in_numeric_columns():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-11-04", "value": "9 | fake column", "keyword": "ChatGPT"},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[
+        {"keyword": "ChatGPT", "growth": {"3M": "<img src=x>", "1Y": "unknown"}},
+    ])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US", "--timeframe", "today 5-y"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "| ChatGPT | n/a | n/a | n/a |" in result.output
+    assert "fake column" not in result.output
+    assert "<img src=x>" not in result.output
+    providers.trends.get_growth.assert_awaited_once()
+
+
 def test_brief_pack_keeps_dedicated_growth_fetch_for_custom_timeframe():
     runner = CliRunner()
     providers = FakeBriefProviders()
