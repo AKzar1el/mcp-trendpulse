@@ -813,7 +813,17 @@ async def process_gnews_articles(
             _restore_feed_title_if_placeholder(article, gnews_article)
 
             if nlp:
-                await asyncio.to_thread(article.nlp)
+                try:
+                    await asyncio.to_thread(article.nlp)
+                except Exception as exc:
+                    # Optional enrichment must not invalidate extracted article evidence.
+                    article.summary = ""
+                    article.keywords = []
+                    logger.warning(
+                        "NLP enrichment failed for article %d (%s); preserving extracted text without enrichment",
+                        idx,
+                        type(exc).__name__,
+                    )
             return idx, article
 
     processed = await asyncio.gather(
