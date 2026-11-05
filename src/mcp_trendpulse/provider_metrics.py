@@ -41,6 +41,8 @@ EVENTS: Final[frozenset[str]] = frozenset(
         "article_nlp_saturation",
         "article_scraper_timeout",
         "article_scraper_saturation",
+        "article_preflight_timeout",
+        "article_preflight_saturation",
     }
 )
 LATENCY_SOURCES: Final[frozenset[str]] = frozenset({"trends_http", "news_feed"})
