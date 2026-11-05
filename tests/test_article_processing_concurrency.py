@@ -60,6 +60,40 @@ async def test_process_gnews_articles_bounds_concurrency_and_preserves_order(mon
 
 
 @pytest.mark.asyncio
+async def test_process_gnews_articles_preserves_other_items_when_one_nlp_fails(monkeypatch):
+    class BrokenNlpArticle(FakeArticle):
+        def nlp(self):
+            self.nlp_calls += 1
+            self.summary = "partial, untrustworthy summary"
+            self.keywords = ["partial"]
+            raise RuntimeError("article enrichment failed")
+
+    async def fake_download(url: str):
+        label = url.rsplit("/", 1)[-1]
+        return BrokenNlpArticle(label) if label == "bad" else FakeArticle(label)
+
+    monkeypatch.setattr(news, "download_article", fake_download)
+    report_progress = AsyncMock()
+    result = await news.process_gnews_articles(
+        [
+            {"url": "https://example.com/first"},
+            {"url": "https://example.com/bad"},
+            {"url": "https://example.com/third"},
+        ],
+        nlp=True,
+        report_progress=report_progress,
+        max_concurrency=2,
+    )
+
+    assert [article.label for article in result] == ["first", "bad", "third"]
+    assert [article.nlp_calls for article in result] == [1, 1, 1]
+    assert result[1].text == "text for bad"
+    assert result[1].summary == ""
+    assert result[1].keywords == []
+    assert [call.args for call in report_progress.await_args_list] == [(0, 3), (1, 3), (2, 3)]
+
+
+@pytest.mark.asyncio
 async def test_process_gnews_articles_preserves_success_progress_indices(monkeypatch):
     async def fake_download(url: str):
         if url.endswith("/missing"):
