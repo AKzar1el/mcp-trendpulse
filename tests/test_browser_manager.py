@@ -102,5 +102,5 @@ async def test_browser_manager_enables_configured_chromium_sandbox():
 
 
 async def test_playwright_download_requires_browser_context():
-    with pytest.raises(RuntimeError, match="BrowserManager used without context"):
+    with pytest.raises(ValueError, match="browser transport is disabled"):
         await download_article_with_playwright("https://93.184.216.34/article")

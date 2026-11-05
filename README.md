@@ -99,9 +99,11 @@ python -m pip install .
 python -m mcp_trendpulse
 ```
 
-## Browser fallback
+## Article download safety and optional Chromium
 
-News/article tools can fall back to Playwright when ordinary retrieval cannot extract a usable article. Installing the Python `playwright` package does not install Chromium automatically.
+Article downloads use bounded HTTP(S) requests pinned to a validated public IP, while retaining the original hostname for the HTTP Host header and HTTPS certificate verification. System proxies are disabled for this path. The Playwright article fallback is currently disabled because browser URL interception alone cannot guarantee connection-level protection against DNS rebinding; JavaScript-only or challenge-protected articles may therefore return no content. Other Google Trends/News discovery operations are unaffected.
+
+The optional Python `playwright` package does not install Chromium automatically. For separate browser-supported workflows, install Chromium as follows:
 
 For local use:
 

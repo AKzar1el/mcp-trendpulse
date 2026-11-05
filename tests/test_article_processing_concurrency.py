@@ -1,7 +1,7 @@
 import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -110,7 +110,7 @@ async def test_download_article_offloads_blocking_validation_and_scraper(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_download_article_retries_challenge_page_with_playwright(monkeypatch):
+async def test_download_article_does_not_retry_challenge_page_with_unpinned_browser(monkeypatch):
     scraper_article = FakeArticle("Attention Required!")
     scraper_article.text = (
         "Why have I been blocked? This website is using a security service to protect itself "
@@ -129,8 +129,8 @@ async def test_download_article_retries_challenge_page_with_playwright(monkeypat
 
     result = await news.download_article("https://example.com/article")
 
-    assert result is browser_article
-    playwright_download.assert_awaited_once()
+    assert result is None
+    playwright_download.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -155,7 +155,7 @@ async def test_download_article_rejects_challenge_page_after_playwright_fallback
 
 
 @pytest.mark.asyncio
-async def test_download_article_retries_publisher_shell_with_playwright(monkeypatch):
+async def test_download_article_does_not_retry_publisher_shell_with_unpinned_browser(monkeypatch):
     scraper_article = FakeArticle("Real publisher headline")
     scraper_article.text = "There are no new alerts at this time"
     browser_article = FakeArticle("Real publisher headline")
@@ -172,8 +172,8 @@ async def test_download_article_retries_publisher_shell_with_playwright(monkeypa
 
     result = await news.download_article("https://example.com/article")
 
-    assert result is browser_article
-    playwright_download.assert_awaited_once()
+    assert result is None
+    playwright_download.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -227,7 +227,7 @@ def test_scraper_is_reused_per_thread_but_not_shared_between_threads(monkeypatch
     barrier = threading.Barrier(2)
 
     def fake_create_scraper(**kwargs):
-        scraper = object()
+        scraper = MagicMock()
         created.append(scraper)
         return scraper
 
@@ -246,3 +246,5 @@ def test_scraper_is_reused_per_thread_but_not_shared_between_threads(monkeypatch
     assert len(created) == 2
     assert all(first is second for first, second in results)
     assert results[0][0] is not results[1][0]
+    assert all(scraper.trust_env is False and scraper.proxies == {} for scraper in created)
+    assert all(scraper.mount.call_count == 2 for scraper in created)
