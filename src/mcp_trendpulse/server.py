@@ -361,7 +361,7 @@ async def llm_summarize_article(article: Article, ctx: Context) -> bool:
         return False
 
 
-async def summarize_articles(articles: list[Article], ctx: Context) -> None:
+async def summarize_articles(articles: list[Article], ctx: Context, *, report_progress: bool = True) -> None:
     total_articles = len(articles)
     for idx, article in enumerate(articles):
         if not await llm_summarize_article(article, ctx):
@@ -371,9 +371,33 @@ async def summarize_articles(articles: list[Article], ctx: Context) -> None:
                     article.summary = "No summary available."
             except Exception:
                 article.summary = "No summary available."
-        if is_session_active(ctx):
+        if report_progress and is_session_active(ctx):
             try:
-                await ctx.report_progress(idx, total_articles)
+                await ctx.report_progress(idx + 1, total_articles)
+            except Exception:
+                pass
+
+
+class _ArticleProgress:
+    """Keep article extraction and optional summarization on one progress scale."""
+
+    def __init__(self, ctx: Context, summarize: bool):
+        self.ctx = ctx
+        self.summarize = summarize
+        self.total: Optional[float] = None
+
+    async def report(self, progress: float, total: Optional[float]) -> None:
+        self.total = total
+        if is_session_active(self.ctx):
+            try:
+                await self.ctx.report_progress(progress, total + int(self.summarize) if total is not None else None)
+            except Exception:
+                pass
+
+    async def finish_summary(self) -> None:
+        if self.summarize and self.total is not None and self.total > 0 and is_session_active(self.ctx):
+            try:
+                await self.ctx.report_progress(self.total + 1, self.total + 1)
             except Exception:
                 pass
 
@@ -422,27 +446,18 @@ async def get_news_by_keyword(
 
     set_newspaper_article_fields(full_data)
 
-    async def progress_callback(progress: float, total: Optional[float]):
-        if is_session_active(ctx):
-            try:
-                await ctx.report_progress(progress, total)
-            except Exception:
-                pass
+    progress = _ArticleProgress(ctx, summarize)
 
     articles = await get_provider_set().news.get_news_by_keyword(
         keyword=keyword,
         period=period,
         max_results=max_results,
         nlp=False,
-        report_progress=progress_callback,
+        report_progress=progress.report,
     )
     if summarize:
-        await summarize_articles(articles, ctx)
-    if is_session_active(ctx):
-        try:
-            await ctx.report_progress(progress=len(articles), total=len(articles))
-        except Exception:
-            pass
+        await summarize_articles(articles, ctx, report_progress=False)
+        await progress.finish_summary()
     return [ArticleOut(**a.to_json(False)) for a in articles]
 
 
@@ -489,27 +504,18 @@ async def get_news_by_location(
         return [ArticleOut(**item) for item in items]
     set_newspaper_article_fields(full_data)
 
-    async def progress_callback(progress: float, total: Optional[float]):
-        if is_session_active(ctx):
-            try:
-                await ctx.report_progress(progress, total)
-            except Exception:
-                pass
+    progress = _ArticleProgress(ctx, summarize)
 
     articles = await get_provider_set().news.get_news_by_location(
         location=location,
         period=period,
         max_results=max_results,
         nlp=False,
-        report_progress=progress_callback,
+        report_progress=progress.report,
     )
     if summarize:
-        await summarize_articles(articles, ctx)
-    if is_session_active(ctx):
-        try:
-            await ctx.report_progress(progress=len(articles), total=len(articles))
-        except Exception:
-            pass
+        await summarize_articles(articles, ctx, report_progress=False)
+        await progress.finish_summary()
     return [ArticleOut(**a.to_json(False)) for a in articles]
 
 
@@ -557,27 +563,18 @@ async def get_news_by_topic(
 
     set_newspaper_article_fields(full_data)
 
-    async def progress_callback(progress: float, total: Optional[float]):
-        if is_session_active(ctx):
-            try:
-                await ctx.report_progress(progress, total)
-            except Exception:
-                pass
+    progress = _ArticleProgress(ctx, summarize)
 
     articles = await get_provider_set().news.get_news_by_topic(
         topic=topic,
         period=period,
         max_results=max_results,
         nlp=False,
-        report_progress=progress_callback,
+        report_progress=progress.report,
     )
     if summarize:
-        await summarize_articles(articles, ctx)
-    if is_session_active(ctx):
-        try:
-            await ctx.report_progress(progress=len(articles), total=len(articles))
-        except Exception:
-            pass
+        await summarize_articles(articles, ctx, report_progress=False)
+        await progress.finish_summary()
     return [ArticleOut(**a.to_json(False)) for a in articles]
 
 
@@ -623,26 +620,17 @@ async def get_top_news(
 
     set_newspaper_article_fields(full_data)
 
-    async def progress_callback(progress: float, total: Optional[float]):
-        if is_session_active(ctx):
-            try:
-                await ctx.report_progress(progress, total)
-            except Exception:
-                pass
+    progress = _ArticleProgress(ctx, summarize)
 
     articles = await get_provider_set().news.get_top_news(
         period=period,
         max_results=max_results,
         nlp=False,
-        report_progress=progress_callback,
+        report_progress=progress.report,
     )
     if summarize:
-        await summarize_articles(articles, ctx)
-    if is_session_active(ctx):
-        try:
-            await ctx.report_progress(progress=len(articles), total=len(articles))
-        except Exception:
-            pass
+        await summarize_articles(articles, ctx, report_progress=False)
+        await progress.finish_summary()
     return [ArticleOut(**a.to_json(False)) for a in articles]
 
 
@@ -831,27 +819,18 @@ async def get_news_by_site(
         return [ArticleOut(**item) for item in items]
     set_newspaper_article_fields(full_data)
 
-    async def progress_callback(progress: float, total: Optional[float]):
-        if is_session_active(ctx):
-            try:
-                await ctx.report_progress(progress, total)
-            except Exception:
-                pass
+    progress = _ArticleProgress(ctx, summarize)
 
     articles = await get_provider_set().news.get_news_by_site(
         site=site,
         period=period,
         max_results=max_results,
         nlp=False,
-        report_progress=progress_callback,
+        report_progress=progress.report,
     )
     if summarize:
-        await summarize_articles(articles, ctx)
-    if is_session_active(ctx):
-        try:
-            await ctx.report_progress(progress=len(articles), total=len(articles))
-        except Exception:
-            pass
+        await summarize_articles(articles, ctx, report_progress=False)
+        await progress.finish_summary()
     return [ArticleOut(**a.to_json(False)) for a in articles]
 
 
