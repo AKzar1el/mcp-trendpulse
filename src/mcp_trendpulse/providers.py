@@ -131,7 +131,7 @@ class TrendsProvider(Protocol):
     async def get_ranked_trends(
         self,
         source: str = "google search",
-        sort: str = "wow_pct_change",
+        sort: str = "recent_growth_pct",
         limit: int = 20,
         geo: str = "US",
     ) -> list[dict[str, Any]]: ...
@@ -391,7 +391,7 @@ class CommunityTrendsProvider:
     async def get_ranked_trends(
         self,
         source: str = "google search",
-        sort: str = "wow_pct_change",
+        sort: str = "recent_growth_pct",
         limit: int = 20,
         geo: str = "US",
     ) -> list[dict[str, Any]]:
