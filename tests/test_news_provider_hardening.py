@@ -106,6 +106,31 @@ async def test_process_gnews_articles_skips_one_unresolvable_provider_item(monke
     assert result == [valid]
 
 
+async def test_process_gnews_articles_skips_missing_or_invalid_feed_urls(monkeypatch):
+    valid = SimpleNamespace(title="Valid article", text="Useful content", publish_date=None)
+    download = AsyncMock(return_value=valid)
+    progress = AsyncMock()
+    monkeypatch.setattr(news, "download_article", download)
+
+    items = [
+        {"title": "Missing URL"},
+        {"url": None},
+        {"url": 123},
+        {"url": ""},
+        {"url": "  "},
+        {"url": "https://example.com/valid", "title": "Valid"},
+    ]
+    result = await news.process_gnews_articles(
+        items, nlp=False, max_concurrency=1, report_progress=progress
+    )
+
+    assert result == [valid]
+    download.assert_awaited_once_with("https://example.com/valid")
+    assert [call.args for call in progress.await_args_list] == [
+        (index, len(items)) for index in range(1, len(items) + 1)
+    ]
+
+
 async def test_process_gnews_articles_restores_feed_title_for_challenge_placeholder(monkeypatch):
     article = SimpleNamespace(
         title="Attention Required!",

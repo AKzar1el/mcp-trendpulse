@@ -1047,6 +1047,11 @@ async def process_gnews_articles(
         nonlocal completed_count
         try:
             async with semaphore:
+                raw_url = gnews_article.get("url")
+                if not isinstance(raw_url, str) or not raw_url.strip():
+                    logger.debug("Skipping Google News provider item %d with missing or invalid URL", idx)
+                    return idx, None
+                url = raw_url.strip()
                 feed_publish_date = _parse_news_publish_date(gnews_article.get("published date"))
                 if cutoff is not None and feed_publish_date is not None and (
                     feed_publish_date < cutoff or feed_publish_date > reference_now
@@ -1054,19 +1059,19 @@ async def process_gnews_articles(
                     return idx, None
 
                 try:
-                    article = await download_article(gnews_article["url"])
+                    article = await download_article(url)
                 except ValueError as exc:
                     logger.debug(
                         "Skipping unusable Google News provider item %s: %s",
-                        gnews_article["url"],
+                        url,
                         exc,
                     )
                     return idx, None
                 if article is None or not article.text:
-                    logger.debug(f"Failed to download article from {gnews_article['url']}:\n{article}")
+                    logger.debug(f"Failed to download article from {url}:\n{article}")
                     return idx, None
                 if _is_unusable_article_page(article):
-                    logger.debug(f"Rejected unusable article page from {gnews_article['url']}")
+                    logger.debug(f"Rejected unusable article page from {url}")
                     return idx, None
 
                 article_publish_date = _parse_news_publish_date(getattr(article, "publish_date", None))
