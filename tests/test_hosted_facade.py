@@ -208,13 +208,24 @@ async def test_tool_descriptions_encode_selection_boundaries(tool_name, required
         assert phrase.lower() in description
 
 
-async def test_discover_trends_is_bounded_and_preserves_provider_metadata(fake_providers):
+async def test_discover_trends_is_bounded_and_preserves_provider_metadata(fake_providers, monkeypatch):
+    called_with = {}
+    original = fake_providers.trends.get_ranked_trends
+
+    async def capture_ranked_trends(**kwargs):
+        called_with.update(kwargs)
+        return await original(**kwargs)
+
+    monkeypatch.setattr(fake_providers.trends, "get_ranked_trends", capture_ranked_trends)
     with use_provider_set(fake_providers):
         result = await hosted.discover_trends(geo="US", sort_by="growth", limit=3)
 
+    assert called_with["sort"] == "recent_growth_pct"
     assert result.provider == "fake_trends"
     assert result.geo == "US"
     assert result.sorted_by == "growth"
+    assert "comparison baseline is unspecified" in result.growth_metric_note
+    assert "not week-over-week" in result.growth_metric_note
     assert [item.keyword for item in result.trends] == ["trend-0", "trend-1", "trend-2"]
     assert all(len(item.context_articles) <= 3 for item in result.trends)
 

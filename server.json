@@ -352,7 +352,7 @@
     },
     {
       "name": "get_ranked_trends",
-      "description": "\n    Get ranked trending keywords on Google Search.\n    ",
+      "description": "Ranked terms from the 24-hour Google Trending Now feed, by provider-reported growth (comparison baseline unspecified, not week-over-week) or approximate volume.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -365,10 +365,11 @@
             ]
           },
           "sort": {
-            "default": "wow_pct_change",
-            "description": "Field to sort by: 'wow_pct_change', 'volume'.",
+            "default": "recent_growth_pct",
+            "description": "recent_growth_pct ranks provider-reported current growth; wow_pct_change is a deprecated legacy alias, not an actual weekly measure; volume ranks approximate traffic.",
             "type": "string",
             "enum": [
+              "recent_growth_pct",
               "wow_pct_change",
               "volume"
             ]

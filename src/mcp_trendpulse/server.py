@@ -98,7 +98,7 @@ TrendKeywordInput = TrendKeyword | Annotated[list[TrendKeyword], Field(min_lengt
 class RankedTrendOut(BaseModelClean):
     keyword: Annotated[str, Field(description="The trending keyword.")]
     volume: Annotated[Optional[int], Field(description="Approximate provider-reported trending traffic, not exact search volume.")] = None
-    growth_pct: Annotated[Optional[float], Field(description="Percentage growth in volume.")] = None
+    growth_pct: Annotated[Optional[float], Field(description="Google Trending Now provider-reported growth percentage for a currently trending term; comparison baseline is not supplied and this is not week-over-week growth.")] = None
     started: Annotated[Optional[int], Field(description="Unix timestamp when trend started.")] = None
     news: Annotated[Optional[list[TrendingTermArticleOut]], Field(description="Related news articles.")] = None
 
@@ -708,15 +708,16 @@ async def get_growth(
 
 @mcp.tool(
     description=(
-        "Return currently trending keywords ranked by week-over-week growth or volume. Use this when explicit ranked "
-        "order matters; use get_top_trends for a simpler current feed and get_trends for historical series."
+        "Return ranked terms in the Google Trending Now 24-hour feed by provider-reported recent growth or approximate volume. "
+        "The growth percentage has no stated comparison baseline and is NOT a week-over-week change. "
+        "Use get_top_trends for a simpler current feed and get_trends for historical series."
     ),
     tags={"trends", "google", "ranked"},
     annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
 )
 async def get_ranked_trends(
     source: Annotated[Literal["google search"], Field(description="Search source.")] = "google search",
-    sort: Annotated[Literal["wow_pct_change", "volume"], Field(description="Field to sort by.")] = "wow_pct_change",
+    sort: Annotated[Literal["recent_growth_pct", "wow_pct_change", "volume"], Field(description="recent_growth_pct ranks provider-reported current growth (comparison baseline unspecified); wow_pct_change is a deprecated alias, NOT a week-over-week measure; volume ranks approximate trending traffic.")] = "recent_growth_pct",
     limit: Annotated[int, Field(description="Maximum number of trends to return.", ge=1, le=GOOGLE_TRENDS_MAX_RESULTS)] = 20,
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
 ) -> list[RankedTrendOut]:

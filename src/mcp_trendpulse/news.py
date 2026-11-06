@@ -79,7 +79,7 @@ _SEARCH_SOURCE_MAP = {
     "google shopping": "froogle",
 }
 _ALLOWED_DATA_MODES = frozenset({"weekly", "daily", "monthly"})
-_ALLOWED_RANK_SORTS = frozenset({"wow_pct_change", "volume"})
+_ALLOWED_RANK_SORTS = frozenset({"recent_growth_pct", "wow_pct_change", "volume"})
 _ALLOWED_TOP_TREND_TYPES = frozenset({"google trends", "daily trends", "daily"})
 _ALLOWED_GOOGLE_PROPERTIES = frozenset(_SEARCH_SOURCE_MAP.values())
 _ALLOWED_REGION_RESOLUTIONS = frozenset({"COUNTRY", "REGION", "CITY", "DMA"})
@@ -1690,12 +1690,15 @@ async def get_growth(
 
 async def get_ranked_trends(
     source: str = "google search",
-    sort: str = "wow_pct_change",
+    sort: str = "recent_growth_pct",
     limit: int = 20,
     geo: str = "US",
 ) -> list[dict]:
     """
-    Get ranked trending keywords on Google Search.
+    Rank the current 24-hour Trending Now feed by provider-reported growth or volume.
+
+    The provider does not supply a week-over-week comparison window;
+    wow_pct_change remains a legacy alias for recent_growth_pct.
     """
     limit = _validated_trend_result_limit(limit)
     normalized_source = source.strip().lower()
@@ -1711,7 +1714,7 @@ async def get_ranked_trends(
         lambda: tr.trending_now(geo=geo, hours=24)
     )
 
-    if normalized_sort == "wow_pct_change":
+    if normalized_sort in ("recent_growth_pct", "wow_pct_change"):
         sorted_trends = sorted(
             trends,
             key=lambda t: t.volume_growth_pct if t.volume_growth_pct is not None else -1,

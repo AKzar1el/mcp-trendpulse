@@ -171,9 +171,12 @@ async def test_tool_schemas_expose_supported_value_enums():
         "monthly",
     ]
     assert tools["get_ranked_trends"].inputSchema["properties"]["sort"]["enum"] == [
+        "recent_growth_pct",
         "wow_pct_change",
         "volume",
     ]
+    assert "not a week-over-week" in tools["get_ranked_trends"].description.lower()
+    assert "deprecated alias" in tools["get_ranked_trends"].inputSchema["properties"]["sort"]["description"].lower()
     assert tools["get_top_trends"].inputSchema["properties"]["type"]["enum"] == [
         "Google Trends",
         "Daily Trends",

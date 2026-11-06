@@ -591,7 +591,7 @@ async def test_get_ranked_trends(mcp_server):
         MockTrendKeyword("switzerland &amp; colombia", 500000, 1000.0, [1783389000], [
             MockNewsArticle("Switzerland&apos;s Win", "https://news.com/1", "News &amp; Source", "https://img.com/1", 1783389100, "Switzerland&apos;s team won.")
         ]),
-        MockTrendKeyword("hybrid cars", 100000, 50.0, [1783389010])
+        MockTrendKeyword("hybrid cars", 900000, 50.0, [1783389010])
     ]
 
     with patch('mcp_trendpulse.news.tr') as mock_tr:
@@ -614,10 +614,18 @@ async def test_get_ranked_trends(mcp_server):
             assert ranked_trends[0]["news"][0]["source"] == "News & Source"
             assert ranked_trends[0]["news"][0]["snippet"] == "Switzerland's team won."
 
+            params["sort"] = "recent_growth_pct"
+            result = await client.call_tool("get_ranked_trends", params)
+            recent_growth = _articles(result)
+            assert [item["keyword"] for item in recent_growth] == [
+                item["keyword"] for item in ranked_trends
+            ]
+            mock_tr.trending_now.assert_called_with(geo="US", hours=24)
+
             params["sort"] = "volume"
             result = await client.call_tool("get_ranked_trends", params)
             ranked_trends_vol = _articles(result)
-            assert ranked_trends_vol[0]["keyword"] == "switzerland & colombia"
+            assert ranked_trends_vol[0]["keyword"] == "hybrid cars"
 
 
 async def test_get_top_trends(mcp_server):
