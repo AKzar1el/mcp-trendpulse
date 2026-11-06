@@ -289,9 +289,14 @@ class SharedTrendsState:
 
 
 @lru_cache(maxsize=4)
+def _initialize_state(raw_directory: str) -> SharedTrendsState:
+    # Failed constructors must not poison the cache after transient disk/SQLite errors.
+    return SharedTrendsState(raw_directory)
+
+
 def _configured_state(raw_directory: str) -> SharedTrendsState | None:
     try:
-        return SharedTrendsState(raw_directory)
+        return _initialize_state(raw_directory)
     except (OSError, ValueError, sqlite3.DatabaseError):
         logger.warning("Shared Trends state unavailable; using process-local safeguards")
         return None
