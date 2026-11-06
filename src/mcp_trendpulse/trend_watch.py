@@ -16,7 +16,7 @@ from contextlib import closing, contextmanager
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
-from statistics import fmean
+from statistics import fmean, median
 from typing import Any
 
 
@@ -121,9 +121,20 @@ def evaluate_watch(rule: WatchRule, rows: list[tuple[date, float]]) -> WatchDeci
     """Compare complete recent and preceding windows on the same normalized series."""
     if len(rows) < rule.window * 2:
         return WatchDecision(rule.id, "insufficient_data", None, None, None, None)
+    compared = rows[-2 * rule.window :]
+    latest_date = compared[-1][0]
+    latest = latest_date.isoformat()
+    gaps = [(right[0] - left[0]).days for left, right in zip(compared, compared[1:])]
+    cadence_days = median(gaps)
+    if max(gaps) > max(2 * cadence_days, cadence_days + 7):
+        return WatchDecision(rule.id, "irregular_data", latest, None, None, None)
+    # Allow delayed weekly/monthly provider buckets, but never turn old evidence
+    # into a present-day alert merely because its historical scores increased.
+    max_age_days = min(62, max(14, int(2 * cadence_days)))
+    if (date.today() - latest_date).days > max_age_days:
+        return WatchDecision(rule.id, "stale_data", latest, None, None, None)
     previous = fmean(value for _, value in rows[-2 * rule.window : -rule.window])
     current = fmean(value for _, value in rows[-rule.window :])
-    latest = rows[-1][0].isoformat()
     if previous <= 0:
         return WatchDecision(rule.id, "zero_baseline", latest, previous, current, None)
     growth = 100.0 * (current - previous) / previous
