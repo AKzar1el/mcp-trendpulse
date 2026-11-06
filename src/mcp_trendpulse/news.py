@@ -953,9 +953,16 @@ async def download_article(url: str) -> newspaper.Article | None:
     return article
 
 
-def _run_article_nlp_with_slot(slot: threading.BoundedSemaphore, article: newspaper.Article):
+def _run_article_nlp_with_slot(
+    slot: threading.BoundedSemaphore,
+    article: newspaper.Article,
+    nlp_runner: Callable[[newspaper.Article], None] | None = None,
+):
     try:
-        article.nlp()
+        if nlp_runner is None:
+            article.nlp()
+        else:
+            nlp_runner(article)
         return getattr(article, "summary", ""), getattr(article, "keywords", [])
     finally:
         slot.release()
@@ -967,7 +974,12 @@ def _finish_article_nlp_worker(task: asyncio.Task) -> None:
         task.exception()
 
 
-async def _enrich_article_nlp(article: newspaper.Article, idx: int) -> None:
+async def _enrich_article_nlp(
+    article: newspaper.Article,
+    idx: int,
+    *,
+    nlp_runner: Callable[[newspaper.Article], None] | None = None,
+) -> None:
     """Bound physical NLP work; only copy completed enrichment onto the returned article."""
     slot = _ARTICLE_NLP_WORKER_SLOTS
     if not slot.acquire(blocking=False):
@@ -978,7 +990,11 @@ async def _enrich_article_nlp(article: newspaper.Article, idx: int) -> None:
         # newspaper.nlp mutates its Article; an abandoned thread must never
         # mutate the article already returned to an MCP caller.
         detached = copy.copy(article)
-        worker = asyncio.create_task(asyncio.to_thread(_run_article_nlp_with_slot, slot, detached))
+        # A shallow clone still shares the mutable keywords list.
+        detached.keywords = list(getattr(article, "keywords", []) or [])
+        worker = asyncio.create_task(
+            asyncio.to_thread(_run_article_nlp_with_slot, slot, detached, nlp_runner)
+        )
     except BaseException:
         slot.release()
         raise

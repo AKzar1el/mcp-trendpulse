@@ -1,12 +1,14 @@
+import asyncio
 import inspect
 import json
+import threading
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
 from fastmcp import Client
-from mcp_trendpulse import server
+from mcp_trendpulse import news, server
 
 
 mcp = server.mcp
@@ -127,10 +129,16 @@ class SummarizableMockArticle(MockArticle):
         super().__init__(summary=None)
         self.nlp_summary = nlp_summary
         self.nlp_error = nlp_error
-        self.nlp_calls = 0
+        # The physical worker operates on a shallow copy, so share only the
+        # call counter while keeping the returned article's data isolated.
+        self._nlp_counter = SimpleNamespace(count=0)
+
+    @property
+    def nlp_calls(self):
+        return self._nlp_counter.count
 
     def nlp(self):
-        self.nlp_calls += 1
+        self._nlp_counter.count += 1
         if self.nlp_error:
             raise self.nlp_error
         self.summary = self.nlp_summary
@@ -295,6 +303,38 @@ async def test_summarize_articles_falls_back_per_article():
     assert sampled_article.nlp_calls == 0
     assert fallback_article.summary == "NLP summary B"
     assert fallback_article.nlp_calls == 1
+
+
+async def test_summarize_articles_bounds_stuck_fallback_nlp_without_late_mutation(monkeypatch):
+    started = threading.Event()
+    release = threading.Event()
+
+    class BlockingArticle(SummarizableMockArticle):
+        def nlp(self):
+            started.set()
+            release.wait(timeout=1)
+            self.summary = "Late NLP result must stay detached"
+            self.keywords.append("late")
+
+    article = BlockingArticle()
+    article.keywords = ["existing"]
+    monkeypatch.setattr(news, "ARTICLE_NLP_TIMEOUT_SECONDS", 0.03)
+    try:
+        await asyncio.wait_for(
+            server.summarize_articles(
+                [article], MockSamplingContext(error=RuntimeError("sampling unavailable"))
+            ),
+            timeout=0.2,
+        )
+        assert started.is_set()
+        assert article.summary == "No summary available."
+        assert article.keywords == ["existing"]
+    finally:
+        release.set()
+        await asyncio.sleep(0.05)
+
+    assert article.summary == "No summary available."
+    assert article.keywords == ["existing"]
 
 
 async def test_summarize_articles_tolerates_progress_reporting_failure():
