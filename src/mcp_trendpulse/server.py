@@ -330,11 +330,16 @@ async def llm_summarize_article(article: Article, ctx: Context) -> bool:
         try:
             response = await _sample_with_deadline(ctx, prompt)
             summary = getattr(response, "text", None)
-            if not summary or not summary.strip():
+            if not isinstance(summary, str) or not summary.strip():
                 await ctx.warning("LLM Sampling response is empty. Unable to summarize article.")
                 article.summary = "No summary available."
                 return False
             else:
+                summary = summary.strip()
+                if len(summary) > SUMMARY_FALLBACK_MAX_CHARS:
+                    # Client sampling output is untrusted and may otherwise
+                    # inflate the article payload without bound.
+                    summary = summary[: SUMMARY_FALLBACK_MAX_CHARS - 3].rstrip() + "..."
                 article.summary = summary
                 return True
         except Exception as err:
