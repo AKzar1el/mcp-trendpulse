@@ -56,7 +56,7 @@ class TrendNewsSnippet(BaseModel):
 class DiscoveredTrend(BaseModel):
     keyword: str
     volume: int | str | None = None
-    growth_pct: float | None = None
+    growth_pct: float | None = Field(default=None, description="Provider-reported trending growth percentage; comparison baseline is not supplied and this is not a week-over-week change.")
     started: int | None = None
     context_articles: list[TrendNewsSnippet] = Field(default_factory=list)
 
@@ -66,6 +66,10 @@ class DiscoverTrendsResult(BaseModel):
     geo: str
     sorted_by: DiscoverySort
     trends: list[DiscoveredTrend]
+    growth_metric_note: str = Field(
+        default="Provider-reported growth for terms in the 24-hour Trending Now feed; the comparison baseline is unspecified, not week-over-week.",
+        description="How to interpret growth_pct without assuming an unsupported comparison period.",
+    )
 
 
 class TrendSeriesPoint(BaseModel):
@@ -390,7 +394,9 @@ def _seo_limitations(project_context: SeoProjectContext | None) -> list[str]:
 
 @hosted_mcp.tool(
     description=(
-        "Discover broad, currently trending search topics in a geographic market. Use this when the user has no specific seed keyword yet and wants emerging topics ranked by growth or volume."
+        "Discover broad current search topics in a geographic market. Rank by provider-reported recent growth or volume, "
+        "not week-over-week growth: Trending Now covers 24 hours but does not disclose a growth comparison baseline. "
+        "Use this when no specific seed keyword exists and topics must be ranked."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     timeout=60,
@@ -401,7 +407,7 @@ async def discover_trends(
     limit: Annotated[int, Field(description="Maximum trends to return.", ge=1, le=20)] = 10,
 ) -> DiscoverTrendsResult:
     providers = get_provider_set()
-    sort = "wow_pct_change" if sort_by == "growth" else "volume"
+    sort = "recent_growth_pct" if sort_by == "growth" else "volume"
     rows = await providers.trends.get_ranked_trends(
         source="google search",
         sort=sort,
