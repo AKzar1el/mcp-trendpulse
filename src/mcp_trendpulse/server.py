@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+from datetime import datetime
 from typing import Annotated, Optional, Any, TYPE_CHECKING, Literal
 from fastmcp import FastMCP, Context
 from fastmcp.server.dependencies import get_http_request
@@ -13,7 +14,6 @@ from mcp_trendpulse.config import GOOGLE_NEWS_MAX_RESULTS, GOOGLE_TRENDS_MAX_RES
 from mcp_trendpulse.news import BrowserManager, _enrich_article_nlp
 from mcp_trendpulse.middleware import ProviderErrorMiddleware
 from mcp_trendpulse.providers import get_provider_set
-from newspaper import settings as newspaper_settings
 from newspaper.article import Article
 from contextlib import asynccontextmanager
 
@@ -197,38 +197,26 @@ READ_ONLY_OPEN_WORLD_ANNOTATIONS = {
 }
 
 
-def set_newspaper_article_fields(full_data: bool = False):
-    if full_data:
-        newspaper_settings.article_json_fields = [
-            "url",
-            "read_more_link",
-            "language",
-            "title",
-            "top_image",
-            "meta_img",
-            "images",
-            "movies",
-            "keywords",
-            "keyword_scores",
-            "meta_keywords",
-            "tags",
-            "authors",
-            "publish_date",
-            "summary",
-            "meta_description",
-            "meta_lang",
-            "meta_favicon",
-            "meta_site_name",
-            "canonical_link",
-            "text",
-        ]
-    else:
-        newspaper_settings.article_json_fields = [
-            "url",
-            "title",
-            "publish_date",
-            "summary",
-        ]
+_MINIMAL_ARTICLE_FIELDS = ("url", "title", "publish_date", "summary")
+_FULL_ARTICLE_FIELDS = (
+    "url", "read_more_link", "language", "title", "top_image", "meta_img",
+    "images", "movies", "keywords", "keyword_scores", "meta_keywords", "tags",
+    "authors", "publish_date", "summary", "meta_description", "meta_lang",
+    "meta_favicon", "meta_site_name", "canonical_link", "text",
+)
+
+
+def _article_to_output(article: Article, full_data: bool) -> ArticleOut:
+    """Select export fields per request; newspaper's module-level setting is shared."""
+    config = getattr(article, "config", None)
+    fields = _FULL_ARTICLE_FIELDS if full_data else _MINIMAL_ARTICLE_FIELDS
+    values: dict[str, Any] = {}
+    for field in fields:
+        value = getattr(article, field, getattr(config, field, None))
+        if field == "url" and value is None:
+            value = getattr(article, "original_url", None)
+        values[field] = value.isoformat() if isinstance(value, datetime) else value
+    return ArticleOut(**values)
 
 
 def is_session_active(ctx: Context) -> bool:
@@ -444,8 +432,6 @@ async def get_news_by_keyword(
         )
         return [ArticleOut(**item) for item in items]
 
-    set_newspaper_article_fields(full_data)
-
     progress = _ArticleProgress(ctx, summarize)
 
     articles = await get_provider_set().news.get_news_by_keyword(
@@ -458,7 +444,7 @@ async def get_news_by_keyword(
     if summarize:
         await summarize_articles(articles, ctx, report_progress=False)
         await progress.finish_summary()
-    return [ArticleOut(**a.to_json(False)) for a in articles]
+    return [_article_to_output(a, full_data) for a in articles]
 
 
 @mcp.tool(
@@ -502,8 +488,6 @@ async def get_news_by_location(
             max_results=max_results,
         )
         return [ArticleOut(**item) for item in items]
-    set_newspaper_article_fields(full_data)
-
     progress = _ArticleProgress(ctx, summarize)
 
     articles = await get_provider_set().news.get_news_by_location(
@@ -516,7 +500,7 @@ async def get_news_by_location(
     if summarize:
         await summarize_articles(articles, ctx, report_progress=False)
         await progress.finish_summary()
-    return [ArticleOut(**a.to_json(False)) for a in articles]
+    return [_article_to_output(a, full_data) for a in articles]
 
 
 @mcp.tool(
@@ -561,8 +545,6 @@ async def get_news_by_topic(
         )
         return [ArticleOut(**item) for item in items]
 
-    set_newspaper_article_fields(full_data)
-
     progress = _ArticleProgress(ctx, summarize)
 
     articles = await get_provider_set().news.get_news_by_topic(
@@ -575,7 +557,7 @@ async def get_news_by_topic(
     if summarize:
         await summarize_articles(articles, ctx, report_progress=False)
         await progress.finish_summary()
-    return [ArticleOut(**a.to_json(False)) for a in articles]
+    return [_article_to_output(a, full_data) for a in articles]
 
 
 @mcp.tool(
@@ -618,8 +600,6 @@ async def get_top_news(
         )
         return [ArticleOut(**item) for item in items]
 
-    set_newspaper_article_fields(full_data)
-
     progress = _ArticleProgress(ctx, summarize)
 
     articles = await get_provider_set().news.get_top_news(
@@ -631,7 +611,7 @@ async def get_top_news(
     if summarize:
         await summarize_articles(articles, ctx, report_progress=False)
         await progress.finish_summary()
-    return [ArticleOut(**a.to_json(False)) for a in articles]
+    return [_article_to_output(a, full_data) for a in articles]
 
 
 @mcp.tool(
@@ -817,8 +797,6 @@ async def get_news_by_site(
             max_results=max_results,
         )
         return [ArticleOut(**item) for item in items]
-    set_newspaper_article_fields(full_data)
-
     progress = _ArticleProgress(ctx, summarize)
 
     articles = await get_provider_set().news.get_news_by_site(
@@ -831,7 +809,7 @@ async def get_news_by_site(
     if summarize:
         await summarize_articles(articles, ctx, report_progress=False)
         await progress.finish_summary()
-    return [ArticleOut(**a.to_json(False)) for a in articles]
+    return [_article_to_output(a, full_data) for a in articles]
 
 
 @mcp.tool(
@@ -859,13 +837,12 @@ async def get_article_content(
     ] = True,
 ) -> Optional[ArticleOut]:
     url = get_provider_set().news.validate_article_url(url)
-    set_newspaper_article_fields(full_data)
     article = await get_provider_set().news.download_article(url)
     if not article:
         return None
     if summarize:
         await summarize_articles([article], ctx)
-    return ArticleOut(**article.to_json(False))
+    return _article_to_output(article, full_data)
 
 
 @mcp.tool(

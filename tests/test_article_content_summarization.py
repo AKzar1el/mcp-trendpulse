@@ -71,8 +71,8 @@ async def test_get_article_content_uses_summarization_when_enabled():
     assert result is not None
     assert result.title == "Article title"
     assert result.url == article.original_url
-    assert result.text == "Article body content."
-    assert result.authors == ["Article author"]
+    assert result.text is None
+    assert result.authors is None
     assert article.parse_calls == 0
     assert article.nlp_calls == 0
     summarize_articles.assert_awaited_once_with([article], None)
