@@ -123,6 +123,56 @@ def test_below_threshold_does_not_consume_alert(tmp_path):
     assert store.get(rule.id).last_alert_date is None
 
 
+def test_old_evidence_does_not_issue_a_fresh_growth_alert(tmp_path):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="test", market="US", window=2)
+    points = [
+        {"date": (date.today() - timedelta(days=123 - index)).isoformat(), "value": value}
+        for index, value in enumerate([10, 10, 45, 60])
+    ]
+    result = store.evaluate_and_record(
+        rule.id,
+        json.dumps({"keyword": "test", "market": "US", "points": points}).encode(),
+    )
+    assert result.status == "stale_data"
+    assert result.evidence_date == points[-1]["date"]
+    assert result.growth_pct is None
+    assert store.get(rule.id).last_alert_date is None
+
+
+def test_irregular_evidence_does_not_fake_a_comparable_growth_window(tmp_path):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="test", market="US", window=2)
+    offsets = [43, 42, 41, 0]
+    points = [
+        {"date": (date.today() - timedelta(days=offset)).isoformat(), "value": value}
+        for offset, value in zip(offsets, [10, 10, 45, 60])
+    ]
+    result = store.evaluate_and_record(
+        rule.id,
+        json.dumps({"keyword": "test", "market": "US", "points": points}).encode(),
+    )
+    assert result.status == "irregular_data"
+    assert result.growth_pct is None
+    assert store.get(rule.id).last_alert_date is None
+
+
+@pytest.mark.parametrize("interval_days", [1, 7, 30])
+def test_regular_daily_weekly_monthly_evidence_still_triggers(tmp_path, interval_days):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="test", market="US", window=2)
+    points = [
+        {"date": (date.today() - timedelta(days=(3 - index) * interval_days)).isoformat(), "value": value}
+        for index, value in enumerate([10, 10, 45, 60])
+    ]
+    decision = store.evaluate_and_record(
+        rule.id,
+        json.dumps({"keyword": "test", "market": "US", "points": points}).encode(),
+    )
+    assert decision.status == "triggered"
+    assert store.get(rule.id).last_alert_date == date.today().isoformat()
+
+
 def test_cli_watch_create_list_evaluate_remove(tmp_path, monkeypatch):
     monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
     runner = CliRunner()

@@ -46,6 +46,13 @@ excluded. Maximum size 256 KiB / 520 observations. Never treat interest
 scores as absolute keyword volumes. Keep normalization and timeframe
 consistent across both comparison windows.
 
+An alert is suppressed with `irregular_data` when the compared observations
+contain a large unexplained gap relative to their usual cadence, or with
+`stale_data` when the latest complete observation is too old for its daily,
+weekly or monthly sampling interval (minimum 14 days, maximum 62 days of
+freshness allowance). These outcomes do not consume the watch's alert cooldown.
+Refresh the evidence before treating historical growth as current interest.
+
 ```bash
 uv run mcp-trendpulse-cli watch evaluate --id YOUR_RULE_ID --evidence ./trend-series.json
 uv run mcp-trendpulse-cli watch remove --id YOUR_RULE_ID
