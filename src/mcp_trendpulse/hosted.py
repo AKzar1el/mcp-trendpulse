@@ -668,24 +668,28 @@ async def find_seo_opportunities(
         gprop=_SOURCE_TO_GPROP[source],
     )
 
-    candidate_rows: list[tuple[str, dict[str, Any]]] = []
-    seen: set[str] = set()
+    candidate_rows: list[tuple[str, str, dict[str, Any]]] = []
+    seen: set[str] = {seed_keyword.casefold()}
     for signal_type, rows in (
         ("rising_related_query", related.get("rising") or []),
         ("top_related_query", related.get("top") or []),
     ):
         for row in rows:
-            query = str(row.get("query", "")).strip()
-            if not query or query in seen or query == seed_keyword:
+            raw_query = row.get("query")
+            if not isinstance(raw_query, str):
                 continue
-            seen.add(query)
-            candidate_rows.append((signal_type, row))
+            query = raw_query.strip()
+            key = query.casefold()
+            if not query or key in seen:
+                continue
+            seen.add(key)
+            candidate_rows.append((signal_type, query, row))
             if len(candidate_rows) == limit:
                 break
         if len(candidate_rows) == limit:
             break
 
-    candidate_keywords = [str(row.get("query", "")) for _, row in candidate_rows]
+    candidate_keywords = [query for _, query, _ in candidate_rows]
     trend_rows = (
         await providers.trends.get_trends(
             keyword=candidate_keywords,
@@ -699,8 +703,7 @@ async def find_seo_opportunities(
     grouped = _series_by_keyword(trend_rows)
 
     candidates: list[SeoOpportunityCandidate] = []
-    for signal_type, row in candidate_rows:
-        keyword = str(row.get("query", ""))
+    for signal_type, keyword, row in candidate_rows:
         metrics = _interest_metrics(grouped.get(keyword, []))
         candidates.append(
             SeoOpportunityCandidate(
