@@ -1,6 +1,7 @@
 """Offline-only BigQuery SQL construction: never uses Google credentials or jobs."""
 
 import re
+import sqlite3
 from datetime import date, timedelta
 
 import pytest
@@ -38,6 +39,50 @@ def test_explicit_partition_literal():
     yesterday = (date.today() - timedelta(days=1)).isoformat()
     sql = build_discovery_sql(country="SI", snapshot_date=yesterday)
     assert f"refresh_date = DATE '{yesterday}'" in sql
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"country": "US", "kind": "top"},
+        {"country": "US", "kind": "rising", "dma_id": "501"},
+        {"country": "GB", "kind": "top"},
+        {"country": "GB", "kind": "rising", "region_code": "GB-ENG"},
+    ],
+)
+def test_latest_week_is_selected_after_snapshot_and_geo_filters(options):
+    """A refreshed snapshot can contain older-week rows and other geographies."""
+    snapshot = (date.today() - timedelta(days=1)).isoformat()
+    previous_snapshot = (date.today() - timedelta(days=2)).isoformat()
+    sql = build_discovery_sql(snapshot_date=snapshot, limit=5, **options)
+    # SQLite executes the SELECT logic offline; BigQuery table/date syntax is adapted only.
+    executable_sql = re.sub(r"FROM `[^`]+`", "FROM trends", sql)
+    executable_sql = executable_sql.replace(f"DATE '{snapshot}'", f"'{snapshot}'")
+
+    country = options["country"]
+    region = options.get("region_code")
+    dma = int(options["dma_id"]) if "dma_id" in options else None
+    rows = [
+        ("expired", 1, "2026-10-12", snapshot, country, region, dma),
+        ("fresh", 4, "2026-10-19", snapshot, country, region, dma),
+        ("second", 2, "2026-10-19", snapshot, country, region, dma),
+        ("wrong-partition", 1, "2026-10-26", previous_snapshot, country, region, dma),
+    ]
+    if country != "US":
+        rows.append(("wrong-country", 1, "2026-10-26", snapshot, "FR", region, dma))
+    if region is not None:
+        rows.append(("wrong-region", 1, "2026-10-26", snapshot, country, "GB-SCT", dma))
+    if dma is not None:
+        rows.append(("wrong-dma", 1, "2026-10-26", snapshot, country, region, 999))
+
+    with sqlite3.connect(":memory:") as db:
+        db.execute(
+            "CREATE TABLE trends (term TEXT, rank INTEGER, week TEXT, "
+            "refresh_date TEXT, country_code TEXT, region_code TEXT, dma_id INTEGER)"
+        )
+        db.executemany("INSERT INTO trends VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
+        result = db.execute(executable_sql).fetchall()
+    assert result == [("second", 2), ("fresh", 4)]
 
 
 @pytest.mark.parametrize(
