@@ -427,6 +427,50 @@ async def test_find_seo_opportunities_remains_trend_only_without_project(fake_pr
     assert any("No site-specific Search Console" in limitation for limitation in result.limitations)
 
 
+async def test_find_seo_opportunities_ignores_invalid_and_duplicate_related_queries(
+    fake_providers, monkeypatch
+):
+    trend_calls = []
+
+    async def related_queries(**kwargs):
+        return {
+            "rising": [
+                {"query": "  SEO TOOLS  ", "value": 400},
+                {"query": "  Sitemap Generator  ", "value": 300},
+                {"query": "sitemap generator", "value": 250},
+                {"query": None, "value": 220},
+                {"value": 200},
+                {"query": 123, "value": 190},
+                {"query": " Schema Validator ", "value": 180},
+            ],
+            "top": [{"query": "Hreflang checker", "value": 100}],
+        }
+
+    async def record_trends(keyword, **kwargs):
+        trend_calls.append(keyword)
+        return [
+            {"keyword": term, "date": "2026-10-01", "value": 42}
+            for term in keyword
+        ]
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_queries", related_queries)
+    monkeypatch.setattr(fake_providers.trends, "get_trends", record_trends)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(
+            seed_keyword="seo tools", limit=3
+        )
+
+    expected = ["Sitemap Generator", "Schema Validator", "Hreflang checker"]
+    assert [candidate.keyword for candidate in result.candidates] == expected
+    assert [candidate.signal_type for candidate in result.candidates] == [
+        "rising_related_query",
+        "rising_related_query",
+        "top_related_query",
+    ]
+    assert trend_calls == [expected]
+    assert all(candidate.interest_points_observed == 1 for candidate in result.candidates)
+
+
 async def test_find_seo_opportunities_distinguishes_missing_interest_from_zero(
     fake_providers, monkeypatch
 ):
