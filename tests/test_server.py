@@ -2,12 +2,14 @@ import asyncio
 import inspect
 import json
 import threading
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pandas as pd
 import pytest
 from fastmcp import Client
+from newspaper import Article, settings as newspaper_settings
 from mcp_trendpulse import news, server
 
 
@@ -133,6 +135,65 @@ class RecordingProgressContext:
 
 
 @pytest.mark.parametrize(
+    ("tool_name", "provider_method", "tool_kwargs"),
+    [
+        ("get_news_by_keyword", "get_news_by_keyword", {"keyword": "AI"}),
+        ("get_news_by_location", "get_news_by_location", {"location": "Ljubljana"}),
+        ("get_news_by_topic", "get_news_by_topic", {"topic": "TECHNOLOGY"}),
+        ("get_top_news", "get_top_news", {}),
+        ("get_news_by_site", "get_news_by_site", {"site": "example.com"}),
+        ("get_article_content", "download_article", {"url": "https://example.com/story"}),
+    ],
+)
+async def test_concurrent_article_requests_isolate_minimal_and_full_fields(
+    monkeypatch, tool_name, provider_method, tool_kwargs
+):
+    """A slow minimal request must not inherit a concurrent full request's fields."""
+    original_fields = list(newspaper_settings.article_json_fields)
+    monkeypatch.setattr(newspaper_settings, "article_json_fields", original_fields.copy())
+    minimal_started = asyncio.Event()
+    full_started = asyncio.Event()
+    calls = 0
+
+    async def fake_provider(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        label = "minimal" if calls == 1 else "full"
+        if calls == 1:
+            minimal_started.set()
+            await asyncio.wait_for(full_started.wait(), timeout=2)
+        else:
+            full_started.set()
+        article = Article(f"https://example.com/{label}")
+        article.is_parsed = True
+        article.title = f"{label} article"
+        article.summary = f"{label} summary"
+        article.text = f"{label} extracted body"
+        article.publish_date = datetime(2026, 11, 6, 9, tzinfo=timezone.utc)
+        return article if provider_method == "download_article" else [article]
+
+    provider = SimpleNamespace(**{provider_method: fake_provider}, validate_article_url=lambda url: url)
+    monkeypatch.setattr(server, "get_provider_set", lambda: SimpleNamespace(news=provider))
+    tool = getattr(server, tool_name)
+    minimal_task = asyncio.create_task(tool(None, full_data=False, summarize=False, **tool_kwargs))
+    await asyncio.wait_for(minimal_started.wait(), timeout=2)
+    full_task = asyncio.create_task(tool(None, full_data=True, summarize=False, **tool_kwargs))
+    minimal, full = await asyncio.gather(minimal_task, full_task)
+    if isinstance(minimal, list):
+        minimal, full = minimal[0], full[0]
+
+    assert minimal.model_dump() == {
+        "url": "https://example.com/minimal",
+        "title": "minimal article",
+        "publish_date": "2026-11-06T09:00:00+00:00",
+        "summary": "minimal summary",
+    }
+    assert full.model_dump()["text"] == "full extracted body"
+    assert full.model_dump()["authors"] == []
+    assert newspaper_settings.article_json_fields == original_fields
+
+
+@pytest.mark.parametrize(
     ("tool_name", "provider_method", "filter_kwargs"),
     [
         ("get_news_by_keyword", "get_news_by_keyword", {"keyword": "AI"}),
@@ -155,7 +216,6 @@ async def test_article_tools_do_not_emit_duplicate_or_zero_total_progress(
 
     provider = SimpleNamespace(**{provider_method: provider_call})
     monkeypatch.setattr(server, "get_provider_set", lambda: SimpleNamespace(news=provider))
-    monkeypatch.setattr(server, "set_newspaper_article_fields", lambda _full: None)
     monkeypatch.setattr(server, "is_session_active", lambda _ctx: with_session)
     summarize_mock = AsyncMock()
     monkeypatch.setattr(server, "summarize_articles", summarize_mock)
@@ -181,7 +241,6 @@ async def test_article_tools_skip_zero_zero_progress_for_empty_results(monkeypat
     monkeypatch.setattr(
         server, "get_provider_set", lambda: SimpleNamespace(news=SimpleNamespace(get_top_news=provider_call))
     )
-    monkeypatch.setattr(server, "set_newspaper_article_fields", lambda _full: None)
     monkeypatch.setattr(server, "is_session_active", lambda _ctx: with_session)
     monkeypatch.setattr(server, "summarize_articles", AsyncMock())
     context = RecordingProgressContext()

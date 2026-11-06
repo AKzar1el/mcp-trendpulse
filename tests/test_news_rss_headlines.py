@@ -80,7 +80,7 @@ async def test_rss_headlines_server_is_explicit_metadata_only(monkeypatch):
     monkeypatch.setattr(server, "get_provider_set", lambda: SimpleNamespace(news=provider))
     forbidden_summary = AsyncMock(side_effect=AssertionError("summary is forbidden"))
     monkeypatch.setattr(server, "summarize_articles", forbidden_summary)
-    monkeypatch.setattr(server, "set_newspaper_article_fields", Mock(side_effect=AssertionError("article fields should not be touched")))
+    monkeypatch.setattr(server, "_article_to_output", Mock(side_effect=AssertionError("article fields should not be touched")))
     result = await server.get_news_by_keyword(
         None, keyword="OpenAI", period=1, max_results=4, headlines_only=True
     )
@@ -143,7 +143,7 @@ async def test_topic_headline_only_server_skips_article_and_summary(monkeypatch)
     monkeypatch.setattr(server, "get_provider_set", lambda: SimpleNamespace(news=provider))
     summary = AsyncMock(side_effect=AssertionError("summary must not run"))
     monkeypatch.setattr(server, "summarize_articles", summary)
-    monkeypatch.setattr(server, "set_newspaper_article_fields", Mock(side_effect=AssertionError("article fields must not change")))
+    monkeypatch.setattr(server, "_article_to_output", Mock(side_effect=AssertionError("article fields must not change")))
     result = await server.get_news_by_topic(None, topic="TECHNOLOGY", period=1, max_results=2, headlines_only=True)
     assert len(result) == 1
     assert result[0].title == "Technology report"
@@ -192,7 +192,7 @@ async def test_top_news_headline_only_server_skips_article_and_summary(monkeypat
     monkeypatch.setattr(server, "get_provider_set", lambda: SimpleNamespace(news=provider))
     summary = AsyncMock(side_effect=AssertionError("summary must not run"))
     monkeypatch.setattr(server, "summarize_articles", summary)
-    monkeypatch.setattr(server, "set_newspaper_article_fields", Mock(side_effect=AssertionError("article fields must not change")))
+    monkeypatch.setattr(server, "_article_to_output", Mock(side_effect=AssertionError("article fields must not change")))
     result = await server.get_top_news(None, period=1, max_results=2, headlines_only=True)
     assert len(result) == 1
     assert result[0].title == "World research"
@@ -272,7 +272,7 @@ async def test_location_and_site_server_rss_bypass_extraction_and_summary(
     }])
     monkeypatch.setattr(server, "get_provider_set", lambda: SimpleNamespace(news=SimpleNamespace(**{method: operation})))
     monkeypatch.setattr(server, "summarize_articles", AsyncMock(side_effect=AssertionError("summary forbidden")))
-    monkeypatch.setattr(server, "set_newspaper_article_fields", Mock(side_effect=AssertionError("article extraction forbidden")))
+    monkeypatch.setattr(server, "_article_to_output", Mock(side_effect=AssertionError("article extraction forbidden")))
     result = await getattr(server, tool)(None, **{field: value}, period=1, max_results=2, headlines_only=True)
     assert len(result) == 1
     assert result[0].text is None and result[0].summary is None
