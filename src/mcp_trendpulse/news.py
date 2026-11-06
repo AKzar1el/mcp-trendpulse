@@ -1426,6 +1426,13 @@ def _finite_trend_number(value: object) -> float | None:
     return number if isfinite(number) else None
 
 
+def _related_trend_value(value: object) -> tuple[float | None, bool]:
+    """Keep Google's Breakout label without pretending it is a measured percentage."""
+    if isinstance(value, str) and value.strip().casefold() == "breakout":
+        return None, True
+    return _finite_trend_number(value), False
+
+
 def _trends_frame_to_points(df: pandas.DataFrame, keywords: list[str]) -> list[dict]:
     """Flatten one completed Trends frame into the package's stable point shape."""
     results: list[dict] = []
@@ -1896,13 +1903,16 @@ async def get_related_queries(
         df = res.get(key)
         if df is not None and not df.empty:
             for _, row in df.iterrows():
-                value = _finite_trend_number(row["value"])
-                if value is None:
+                value, is_breakout = _related_trend_value(row["value"])
+                if value is None and not is_breakout:
                     continue
-                out[key].append({
+                item = {
                     "query": str(row["query"]),
                     "value": value
-                })
+                }
+                if is_breakout:
+                    item["is_breakout"] = True
+                out[key].append(item)
     return out
 
 
@@ -1932,15 +1942,18 @@ async def get_related_topics(
         df = res.get(key)
         if df is not None and not df.empty:
             for _, row in df.iterrows():
-                value = _finite_trend_number(row["value"])
-                if value is None:
+                value, is_breakout = _related_trend_value(row["value"])
+                if value is None and not is_breakout:
                     continue
-                out[key].append({
+                item = {
                     "mid": str(row["mid"]),
                     "title": str(row["title"]),
                     "type": str(row["type"]),
                     "value": value
-                })
+                }
+                if is_breakout:
+                    item["is_breakout"] = True
+                out[key].append(item)
     return out
 
 

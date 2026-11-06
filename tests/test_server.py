@@ -632,6 +632,32 @@ async def test_get_related_queries(mcp_server):
             assert res_dict["rising"][0]["value"] == 120.0
 
 
+async def test_related_query_and_topic_breakout_flags_survive_mcp_serialization(mcp_server):
+    queries = {
+        "top": pd.DataFrame(columns=["query", "value"]),
+        "rising": pd.DataFrame({"query": ["surging"], "value": ["Breakout"]}),
+    }
+    topics = {
+        "top": pd.DataFrame(columns=["mid", "title", "type", "value"]),
+        "rising": pd.DataFrame({"mid": ["/m/surging"], "title": ["Surging"],
+                                "type": ["Topic"], "value": ["Breakout"]}),
+    }
+    with patch("mcp_trendpulse.news.tr") as mock_tr:
+        mock_tr.related_queries.return_value = queries
+        mock_tr.related_topics.return_value = topics
+        async with Client(mcp_server) as client:
+            query_result = await client.call_tool("get_related_queries", {"keyword": "python"})
+            topic_result = await client.call_tool("get_related_topics", {"keyword": "python"})
+
+    rising_query = query_result.structured_content["rising"][0]
+    rising_topic = topic_result.structured_content["rising"][0]
+    assert rising_query["query"] == "surging"
+    # Community MCP omits absent values under BaseModelClean; the label is explicit.
+    assert rising_query.get("value") is None and rising_query["is_breakout"] is True
+    assert rising_topic["mid"] == "/m/surging"
+    assert rising_topic.get("value") is None and rising_topic["is_breakout"] is True
+
+
 async def test_get_related_topics(mcp_server):
     mock_res = {
         "top": pd.DataFrame({"mid": ["/m/05z1_", "/m/020s1"], "title": ["Python", "Programming language"], "type": ["Language", "Field"], "value": [100, 80]}),

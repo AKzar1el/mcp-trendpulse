@@ -288,6 +288,31 @@ async def test_related_demand_caps_every_section(fake_providers):
     assert result.limitations == []
 
 
+async def test_breakout_demand_is_preserved_without_fabricated_percentage(fake_providers, monkeypatch):
+    async def breakout_queries(**kwargs):
+        return {"top": [], "rising": [{"query": "breakout query", "value": None,
+                                       "is_breakout": True}]}
+
+    async def breakout_topics(**kwargs):
+        return {"top": [], "rising": [{"mid": "/m/breakout", "title": "Breakout topic",
+                                       "type": "Topic", "value": None,
+                                       "is_breakout": True}]}
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_queries", breakout_queries)
+    monkeypatch.setattr(fake_providers.trends, "get_related_topics", breakout_topics)
+    with use_provider_set(fake_providers):
+        related = await hosted.discover_related_demand(keyword="seed")
+        seo = await hosted.find_seo_opportunities(seed_keyword="seed")
+
+    assert related.rising_queries[0].value is None
+    assert related.rising_queries[0].is_breakout is True
+    assert related.rising_topics[0].value is None
+    assert related.rising_topics[0].is_breakout is True
+    assert seo.candidates[0].keyword == "breakout query"
+    assert seo.candidates[0].related_signal is None
+    assert seo.candidates[0].related_signal_is_breakout is True
+
+
 @pytest.mark.parametrize(
     ("failed_enrichment", "topic_count", "suggestion_count"),
     [("get_related_topics", 0, 2), ("get_suggestions", 2, 0)],

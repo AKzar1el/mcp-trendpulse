@@ -110,14 +110,16 @@ class CompareKeywordTrendsResult(BaseModel):
 
 class RelatedQuery(BaseModel):
     query: str
-    value: float
+    value: float | None
+    is_breakout: bool = False
 
 
 class RelatedTopic(BaseModel):
     mid: str
     title: str
     type: str
-    value: float
+    value: float | None
+    is_breakout: bool = False
 
 
 class DemandSuggestion(BaseModel):
@@ -189,7 +191,8 @@ class SeoProjectContext(BaseModel):
 class SeoOpportunityCandidate(BaseModel):
     keyword: str
     signal_type: Literal["rising_related_query", "top_related_query"]
-    related_signal: float
+    related_signal: float | None
+    related_signal_is_breakout: bool = False
     latest_interest: float | None = None
     average_interest: float | None = None
     peak_interest: float | None = None
@@ -703,7 +706,8 @@ async def find_seo_opportunities(
             SeoOpportunityCandidate(
                 keyword=keyword,
                 signal_type=signal_type,
-                related_signal=float(row.get("value", 0.0)),
+                related_signal=_as_float(row.get("value")),
+                related_signal_is_breakout=bool(row.get("is_breakout", False)),
                 latest_interest=metrics.latest,
                 average_interest=metrics.average,
                 peak_interest=metrics.peak,
