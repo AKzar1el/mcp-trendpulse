@@ -77,6 +77,21 @@ async def test_related_queries_skip_invalid_provider_values_only():
     json.dumps(rows, allow_nan=False)
 
 
+async def test_related_queries_preserve_breakout_as_labeled_non_numeric_signal():
+    related = {
+        "top": pd.DataFrame({"query": ["stable"], "value": [95]}),
+        "rising": pd.DataFrame({"query": ["surging", "ordinary"], "value": ["Breakout", "350"]}),
+    }
+    with patch.object(news, "_call_related_queries_with_unavailable_retry", return_value=related):
+        rows = await news.get_related_queries("python")
+
+    assert rows["rising"] == [
+        {"query": "surging", "value": None, "is_breakout": True},
+        {"query": "ordinary", "value": 350.0},
+    ]
+    json.dumps(rows, allow_nan=False)
+
+
 async def test_related_topics_skip_invalid_provider_values_only():
     related = {
         "top": pd.DataFrame(
@@ -103,4 +118,20 @@ async def test_related_topics_skip_invalid_provider_values_only():
         "top": [{"mid": "/m/good", "title": "Good", "type": "Topic", "value": 90.0}],
         "rising": [{"mid": "/m/new", "title": "New", "type": "Topic", "value": 250.0}],
     }
+    json.dumps(rows, allow_nan=False)
+
+
+async def test_related_topics_preserve_breakout_with_its_entity_metadata():
+    related = {
+        "top": pd.DataFrame(columns=["mid", "title", "type", "value"]),
+        "rising": pd.DataFrame({"mid": ["/m/surge"], "title": ["Surge"],
+                                "type": ["Topic"], "value": ["Breakout"]}),
+    }
+    with patch.object(news.tr, "related_topics", return_value=related):
+        rows = await news.get_related_topics("python")
+
+    assert rows["rising"] == [
+        {"mid": "/m/surge", "title": "Surge", "type": "Topic",
+         "value": None, "is_breakout": True}
+    ]
     json.dumps(rows, allow_nan=False)

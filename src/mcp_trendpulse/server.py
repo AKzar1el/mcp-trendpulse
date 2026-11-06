@@ -122,7 +122,8 @@ class RegionInterestOut(BaseModelClean):
 
 class RelatedQueryItem(BaseModelClean):
     query: Annotated[str, Field(description="The related search term.")]
-    value: Annotated[float, Field(description="Relative search value (0-100) or growth percentage.")]
+    value: Annotated[Optional[float], Field(description="Relative search value (0-100) or growth percentage; null for a provider-labeled Breakout.")]
+    is_breakout: Annotated[bool, Field(description="True when Google Trends labels growth as Breakout instead of a numeric percentage.")] = False
 
 
 class RelatedQueriesOut(BaseModelClean):
@@ -134,7 +135,8 @@ class RelatedTopicItem(BaseModelClean):
     mid: Annotated[str, Field(description="Google Trends topic entity ID (e.g. /m/05z1_).")]
     title: Annotated[str, Field(description="Display title of the topic.")]
     type: Annotated[str, Field(description="Type of the topic entity.")]
-    value: Annotated[float, Field(description="Relative search value (0-100) or growth percentage.")]
+    value: Annotated[Optional[float], Field(description="Relative search value (0-100) or growth percentage; null for a provider-labeled Breakout.")]
+    is_breakout: Annotated[bool, Field(description="True when Google Trends labels growth as Breakout instead of a numeric percentage.")] = False
 
 
 class RelatedTopicsOut(BaseModelClean):
