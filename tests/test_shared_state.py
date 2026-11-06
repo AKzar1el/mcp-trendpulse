@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pandas
 import pytest
 
-from mcp_trendpulse import trends_rate_control
+from mcp_trendpulse import shared_state, trends_rate_control
 from mcp_trendpulse.errors import ProviderTimeoutError
 from mcp_trendpulse.provider_metrics import ProviderMetrics
 from mcp_trendpulse.shared_state import (
@@ -274,3 +274,23 @@ def test_shared_state_is_explicit_opt_in(monkeypatch, tmp_path):
     monkeypatch.setenv("TRENDPULSE_SHARED_STATE_DIR", str(tmp_path))
     assert get_shared_state() is not None
     assert (tmp_path / "state.sqlite3").exists()
+
+
+@pytest.mark.parametrize("failure", [OSError, ValueError, sqlite3.DatabaseError])
+def test_failed_shared_state_initialization_can_recover(monkeypatch, tmp_path, failure):
+    monkeypatch.setenv("TRENDPULSE_SHARED_STATE_DIR", str(tmp_path))
+    real_state = SharedTrendsState
+    attempts = []
+
+    def initialize(directory):
+        attempts.append(directory)
+        if len(attempts) == 1:
+            raise failure("temporary shared state failure")
+        return real_state(directory)
+
+    monkeypatch.setattr(shared_state, "SharedTrendsState", initialize)
+    assert get_shared_state() is None
+    recovered = get_shared_state()
+    assert isinstance(recovered, real_state)
+    assert get_shared_state() is recovered
+    assert attempts == [str(tmp_path), str(tmp_path)]
