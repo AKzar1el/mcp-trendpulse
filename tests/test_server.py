@@ -124,6 +124,20 @@ class BrokenProgressSamplingContext(MockSamplingContext):
         raise RuntimeError("progress unavailable")
 
 
+class StalledSamplingContext(MockSamplingContext):
+    def __init__(self):
+        super().__init__()
+        self.cancelled = False
+
+    async def sample(self, prompt):
+        self.sample_calls += 1
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancelled = True
+            raise
+
+
 class SummarizableMockArticle(MockArticle):
     def __init__(self, nlp_summary="NLP summary", nlp_error=None):
         super().__init__(summary=None)
@@ -230,6 +244,55 @@ async def test_summarize_articles_uses_nlp_after_sampling_exception():
 
     assert article.summary == "NLP summary"
     assert article.nlp_calls == 1
+
+
+async def test_summarize_articles_bounds_stalled_client_sampling(monkeypatch):
+    article = SummarizableMockArticle()
+    ctx = StalledSamplingContext()
+    monkeypatch.setattr(server, "ARTICLE_SAMPLING_TIMEOUT_SECONDS", 0.03)
+
+    await asyncio.wait_for(server.summarize_articles([article], ctx), timeout=0.25)
+
+    assert ctx.sample_calls == 1
+    assert ctx.cancelled is True
+    assert article.summary == "NLP summary"
+    assert article.nlp_calls == 1
+
+
+async def test_sampling_noncooperative_client_has_bounded_tasks_and_no_late_summary(monkeypatch):
+    release = asyncio.Event()
+
+    class NonCooperativeSamplingContext(MockSamplingContext):
+        async def sample(self, prompt):
+            self.sample_calls += 1
+            try:
+                await release.wait()
+            except asyncio.CancelledError:
+                await release.wait()
+            return SimpleNamespace(text="late response")
+
+    monkeypatch.setattr(server, "ARTICLE_SAMPLING_TIMEOUT_SECONDS", 0.02)
+    monkeypatch.setattr(server, "ARTICLE_SAMPLING_MAX_INFLIGHT", 2)
+    ctx = NonCooperativeSamplingContext()
+    articles = [MockArticle(summary=None) for _ in range(3)]
+    try:
+        assert await asyncio.wait_for(
+            asyncio.gather(*(server.llm_summarize_article(a, ctx) for a in articles[:2])),
+            timeout=0.2,
+        ) == [False, False]
+        assert len(server._active_sampling_tasks) == 2
+        assert await server.llm_summarize_article(articles[2], ctx) is False
+        assert ctx.sample_calls == 2
+    finally:
+        release.set()
+        await asyncio.wait_for(
+            asyncio.gather(*tuple(server._active_sampling_tasks), return_exceptions=True),
+            timeout=0.3,
+        )
+        await asyncio.sleep(0)
+
+    assert not server._active_sampling_tasks
+    assert all(article.summary == "No summary available." for article in articles)
 
 
 async def test_summarize_articles_uses_nlp_after_empty_sampling_response():

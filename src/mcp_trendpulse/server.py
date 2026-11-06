@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 from typing import Annotated, Optional, Any, TYPE_CHECKING, Literal
@@ -251,7 +252,34 @@ def can_use_llm_sampling(ctx: Context) -> bool:
 SUMMARY_FALLBACK_MAX_SENTENCES = 3
 SUMMARY_FALLBACK_MAX_CHARS = 1_200
 ARTICLE_SAMPLING_MAX_SOURCE_CHARS = 8_000
+ARTICLE_SAMPLING_TIMEOUT_SECONDS = 8.0
+ARTICLE_SAMPLING_MAX_INFLIGHT = 4
+_active_sampling_tasks: set[asyncio.Task[Any]] = set()
 _SUMMARY_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+
+
+def _finish_sampling_task(task: asyncio.Task[Any]) -> None:
+    _active_sampling_tasks.discard(task)
+    if not task.cancelled():
+        task.exception()  # Consume late failures from clients that ignore cancellation.
+
+
+async def _sample_with_deadline(ctx: Context, prompt: str) -> Any:
+    # A non-cooperative sampling client must not block a tool call indefinitely
+    # or accumulate an unbounded number of detached tasks.
+    if len(_active_sampling_tasks) >= ARTICLE_SAMPLING_MAX_INFLIGHT:
+        raise TimeoutError("LLM sampling capacity is exhausted")
+    task = asyncio.create_task(ctx.sample(prompt))
+    _active_sampling_tasks.add(task)
+    task.add_done_callback(_finish_sampling_task)
+    try:
+        done, _ = await asyncio.wait((task,), timeout=ARTICLE_SAMPLING_TIMEOUT_SECONDS)
+        if not done:
+            raise TimeoutError("LLM sampling exceeded its deadline")
+        return task.result()
+    finally:
+        if not task.done():
+            task.cancel()
 
 
 def extractive_summary_fallback(article_text: str) -> str:
@@ -310,7 +338,7 @@ async def llm_summarize_article(article: Article, ctx: Context) -> bool:
             + json.dumps(excerpt, ensure_ascii=False)
         )
         try:
-            response = await ctx.sample(prompt)
+            response = await _sample_with_deadline(ctx, prompt)
             summary = getattr(response, "text", None)
             if not summary or not summary.strip():
                 await ctx.warning("LLM Sampling response is empty. Unable to summarize article.")
