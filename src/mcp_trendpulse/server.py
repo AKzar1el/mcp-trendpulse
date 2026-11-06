@@ -1,4 +1,3 @@
-import asyncio
 import json
 import re
 from typing import Annotated, Optional, Any, TYPE_CHECKING, Literal
@@ -10,7 +9,7 @@ from fastmcp.server.middleware.rate_limiting import RateLimitingMiddleware
 from fastmcp.server.middleware.error_handling import ErrorHandlingMiddleware
 from pydantic import BaseModel, Field, model_serializer
 from mcp_trendpulse.config import GOOGLE_NEWS_MAX_RESULTS, GOOGLE_TRENDS_MAX_RESULTS, load_environment
-from mcp_trendpulse.news import BrowserManager
+from mcp_trendpulse.news import BrowserManager, _enrich_article_nlp
 from mcp_trendpulse.middleware import ProviderErrorMiddleware
 from mcp_trendpulse.providers import get_provider_set
 from newspaper import settings as newspaper_settings
@@ -337,7 +336,7 @@ async def summarize_articles(articles: list[Article], ctx: Context) -> None:
     for idx, article in enumerate(articles):
         if not await llm_summarize_article(article, ctx):
             try:
-                await asyncio.to_thread(run_local_article_nlp, article)
+                await _enrich_article_nlp(article, idx, nlp_runner=run_local_article_nlp)
                 if not article.summary or not article.summary.strip():
                     article.summary = "No summary available."
             except Exception:
