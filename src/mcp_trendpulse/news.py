@@ -1490,6 +1490,12 @@ def _growth_from_trend_points(
         # Avoid labeling a truncated provider history as full-window growth.
         # Allow one sample interval for weekly/monthly bucket alignment.
         sample_gaps = series.index.to_series().diff().dropna()
+        positive_gaps = sample_gaps[sample_gaps > pandas.Timedelta(0)]
+        observed_interval = (
+            max(positive_gaps.median(), positive_gaps.iloc[-1])
+            if not positive_gaps.empty
+            else None
+        )
         edge_slack = (
             min(pandas.Timedelta(days=31), sample_gaps.median() + pandas.Timedelta(days=1))
             if not sample_gaps.empty
@@ -1497,7 +1503,14 @@ def _growth_from_trend_points(
         )
         growth_dict: dict[str, float | None] = {}
         for window in percent_growth:
-            target_date = latest_date - pandas.Timedelta(days=_growth_window_days(window))
+            window_span = pandas.Timedelta(days=_growth_window_days(window))
+            # Weekly/monthly samples cannot support daily growth. One day of
+            # bounded slack accommodates 28-31-day calendar-month buckets.
+            alignment_slack = min(pandas.Timedelta(days=1), window_span / 10)
+            if observed_interval is None or observed_interval > window_span + alignment_slack:
+                growth_dict[window] = None
+                continue
+            target_date = latest_date - window_span
             if target_date < series.index[0] - edge_slack:
                 growth_dict[window] = None
                 continue

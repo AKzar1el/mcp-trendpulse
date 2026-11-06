@@ -172,3 +172,49 @@ async def test_get_growth_preserves_short_valid_window_when_year_missing():
 
     assert result[0]["growth"]["3M"] == 100.0
     assert result[0]["growth"]["1Y"] is None
+
+
+async def test_get_growth_does_not_invent_daily_growth_from_weekly_observations():
+    dates = pd.date_range(start="2026-04-05", periods=24, freq="W")
+    frame = pd.DataFrame({"keyword": [20.0] * 12 + [40.0] * 12}, index=dates)
+
+    with patch.object(news.tr, "interest_over_time", return_value=frame) as request:
+        result = await news.get_growth("keyword", percent_growth=["1D", "3D", "6D", "7D", "1M"])
+
+    request.assert_called_once_with(["keyword"], timeframe="today 12-m", geo="US", gprop="")
+    growth = result[0]["growth"]
+    assert growth["1D"] is None
+    assert growth["3D"] is None
+    assert growth["6D"] is None
+    assert growth["7D"] is not None
+    assert growth["1M"] is not None
+
+
+def test_growth_respects_monthly_bucket_alignment_and_daily_resolution():
+    monthly = [
+        {"keyword": "keyword", "date": stamp.date().isoformat(), "value": value}
+        for stamp, value in zip(
+            pd.date_range("2025-01-01", periods=12, freq="MS"),
+            [20.0] * 6 + [40.0] * 6,
+        )
+    ]
+    monthly_growth = news._growth_from_trend_points(monthly, ["keyword"], ["7D", "1M"])[0]["growth"]
+    assert monthly_growth["7D"] is None
+    assert monthly_growth["1M"] is not None
+
+    daily = [
+        {"keyword": "keyword", "date": stamp.date().isoformat(), "value": value}
+        for stamp, value in zip(
+            pd.date_range("2026-10-01", periods=20, freq="D"),
+            [20.0] * 10 + [40.0] * 10,
+        )
+    ]
+    daily_growth = news._growth_from_trend_points(daily, ["keyword"], ["1D", "3D"])[0]["growth"]
+    assert daily_growth["1D"] is not None
+    assert daily_growth["3D"] is not None
+
+
+def test_growth_single_timestamp_has_no_observed_change_to_measure():
+    points = [{"keyword": "keyword", "date": "2026-11-01", "value": 40.0}]
+    growth = news._growth_from_trend_points(points, ["keyword"], ["1D", "1Y"])
+    assert growth == [{"keyword": "keyword", "growth": {"1D": None, "1Y": None}}]
