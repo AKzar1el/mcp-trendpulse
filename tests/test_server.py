@@ -3,7 +3,7 @@ import inspect
 import json
 import threading
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pandas as pd
 import pytest
@@ -122,6 +122,71 @@ class SequentialSamplingContext(MockSamplingContext):
 class BrokenProgressSamplingContext(MockSamplingContext):
     async def report_progress(self, progress, total):
         raise RuntimeError("progress unavailable")
+
+
+class RecordingProgressContext:
+    def __init__(self):
+        self.events = []
+
+    async def report_progress(self, progress, total):
+        self.events.append((progress, total))
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "provider_method", "filter_kwargs"),
+    [
+        ("get_news_by_keyword", "get_news_by_keyword", {"keyword": "AI"}),
+        ("get_news_by_location", "get_news_by_location", {"location": "Ljubljana"}),
+        ("get_news_by_topic", "get_news_by_topic", {"topic": "TECHNOLOGY"}),
+        ("get_top_news", "get_top_news", {}),
+        ("get_news_by_site", "get_news_by_site", {"site": "example.com"}),
+    ],
+)
+@pytest.mark.parametrize("summarize", [False, True])
+@pytest.mark.parametrize("with_session", [False, True])
+async def test_article_tools_do_not_emit_duplicate_or_zero_total_progress(
+    monkeypatch, tool_name, provider_method, filter_kwargs, summarize, with_session
+):
+    async def provider_call(**kwargs):
+        callback = kwargs["report_progress"]
+        await callback(1, 2)
+        await callback(2, 2)
+        return [MockArticle()]
+
+    provider = SimpleNamespace(**{provider_method: provider_call})
+    monkeypatch.setattr(server, "get_provider_set", lambda: SimpleNamespace(news=provider))
+    monkeypatch.setattr(server, "set_newspaper_article_fields", lambda _full: None)
+    monkeypatch.setattr(server, "is_session_active", lambda _ctx: with_session)
+    summarize_mock = AsyncMock()
+    monkeypatch.setattr(server, "summarize_articles", summarize_mock)
+    context = RecordingProgressContext()
+
+    result = await getattr(server, tool_name)(context, summarize=summarize, **filter_kwargs)
+    assert len(result) == 1
+    expected = [(1, 3), (2, 3), (3, 3)] if summarize else [(1, 2), (2, 2)]
+    assert context.events == (expected if with_session else [])
+    if summarize:
+        summarize_mock.assert_awaited_once()
+        assert summarize_mock.await_args.kwargs == {"report_progress": False}
+    else:
+        summarize_mock.assert_not_awaited()
+
+
+@pytest.mark.parametrize("with_session", [True, False])
+@pytest.mark.parametrize("summarize", [False, True])
+async def test_article_tools_skip_zero_zero_progress_for_empty_results(monkeypatch, with_session, summarize):
+    async def provider_call(**kwargs):
+        return []
+
+    monkeypatch.setattr(
+        server, "get_provider_set", lambda: SimpleNamespace(news=SimpleNamespace(get_top_news=provider_call))
+    )
+    monkeypatch.setattr(server, "set_newspaper_article_fields", lambda _full: None)
+    monkeypatch.setattr(server, "is_session_active", lambda _ctx: with_session)
+    monkeypatch.setattr(server, "summarize_articles", AsyncMock())
+    context = RecordingProgressContext()
+    assert await server.get_top_news(context, summarize=summarize) == []
+    assert context.events == []
 
 
 class StalledSamplingContext(MockSamplingContext):

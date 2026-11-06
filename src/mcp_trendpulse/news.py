@@ -1040,47 +1040,57 @@ async def process_gnews_articles(
     reference_now = _parse_news_publish_date(now) if now is not None else datetime.now(timezone.utc)
     cutoff = reference_now - timedelta(days=period) if period is not None else None
     semaphore = asyncio.Semaphore(max(1, max_concurrency))
+    progress_lock = asyncio.Lock()
+    completed_count = 0
 
     async def process_one(idx: int, gnews_article: dict) -> tuple[int, newspaper.Article | None]:
-        async with semaphore:
-            feed_publish_date = _parse_news_publish_date(gnews_article.get("published date"))
-            if cutoff is not None and feed_publish_date is not None and (
-                feed_publish_date < cutoff or feed_publish_date > reference_now
-            ):
-                return idx, None
+        nonlocal completed_count
+        try:
+            async with semaphore:
+                feed_publish_date = _parse_news_publish_date(gnews_article.get("published date"))
+                if cutoff is not None and feed_publish_date is not None and (
+                    feed_publish_date < cutoff or feed_publish_date > reference_now
+                ):
+                    return idx, None
 
-            try:
-                article = await download_article(gnews_article["url"])
-            except ValueError as exc:
-                logger.debug(
-                    "Skipping unusable Google News provider item %s: %s",
-                    gnews_article["url"],
-                    exc,
-                )
-                return idx, None
-            if article is None or not article.text:
-                logger.debug(f"Failed to download article from {gnews_article['url']}:\n{article}")
-                return idx, None
-            if _is_unusable_article_page(article):
-                logger.debug(f"Rejected unusable article page from {gnews_article['url']}")
-                return idx, None
+                try:
+                    article = await download_article(gnews_article["url"])
+                except ValueError as exc:
+                    logger.debug(
+                        "Skipping unusable Google News provider item %s: %s",
+                        gnews_article["url"],
+                        exc,
+                    )
+                    return idx, None
+                if article is None or not article.text:
+                    logger.debug(f"Failed to download article from {gnews_article['url']}:\n{article}")
+                    return idx, None
+                if _is_unusable_article_page(article):
+                    logger.debug(f"Rejected unusable article page from {gnews_article['url']}")
+                    return idx, None
 
-            article_publish_date = _parse_news_publish_date(getattr(article, "publish_date", None))
-            effective_publish_date = article_publish_date or feed_publish_date
-            if cutoff is not None and (
-                effective_publish_date is None
-                or effective_publish_date < cutoff
-                or effective_publish_date > reference_now
-            ):
-                return idx, None
-            if article_publish_date is None and feed_publish_date is not None:
-                article.publish_date = feed_publish_date
+                article_publish_date = _parse_news_publish_date(getattr(article, "publish_date", None))
+                effective_publish_date = article_publish_date or feed_publish_date
+                if cutoff is not None and (
+                    effective_publish_date is None
+                    or effective_publish_date < cutoff
+                    or effective_publish_date > reference_now
+                ):
+                    return idx, None
+                if article_publish_date is None and feed_publish_date is not None:
+                    article.publish_date = feed_publish_date
 
-            _restore_feed_title_if_placeholder(article, gnews_article)
+                _restore_feed_title_if_placeholder(article, gnews_article)
 
-            if nlp:
-                await _enrich_article_nlp(article, idx)
-            return idx, article
+                if nlp:
+                    await _enrich_article_nlp(article, idx)
+                return idx, article
+        finally:
+            if report_progress:
+                # Count completed input items, including rejected articles, in finish order.
+                async with progress_lock:
+                    completed_count += 1
+                    await report_progress(completed_count, total)
 
     processed = await asyncio.gather(
         *(process_one(idx, gnews_article) for idx, gnews_article in enumerate(gnews_articles))
@@ -1091,8 +1101,6 @@ async def process_gnews_articles(
         if article is None:
             continue
         articles.append(article)
-        if report_progress:
-            await report_progress(idx, total)
     return articles
 
 

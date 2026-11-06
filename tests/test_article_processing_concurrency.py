@@ -97,11 +97,11 @@ async def test_process_gnews_articles_preserves_other_items_when_one_nlp_fails(m
     assert result[1].text == "text for bad"
     assert result[1].summary == ""
     assert result[1].keywords == []
-    assert [call.args for call in report_progress.await_args_list] == [(0, 3), (1, 3), (2, 3)]
+    assert [call.args for call in report_progress.await_args_list] == [(1, 3), (2, 3), (3, 3)]
 
 
 @pytest.mark.asyncio
-async def test_process_gnews_articles_preserves_success_progress_indices(monkeypatch):
+async def test_process_gnews_articles_counts_skipped_items_in_progress(monkeypatch):
     async def fake_download(url: str):
         if url.endswith("/missing"):
             return None
@@ -122,7 +122,53 @@ async def test_process_gnews_articles_preserves_success_progress_indices(monkeyp
     )
 
     assert [article.label for article in result] == ["first", "third"]
-    assert [call.args for call in report_progress.await_args_list] == [(0, 3), (2, 3)]
+    assert [call.args for call in report_progress.await_args_list] == [(1, 3), (2, 3), (3, 3)]
+
+
+@pytest.mark.asyncio
+async def test_process_gnews_articles_reports_all_stale_items(monkeypatch):
+    download = AsyncMock(side_effect=AssertionError("stale items must not be downloaded"))
+    monkeypatch.setattr(news, "download_article", download)
+    progress = AsyncMock()
+    result = await news.process_gnews_articles(
+        [
+            {"url": "https://example.com/stale-1", "published date": "2024-01-01"},
+            {"url": "https://example.com/stale-2", "published date": "2024-01-02"},
+        ],
+        nlp=False,
+        report_progress=progress,
+        period=2,
+        now=news.datetime(2026, 11, 6, tzinfo=news.timezone.utc),
+    )
+    assert result == []
+    assert [call.args for call in progress.await_args_list] == [(1, 2), (2, 2)]
+    download.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_process_gnews_articles_progress_tracks_out_of_order_failures(monkeypatch):
+    async def fake_download(url):
+        if url.endswith("/first"):
+            await asyncio.sleep(0.03)
+            return FakeArticle("first")
+        if url.endswith("/invalid"):
+            raise ValueError("invalid provider URL")
+        return None
+
+    monkeypatch.setattr(news, "download_article", fake_download)
+    progress = AsyncMock()
+    result = await news.process_gnews_articles(
+        [
+            {"url": "https://example.com/first"},
+            {"url": "https://example.com/invalid"},
+            {"url": "https://example.com/missing"},
+        ],
+        nlp=False,
+        report_progress=progress,
+        max_concurrency=3,
+    )
+    assert [article.label for article in result] == ["first"]
+    assert [call.args for call in progress.await_args_list] == [(1, 3), (2, 3), (3, 3)]
 
 
 @pytest.mark.asyncio
