@@ -170,6 +170,35 @@ async def test_process_gnews_articles_keeps_results_when_optional_progress_fails
 
 
 @pytest.mark.asyncio
+async def test_process_gnews_articles_keeps_results_when_progress_stalls(monkeypatch):
+    async def fake_download(url):
+        return FakeArticle(url.rsplit("/", 1)[-1])
+
+    monkeypatch.setattr(news, "download_article", fake_download)
+    monkeypatch.setattr(news, "ARTICLE_PROGRESS_CALLBACK_TIMEOUT_SECONDS", 0.02, raising=False)
+    progress_calls = []
+
+    async def stalled_progress(done, total):
+        progress_calls.append((done, total))
+        await asyncio.Event().wait()
+
+    articles = await asyncio.wait_for(
+        news.process_gnews_articles(
+            [
+                {"url": "https://example.com/first"},
+                {"url": "https://example.com/second"},
+            ],
+            nlp=False,
+            report_progress=stalled_progress,
+        ),
+        timeout=1,
+    )
+
+    assert [article.label for article in articles] == ["first", "second"]
+    assert progress_calls == [(1, 2)]
+
+
+@pytest.mark.asyncio
 async def test_process_gnews_articles_reports_all_stale_items(monkeypatch):
     download = AsyncMock(side_effect=AssertionError("stale items must not be downloaded"))
     monkeypatch.setattr(news, "download_article", download)
