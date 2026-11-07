@@ -200,6 +200,7 @@ class SharedTrendsState:
                 "dates": [date.isoformat() for date in frame.index],
                 "values": values,
                 "index_utc_name": frame.index.name == "time [UTC]",
+                "timezone": str(frame.index.tz) if frame.index.tz is not None else None,
                 "freq": frame.index.freqstr,
                 "partial": [bool(value) for value in frame["isPartial"]] if "isPartial" in frame else None,
             }
@@ -219,7 +220,13 @@ class SharedTrendsState:
                 return None
             if not 1 <= len(dates) <= MAX_ROWS or any(len(row) != len(terms) for row in values):
                 return None
-            index = pandas.DatetimeIndex(pandas.to_datetime(dates))
+            timezone_name = item.get("timezone")
+            if timezone_name is not None:
+                # Parse mixed DST offsets as UTC instants before restoring the zone.
+                index = pandas.DatetimeIndex(pandas.to_datetime(dates, utc=True)).tz_convert(timezone_name)
+            else:
+                # Existing cached records omit timezone; preserve their format.
+                index = pandas.DatetimeIndex(pandas.to_datetime(dates))
             if item.get("freq"):
                 index = pandas.DatetimeIndex(index, freq=item["freq"])
             index.name = "time [UTC]" if item["index_utc_name"] else None
