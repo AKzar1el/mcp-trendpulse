@@ -1499,7 +1499,13 @@ def _completed_trends_frame(df: pandas.DataFrame) -> pandas.DataFrame:
     """Exclude provider rows explicitly marked partial from decision metrics."""
     if "isPartial" not in df.columns:
         return df
-    completed = df.loc[~df["isPartial"].fillna(False).astype(bool)]
+    def is_partial(value: object) -> bool:
+        if isinstance(value, str):
+            # A provider's string "false" is truthy to Python's bool().
+            return value.strip().casefold() not in {"", "false", "0", "no", "off"}
+        return bool(value)
+
+    completed = df.loc[~df["isPartial"].fillna(False).map(is_partial)]
     return completed
 
 
