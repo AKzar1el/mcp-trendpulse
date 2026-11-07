@@ -302,8 +302,14 @@ class InterestResultCache:
                     )
                 result = restored if restored is not None else loader()
                 if getattr(result, "empty", False):
+                    if restored is None and shared is not None and lease_owner is not None:
+                        try:
+                            if shared.put_series(key, result):
+                                provider_metrics.count("trends_shared_cache_write")
+                        except (OSError, ValueError, sqlite3.DatabaseError):
+                            provider_metrics.count("trends_shared_state_fallback")
                     flight.set_result(result)
-                    return result  # Do not persist transient empty provider results.
+                    return result  # Only the shared three-second marker persists.
                 try:
                     cached_copy = deepcopy(result)
                 except (TypeError, ValueError):
