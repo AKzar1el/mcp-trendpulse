@@ -1079,6 +1079,14 @@ async def process_gnews_articles(
                         exc,
                     )
                     return idx, None
+                except Exception as exc:
+                    # One publisher transport failure must not discard other articles.
+                    logger.warning(
+                        "Skipping Google News item %d after article download error (%s)",
+                        idx,
+                        type(exc).__name__,
+                    )
+                    return idx, None
                 if article is None or not article.text:
                     logger.debug(f"Failed to download article from {url}:\n{article}")
                     return idx, None
