@@ -1580,12 +1580,15 @@ def _growth_from_trend_points(
         if not keyword_points:
             continue
 
-        dates = pandas.to_datetime([point["date"] for point in keyword_points])
+        # Offset-aware timestamps can change UTC offset across a DST boundary.
+        dates = pandas.to_datetime(
+            [point["date"] for point in keyword_points], utc=True, format="ISO8601"
+        )
         series = pandas.Series(
             [float(point["value"]) for point in keyword_points],
             index=dates,
             dtype=float,
-        )
+        ).sort_index()
         if series.index.has_duplicates:
             # Repeated provider timestamps must neither crash nearest lookup
             # nor give the same observation extra weight in window averages.
