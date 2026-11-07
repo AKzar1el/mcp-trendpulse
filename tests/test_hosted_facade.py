@@ -260,6 +260,24 @@ async def test_analyze_and_compare_return_bounded_series(fake_providers):
     assert all(len(item.series) <= 10 for item in comparison.comparisons)
 
 
+async def test_hosted_growth_note_is_independent_of_selected_series_timeframe(fake_providers):
+    with use_provider_set(fake_providers):
+        analysis = await hosted.analyze_keyword_trend(
+            keyword="agent search", timeframe="now 1-d"
+        )
+        comparison = await hosted.compare_keyword_trends(
+            keywords=["agent search", "answer engine optimization"], timeframe="today 5-y"
+        )
+
+    for response in (analysis, comparison):
+        note = response.model_dump()["growth_scope_note"]
+        assert "3M" in note and "1Y" in note
+        assert "separate" in note.lower()
+        assert "selected timeframe" in note.lower()
+    assert analysis.timeframe == "now 1-d"
+    assert comparison.timeframe == "today 5-y"
+
+
 def test_hosted_excludes_nonfinite_trend_numbers():
     assert hosted._as_float("nan") is None
     assert hosted._as_float("-Infinity") is None
