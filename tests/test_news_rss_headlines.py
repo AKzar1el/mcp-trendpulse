@@ -59,6 +59,20 @@ async def test_rss_headlines_limit_after_validity_filter(monkeypatch):
     assert [item["title"] for item in result] == ["A"]
 
 
+async def test_rss_headlines_skip_unparseable_provider_url_and_preserve_good_rows(monkeypatch):
+    rows = [
+        {"title": "Broken feed entry", "url": "https://[broken/rr", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Valid feed entry", "url": GOOGLE_LINK, "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+    ]
+    monkeypatch.setattr(news, "_new_google_news", lambda period, max_results: object())
+    monkeypatch.setattr(news, "_call_google_news_async", AsyncMock(return_value=rows))
+
+    result = await news.get_rss_headlines_by_keyword("OpenAI", period=1, max_results=5, now=NOW)
+
+    assert [item["title"] for item in result] == ["Valid feed entry"]
+    assert [item["url"] for item in result] == [GOOGLE_LINK]
+
+
 async def test_rss_headlines_reject_blank_keyword_without_provider_call(monkeypatch):
     operation = AsyncMock()
     monkeypatch.setattr(news, "_call_google_news_async", operation)
