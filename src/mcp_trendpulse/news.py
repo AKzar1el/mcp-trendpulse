@@ -1561,6 +1561,10 @@ def _growth_from_trend_points(
             index=dates,
             dtype=float,
         )
+        if series.index.has_duplicates:
+            # Repeated provider timestamps must neither crash nearest lookup
+            # nor give the same observation extra weight in window averages.
+            series = series.groupby(level=0, sort=True).mean()
         current_val = float(series.tail(4).mean())
         latest_date = series.index[-1]
 
