@@ -24,6 +24,27 @@ class FakeArticle:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "extracted_publisher, expected_publisher",
+    [("", "Example & Journal"), ("Original Publisher", "Original Publisher")],
+)
+async def test_article_publisher_uses_feed_only_when_extraction_is_missing(
+    monkeypatch, extracted_publisher, expected_publisher
+):
+    article = FakeArticle("News item")
+    article.meta_site_name = extracted_publisher
+    monkeypatch.setattr(news, "download_article", AsyncMock(return_value=article))
+
+    result = await news.process_gnews_articles(
+        [{"url": "https://example.com/article", "publisher": {"title": "Example &amp; Journal"}}],
+        nlp=False,
+    )
+
+    assert len(result) == 1
+    assert result[0].meta_site_name == expected_publisher
+
+
+@pytest.mark.asyncio
 async def test_process_gnews_articles_bounds_concurrency_and_preserves_order(monkeypatch):
     active = 0
     peak = 0

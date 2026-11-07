@@ -163,6 +163,18 @@ def _restore_feed_title_if_placeholder(article: newspaper.Article, gnews_article
         article.title = feed_title
 
 
+def _restore_feed_publisher_if_missing(article: newspaper.Article, gnews_article: dict) -> None:
+    """Retain feed publisher attribution only when extraction provided no site name."""
+    if str(getattr(article, "meta_site_name", "") or "").strip():
+        return
+    publisher = gnews_article.get("publisher")
+    name = publisher.get("title") if isinstance(publisher, dict) else None
+    if isinstance(name, str):
+        normalized = _decode_provider_text(name).strip()
+        if normalized and len(normalized) <= 200:
+            article.meta_site_name = normalized
+
+
 def _is_challenge_page(article: newspaper.Article) -> bool:
     """Reject known anti-bot pages instead of returning their challenge copy as news."""
     title = str(getattr(article, "title", "") or "").strip().casefold()
@@ -1086,6 +1098,7 @@ async def process_gnews_articles(
                     article.publish_date = feed_publish_date
 
                 _restore_feed_title_if_placeholder(article, gnews_article)
+                _restore_feed_publisher_if_missing(article, gnews_article)
 
                 if nlp:
                     await _enrich_article_nlp(article, idx)
