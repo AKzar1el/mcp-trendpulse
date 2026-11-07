@@ -1054,9 +1054,10 @@ async def process_gnews_articles(
     semaphore = asyncio.Semaphore(max(1, max_concurrency))
     progress_lock = asyncio.Lock()
     completed_count = 0
+    progress_enabled = True
 
     async def process_one(idx: int, gnews_article: dict) -> tuple[int, newspaper.Article | None]:
-        nonlocal completed_count
+        nonlocal completed_count, progress_enabled
         try:
             async with semaphore:
                 raw_url = gnews_article.get("url")
@@ -1116,7 +1117,16 @@ async def process_gnews_articles(
                 # Count completed input items, including rejected articles, in finish order.
                 async with progress_lock:
                     completed_count += 1
-                    await report_progress(completed_count, total)
+                    if progress_enabled:
+                        try:
+                            await report_progress(completed_count, total)
+                        except Exception as exc:
+                            # Optional client progress must not erase downloaded articles.
+                            progress_enabled = False
+                            logger.warning(
+                                "Disabling unavailable Google News progress reporter (%s)",
+                                type(exc).__name__,
+                            )
 
     processed = await asyncio.gather(
         *(process_one(idx, gnews_article) for idx, gnews_article in enumerate(gnews_articles))
