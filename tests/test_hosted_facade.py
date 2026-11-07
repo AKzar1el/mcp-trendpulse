@@ -208,6 +208,26 @@ async def test_tool_descriptions_encode_selection_boundaries(tool_name, required
         assert phrase.lower() in description
 
 
+@pytest.mark.parametrize(
+    ("tool_name", "keyword_arg"),
+    [
+        ("analyze_keyword_trend", "keyword"),
+        ("discover_related_demand", "keyword"),
+        ("get_trend_context", "keyword"),
+        ("find_seo_opportunities", "seed_keyword"),
+    ],
+)
+async def test_hosted_single_keyword_tools_reject_blank_input_before_provider_use(
+    monkeypatch, tool_name, keyword_arg
+):
+    def unexpected_provider_access():
+        raise AssertionError("Blank keywords must not reach providers")
+
+    monkeypatch.setattr(hosted, "get_provider_set", unexpected_provider_access)
+    with pytest.raises(ValueError, match="Keyword must not be empty"):
+        await getattr(hosted, tool_name)(**{keyword_arg: " \t "})
+
+
 async def test_discover_trends_is_bounded_and_preserves_provider_metadata(fake_providers, monkeypatch):
     called_with = {}
     original = fake_providers.trends.get_ranked_trends

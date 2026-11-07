@@ -324,6 +324,13 @@ def _context_article(article: dict[str, object]) -> ContextArticle | None:
     )
 
 
+def _normalize_keyword(keyword: str) -> str:
+    normalized = keyword.strip()
+    if not normalized:
+        raise ValueError("Keyword must not be empty after trimming whitespace.")
+    return normalized
+
+
 def _normalize_keywords(keywords: list[str]) -> list[str]:
     normalized = [keyword.strip() for keyword in keywords if keyword.strip()]
     if len(normalized) != len(keywords):
@@ -467,7 +474,7 @@ async def analyze_keyword_trend(
     timeframe: Annotated[str, Field(description="Google Trends window such as 'today 12-m', 'today 90-d', 'today 5-y', or an exact date range.")] = "today 12-m",
     max_points: Annotated[int, Field(description="Maximum time-series points returned after deterministic downsampling.", ge=10, le=120)] = 60,
 ) -> KeywordTrendAnalysis:
-    keyword = keyword.strip()
+    keyword = _normalize_keyword(keyword)
     providers = get_provider_set()
     points = await providers.trends.get_trends(
         keyword=keyword,
@@ -558,7 +565,7 @@ async def discover_related_demand(
     timeframe: Annotated[str, Field(description="Google Trends window such as 'today 12-m'.")] = "today 12-m",
     limit: Annotated[int, Field(description="Maximum items returned in each related-demand section.", ge=1, le=15)] = 10,
 ) -> RelatedDemandResult:
-    keyword = keyword.strip()
+    keyword = _normalize_keyword(keyword)
     providers = get_provider_set()
     gprop = _SOURCE_TO_GPROP[source]
     queries = await providers.trends.get_related_queries(
@@ -621,7 +628,7 @@ async def get_trend_context(
     news_period_days: Annotated[int, Field(description="How many recent days of news to inspect.", ge=1, le=30)] = 7,
     max_articles: Annotated[int, Field(description="Maximum article links returned.", ge=1, le=8)] = 5,
 ) -> TrendContextResult:
-    keyword = keyword.strip()
+    keyword = _normalize_keyword(keyword)
     providers = get_provider_set()
     points = await providers.trends.get_trends(
         keyword=keyword,
@@ -673,7 +680,7 @@ async def find_seo_opportunities(
         ),
     ] = None,
 ) -> SeoOpportunityResult:
-    seed_keyword = seed_keyword.strip()
+    seed_keyword = _normalize_keyword(seed_keyword)
     providers = get_provider_set()
     related = await providers.trends.get_related_queries(
         keyword=seed_keyword,
