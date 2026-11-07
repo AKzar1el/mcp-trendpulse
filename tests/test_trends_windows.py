@@ -218,3 +218,17 @@ def test_growth_single_timestamp_has_no_observed_change_to_measure():
     points = [{"keyword": "keyword", "date": "2026-11-01", "value": 40.0}]
     growth = news._growth_from_trend_points(points, ["keyword"], ["1D", "1Y"])
     assert growth == [{"keyword": "keyword", "growth": {"1D": None, "1Y": None}}]
+
+
+def test_growth_deduplicates_timestamps_without_double_counting_samples():
+    dates = pd.date_range("2026-07-05", periods=16, freq="W")
+    points = [
+        {"keyword": "keyword", "date": stamp.isoformat(), "value": 20.0 if idx < 8 else 40.0}
+        for idx, stamp in enumerate(dates)
+    ]
+    duplicate_points = points + [dict(points[8]), dict(points[-1])]
+
+    expected = news._growth_from_trend_points(points, ["keyword"], ["1M", "3M"])
+    actual = news._growth_from_trend_points(duplicate_points, ["keyword"], ["1M", "3M"])
+
+    assert actual == expected
