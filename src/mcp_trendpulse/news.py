@@ -2075,10 +2075,15 @@ async def get_suggestions(keyword: str, language: Optional[str] = None) -> list[
         return []
     results = []
     for _, row in df.iterrows():
+        mid = _provider_identity_text(row.get("mid"))
+        title = _provider_identity_text(row.get("title"))
+        topic_type = _provider_identity_text(row.get("type"))
+        if mid is None or title is None or topic_type is None:
+            continue
         results.append({
-            "mid": str(row["mid"]),
-            "title": str(row["title"]),
-            "type": str(row["type"])
+            "mid": mid,
+            "title": title,
+            "type": topic_type
         })
     return results
 
