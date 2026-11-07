@@ -232,3 +232,18 @@ def test_growth_deduplicates_timestamps_without_double_counting_samples():
     actual = news._growth_from_trend_points(duplicate_points, ["keyword"], ["1M", "3M"])
 
     assert actual == expected
+
+
+def test_growth_handles_mixed_utc_offsets_across_daylight_saving_change():
+    dates = pd.date_range("2026-10-20", periods=16, freq="D", tz="Europe/Ljubljana")
+    points = [
+        {"keyword": "keyword", "date": stamp.isoformat(), "value": 20.0 if idx < 8 else 40.0}
+        for idx, stamp in enumerate(dates)
+    ]
+    normalized = [{**point, "date": stamp.tz_convert("UTC").isoformat()} for point, stamp in zip(points, dates)]
+
+    expected = news._growth_from_trend_points(normalized, ["keyword"], ["7D"])
+    actual = news._growth_from_trend_points(points, ["keyword"], ["7D"])
+
+    assert expected[0]["growth"]["7D"] is not None
+    assert actual == expected
