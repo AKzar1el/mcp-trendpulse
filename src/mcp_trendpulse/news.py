@@ -130,6 +130,13 @@ def _decode_provider_text(value):
     return unescape(value) if isinstance(value, str) else value
 
 
+def _provider_identity_text(value: object) -> str | None:
+    """Reject missing provider identity fields rather than publishing 'nan'/'None'."""
+    if not isinstance(value, str):
+        return None
+    return value.strip() or None
+
+
 def _google_property(source: str) -> str:
     normalized = source.strip().lower()
     try:
@@ -1992,11 +1999,14 @@ async def get_related_queries(
         df = res.get(key)
         if df is not None and not df.empty:
             for _, row in df.iterrows():
+                query = _provider_identity_text(row.get("query"))
+                if query is None:
+                    continue
                 value, is_breakout = _related_trend_value(row["value"])
                 if value is None and not is_breakout:
                     continue
                 item = {
-                    "query": str(row["query"]),
+                    "query": query,
                     "value": value
                 }
                 if is_breakout:
@@ -2031,13 +2041,18 @@ async def get_related_topics(
         df = res.get(key)
         if df is not None and not df.empty:
             for _, row in df.iterrows():
+                mid = _provider_identity_text(row.get("mid"))
+                title = _provider_identity_text(row.get("title"))
+                topic_type = _provider_identity_text(row.get("type"))
+                if mid is None or title is None or topic_type is None:
+                    continue
                 value, is_breakout = _related_trend_value(row["value"])
                 if value is None and not is_breakout:
                     continue
                 item = {
-                    "mid": str(row["mid"]),
-                    "title": str(row["title"]),
-                    "type": str(row["type"]),
+                    "mid": mid,
+                    "title": title,
+                    "type": topic_type,
                     "value": value
                 }
                 if is_breakout:

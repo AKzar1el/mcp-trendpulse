@@ -135,3 +135,33 @@ async def test_related_topics_preserve_breakout_with_its_entity_metadata():
          "value": None, "is_breakout": True}
     ]
     json.dumps(rows, allow_nan=False)
+
+
+async def test_related_queries_skip_missing_or_invalid_query_identity():
+    related = {
+        "top": pd.DataFrame({
+            "query": ["  real query  ", None, float("nan"), "   ", 123],
+            "value": [70, 60, 50, 40, 30],
+        }),
+        "rising": pd.DataFrame(columns=["query", "value"]),
+    }
+    with patch.object(news, "_call_related_queries_with_unavailable_retry", return_value=related):
+        rows = await news.get_related_queries("python")
+
+    assert rows == {"top": [{"query": "real query", "value": 70.0}], "rising": []}
+
+
+async def test_related_topics_skip_missing_or_invalid_entity_identity():
+    related = {
+        "top": pd.DataFrame({
+            "mid": ["/m/valid", None, "/m/missing-title", "/m/blank-type"],
+            "title": ["  Real topic  ", "Ignored", float("nan"), "Ignored"],
+            "type": ["Topic", "Topic", "Topic", "   "],
+            "value": [70, 60, 50, 40],
+        }),
+        "rising": pd.DataFrame(columns=["mid", "title", "type", "value"]),
+    }
+    with patch.object(news.tr, "related_topics", return_value=related):
+        rows = await news.get_related_topics("python")
+
+    assert rows == {"top": [{"mid": "/m/valid", "title": "Real topic", "type": "Topic", "value": 70.0}], "rising": []}
