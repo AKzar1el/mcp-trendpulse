@@ -1951,6 +1951,9 @@ async def get_interest_by_region(
         return []
     results = []
     for _, row in df.iterrows():
+        region_name = _provider_identity_text(row.get("geoName"))
+        if region_name is None:
+            continue
         values = {}
         for kw in kw_list:
             if kw in df.columns:
@@ -1960,7 +1963,7 @@ async def get_interest_by_region(
         if not values:
             continue
         region = {
-            "geoName": str(row["geoName"]),
+            "geoName": region_name,
             "values": values
         }
         if "geoCode" in df.columns and pandas.notna(row["geoCode"]):
