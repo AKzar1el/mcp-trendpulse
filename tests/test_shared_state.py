@@ -138,6 +138,47 @@ def test_shared_empty_series_avoids_immediate_duplicate_provider_fetch(tmp_path)
     assert len(calls) == 2
 
 
+def test_concurrent_empty_series_requests_reuse_shared_marker(tmp_path):
+    first_state = SharedTrendsState(tmp_path)
+    second_state = SharedTrendsState(tmp_path)
+    first = InterestResultCache(shared_provider=lambda: first_state)
+    second = InterestResultCache(shared_provider=lambda: second_state)
+    entered = threading.Event()
+    contested = threading.Event()
+    release = threading.Event()
+    calls = []
+    args = (["alpha"],)
+    kwargs = {"geo": "US", "timeframe": "today 12-m"}
+
+    original_claim = second_state.claim_series_fill
+
+    def observe_claim(key):
+        token = original_claim(key)
+        if token is None:
+            contested.set()
+        return token
+
+    second_state.claim_series_fill = observe_claim
+
+    def load_empty():
+        calls.append(True)
+        entered.set()
+        assert release.wait(timeout=5)
+        return pandas.DataFrame()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first_result = pool.submit(first.get_or_load, "interest_over_time", args, kwargs, load_empty)
+        assert entered.wait(timeout=5)
+        second_result = pool.submit(second.get_or_load, "interest_over_time", args, kwargs, load_empty)
+        try:
+            assert contested.wait(timeout=5)
+        finally:
+            release.set()
+        assert first_result.result(timeout=5).empty
+        assert second_result.result(timeout=5).empty
+    assert len(calls) == 1
+
+
 def test_independent_cache_instances_coalesce_concurrent_misses(tmp_path):
     state_a = SharedTrendsState(tmp_path)
     state_b = SharedTrendsState(tmp_path)
