@@ -193,6 +193,29 @@ async def test_process_gnews_articles_progress_tracks_out_of_order_failures(monk
 
 
 @pytest.mark.asyncio
+async def test_process_gnews_articles_isolates_one_transient_download_error(monkeypatch):
+    async def fake_download(url):
+        if url.endswith("/unavailable"):
+            raise OSError("publisher connection reset")
+        return FakeArticle(url.rsplit("/", 1)[-1])
+
+    monkeypatch.setattr(news, "download_article", fake_download)
+    progress = AsyncMock()
+    result = await news.process_gnews_articles(
+        [
+            {"url": "https://example.com/first"},
+            {"url": "https://example.com/unavailable"},
+            {"url": "https://example.com/third"},
+        ],
+        nlp=False,
+        report_progress=progress,
+    )
+
+    assert [article.label for article in result] == ["first", "third"]
+    assert [call.args for call in progress.await_args_list] == [(1, 3), (2, 3), (3, 3)]
+
+
+@pytest.mark.asyncio
 async def test_download_article_offloads_blocking_validation_and_scraper(monkeypatch):
     event_loop_thread = threading.get_ident()
     worker_threads: list[tuple[str, int]] = []
