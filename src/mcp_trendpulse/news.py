@@ -1130,10 +1130,15 @@ async def _rss_headlines_from_feed(
         link = item.get("url")
         if not isinstance(title, str) or not title.strip() or not isinstance(link, str):
             continue
-        parsed = urlsplit(link)
+        try:
+            parsed = urlsplit(link)
+            hostname = parsed.hostname
+        except ValueError:
+            # One malformed upstream link must not discard the other headlines.
+            continue
         if (
             parsed.scheme != "https"
-            or parsed.hostname != "news.google.com"
+            or hostname != "news.google.com"
             or parsed.username is not None
             or parsed.password is not None
             or not parsed.path.startswith("/rss/articles/")
