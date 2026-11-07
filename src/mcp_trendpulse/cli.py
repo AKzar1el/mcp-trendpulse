@@ -6,7 +6,7 @@ import re
 import sys
 from collections import defaultdict
 from dataclasses import asdict
-from datetime import date, datetime
+from datetime import datetime, timezone
 from math import isfinite
 from pathlib import Path
 
@@ -386,9 +386,9 @@ def brief_pack(keywords, markets, timeframe):
                 timeframe=timeframe,
             )
             dated_points = [
-                (point, _brief_observation_day(point.get("date"))) for point in points
+                (point, _brief_observation_time(point.get("date"))) for point in points
             ]
-            dated_points = [(point, day) for point, day in dated_points if day is not None]
+            dated_points = [(point, when) for point, when in dated_points if when is not None]
             if timeframe.strip().lower() == "today 12-m":
                 growth_rows = _growth_from_trend_points(
                     [point for point, _ in dated_points], cleaned_keywords, ["3M", "1Y"]
@@ -402,10 +402,12 @@ def brief_pack(keywords, markets, timeframe):
                 )
 
             series = defaultdict(list)
-            for point, day in dated_points:
-                series[str(point.get("keyword", ""))].append((day, point))
-            latest_trends_day = max((day for _, day in dated_points), default=None)
-            latest_trends_date = latest_trends_day.isoformat() if latest_trends_day else None
+            for point, when in dated_points:
+                series[str(point.get("keyword", ""))].append((when, point))
+            latest_trends_point = max(
+                (when for _, when in dated_points), key=lambda when: when[0], default=None
+            )
+            latest_trends_date = latest_trends_point[1] if latest_trends_point else None
             growth = {
                 str(row.get("keyword", "")): row.get("growth") or {}
                 for row in growth_rows
@@ -433,10 +435,14 @@ def brief_pack(keywords, markets, timeframe):
             older_observations = []
             for keyword in cleaned_keywords:
                 keyword_points = series.get(keyword, [])
-                latest_point = max(keyword_points, key=lambda entry: entry[0], default=None)
+                latest_point = max(keyword_points, key=lambda entry: entry[0][0], default=None)
                 latest = latest_point[1].get("value") if latest_point else None
-                last_date = latest_point[0].isoformat() if latest_point else ""
-                if last_date and latest_trends_date and last_date < latest_trends_date:
+                last_date = latest_point[0][1] if latest_point else ""
+                if (
+                    latest_point
+                    and latest_trends_point
+                    and latest_point[0][0] < latest_trends_point[0]
+                ):
                     older_observations.append((keyword, last_date))
                 keyword_growth = growth.get(keyword, {})
                 click.echo(
@@ -454,15 +460,20 @@ def brief_pack(keywords, markets, timeframe):
     asyncio.run(_build())
 
 
-def _brief_observation_day(value):
-    """Accept real ISO dates/timestamps, not lexically plausible invalid metadata."""
+def _brief_observation_time(value):
+    """Return UTC ordering time and a date- or timestamp-precision evidence label."""
     text = str(value or "").strip()
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}(?:[T ].+)?", text):
         return None
     try:
         if len(text) == 10:
-            return date.fromisoformat(text)
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
+            return datetime.fromisoformat(text).replace(tzinfo=timezone.utc), text
+        instant = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        if instant.tzinfo is None:
+            # Google may emit naive intraday labels: retain their unspecified zone in output.
+            return instant.replace(tzinfo=timezone.utc), instant.isoformat()
+        utc_instant = instant.astimezone(timezone.utc)
+        return utc_instant, utc_instant.isoformat().replace("+00:00", "Z")
     except ValueError:
         return None
 

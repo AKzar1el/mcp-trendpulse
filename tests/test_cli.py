@@ -514,9 +514,33 @@ def test_brief_pack_accepts_valid_iso_timestamp_as_dated_observation():
         ])
 
     assert result.exit_code == 0, result.output
-    assert "Latest complete Trends point: **2026-11-01**" in result.output
+    assert "Latest complete Trends point: **2026-11-01T12:30:00Z**" in result.output
     assert "| Example | 80 | n/a | n/a |" in result.output
     assert "Excluded" not in result.output
+
+
+def test_brief_pack_selects_latest_hourly_point_not_first_same_day_point():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-11-07T10:00:00Z", "keyword": "Example", "value": 10},
+        {"date": "2026-11-07T23:00:00+00:00", "keyword": "Example", "value": 80},
+        {"date": "2026-11-08T00:30:00+02:00", "keyword": "Other", "value": 50},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "Example", "--keyword", "Other",
+            "--market", "US", "--timeframe", "now 1-d",
+        ])
+
+    assert result.exit_code == 0, result.output
+    assert "Latest complete Trends point: **2026-11-07T23:00:00Z**" in result.output
+    assert "| Example | 80 | n/a | n/a |" in result.output
+    assert "| Other | 50 | n/a | n/a |" in result.output
+    assert (
+        "Other: last observation **2026-11-07T22:30:00Z** "
+        "(market latest **2026-11-07T23:00:00Z**)"
+    ) in result.output
 
 
 def test_brief_pack_enforces_offer_keyword_and_market_limits():
