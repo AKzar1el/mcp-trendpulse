@@ -1966,8 +1966,8 @@ async def get_interest_by_region(
             "geoName": region_name,
             "values": values
         }
-        if "geoCode" in df.columns and pandas.notna(row["geoCode"]):
-            region["geoCode"] = str(row["geoCode"])
+        if "geoCode" in df.columns and (region_code := _provider_identity_text(row["geoCode"])) is not None:
+            region["geoCode"] = region_code
         if "lat" in df.columns and (latitude := _finite_trend_number(row["lat"])) is not None:
             region["lat"] = latitude
         if "lng" in df.columns and (longitude := _finite_trend_number(row["lng"])) is not None:
