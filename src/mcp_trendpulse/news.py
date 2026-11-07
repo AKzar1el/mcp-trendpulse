@@ -490,6 +490,7 @@ ARTICLE_HTTP_DOWNLOAD_DEADLINE_SECONDS = 30
 ARTICLE_BROWSER_NAVIGATION_TIMEOUT_MS = 15_000
 ARTICLE_MAX_HTML_BYTES = 5 * 1024 * 1024
 ARTICLE_PROCESS_CONCURRENCY = 4
+ARTICLE_PROGRESS_CALLBACK_TIMEOUT_SECONDS = 5
 ARTICLE_PREFLIGHT_TIMEOUT_SECONDS = 10
 ARTICLE_PREFLIGHT_MAX_ACTIVE_WORKERS = 4
 _ARTICLE_PREFLIGHT_WORKER_SLOTS = threading.BoundedSemaphore(ARTICLE_PREFLIGHT_MAX_ACTIVE_WORKERS)
@@ -1119,7 +1120,11 @@ async def process_gnews_articles(
                     completed_count += 1
                     if progress_enabled:
                         try:
-                            await report_progress(completed_count, total)
+                            # Progress is advisory; a stalled client must not block articles.
+                            await asyncio.wait_for(
+                                report_progress(completed_count, total),
+                                timeout=ARTICLE_PROGRESS_CALLBACK_TIMEOUT_SECONDS,
+                            )
                         except Exception as exc:
                             # Optional client progress must not erase downloaded articles.
                             progress_enabled = False
