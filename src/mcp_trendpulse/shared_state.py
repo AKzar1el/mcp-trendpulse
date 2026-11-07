@@ -29,6 +29,7 @@ MAX_ROWS = 5_000
 MAX_PAYLOAD_BYTES = 512 * 1024
 MAX_CACHE_ENTRIES = 256
 MAX_QUEUE_SECONDS = 12.0
+EMPTY_RESULT_TTL_SECONDS = 3.0
 
 
 class SharedCooldownError(RuntimeError):
@@ -178,9 +179,11 @@ class SharedTrendsState:
 
     @staticmethod
     def _serialize(frame: pandas.DataFrame, terms: tuple[str, ...]) -> str | None:
+        if isinstance(frame, pandas.DataFrame) and frame.empty and len(frame) <= MAX_ROWS:
+            # A short-lived, keyword-free marker coalesces sibling process misses.
+            return '{"v":1,"empty":true}'
         if (
             not isinstance(frame, pandas.DataFrame)
-            or frame.empty
             or len(frame) > MAX_ROWS
             or not isinstance(frame.index, pandas.DatetimeIndex)
             or frame.index.name not in {None, "time [UTC]"}
@@ -214,6 +217,8 @@ class SharedTrendsState:
             item = json.loads(payload)
             if item["v"] != 1:
                 return None
+            if item.get("empty") is True:
+                return pandas.DataFrame(columns=list(terms), dtype="float64")
             dates, values = item["dates"], item["values"]
             if not isinstance(dates, list) or not isinstance(values, list) or len(dates) != len(values):
                 return None
@@ -272,11 +277,12 @@ class SharedTrendsState:
         if encoded is None:
             return False
         now = self._clock()
+        lifetime = EMPTY_RESULT_TTL_SECONDS if frame.empty else self._lifetime(key)
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 "INSERT OR REPLACE INTO series (key, expires_at, touched_at, payload) VALUES (?, ?, ?, ?)",
-                (self._digest(key), now + self._lifetime(key), now, encoded),
+                (self._digest(key), now + lifetime, now, encoded),
             )
             connection.execute("DELETE FROM series WHERE expires_at <= ?", (now,))
             connection.execute(
