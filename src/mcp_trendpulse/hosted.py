@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from mcp_trendpulse.config import load_environment
 from mcp_trendpulse.digestseo import DigestSeoContextError, fetch_digestseo_project_context
-from mcp_trendpulse.errors import ProviderRateLimitError
+from mcp_trendpulse.errors import ProviderError, ProviderRateLimitError
 from mcp_trendpulse.middleware import ProviderErrorMiddleware
 from mcp_trendpulse.news import BrowserManager
 from mcp_trendpulse.providers import get_provider_set
@@ -170,6 +170,7 @@ class TrendContextResult(BaseModel):
     timeframe: str
     metrics: InterestMetrics
     recent_articles: list[ContextArticle]
+    limitations: list[str] = Field(default_factory=list)
     note: str = (
         "Recent articles are Google News RSS headline metadata, not downloaded publisher articles. "
         "Links point to Google News and may not resolve directly to a publisher. "
@@ -636,11 +637,19 @@ async def get_trend_context(
         geo=geo,
         timeframe="today 90-d",
     )
-    articles = await providers.news.get_rss_headlines_by_keyword(
-        keyword=keyword,
-        period=news_period_days,
-        max_results=max_articles,
-    )
+    limitations: list[str] = []
+    try:
+        articles = await providers.news.get_rss_headlines_by_keyword(
+            keyword=keyword,
+            period=news_period_days,
+            max_results=max_articles,
+        )
+    except ProviderError:
+        # News is optional context; preserve observed Trends data on provider outages.
+        articles = []
+        limitations.append(
+            "Google News headlines are temporarily unavailable; trend metrics come from Google Trends only."
+        )
     context_articles = [
         item
         for article in articles[:max_articles]
@@ -654,6 +663,7 @@ async def get_trend_context(
         timeframe="today 90-d",
         metrics=_interest_metrics(points),
         recent_articles=context_articles,
+        limitations=limitations,
     )
 
 

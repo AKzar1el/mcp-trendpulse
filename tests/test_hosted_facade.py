@@ -3,7 +3,11 @@ from fastmcp import Client
 
 from mcp_trendpulse import hosted, server
 from mcp_trendpulse.digestseo import DigestSeoContextError
-from mcp_trendpulse.errors import ProviderRateLimitError
+from mcp_trendpulse.errors import (
+    ProviderRateLimitError,
+    ProviderTimeoutError,
+    ProviderUnavailableError,
+)
 from mcp_trendpulse.providers import ProviderSet, use_provider_set
 
 
@@ -434,6 +438,7 @@ async def test_trend_context_combines_trend_and_news_provider_metadata(fake_prov
     assert result.recent_articles[0].publish_date == "2026-08-23T00:00:00+00:00"
     assert fake_providers.news.rss_calls == [("AI search", 3, 2)]
     assert "not downloaded publisher articles" in result.note
+    assert result.limitations == []
 
 
 async def test_trend_context_handles_empty_rss_headlines(fake_providers, monkeypatch):
@@ -446,6 +451,34 @@ async def test_trend_context_handles_empty_rss_headlines(fake_providers, monkeyp
 
     assert result.recent_articles == []
     assert result.metrics.points_observed == 30
+
+
+@pytest.mark.parametrize(
+    "error_type", [ProviderRateLimitError, ProviderTimeoutError, ProviderUnavailableError]
+)
+async def test_trend_context_preserves_trends_when_optional_news_fails(
+    fake_providers, monkeypatch, error_type
+):
+    async def unavailable(*args, **kwargs):
+        raise error_type("google_news", "rss_headlines")
+
+    monkeypatch.setattr(fake_providers.news, "get_rss_headlines_by_keyword", unavailable)
+    with use_provider_set(fake_providers):
+        result = await hosted.get_trend_context(keyword="AI search")
+
+    assert result.metrics.points_observed == 30
+    assert result.recent_articles == []
+    assert result.news_provider == "fake_news"
+    assert any("temporarily unavailable" in note for note in result.limitations)
+
+
+async def test_trend_context_does_not_hide_unclassified_news_errors(fake_providers, monkeypatch):
+    async def broken(*args, **kwargs):
+        raise RuntimeError("unexpected news integration defect")
+
+    monkeypatch.setattr(fake_providers.news, "get_rss_headlines_by_keyword", broken)
+    with use_provider_set(fake_providers), pytest.raises(RuntimeError, match="integration defect"):
+        await hosted.get_trend_context(keyword="AI search")
 
 
 async def test_find_seo_opportunities_remains_trend_only_without_project(fake_providers):
