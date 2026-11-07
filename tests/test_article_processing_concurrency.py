@@ -147,6 +147,29 @@ async def test_process_gnews_articles_counts_skipped_items_in_progress(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_process_gnews_articles_keeps_results_when_optional_progress_fails(monkeypatch):
+    async def fake_download(url: str):
+        return FakeArticle(url.rsplit("/", 1)[-1])
+
+    monkeypatch.setattr(news, "download_article", fake_download)
+    report_progress = AsyncMock(side_effect=RuntimeError("client progress channel closed"))
+
+    result = await news.process_gnews_articles(
+        [
+            {"url": "https://example.com/first"},
+            {"url": "https://example.com/second"},
+            {"url": "https://example.com/third"},
+        ],
+        nlp=False,
+        report_progress=report_progress,
+        max_concurrency=2,
+    )
+
+    assert [article.label for article in result] == ["first", "second", "third"]
+    report_progress.assert_awaited_once_with(1, 3)
+
+
+@pytest.mark.asyncio
 async def test_process_gnews_articles_reports_all_stale_items(monkeypatch):
     download = AsyncMock(side_effect=AssertionError("stale items must not be downloaded"))
     monkeypatch.setattr(news, "download_article", download)
