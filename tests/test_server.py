@@ -134,6 +134,38 @@ class RecordingProgressContext:
         self.events.append((progress, total))
 
 
+class StalledProgressContext(MockSamplingContext):
+    def __init__(self):
+        super().__init__("Valid news summary")
+        self.progress_calls = 0
+
+    async def report_progress(self, progress, total):
+        self.progress_calls += 1
+        await asyncio.Event().wait()
+
+
+async def test_article_progress_callback_does_not_block_completed_news(monkeypatch):
+    monkeypatch.setattr(server, "is_session_active", lambda _ctx: True)
+    monkeypatch.setattr(server, "ARTICLE_PROGRESS_REPORT_TIMEOUT_SECONDS", 0.01, raising=False)
+    context = StalledProgressContext()
+    progress = server._ArticleProgress(context, summarize=True)
+
+    await asyncio.wait_for(progress.report(1, 1), timeout=0.2)
+    await asyncio.wait_for(progress.finish_summary(), timeout=0.2)
+    assert context.progress_calls == 1
+
+
+async def test_article_summarization_ignores_stalled_progress(monkeypatch):
+    monkeypatch.setattr(server, "is_session_active", lambda _ctx: True)
+    monkeypatch.setattr(server, "ARTICLE_PROGRESS_REPORT_TIMEOUT_SECONDS", 0.01, raising=False)
+    context = StalledProgressContext()
+    article = MockArticle(summary=None)
+
+    await asyncio.wait_for(server.summarize_articles([article], context), timeout=0.2)
+    assert article.summary == "Valid news summary"
+    assert context.progress_calls == 1
+
+
 @pytest.mark.parametrize(
     ("tool_name", "provider_method", "tool_kwargs"),
     [
