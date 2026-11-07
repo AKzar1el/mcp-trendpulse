@@ -354,8 +354,24 @@ async def llm_summarize_article(article: Article, ctx: Context) -> bool:
         return False
 
 
+ARTICLE_PROGRESS_REPORT_TIMEOUT_SECONDS = 5
+
+
+async def _report_article_progress(ctx: Context, progress: float, total: float | None) -> bool:
+    """Best-effort session reporting must not delay the article response indefinitely."""
+    try:
+        await asyncio.wait_for(
+            ctx.report_progress(progress, total),
+            timeout=ARTICLE_PROGRESS_REPORT_TIMEOUT_SECONDS,
+        )
+    except Exception:
+        return False
+    return True
+
+
 async def summarize_articles(articles: list[Article], ctx: Context, *, report_progress: bool = True) -> None:
     total_articles = len(articles)
+    progress_enabled = report_progress
     for idx, article in enumerate(articles):
         if not await llm_summarize_article(article, ctx):
             try:
@@ -364,11 +380,8 @@ async def summarize_articles(articles: list[Article], ctx: Context, *, report_pr
                     article.summary = "No summary available."
             except Exception:
                 article.summary = "No summary available."
-        if report_progress and is_session_active(ctx):
-            try:
-                await ctx.report_progress(idx + 1, total_articles)
-            except Exception:
-                pass
+        if progress_enabled and is_session_active(ctx):
+            progress_enabled = await _report_article_progress(ctx, idx + 1, total_articles)
 
 
 class _ArticleProgress:
@@ -378,21 +391,26 @@ class _ArticleProgress:
         self.ctx = ctx
         self.summarize = summarize
         self.total: Optional[float] = None
+        self.progress_enabled = True
 
     async def report(self, progress: float, total: Optional[float]) -> None:
         self.total = total
-        if is_session_active(self.ctx):
-            try:
-                await self.ctx.report_progress(progress, total + int(self.summarize) if total is not None else None)
-            except Exception:
-                pass
+        if self.progress_enabled and is_session_active(self.ctx):
+            self.progress_enabled = await _report_article_progress(
+                self.ctx, progress, total + int(self.summarize) if total is not None else None
+            )
 
     async def finish_summary(self) -> None:
-        if self.summarize and self.total is not None and self.total > 0 and is_session_active(self.ctx):
-            try:
-                await self.ctx.report_progress(self.total + 1, self.total + 1)
-            except Exception:
-                pass
+        if (
+            self.progress_enabled
+            and self.summarize
+            and self.total is not None
+            and self.total > 0
+            and is_session_active(self.ctx)
+        ):
+            self.progress_enabled = await _report_article_progress(
+                self.ctx, self.total + 1, self.total + 1
+            )
 
 
 @mcp.tool(
