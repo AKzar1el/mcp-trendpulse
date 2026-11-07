@@ -84,6 +84,12 @@ class InterestMetrics(BaseModel):
     points_observed: int = 0
 
 
+GROWTH_SCOPE_NOTE = (
+    "3M and 1Y growth use separate Google Trends lookbacks, not the selected timeframe series. "
+    "Missing growth values mean that the corresponding lookback could not be estimated."
+)
+
+
 class KeywordTrendAnalysis(BaseModel):
     provider: str
     keyword: str
@@ -92,6 +98,7 @@ class KeywordTrendAnalysis(BaseModel):
     timeframe: str
     metrics: InterestMetrics
     growth: dict[str, float] = Field(default_factory=dict)
+    growth_scope_note: str = GROWTH_SCOPE_NOTE
     series: list[TrendSeriesPoint] = Field(default_factory=list)
     note: str = "Google Trends values are normalized interest scores, not absolute search volume."
 
@@ -109,6 +116,7 @@ class CompareKeywordTrendsResult(BaseModel):
     source: TrendSource
     timeframe: str
     comparisons: list[KeywordComparison]
+    growth_scope_note: str = GROWTH_SCOPE_NOTE
     note: str = "Values are normalized within the Google Trends comparison, not absolute search volume."
 
 
