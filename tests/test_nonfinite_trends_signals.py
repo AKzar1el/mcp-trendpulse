@@ -65,6 +65,26 @@ async def test_region_discards_unusable_measurements_and_coordinates():
     json.dumps(regions, allow_nan=False)
 
 
+async def test_region_skips_missing_or_invalid_names_without_losing_valid_geodata():
+    frame = pd.DataFrame(
+        {
+            "geoName": [None, float("nan"), "  ", 123, "  California  ", "New York"],
+            "geoCode": ["US-XX", "US-XX", "US-XX", "US-XX", "US-CA", "US-NY"],
+            "python": [10, 20, 30, 40, 50, 60],
+            "lat": [0.0, 0.0, 0.0, 0.0, 36.0, 43.0],
+            "lng": [0.0, 0.0, 0.0, 0.0, -119.0, -75.0],
+        }
+    )
+    with patch.object(news.tr, "interest_by_region", return_value=frame):
+        regions = await news.get_interest_by_region("python")
+
+    assert regions == [
+        {"geoName": "California", "values": {"python": 50.0}, "geoCode": "US-CA", "lat": 36.0, "lng": -119.0},
+        {"geoName": "New York", "values": {"python": 60.0}, "geoCode": "US-NY", "lat": 43.0, "lng": -75.0},
+    ]
+    json.dumps(regions, allow_nan=False)
+
+
 async def test_related_queries_skip_invalid_provider_values_only():
     related = {
         "top": pd.DataFrame({"query": ["valid", "bad", "infinite"], "value": [80, float("nan"), float("inf")]}),
