@@ -491,6 +491,8 @@ ARTICLE_BROWSER_NAVIGATION_TIMEOUT_MS = 15_000
 ARTICLE_MAX_HTML_BYTES = 5 * 1024 * 1024
 ARTICLE_PROCESS_CONCURRENCY = 4
 ARTICLE_PROGRESS_CALLBACK_TIMEOUT_SECONDS = 5
+ARTICLE_PROGRESS_MAX_ACTIVE_TASKS = 4
+_article_progress_tasks: set[asyncio.Task] = set()
 ARTICLE_PREFLIGHT_TIMEOUT_SECONDS = 10
 ARTICLE_PREFLIGHT_MAX_ACTIVE_WORKERS = 4
 _ARTICLE_PREFLIGHT_WORKER_SLOTS = threading.BoundedSemaphore(ARTICLE_PREFLIGHT_MAX_ACTIVE_WORKERS)
@@ -1034,6 +1036,30 @@ async def _enrich_article_nlp(
         article.keywords = keywords
 
 
+def _finish_article_progress_task(task: asyncio.Task) -> None:
+    _article_progress_tasks.discard(task)
+    if not task.cancelled():
+        task.exception()  # Consume late failures from a client that ignores cancellation.
+
+
+async def _report_article_progress_with_deadline(
+    callback: ProgressCallback, completed: int, total: int
+) -> None:
+    if len(_article_progress_tasks) >= ARTICLE_PROGRESS_MAX_ACTIVE_TASKS:
+        raise TimeoutError("Article progress callback capacity exhausted")
+    task = asyncio.create_task(callback(completed, total))
+    _article_progress_tasks.add(task)
+    task.add_done_callback(_finish_article_progress_task)
+    try:
+        done, _ = await asyncio.wait((task,), timeout=ARTICLE_PROGRESS_CALLBACK_TIMEOUT_SECONDS)
+        if not done:
+            raise TimeoutError("Article progress callback exceeded its deadline")
+        task.result()
+    finally:
+        if not task.done():
+            task.cancel()
+
+
 async def process_gnews_articles(
     gnews_articles: list[dict],
     nlp: bool = True,
@@ -1121,9 +1147,8 @@ async def process_gnews_articles(
                     if progress_enabled:
                         try:
                             # Progress is advisory; a stalled client must not block articles.
-                            await asyncio.wait_for(
-                                report_progress(completed_count, total),
-                                timeout=ARTICLE_PROGRESS_CALLBACK_TIMEOUT_SECONDS,
+                            await _report_article_progress_with_deadline(
+                                report_progress, completed_count, total
                             )
                         except Exception as exc:
                             # Optional client progress must not erase downloaded articles.
