@@ -199,6 +199,35 @@ async def test_process_gnews_articles_keeps_results_when_progress_stalls(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_process_gnews_articles_returns_when_progress_ignores_cancellation(monkeypatch):
+    async def fake_download(url):
+        return FakeArticle("first")
+
+    release = asyncio.Event()
+    monkeypatch.setattr(news, "download_article", fake_download)
+    monkeypatch.setattr(news, "ARTICLE_PROGRESS_CALLBACK_TIMEOUT_SECONDS", 0.01)
+
+    async def stubborn_progress(done, total):
+        try:
+            await release.wait()
+        except asyncio.CancelledError:
+            await release.wait()
+
+    task = asyncio.create_task(
+        news.process_gnews_articles(
+            [{"url": "https://example.com/first"}], nlp=False, report_progress=stubborn_progress
+        )
+    )
+    try:
+        completed, _ = await asyncio.wait({task}, timeout=0.2)
+        assert task in completed, "Non-cooperative progress callback blocked completed article"
+        assert [article.label for article in task.result()] == ["first"]
+    finally:
+        release.set()
+        await asyncio.wait_for(task, timeout=1)
+
+
+@pytest.mark.asyncio
 async def test_process_gnews_articles_reports_all_stale_items(monkeypatch):
     download = AsyncMock(side_effect=AssertionError("stale items must not be downloaded"))
     monkeypatch.setattr(news, "download_article", download)
