@@ -77,6 +77,20 @@ def test_shared_cache_roundtrip_omits_raw_keywords_and_obeys_ttl(tmp_path):
     assert state2.get_series(key) is None
 
 
+def test_shared_cache_roundtrip_preserves_dst_crossing_timezone(tmp_path):
+    state = SharedTrendsState(tmp_path)
+    key = (("alpha",), (("geo", "SI"), ("timeframe", "today 12-m")))
+    original = pandas.DataFrame(
+        {"alpha": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0]},
+        index=pandas.date_range("2026-10-25 00:00", periods=6, freq="h", tz="Europe/Ljubljana"),
+    )
+
+    assert state.put_series(key, original)
+    restored = state.get_series(key)
+
+    pandas.testing.assert_frame_equal(restored, original)
+
+
 def test_shared_cache_does_not_store_unexpected_non_numeric_data(tmp_path):
     state = SharedTrendsState(tmp_path)
     key = (("a",), (("geo", "US"), ("timeframe", "today 12-m")))
