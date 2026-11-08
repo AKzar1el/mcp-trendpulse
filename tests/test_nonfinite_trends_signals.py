@@ -159,6 +159,17 @@ async def test_related_queries_skip_invalid_provider_values_only():
     json.dumps(rows, allow_nan=False)
 
 
+async def test_related_queries_skip_rows_without_value_column_and_keep_valid_rising():
+    related = {
+        "top": pd.DataFrame({"query": ["malformed"]}),
+        "rising": pd.DataFrame({"query": ["valid"], "value": [150]}),
+    }
+    with patch.object(news, "_call_related_queries_with_unavailable_retry", return_value=related):
+        rows = await news.get_related_queries("python")
+
+    assert rows == {"top": [], "rising": [{"query": "valid", "value": 150.0}]}
+
+
 async def test_related_queries_preserve_breakout_as_labeled_non_numeric_signal():
     related = {
         "top": pd.DataFrame({"query": ["stable"], "value": [95]}),
@@ -201,6 +212,20 @@ async def test_related_topics_skip_invalid_provider_values_only():
         "rising": [{"mid": "/m/new", "title": "New", "type": "Topic", "value": 250.0}],
     }
     json.dumps(rows, allow_nan=False)
+
+
+async def test_related_topics_skip_rows_without_value_column_and_keep_valid_rising():
+    related = {
+        "top": pd.DataFrame({"mid": ["/m/x"], "title": ["Malformed"], "type": ["Topic"]}),
+        "rising": pd.DataFrame({"mid": ["/m/y"], "title": ["Valid"], "type": ["Topic"], "value": [250]}),
+    }
+    with patch.object(news.tr, "related_topics", return_value=related):
+        rows = await news.get_related_topics("python")
+
+    assert rows == {
+        "top": [],
+        "rising": [{"mid": "/m/y", "title": "Valid", "type": "Topic", "value": 250.0}],
+    }
 
 
 async def test_related_topics_preserve_breakout_with_its_entity_metadata():
