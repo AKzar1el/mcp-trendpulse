@@ -1976,9 +1976,17 @@ async def get_interest_by_region(
         }
         if "geoCode" in df.columns and (region_code := _provider_identity_text(row["geoCode"])) is not None:
             region["geoCode"] = region_code
-        if "lat" in df.columns and (latitude := _finite_trend_number(row["lat"])) is not None:
+        if (
+            "lat" in df.columns
+            and (latitude := _finite_trend_number(row["lat"])) is not None
+            and -90 <= latitude <= 90
+        ):
             region["lat"] = latitude
-        if "lng" in df.columns and (longitude := _finite_trend_number(row["lng"])) is not None:
+        if (
+            "lng" in df.columns
+            and (longitude := _finite_trend_number(row["lng"])) is not None
+            and -180 <= longitude <= 180
+        ):
             region["lng"] = longitude
         results.append(region)
     return results
