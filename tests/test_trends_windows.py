@@ -50,6 +50,38 @@ async def test_get_trends_preserves_legacy_date_only_daily_labels():
     assert [point["date"] for point in points] == [timestamp.strftime("%Y-%m-%d") for timestamp in dates]
 
 
+async def test_get_trends_skips_missing_provider_timestamps_without_losing_valid_rows():
+    frame = pd.DataFrame(
+        {"python": [10.0, 15.0, 25.0]},
+        index=pd.DatetimeIndex(["2026-10-01", pd.NaT, "2026-10-08"]),
+    )
+
+    with patch.object(news.tr, "interest_over_time", return_value=frame):
+        points = await news.get_trends("python", timeframe="today 3-m")
+        growth = await news.get_growth("python", percent_growth=["1W"])
+
+    assert [point["date"] for point in points] == ["2026-10-01", "2026-10-08"]
+    assert [point["value"] for point in points] == [10.0, 25.0]
+    assert len(growth) == 1 and growth[0]["keyword"] == "python"
+
+
+async def test_get_trends_skips_missing_hourly_timestamp_and_retains_hour_precision():
+    frame = pd.DataFrame(
+        {"python": [10.0, 15.0, 25.0]},
+        index=pd.DatetimeIndex(
+            ["2026-11-04T10:00:00Z", pd.NaT, "2026-11-04T12:00:00Z"]
+        ),
+    )
+
+    with patch.object(news.tr, "interest_over_time", return_value=frame):
+        points = await news.get_trends("python", timeframe="now 1-d")
+
+    assert [point["date"] for point in points] == [
+        "2026-11-04T10:00:00+00:00",
+        "2026-11-04T12:00:00+00:00",
+    ]
+
+
 async def test_get_trends_preserves_legacy_data_mode_when_timeframe_is_omitted():
     dates = pd.date_range(start="2021-01-01", periods=1, freq="YS")
     frame = pd.DataFrame(
