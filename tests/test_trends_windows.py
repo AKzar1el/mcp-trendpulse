@@ -40,14 +40,34 @@ async def test_get_trends_preserves_hourly_timestamps_and_utc_offset():
     assert len({point["date"] for point in points}) == 3
 
 
+async def test_get_trends_orders_out_of_order_provider_points_by_timestamp():
+    frame = pd.DataFrame(
+        {"python": [90.0, 10.0, 50.0]},
+        index=pd.DatetimeIndex(
+            ["2026-11-04T13:00:00Z", "2026-11-04T10:00:00Z", "2026-11-04T12:00:00Z"]
+        ),
+    )
+
+    with patch.object(news.tr, "interest_over_time", return_value=frame):
+        points = await news.get_trends("python", timeframe="now 1-d")
+
+    assert [point["date"] for point in points] == [
+        "2026-11-04T10:00:00+00:00",
+        "2026-11-04T12:00:00+00:00",
+        "2026-11-04T13:00:00+00:00",
+    ]
+    assert [point["value"] for point in points] == [10.0, 50.0, 90.0]
+
+
 async def test_get_trends_preserves_legacy_date_only_daily_labels():
     dates = pd.date_range("2026-10-01", periods=3, freq="D", tz="UTC")
     frame = pd.DataFrame({"python": [10.0, 20.0, 30.0]}, index=dates)
 
-    with patch.object(news.tr, "interest_over_time", return_value=frame):
+    with patch.object(news.tr, "interest_over_time", return_value=frame.iloc[[2, 0, 1]]):
         points = await news.get_trends("python", timeframe="today 3-m")
 
     assert [point["date"] for point in points] == [timestamp.strftime("%Y-%m-%d") for timestamp in dates]
+    assert [point["value"] for point in points] == [10.0, 20.0, 30.0]
 
 
 async def test_get_trends_skips_missing_provider_timestamps_without_losing_valid_rows():
