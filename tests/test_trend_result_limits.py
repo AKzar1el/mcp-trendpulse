@@ -48,6 +48,35 @@ async def test_valid_trend_result_limits_bound_offline_feed(monkeypatch, fetch, 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
+async def test_trending_feed_ignores_malformed_rows_before_result_limit(monkeypatch, fetch):
+    valid = SimpleNamespace(
+        keyword="  useful trend  ",
+        volume=250,
+        volume_growth_pct=50,
+        started_timestamp=[],
+        news=[],
+        link=None,
+        started=None,
+        picture=None,
+    )
+    feed = [
+        None,
+        SimpleNamespace(volume=999, volume_growth_pct=99, news=[]),
+        SimpleNamespace(keyword=42, volume=999, volume_growth_pct=99, news=[]),
+        valid,
+    ]
+    upstream = AsyncMock(return_value=feed)
+    monkeypatch.setattr(news, "_call_trends_async", upstream)
+
+    result = await fetch(limit=1)
+
+    assert len(result) == 1
+    assert result[0]["keyword"] == "useful trend"
+    upstream.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("sort", "expected"),
     [
