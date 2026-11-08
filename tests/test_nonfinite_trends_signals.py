@@ -104,6 +104,25 @@ async def test_region_omits_malformed_optional_geo_codes_without_losing_valid_re
     json.dumps(regions, allow_nan=False)
 
 
+async def test_region_omits_out_of_range_coordinates_without_losing_interest():
+    frame = pd.DataFrame(
+        {
+            "geoName": ["Alpine", "Pacific", "Boundary"],
+            "python": [10, 20, 30],
+            "lat": [91.0, -44.0, -90.0],
+            "lng": [12.0, -181.0, 180.0],
+        }
+    )
+    with patch.object(news.tr, "interest_by_region", return_value=frame):
+        regions = await news.get_interest_by_region("python")
+
+    assert regions == [
+        {"geoName": "Alpine", "values": {"python": 10.0}, "lng": 12.0},
+        {"geoName": "Pacific", "values": {"python": 20.0}, "lat": -44.0},
+        {"geoName": "Boundary", "values": {"python": 30.0}, "lat": -90.0, "lng": 180.0},
+    ]
+
+
 async def test_related_queries_skip_invalid_provider_values_only():
     related = {
         "top": pd.DataFrame({"query": ["valid", "bad", "infinite"], "value": [80, float("nan"), float("inf")]}),
