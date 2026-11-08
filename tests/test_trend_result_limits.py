@@ -77,6 +77,63 @@ async def test_trending_feed_ignores_malformed_rows_before_result_limit(monkeypa
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
+async def test_trending_feeds_isolate_malformed_nested_news(monkeypatch, fetch):
+    article = SimpleNamespace(
+        title="Valid &amp; useful",
+        url="https://example.com/story",
+        source="Example &amp; News",
+        picture=None,
+        time=None,
+        snippet="A &amp; B",
+    )
+    trend = SimpleNamespace(
+        keyword="useful trend",
+        volume=100,
+        volume_growth_pct=25,
+        started_timestamp=[],
+        started=None,
+        link=None,
+        picture=None,
+        news=[
+            None,
+            SimpleNamespace(url="https://example.com/no-title"),
+            SimpleNamespace(title="Missing URL"),
+            article,
+        ],
+    )
+    monkeypatch.setattr(news, "_call_trends_async", AsyncMock(return_value=[trend]))
+
+    result = await fetch(limit=1)
+
+    assert result[0]["news"] == [
+        {
+            "title": "Valid & useful",
+            "url": "https://example.com/story",
+            "source": "Example & News",
+            "picture": None,
+            "time": None,
+            "snippet": "A & B",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
+async def test_trending_feeds_ignore_noniterable_optional_news(monkeypatch, fetch):
+    trend = SimpleNamespace(
+        keyword="useful trend", volume=100, volume_growth_pct=25,
+        started_timestamp=[], started=None, link=None, picture=None, news=42,
+    )
+    monkeypatch.setattr(news, "_call_trends_async", AsyncMock(return_value=[trend]))
+
+    result = await fetch(limit=1)
+
+    assert result[0]["keyword"] == "useful trend"
+    assert result[0]["news"] == []
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("sort", "expected"),
     [
