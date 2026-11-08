@@ -304,7 +304,7 @@ class InterestResultCache:
                 if getattr(result, "empty", False):
                     if restored is None and shared is not None and lease_owner is not None:
                         try:
-                            if shared.put_series(key, result):
+                            if shared.put_series(key, result, owner=lease_owner):
                                 provider_metrics.count("trends_shared_cache_write")
                         except (OSError, ValueError, sqlite3.DatabaseError):
                             provider_metrics.count("trends_shared_state_fallback")
@@ -321,9 +321,9 @@ class InterestResultCache:
                     while len(self._entries) > self._max_entries:
                         self._entries.popitem(last=False)
                         provider_metrics.count("trends_cache_eviction")
-                if restored is None and shared is not None:
+                if restored is None and shared is not None and lease_owner is not None:
                     try:
-                        if shared.put_series(key, result):
+                        if shared.put_series(key, result, owner=lease_owner):
                             provider_metrics.count("trends_shared_cache_write")
                     except (OSError, ValueError, sqlite3.DatabaseError):
                         provider_metrics.count("trends_shared_state_fallback")

@@ -338,6 +338,61 @@ def test_expired_lease_cannot_be_deleted_by_old_owner(tmp_path):
     assert first.claim_series_fill(key)
 
 
+def test_expired_fill_owner_cannot_overwrite_newer_shared_series(tmp_path):
+    now = [1_000.0]
+
+    def clock():
+        return now[0]
+
+    first_state = SharedTrendsState(tmp_path, clock=clock)
+    second_state = SharedTrendsState(tmp_path, clock=clock)
+    first_cache = InterestResultCache(shared_provider=lambda: first_state)
+    args, kwargs = (["alpha"],), {"geo": "US", "timeframe": "today 12-m"}
+    key = first_cache._key("interest_over_time", args, kwargs)
+    stale = pandas.DataFrame({"alpha": [10.0]}, index=pandas.date_range("2026-11-01", periods=1))
+    fresh = pandas.DataFrame({"alpha": [85.0]}, index=pandas.date_range("2026-11-01", periods=1))
+
+    def slow_provider():
+        now[0] += 91  # The original worker exceeded its 90-second fill lease.
+        next_owner = second_state.claim_series_fill(key)
+        assert next_owner is not None
+        assert second_state.put_series(key, fresh)
+        second_state.release_series_fill(key, next_owner)
+        return stale
+
+    pandas.testing.assert_frame_equal(
+        first_cache.get_or_load("interest_over_time", args, kwargs, slow_provider), stale
+    )
+    pandas.testing.assert_frame_equal(second_state.get_series(key), fresh)
+
+
+def test_failed_fill_releases_lease_for_another_cache_instance(tmp_path):
+    first_state = SharedTrendsState(tmp_path)
+    second_state = SharedTrendsState(tmp_path)
+    first_cache = InterestResultCache(shared_provider=lambda: first_state)
+    second_cache = InterestResultCache(shared_provider=lambda: second_state)
+    args, kwargs = (["alpha"],), {"geo": "US", "timeframe": "today 12-m"}
+    calls = []
+
+    def failed_provider():
+        calls.append("failed")
+        raise RuntimeError("upstream request failed")
+
+    with pytest.raises(RuntimeError, match="upstream request failed"):
+        first_cache.get_or_load("interest_over_time", args, kwargs, failed_provider)
+
+    expected = pandas.DataFrame({"alpha": [40.0]}, index=pandas.date_range("2026-11-01", periods=1))
+
+    def recovered_provider():
+        calls.append("recovered")
+        return expected
+
+    pandas.testing.assert_frame_equal(
+        second_cache.get_or_load("interest_over_time", args, kwargs, recovered_provider), expected
+    )
+    assert calls == ["failed", "recovered"]
+
+
 def test_pacer_uses_shared_state_and_preserves_local_fallback(tmp_path, monkeypatch):
     metrics = ProviderMetrics(log_every=1000)
     monkeypatch.setattr(trends_rate_control, "provider_metrics", metrics)
