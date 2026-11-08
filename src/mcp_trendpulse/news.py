@@ -137,6 +137,30 @@ def _provider_identity_text(value: object) -> str | None:
     return value.strip() or None
 
 
+def _trend_news_context(articles: object) -> list[dict]:
+    """Preserve usable publisher context when a Trends feed contains bad articles."""
+    try:
+        items = iter(articles) if articles is not None else iter(())
+    except TypeError:
+        return []
+
+    result = []
+    for article in items:
+        title = _provider_identity_text(getattr(article, "title", None))
+        url = _provider_identity_text(getattr(article, "url", None))
+        if title is None or url is None:
+            continue
+        result.append({
+            "title": _decode_provider_text(title),
+            "url": url,
+            "source": _decode_provider_text(getattr(article, "source", None)),
+            "picture": getattr(article, "picture", None),
+            "time": getattr(article, "time", None),
+            "snippet": _decode_provider_text(getattr(article, "snippet", None)),
+        })
+    return result
+
+
 def _google_property(source: str) -> str:
     normalized = source.strip().lower()
     try:
@@ -1854,24 +1878,12 @@ async def get_ranked_trends(
         started_values = getattr(t, "started_timestamp", None)
         started_ts = started_values[0] if started_values else None
 
-        news_out = []
-        if getattr(t, "news", None):
-            for article in t.news:
-                news_out.append({
-                    "title": _decode_provider_text(article.title),
-                    "url": article.url,
-                    "source": _decode_provider_text(article.source),
-                    "picture": article.picture,
-                    "time": article.time,
-                    "snippet": _decode_provider_text(article.snippet)
-                })
-
         results.append({
             "keyword": _decode_provider_text(keyword),
             "volume": volume,
             "growth_pct": growth,
             "started": started_ts,
-            "news": news_out
+            "news": _trend_news_context(getattr(t, "news", None)),
         })
     return results
 
@@ -1913,17 +1925,6 @@ async def get_top_trends(
 
     results = []
     for t, keyword in valid_trends:
-        news_out = []
-        if getattr(t, "news", None):
-            for article in t.news:
-                news_out.append({
-                    "title": _decode_provider_text(article.title),
-                    "url": article.url,
-                    "source": _decode_provider_text(article.source),
-                    "picture": article.picture,
-                    "time": article.time,
-                    "snippet": _decode_provider_text(article.snippet)
-                })
         started = getattr(t, "started", None)
         started_timestamp = getattr(t, "started_timestamp", None)
         if started is None and started_timestamp:
@@ -1937,7 +1938,7 @@ async def get_top_trends(
             "link": getattr(t, "link", None),
             "started": started,
             "picture": getattr(t, "picture", None),
-            "news": news_out
+            "news": _trend_news_context(getattr(t, "news", None)),
         })
     return results
 
