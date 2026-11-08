@@ -557,6 +557,19 @@ def test_brief_pack_enforces_offer_keyword_and_market_limits():
     assert result.exit_code == 2
     assert "one or two" in result.output
 
+
+def test_brief_pack_rejects_case_variant_duplicate_keywords_without_provider_calls():
+    with patch("mcp_trendpulse.cli.get_provider_set") as get_providers:
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "TrendPulse", "--keyword", " trendpulse ", "--market", "US"],
+        )
+
+    assert result.exit_code == 2
+    assert "Keywords must be unique" in result.output
+    get_providers.assert_not_called()
+
+
 @pytest.mark.parametrize(
     ("command", "method", "kwargs"),
     [

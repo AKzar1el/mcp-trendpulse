@@ -359,7 +359,7 @@ def brief_pack(keywords, markets, timeframe):
     cleaned_markets = [value.strip().upper() for value in markets if value.strip()]
     if not 1 <= len(cleaned_keywords) <= 5 or len(cleaned_keywords) != len(keywords):
         raise click.UsageError("Provide between one and five non-empty --keyword values.")
-    if len(set(cleaned_keywords)) != len(cleaned_keywords):
+    if len({keyword.casefold() for keyword in cleaned_keywords}) != len(cleaned_keywords):
         raise click.UsageError("Keywords must be unique.")
     if not 1 <= len(cleaned_markets) <= 2 or len(cleaned_markets) != len(markets):
         raise click.UsageError("Provide one or two non-empty --market values.")
