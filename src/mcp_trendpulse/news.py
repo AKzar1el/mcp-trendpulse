@@ -1520,6 +1520,14 @@ def _finite_trend_number(value: object) -> float | None:
     return number if isfinite(number) else None
 
 
+def _ranked_trend_volume(value: object) -> int | None:
+    """Keep only nonnegative whole-number traffic estimates from the provider."""
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    number = _finite_trend_number(value)
+    return int(number) if number is not None and number >= 0 and number.is_integer() else None
+
+
 def _related_trend_value(value: object) -> tuple[float | None, bool]:
     """Keep Google's Breakout label without pretending it is a measured percentage."""
     if isinstance(value, str) and value.strip().casefold() == "breakout":
@@ -1807,25 +1815,25 @@ async def get_ranked_trends(
         lambda: tr.trending_now(geo=geo, hours=24)
     )
 
+    ranked = [
+        (t, _finite_trend_number(t.volume_growth_pct), _ranked_trend_volume(t.volume))
+        for t in trends
+    ]
     if normalized_sort in ("recent_growth_pct", "wow_pct_change"):
-        sorted_trends = sorted(
-            trends,
-            key=lambda t: t.volume_growth_pct if t.volume_growth_pct is not None else -1,
-            reverse=True
+        ranked.sort(
+            key=lambda item: (item[1] is not None, item[1] if item[1] is not None else 0.0),
+            reverse=True,
         )
     elif normalized_sort == "volume":
-        sorted_trends = sorted(
-            trends,
-            key=lambda t: t.volume if t.volume is not None else -1,
-            reverse=True
+        ranked.sort(
+            key=lambda item: (item[2] is not None, item[2] if item[2] is not None else 0),
+            reverse=True,
         )
-    else:
-        sorted_trends = trends
 
-    sorted_trends = sorted_trends[:limit]
+    ranked = ranked[:limit]
 
     results = []
-    for t in sorted_trends:
+    for t, growth, volume in ranked:
         started_ts = t.started_timestamp[0] if (t.started_timestamp and len(t.started_timestamp) > 0) else None
 
         news_out = []
@@ -1842,8 +1850,8 @@ async def get_ranked_trends(
 
         results.append({
             "keyword": _decode_provider_text(t.keyword),
-            "volume": t.volume,
-            "growth_pct": t.volume_growth_pct,
+            "volume": volume,
+            "growth_pct": growth,
             "started": started_ts,
             "news": news_out
         })
