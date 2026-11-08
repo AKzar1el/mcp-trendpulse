@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pandas
 import pytest
 
-from mcp_trendpulse import shared_state, trends_rate_control
+from mcp_trendpulse import news, shared_state, trends_rate_control
 from mcp_trendpulse.errors import ProviderTimeoutError
 from mcp_trendpulse.provider_metrics import ProviderMetrics
 from mcp_trendpulse.shared_state import (
@@ -89,6 +89,25 @@ def test_shared_cache_roundtrip_preserves_dst_crossing_timezone(tmp_path):
     restored = state.get_series(key)
 
     pandas.testing.assert_frame_equal(restored, original)
+
+
+def test_shared_cache_preserves_completed_rows_with_string_partial_flags(tmp_path):
+    first = SharedTrendsState(tmp_path)
+    second = SharedTrendsState(tmp_path)
+    key = (("alpha",), (("geo", "US"), ("timeframe", "today 12-m")))
+    flags = ["false", " FALSE ", "0", "off", "no", "", "true", "yes", None, float("nan"), 0, 1]
+    original = pandas.DataFrame(
+        {"alpha": list(range(len(flags))), "isPartial": flags},
+        index=pandas.date_range("2026-10-01", periods=len(flags)),
+    )
+    expected = [False] * 6 + [True, True, False, False, False, True]
+    completed_before = news._completed_trends_frame(original)["alpha"].tolist()
+
+    assert first.put_series(key, original)
+    restored = second.get_series(key)
+
+    assert restored["isPartial"].tolist() == expected
+    assert news._completed_trends_frame(restored)["alpha"].tolist() == completed_before
 
 
 def test_shared_cache_does_not_store_unexpected_non_numeric_data(tmp_path):
