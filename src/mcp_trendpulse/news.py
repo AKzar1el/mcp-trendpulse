@@ -799,7 +799,11 @@ def _read_article_response(response, url: str, *, deadline: float) -> Optional[s
     if perf_counter() >= deadline:
         logger.warning("Aborted article response after the total HTTP download deadline")
         return None
-    return body.decode(response.encoding or "utf-8", errors="replace")
+    try:
+        return body.decode(response.encoding or "utf-8", errors="replace")
+    except LookupError:
+        # Publisher-supplied charset names are not guaranteed to be recognized.
+        return body.decode("utf-8", errors="replace")
 
 
 def download_article_with_scraper(
