@@ -538,6 +538,33 @@ async def test_trend_context_does_not_hide_unclassified_news_errors(fake_provide
         await hosted.get_trend_context(keyword="AI search")
 
 
+async def test_trend_context_skips_malformed_rss_rows_and_keeps_valid_headlines(
+    fake_providers, monkeypatch
+):
+    async def rss_with_malformed_rows(**kwargs):
+        return [
+            None,
+            {"title": "No URL"},
+            ["invalid article"],
+            {"title": "First valid headline", "url": "https://news.google.com/rss/articles/first"},
+            {"title": "Second valid headline", "url": "https://news.google.com/rss/articles/second"},
+        ]
+
+    monkeypatch.setattr(
+        fake_providers.news, "get_rss_headlines_by_keyword", rss_with_malformed_rows
+    )
+    with use_provider_set(fake_providers):
+        result = await hosted.get_trend_context(keyword="AI search", max_articles=2)
+
+    assert result.metrics.points_observed == 30
+    assert [article.title for article in result.recent_articles] == [
+        "First valid headline",
+        "Second valid headline",
+    ]
+    assert all(article.link_type == "google_news_rss" for article in result.recent_articles)
+    assert any("malformed" in limitation.lower() for limitation in result.limitations)
+
+
 async def test_find_seo_opportunities_remains_trend_only_without_project(fake_providers):
     with use_provider_set(fake_providers):
         result = await hosted.find_seo_opportunities(

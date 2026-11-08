@@ -336,7 +336,9 @@ def _series_by_keyword(results: list[dict[str, Any]]) -> dict[str, list[dict[str
     return grouped
 
 
-def _context_article(article: dict[str, object]) -> ContextArticle | None:
+def _context_article(article: object) -> ContextArticle | None:
+    if not isinstance(article, dict):
+        return None
     title = article.get("title")
     url = article.get("url")
     if not isinstance(title, str) or not title.strip() or not isinstance(url, str) or not url.strip():
@@ -698,11 +700,18 @@ async def get_trend_context(
         limitations.append(
             "Google News headlines are temporarily unavailable; trend metrics come from Google Trends only."
         )
-    context_articles = [
-        item
-        for article in articles[:max_articles]
-        if (item := _context_article(article)) is not None
-    ]
+    context_articles: list[ContextArticle] = []
+    skipped_invalid = False
+    for article in articles:
+        item = _context_article(article)
+        if item is None:
+            skipped_invalid = True
+            continue
+        context_articles.append(item)
+        if len(context_articles) >= max_articles:
+            break
+    if skipped_invalid:
+        limitations.append("Some malformed Google News RSS headline entries were omitted.")
     return TrendContextResult(
         trends_provider=providers.trends.provider_id,
         news_provider=providers.news.provider_id,
