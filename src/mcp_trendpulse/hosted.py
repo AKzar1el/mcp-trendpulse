@@ -364,7 +364,7 @@ def _normalize_keywords(keywords: list[str]) -> list[str]:
     normalized = [keyword.strip() for keyword in keywords if keyword.strip()]
     if len(normalized) != len(keywords):
         raise ValueError("Keywords must not be empty.")
-    if len(set(normalized)) != len(normalized):
+    if len({keyword.casefold() for keyword in normalized}) != len(normalized):
         raise ValueError("Keywords must be unique.")
     return normalized
 
