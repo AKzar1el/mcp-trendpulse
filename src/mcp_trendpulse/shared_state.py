@@ -283,17 +283,24 @@ class SharedTrendsState:
                 (self._digest(key), owner),
             )
 
-    def put_series(self, key: tuple[Any, ...], frame: pandas.DataFrame) -> bool:
+    def put_series(self, key: tuple[Any, ...], frame: pandas.DataFrame, *, owner: str | None = None) -> bool:
         encoded = self._serialize(frame, tuple(key[0]))
         if encoded is None:
             return False
-        now = self._clock()
         lifetime = EMPTY_RESULT_TTL_SECONDS if frame.empty else self._lifetime(key)
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            now = self._clock()
+            digest = self._digest(key)
+            if owner is not None and connection.execute(
+                "SELECT 1 FROM inflight WHERE key=? AND owner=? AND expires_at>?",
+                (digest, owner, now),
+            ).fetchone() is None:
+                connection.rollback()
+                return False
             connection.execute(
                 "INSERT OR REPLACE INTO series (key, expires_at, touched_at, payload) VALUES (?, ?, ?, ?)",
-                (self._digest(key), now + lifetime, now, encoded),
+                (digest, now + lifetime, now, encoded),
             )
             connection.execute("DELETE FROM series WHERE expires_at <= ?", (now,))
             connection.execute(
