@@ -318,6 +318,23 @@ def test_hosted_excludes_nonfinite_trend_numbers():
         {"keyword": "seo", "growth": {"3M": float("nan"), "1Y": 15.0, "2Y": float("inf")}}
     ]) == {"seo": {"1Y": 15.0}}
 
+
+def test_hosted_ignores_boolean_provider_interest_and_growth_values():
+    assert hosted._as_float(True) is None
+    assert hosted._as_float(False) is None
+    points = [
+        {"date": "2026-11-01", "value": True},
+        {"date": "2026-11-02", "value": False},
+        {"date": "2026-11-03", "value": 0.0},
+        {"date": "2026-11-04", "value": 43.5},
+    ]
+    assert [point.value for point in hosted._bounded_series(points, 10)] == [0.0, 43.5]
+    metrics = hosted._interest_metrics(points)
+    assert (metrics.latest, metrics.average, metrics.peak, metrics.points_observed) == (43.5, 21.75, 43.5, 2)
+    assert hosted._growth_by_keyword([
+        {"keyword": "seo", "growth": {"3M": True, "6M": False, "1Y": 12.5}}
+    ]) == {"seo": {"1Y": 12.5}}
+
 async def test_compare_rejects_duplicate_keywords(fake_providers):
     with use_provider_set(fake_providers), pytest.raises(ValueError, match="unique"):
         await hosted.compare_keyword_trends(

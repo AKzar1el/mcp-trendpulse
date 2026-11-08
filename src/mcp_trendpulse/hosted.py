@@ -253,7 +253,7 @@ hosted_mcp.add_middleware(LoggingMiddleware())
 
 
 def _as_float(value: Any) -> float | None:
-    if value is None:
+    if value is None or isinstance(value, bool):
         return None
     try:
         numeric = float(value)
