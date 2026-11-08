@@ -335,10 +335,11 @@ def test_hosted_ignores_boolean_provider_interest_and_growth_values():
         {"keyword": "seo", "growth": {"3M": True, "6M": False, "1Y": 12.5}}
     ]) == {"seo": {"1Y": 12.5}}
 
-async def test_compare_rejects_duplicate_keywords(fake_providers):
+@pytest.mark.parametrize("keywords", [["same", "same"], ["same", " SAME "]])
+async def test_compare_rejects_duplicate_keywords(fake_providers, keywords):
     with use_provider_set(fake_providers), pytest.raises(ValueError, match="unique"):
         await hosted.compare_keyword_trends(
-            keywords=["same", "same"],
+            keywords=keywords,
         )
 
 
