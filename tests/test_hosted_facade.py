@@ -358,6 +358,46 @@ async def test_related_demand_caps_every_section(fake_providers):
     assert result.limitations == []
 
 
+async def test_related_demand_skips_malformed_provider_rows_before_section_limits(
+    fake_providers, monkeypatch
+):
+    async def related_queries(**kwargs):
+        return {
+            "top": [None, {"query": "missing value"}, {"query": "valid top", "value": 80}],
+            "rising": [42, {"query": "valid rising", "value": None, "is_breakout": True}],
+        }
+
+    async def related_topics(**kwargs):
+        return {
+            "top": [
+                [],
+                {"mid": "/m/valid", "title": "Valid topic", "type": "Topic", "value": 40},
+            ],
+            "rising": [
+                {"mid": "/m/missing"},
+                {"mid": "/m/rising", "title": "Rising topic", "type": "Topic", "value": 90},
+            ],
+        }
+
+    async def suggestions(**kwargs):
+        return [None, {"mid": "/m/s", "title": "Valid suggestion", "type": "Topic"}]
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_queries", related_queries)
+    monkeypatch.setattr(fake_providers.trends, "get_related_topics", related_topics)
+    monkeypatch.setattr(fake_providers.trends, "get_suggestions", suggestions)
+
+    with use_provider_set(fake_providers):
+        result = await hosted.discover_related_demand(keyword="seed", limit=1)
+
+    assert [item.query for item in result.top_queries] == ["valid top"]
+    assert [item.query for item in result.rising_queries] == ["valid rising"]
+    assert result.rising_queries[0].is_breakout is True
+    assert [item.title for item in result.top_topics] == ["Valid topic"]
+    assert [item.title for item in result.rising_topics] == ["Rising topic"]
+    assert [item.title for item in result.suggestions] == ["Valid suggestion"]
+    assert any("malformed" in message.lower() for message in result.limitations)
+
+
 async def test_breakout_demand_is_preserved_without_fabricated_percentage(fake_providers, monkeypatch):
     async def breakout_queries(**kwargs):
         return {"top": [], "rising": [{"query": "breakout query", "value": None,
@@ -557,6 +597,21 @@ async def test_find_seo_opportunities_ignores_invalid_and_duplicate_related_quer
     ]
     assert trend_calls == [expected]
     assert all(candidate.interest_points_observed == 1 for candidate in result.candidates)
+
+
+async def test_find_seo_opportunities_skips_non_mapping_related_rows(fake_providers, monkeypatch):
+    async def related_queries(**kwargs):
+        return {
+            "rising": [None, 42, {"query": "valid rising", "value": 100}],
+            "top": [["malformed"], {"query": "valid top", "value": 50}],
+        }
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_queries", related_queries)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(seed_keyword="seed", limit=2)
+
+    assert [candidate.keyword for candidate in result.candidates] == ["valid rising", "valid top"]
+    assert [candidate.interest_points_observed for candidate in result.candidates] == [30, 30]
 
 
 async def test_find_seo_opportunities_distinguishes_missing_interest_from_zero(
