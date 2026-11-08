@@ -342,6 +342,16 @@ def test_article_response_partial_reads_keep_gzip_decoding():
     response.iter_content.assert_not_called()
 
 
+def test_article_response_ignores_unsupported_declared_character_encoding():
+    html = "<html><body>Publisher article</body></html>"
+    response = _article_response(chunks=[html.encode("utf-8")])
+    response.encoding = "publisher-invalid-charset"
+
+    assert news._read_article_response(
+        response, "https://example.com/article", deadline=news.perf_counter() + 30
+    ) == html
+
+
 def test_scraper_shares_download_deadline_across_redirects():
     clock = {"elapsed": 0}
     responses = []
