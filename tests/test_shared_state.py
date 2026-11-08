@@ -102,6 +102,21 @@ def test_shared_cache_does_not_store_unexpected_non_numeric_data(tmp_path):
     assert state.get_series(key) is None
 
 
+def test_shared_cache_does_not_turn_boolean_placeholders_into_numeric_interest(tmp_path):
+    state = SharedTrendsState(tmp_path)
+    key = (("alpha",), (("geo", "US"), ("timeframe", "today 12-m")))
+    frame = pandas.DataFrame(
+        {"alpha": [True, False, 0.0, 43.5]},
+        index=pandas.date_range("2026-11-01", periods=4),
+    )
+
+    assert state.put_series(key, frame)
+    cached = state.get_series(key)
+    assert pandas.isna(cached["alpha"].iloc[0])
+    assert pandas.isna(cached["alpha"].iloc[1])
+    assert cached["alpha"].iloc[2:].tolist() == [0.0, 43.5]
+
+
 def test_cross_process_cache_reuse_without_duplicate_provider_fetch(tmp_path):
     first_state = SharedTrendsState(tmp_path)
     second_state = SharedTrendsState(tmp_path)
