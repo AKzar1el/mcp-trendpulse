@@ -33,7 +33,7 @@ from trendspy import Trends, TrendKeywordLite
 from typing import Any, Optional, cast, overload, Literal, Awaitable
 from contextlib import asynccontextmanager, AsyncContextDecorator
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from urllib.parse import quote, urljoin, urlsplit
 
 from mcp_trendpulse.config import (
@@ -1094,6 +1094,9 @@ async def process_gnews_articles(
         nonlocal completed_count, progress_enabled
         try:
             async with semaphore:
+                if not isinstance(gnews_article, Mapping):
+                    logger.debug("Skipping Google News provider item %d with invalid structure", idx)
+                    return idx, None
                 raw_url = gnews_article.get("url")
                 if not isinstance(raw_url, str) or not raw_url.strip():
                     logger.debug("Skipping Google News provider item %d with missing or invalid URL", idx)
