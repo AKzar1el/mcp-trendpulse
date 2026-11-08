@@ -77,6 +77,25 @@ async def test_region_discards_unusable_measurements_and_coordinates():
     json.dumps(regions, allow_nan=False)
 
 
+async def test_region_omits_out_of_range_interest_without_losing_valid_keywords():
+    frame = pd.DataFrame(
+        {
+            "geoName": ["Alabama", "Alaska", "Arizona", "Arkansas"],
+            "python": [-0.5, 0.0, 100.0, 101.0],
+            "rust": [-1.0, 101.0, 37.0, 41.0],
+        }
+    )
+    with patch.object(news.tr, "interest_by_region", return_value=frame):
+        regions = await news.get_interest_by_region(["python", "rust"])
+
+    assert regions == [
+        {"geoName": "Alaska", "values": {"python": 0.0}},
+        {"geoName": "Arizona", "values": {"python": 100.0, "rust": 37.0}},
+        {"geoName": "Arkansas", "values": {"rust": 41.0}},
+    ]
+    json.dumps(regions, allow_nan=False)
+
+
 async def test_region_skips_missing_or_invalid_names_without_losing_valid_geodata():
     frame = pd.DataFrame(
         {
