@@ -204,3 +204,18 @@ async def test_related_topics_skip_missing_or_invalid_entity_identity():
         rows = await news.get_related_topics("python")
 
     assert rows == {"top": [{"mid": "/m/valid", "title": "Real topic", "type": "Topic", "value": 70.0}], "rising": []}
+
+
+async def test_suggestions_skip_invalid_provider_entity_fields():
+    frame = pd.DataFrame(
+        {
+            "mid": [" /m/valid ", None, "/m/no-title", "/m/no-type", 123],
+            "title": [" Valid suggestion ", "Missing ID", float("nan"), "Blank type", "Numeric ID"],
+            "type": [" Topic ", "Topic", "Topic", "  ", "Topic"],
+        }
+    )
+    with patch.object(news.tr, "suggestions", return_value=frame):
+        suggestions = await news.get_suggestions("python")
+
+    assert suggestions == [{"mid": "/m/valid", "title": "Valid suggestion", "type": "Topic"}]
+    json.dumps(suggestions, allow_nan=False)
