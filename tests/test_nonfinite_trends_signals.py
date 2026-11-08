@@ -21,6 +21,18 @@ async def test_trends_drop_nonfinite_points_without_discarding_valid_observation
     json.dumps(points, allow_nan=False)
 
 
+async def test_trends_reject_boolean_provider_values_instead_of_reporting_zero_or_one():
+    dates = pd.date_range("2026-09-01", periods=3, freq="W")
+    frame = pd.DataFrame({"python": pd.Series([True, 42.0, False], index=dates, dtype=object)})
+    with patch.object(news.tr, "interest_over_time", return_value=frame):
+        points = await news.get_trends("python", timeframe="today 12-m")
+
+    assert [point["value"] for point in points] == [42.0]
+    assert news._finite_trend_number(pd.Series([True]).iloc[0]) is None
+    assert news._finite_trend_number(False) is None
+    assert news._finite_trend_number(0) == 0.0
+
+
 async def test_growth_ignores_nonfinite_samples_and_has_no_invalid_percentages():
     frame = pd.DataFrame(
         {"python": [20.0] * 16 + [40.0, float("nan"), float("inf"), 40.0]},
