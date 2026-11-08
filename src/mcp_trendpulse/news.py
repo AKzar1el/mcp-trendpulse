@@ -1505,6 +1505,8 @@ def _completed_trends_frame(df: pandas.DataFrame) -> pandas.DataFrame:
 
 def _finite_trend_number(value: object) -> float | None:
     """Exclude missing, unparseable, and nonfinite provider measurements."""
+    if pandas.api.types.is_bool(value):
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError, OverflowError):
