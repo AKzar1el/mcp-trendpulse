@@ -1542,7 +1542,7 @@ def _trends_frame_to_points(df: pandas.DataFrame, keywords: list[str]) -> list[d
         for keyword in keywords:
             if keyword in df.columns:
                 value = _finite_trend_number(row[keyword])
-                if value is None:
+                if value is None or not 0.0 <= value <= 100.0:
                     continue
                 results.append({
                     "date": date_str,
