@@ -194,10 +194,14 @@ class SharedTrendsState:
         try:
             values: list[list[float | None]] = []
             for row in frame[list(terms)].itertuples(index=False, name=None):
-                values.append([
-                    value if math.isfinite(value := float(cell)) else None
-                    for cell in row
-                ])
+                numbers: list[float | None] = []
+                for cell in row:
+                    if pandas.api.types.is_bool(cell):
+                        numbers.append(None)
+                        continue
+                    value = float(cell)
+                    numbers.append(value if math.isfinite(value) else None)
+                values.append(numbers)
             record = {
                 "v": 1,
                 "dates": [date.isoformat() for date in frame.index],
