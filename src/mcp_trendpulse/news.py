@@ -1821,29 +1821,37 @@ async def get_ranked_trends(
         lambda: tr.trending_now(geo=geo, hours=24)
     )
 
-    ranked = [
-        (t, _finite_trend_number(t.volume_growth_pct), _ranked_trend_volume(t.volume))
-        for t in trends
-    ]
+    ranked = []
+    for trend in trends:
+        keyword = _provider_identity_text(getattr(trend, "keyword", None))
+        if keyword is None:
+            continue
+        ranked.append((
+            trend,
+            keyword,
+            _finite_trend_number(getattr(trend, "volume_growth_pct", None)),
+            _ranked_trend_volume(getattr(trend, "volume", None)),
+        ))
     if normalized_sort in ("recent_growth_pct", "wow_pct_change"):
         ranked.sort(
-            key=lambda item: (item[1] is not None, item[1] if item[1] is not None else 0.0),
+            key=lambda item: (item[2] is not None, item[2] if item[2] is not None else 0.0),
             reverse=True,
         )
     elif normalized_sort == "volume":
         ranked.sort(
-            key=lambda item: (item[2] is not None, item[2] if item[2] is not None else 0),
+            key=lambda item: (item[3] is not None, item[3] if item[3] is not None else 0),
             reverse=True,
         )
 
     ranked = ranked[:limit]
 
     results = []
-    for t, growth, volume in ranked:
-        started_ts = t.started_timestamp[0] if (t.started_timestamp and len(t.started_timestamp) > 0) else None
+    for t, keyword, growth, volume in ranked:
+        started_values = getattr(t, "started_timestamp", None)
+        started_ts = started_values[0] if started_values else None
 
         news_out = []
-        if t.news:
+        if getattr(t, "news", None):
             for article in t.news:
                 news_out.append({
                     "title": _decode_provider_text(article.title),
@@ -1855,7 +1863,7 @@ async def get_ranked_trends(
                 })
 
         results.append({
-            "keyword": _decode_provider_text(t.keyword),
+            "keyword": _decode_provider_text(keyword),
             "volume": volume,
             "growth_pct": growth,
             "started": started_ts,
@@ -1889,12 +1897,20 @@ async def get_top_trends(
             "trending_now_by_rss", lambda: tr.trending_now_by_rss(geo=geo)
         )
 
-    trends = trends[:limit]
+    # Invalid upstream rows must not consume the caller's result limit.
+    valid_trends = []
+    for trend in trends:
+        keyword = _provider_identity_text(getattr(trend, "keyword", None))
+        if keyword is None:
+            continue
+        valid_trends.append((trend, keyword))
+        if len(valid_trends) >= limit:
+            break
 
     results = []
-    for t in trends:
+    for t, keyword in valid_trends:
         news_out = []
-        if t.news:
+        if getattr(t, "news", None):
             for article in t.news:
                 news_out.append({
                     "title": _decode_provider_text(article.title),
@@ -1912,7 +1928,7 @@ async def get_top_trends(
         if volume is not None and not isinstance(volume, str):
             volume = str(volume)
         results.append({
-            "keyword": _decode_provider_text(t.keyword),
+            "keyword": _decode_provider_text(keyword),
             "volume": volume,
             "link": getattr(t, "link", None),
             "started": started,
