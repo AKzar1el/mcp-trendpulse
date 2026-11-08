@@ -81,6 +81,21 @@ async def test_get_trends_excludes_partial_provider_rows():
     assert result[-1]["date"] == "2026-09-06"
 
 
+async def test_get_trends_parses_string_partial_flags_without_discarding_completed_rows():
+    dates = pd.date_range(start="2026-08-30", periods=5, freq="W")
+    frame = pd.DataFrame(
+        {
+            "python": [10.0, 20.0, 30.0, 40.0, 50.0],
+            "isPartial": ["false", "TRUE", " False ", False, None],
+        },
+        index=pd.DatetimeIndex(dates, name="time [UTC]"),
+    )
+    with patch.object(news.tr, "interest_over_time", return_value=frame):
+        result = await news.get_trends("python", geo="US", timeframe="today 3-m")
+
+    assert [point["value"] for point in result] == [10.0, 30.0, 40.0, 50.0]
+
+
 async def test_get_growth_excludes_partial_provider_rows():
     dates = pd.date_range(start="2025-09-14", periods=53, freq="W")
     values = [20.0] * 4 + [40.0] * 45 + [80.0, 80.0, 80.0, 1.0]
@@ -92,6 +107,19 @@ async def test_get_growth_excludes_partial_provider_rows():
         index=pd.DatetimeIndex(dates, name="time [UTC]"),
     )
 
+    with patch.object(news.tr, "interest_over_time", return_value=frame):
+        result = await news.get_growth("keyword", percent_growth=["1Y"], geo="US")
+
+    assert result[0]["growth"]["1Y"] == 250.0
+
+
+async def test_get_growth_preserves_string_false_partial_history():
+    dates = pd.date_range(start="2025-09-14", periods=53, freq="W")
+    values = [20.0] * 4 + [40.0] * 45 + [80.0, 80.0, 80.0, 1.0]
+    frame = pd.DataFrame(
+        {"keyword": values, "isPartial": ["false"] * 52 + ["true"]},
+        index=pd.DatetimeIndex(dates, name="time [UTC]"),
+    )
     with patch.object(news.tr, "interest_over_time", return_value=frame):
         result = await news.get_growth("keyword", percent_growth=["1Y"], geo="US")
 
