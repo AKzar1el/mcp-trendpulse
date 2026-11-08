@@ -33,6 +33,18 @@ async def test_trends_reject_boolean_provider_values_instead_of_reporting_zero_o
     assert news._finite_trend_number(0) == 0.0
 
 
+async def test_trends_omit_interest_scores_outside_provider_zero_to_hundred_scale():
+    frame = pd.DataFrame(
+        {"python": [-0.5, 0.0, 42.0, 100.0, 101.0]},
+        index=pd.date_range("2026-09-01", periods=5, freq="W"),
+    )
+    with patch.object(news.tr, "interest_over_time", return_value=frame):
+        points = await news.get_trends("python", timeframe="today 12-m")
+
+    assert [point["value"] for point in points] == [0.0, 42.0, 100.0]
+    json.dumps(points, allow_nan=False)
+
+
 async def test_growth_ignores_nonfinite_samples_and_has_no_invalid_percentages():
     frame = pd.DataFrame(
         {"python": [20.0] * 16 + [40.0, float("nan"), float("inf"), 40.0]},
