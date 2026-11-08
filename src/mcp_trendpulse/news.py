@@ -1706,7 +1706,7 @@ def _comparison_keywords(keyword: str | list[str]) -> list[str]:
         raise ValueError("Google Trends comparisons require between 1 and 5 keywords.")
     if any(not value for value in keywords):
         raise ValueError("Google Trends keywords must not be empty.")
-    if len(set(keywords)) != len(keywords):
+    if len({value.casefold() for value in keywords}) != len(keywords):
         raise ValueError("Google Trends comparison keywords must be unique.")
     return keywords
 
