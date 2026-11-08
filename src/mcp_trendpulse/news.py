@@ -1966,7 +1966,7 @@ async def get_interest_by_region(
         for kw in kw_list:
             if kw in df.columns:
                 value = _finite_trend_number(row[kw])
-                if value is not None:
+                if value is not None and 0.0 <= value <= 100.0:
                     values[kw] = value
         if not values:
             continue
