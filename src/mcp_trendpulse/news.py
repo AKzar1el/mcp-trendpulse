@@ -1532,6 +1532,8 @@ def _trends_frame_to_points(df: pandas.DataFrame, keywords: list[str]) -> list[d
     results: list[dict] = []
     intraday = False
     if isinstance(df.index, pandas.DatetimeIndex):
+        # Missing provider timestamps cannot be labeled or used as growth baselines.
+        df = df.loc[df.index.notna()]
         days = df.index.normalize()
         intraday = not df.index.equals(days) or days.has_duplicates
     for dt, row in df.iterrows():
