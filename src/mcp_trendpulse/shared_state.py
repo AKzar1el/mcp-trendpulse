@@ -202,6 +202,15 @@ class SharedTrendsState:
                     value = float(cell)
                     numbers.append(value if math.isfinite(value) else None)
                 values.append(numbers)
+            partial = None
+            if "isPartial" in frame:
+                # A provider's string "false" must not become a partial row in the shared cache.
+                partial = [
+                    value.strip().casefold() not in {"", "false", "0", "no", "off"}
+                    if isinstance(value, str)
+                    else bool(value)
+                    for value in frame["isPartial"].fillna(False)
+                ]
             record = {
                 "v": 1,
                 "dates": [date.isoformat() for date in frame.index],
@@ -209,7 +218,7 @@ class SharedTrendsState:
                 "index_utc_name": frame.index.name == "time [UTC]",
                 "timezone": str(frame.index.tz) if frame.index.tz is not None else None,
                 "freq": frame.index.freqstr,
-                "partial": [bool(value) for value in frame["isPartial"]] if "isPartial" in frame else None,
+                "partial": partial,
             }
             encoded = json.dumps(record, separators=(",", ":"), allow_nan=False)
             return encoded if len(encoded.encode("utf-8")) <= MAX_PAYLOAD_BYTES else None
