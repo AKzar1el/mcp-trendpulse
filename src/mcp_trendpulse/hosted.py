@@ -6,14 +6,14 @@ from collections import defaultdict
 from contextlib import asynccontextmanager
 from math import isfinite
 from statistics import fmean
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, TypeVar
 
 from fastmcp import FastMCP
 from fastmcp.server.middleware.error_handling import ErrorHandlingMiddleware
 from fastmcp.server.middleware.logging import LoggingMiddleware
 from fastmcp.server.middleware.rate_limiting import RateLimitingMiddleware
 from fastmcp.server.middleware.timing import TimingMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from mcp_trendpulse.config import load_environment
 from mcp_trendpulse.digestseo import DigestSeoContextError, fetch_digestseo_project_context
@@ -152,6 +152,32 @@ class RelatedDemandResult(BaseModel):
     rising_topics: list[RelatedTopic]
     suggestions: list[DemandSuggestion]
     limitations: list[str] = Field(default_factory=list)
+
+
+_RelatedItem = TypeVar("_RelatedItem", bound=BaseModel)
+
+
+def _valid_related_items(
+    rows: object, model: type[_RelatedItem], limit: int
+) -> tuple[list[_RelatedItem], bool]:
+    """Validate noisy provider entries before applying a section's result limit."""
+    if not isinstance(rows, list):
+        return [], bool(rows)
+    items: list[_RelatedItem] = []
+    skipped = False
+    for row in rows:
+        if not isinstance(row, dict):
+            skipped = True
+            continue
+        try:
+            item = model.model_validate(row)
+        except ValidationError:
+            skipped = True
+            continue
+        items.append(item)
+        if len(items) >= limit:
+            break
+    return items, skipped
 
 
 class ContextArticle(BaseModel):
@@ -601,17 +627,39 @@ async def discover_related_demand(
         except Exception:
             limitations.append("Suggestions could not be retrieved; related queries remain available.")
 
+    top_queries, skipped_top_queries = _valid_related_items(queries.get("top"), RelatedQuery, limit)
+    rising_queries, skipped_rising_queries = _valid_related_items(
+        queries.get("rising"), RelatedQuery, limit
+    )
+    top_topics, skipped_top_topics = _valid_related_items(topics.get("top"), RelatedTopic, limit)
+    rising_topics, skipped_rising_topics = _valid_related_items(
+        topics.get("rising"), RelatedTopic, limit
+    )
+    valid_suggestions, skipped_suggestions = _valid_related_items(
+        suggestions, DemandSuggestion, limit
+    )
+    if any(
+        (
+            skipped_top_queries,
+            skipped_rising_queries,
+            skipped_top_topics,
+            skipped_rising_topics,
+            skipped_suggestions,
+        )
+    ):
+        limitations.append("Some malformed related-demand entries were omitted from provider data.")
+
     return RelatedDemandResult(
         provider=providers.trends.provider_id,
         keyword=keyword,
         geo=geo,
         source=source,
         timeframe=timeframe,
-        top_queries=[RelatedQuery(**item) for item in (queries.get("top") or [])[:limit]],
-        rising_queries=[RelatedQuery(**item) for item in (queries.get("rising") or [])[:limit]],
-        top_topics=[RelatedTopic(**item) for item in (topics.get("top") or [])[:limit]],
-        rising_topics=[RelatedTopic(**item) for item in (topics.get("rising") or [])[:limit]],
-        suggestions=[DemandSuggestion(**item) for item in suggestions[:limit]],
+        top_queries=top_queries,
+        rising_queries=rising_queries,
+        top_topics=top_topics,
+        rising_topics=rising_topics,
+        suggestions=valid_suggestions,
         limitations=limitations,
     )
 
@@ -701,11 +749,15 @@ async def find_seo_opportunities(
 
     candidate_rows: list[tuple[str, str, dict[str, Any]]] = []
     seen: set[str] = {seed_keyword.casefold()}
+    skipped_invalid_rows = False
     for signal_type, rows in (
         ("rising_related_query", related.get("rising") or []),
         ("top_related_query", related.get("top") or []),
     ):
         for row in rows:
+            if not isinstance(row, dict):
+                skipped_invalid_rows = True
+                continue
             raw_query = row.get("query")
             if not isinstance(raw_query, str):
                 continue
@@ -780,6 +832,8 @@ async def find_seo_opportunities(
                 candidate.search_console = search_console_by_keyword.get(candidate.keyword)
 
     limitations = _seo_limitations(project_context)
+    if skipped_invalid_rows:
+        limitations.append("Some malformed related-query entries were omitted from provider data.")
     if any(candidate.interest_points_observed == 0 for candidate in candidates):
         limitations.append(
             "Some related-query candidates have no usable Google Trends interest-series "
