@@ -24,8 +24,8 @@ import pandas
 from gnews import GNews
 from gnews.gnews import SECTIONS as GNEWS_SECTIONS, TOPICS as GNEWS_TOPICS
 import newspaper  # newspaper4k
-from googlenewsdecoder import gnewsdecoder
 import cloudscraper
+from requests import Session
 from requests.adapters import HTTPAdapter
 from urllib3.response import HTTPResponse
 from playwright.async_api import async_playwright, Browser, Playwright
@@ -51,6 +51,7 @@ from mcp_trendpulse.errors import (
     classify_provider_exception,
 )
 from mcp_trendpulse.provider_metrics import provider_metrics
+from mcp_trendpulse.google_news_safe_decode import decode_google_news_url_pinned
 from mcp_trendpulse.trends_rate_control import (
     install_trends_session_pacing,
     trends_interest_cache,
@@ -883,10 +884,27 @@ def download_article_with_scraper(
         return None
 
 
+def _pinned_google_news_decode(url: str) -> dict[str, object]:
+    # The upstream googlenewsdecoder uses unconstrained requests.get/post,
+    # bypassing the public-IP-pinned article adapter. Keep its wire protocol
+    # but perform both requests and any fallback via this pinned session.
+    with Session() as session:
+        session.trust_env = False
+        session.proxies.clear()
+        session.mount("https://", ArticlePinnedHTTPAdapter())
+        session.mount("http://", ArticlePinnedHTTPAdapter())
+        return decode_google_news_url_pinned(
+            url,
+            session,
+            timeout=min(ARTICLE_HTTP_TIMEOUT_SECONDS, 5),
+            max_bytes=min(ARTICLE_MAX_HTML_BYTES, 2_000_000),
+        )
+
+
 def decode_url(url: str) -> Optional[str]:
     if url.startswith("https://news.google.com/rss/"):
         try:
-            decoded_url = gnewsdecoder(url)
+            decoded_url = _pinned_google_news_decode(url)
             if decoded_url.get("status") or decoded_url.get("success") is True:
                 return decoded_url["decoded_url"]
             else:

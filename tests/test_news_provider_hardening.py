@@ -374,5 +374,5 @@ async def test_invalid_news_topic_is_rejected_before_provider_call(monkeypatch):
 )
 def test_google_news_decoder_supports_legacy_and_current_result_keys(monkeypatch, result, expected):
     """Upstream googlenewsdecoder 0.2.x uses success, older releases use status."""
-    monkeypatch.setattr(news, "gnewsdecoder", lambda _url: result)
+    monkeypatch.setattr(news, "_pinned_google_news_decode", lambda _url: result)
     assert news.decode_url("https://news.google.com/rss/articles/test") == expected
