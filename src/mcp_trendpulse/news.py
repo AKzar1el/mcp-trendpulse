@@ -2021,7 +2021,7 @@ async def get_related_queries(
                 query = _provider_identity_text(row.get("query"))
                 if query is None:
                     continue
-                value, is_breakout = _related_trend_value(row["value"])
+                value, is_breakout = _related_trend_value(row.get("value"))
                 if value is None and not is_breakout:
                     continue
                 item = {
@@ -2065,7 +2065,7 @@ async def get_related_topics(
                 topic_type = _provider_identity_text(row.get("type"))
                 if mid is None or title is None or topic_type is None:
                     continue
-                value, is_breakout = _related_trend_value(row["value"])
+                value, is_breakout = _related_trend_value(row.get("value"))
                 if value is None and not is_breakout:
                     continue
                 item = {
