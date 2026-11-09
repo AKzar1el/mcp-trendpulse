@@ -905,14 +905,15 @@ async def find_seo_opportunities(
             # Optional context must not discard validated Trends results on a
             # temporary upstream failure or rate limit. Auth and project-access
             # errors remain fatal; do not retry a rate-limited upstream here.
-            if exc.status != 429 and (exc.status is None or exc.status < 500):
+            if exc.status not in (408, 429) and (exc.status is None or exc.status < 500):
                 raise
+            rate_limited = exc.status == 429
             project_context = SeoProjectContext(
                 project_id=project_id,
                 project_name="",
                 origin="",
                 search_console_available=False,
-                reason="digestseo_temporarily_unavailable",
+                reason="digestseo_rate_limited" if rate_limited else "digestseo_temporarily_unavailable",
                 retryable=True,
                 message="DigestSEO Search Console context is temporarily unavailable or rate-limited; retry later.",
             )
