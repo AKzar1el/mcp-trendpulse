@@ -1586,14 +1586,17 @@ def _related_trend_value(value: object) -> tuple[float | None, bool]:
 
 def _trends_frame_to_points(df: pandas.DataFrame, keywords: list[str]) -> list[dict]:
     """Flatten one completed Trends frame into the package's stable point shape."""
+    # Only a genuine timestamp index can establish when interest was observed.
+    # A malformed RangeIndex would otherwise become fabricated dates "0", "1", etc.
+    if not isinstance(df.index, pandas.DatetimeIndex):
+        return []
     results: list[dict] = []
     intraday = False
-    if isinstance(df.index, pandas.DatetimeIndex):
-        # Missing provider timestamps cannot be labeled or used as growth baselines.
-        # Provider row order is not guaranteed; consumers treat the final point as latest.
-        df = df.loc[df.index.notna()].sort_index(kind="stable")
-        days = df.index.normalize()
-        intraday = not df.index.equals(days) or days.has_duplicates
+    # Missing provider timestamps cannot be labeled or used as growth baselines.
+    # Provider row order is not guaranteed; consumers treat the final point as latest.
+    df = df.loc[df.index.notna()].sort_index(kind="stable")
+    days = df.index.normalize()
+    intraday = not df.index.equals(days) or days.has_duplicates
     for dt, row in df.iterrows():
         if intraday:
             date_str = dt.isoformat()
