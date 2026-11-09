@@ -117,6 +117,34 @@ async def test_get_trending_terms_ignores_nonsequence_nested_rss_news(news_items
     assert result[0].news == []
 
 
+@pytest.mark.parametrize("full_data", [False, True])
+@pytest.mark.parametrize(
+    "invalid_row",
+    [
+        None,
+        SimpleNamespace(volume="900+"),
+        SimpleNamespace(keyword=None, volume="900+"),
+        SimpleNamespace(keyword=42, volume="900+"),
+        SimpleNamespace(keyword="   ", volume="900+"),
+        SimpleNamespace(keyword="missing volume"),
+        {"keyword": "unsupported mapping", "volume": "900+"},
+    ],
+)
+async def test_get_trending_terms_skips_malformed_root_rss_rows(invalid_row, full_data):
+    first = SimpleNamespace(keyword="low", volume="100+")
+    second = SimpleNamespace(keyword="high", volume="500+")
+    with patch.object(news.tr, "trending_now_by_rss", return_value=[first, invalid_row, second]):
+        result = await news.get_trending_terms(full_data=full_data)
+
+    if full_data:
+        assert result == [second, first]
+    else:
+        assert result == [
+            {"keyword": "high", "volume": "500+"},
+            {"keyword": "low", "volume": "100+"},
+        ]
+
+
 def test_trending_cli_discloses_approximate_traffic(monkeypatch):
     """Trending RSS CLI must not present provider buckets as precise search counts."""
     from click.testing import CliRunner
