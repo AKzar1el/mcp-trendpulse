@@ -1900,6 +1900,9 @@ async def get_ranked_trends(
         "trending_now",
         lambda: tr.trending_now(geo=geo, hours=24)
     )
+    if not isinstance(trends, (list, tuple)):
+        logger.warning("Ignoring invalid ranked Trends feed type: %s", type(trends).__name__)
+        return []
 
     ranked = []
     for trend in trends:
@@ -1963,6 +1966,9 @@ async def get_top_trends(
         trends = await _call_trends_async(
             "trending_now_by_rss", lambda: tr.trending_now_by_rss(geo=geo)
         )
+    if not isinstance(trends, (list, tuple)):
+        logger.warning("Ignoring invalid top Trends feed type: %s", trends.__class__.__name__)
+        return []
 
     # Invalid upstream rows must not consume the caller's result limit.
     valid_trends = []
