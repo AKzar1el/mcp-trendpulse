@@ -1482,6 +1482,9 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
         list[TrendKeywordLite],
         await _call_trends_async("trending_now_by_rss", lambda: tr.trending_now_by_rss(geo=geo)),
     )
+    if not isinstance(trends, (list, tuple)):
+        logger.warning("Unexpected Google Trends RSS payload type: %s", type(trends).__name__)
+        return []
     valid_trends = []
     for trend in trends:
         if _provider_identity_text(getattr(trend, "keyword", None)) is None or not hasattr(trend, "volume"):

@@ -145,6 +145,30 @@ async def test_get_trending_terms_skips_malformed_root_rss_rows(invalid_row, ful
         ]
 
 
+@pytest.mark.parametrize("full_data", [False, True])
+@pytest.mark.parametrize(
+    "malformed_payload",
+    [None, {"keyword": "mapping instead of rows"}, "not RSS rows", 42],
+)
+async def test_get_trending_terms_handles_malformed_rss_provider_payload(
+    malformed_payload, full_data, caplog
+):
+    with patch.object(news.tr, "trending_now_by_rss", return_value=malformed_payload):
+        result = await news.get_trending_terms(full_data=full_data)
+
+    assert result == []
+    assert "unexpected" in caplog.text.lower()
+
+
+@pytest.mark.parametrize("full_data", [False, True])
+async def test_get_trending_terms_accepts_tuple_rss_provider_payload(full_data):
+    trend = SimpleNamespace(keyword="valid topic", volume="500+")
+    with patch.object(news.tr, "trending_now_by_rss", return_value=(trend,)):
+        result = await news.get_trending_terms(full_data=full_data)
+
+    assert result == ([trend] if full_data else [{"keyword": "valid topic", "volume": "500+"}])
+
+
 def test_trending_cli_discloses_approximate_traffic(monkeypatch):
     """Trending RSS CLI must not present provider buckets as precise search counts."""
     from click.testing import CliRunner
