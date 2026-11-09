@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from math import isfinite
 from statistics import fmean
 from typing import Annotated, Any, Literal, TypeVar
@@ -293,12 +294,31 @@ def _normalized_interest(value: Any) -> float | None:
     return numeric if numeric is not None and 0 <= numeric <= 100 else None
 
 
+def _chronological_interest(points: list[dict[str, Any]]) -> list[tuple[str, float]]:
+    """Only use dated, normalized observations, ordered by actual UTC instant."""
+    dated: list[tuple[datetime, str, float]] = []
+    for point in points:
+        if not isinstance(point, dict):
+            continue
+        label = point.get("date")
+        value = _normalized_interest(point.get("value"))
+        if not isinstance(label, str) or value is None:
+            continue
+        try:
+            observed = datetime.fromisoformat(label.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if observed.tzinfo is None:
+            observed = observed.replace(tzinfo=timezone.utc)
+        dated.append((observed.astimezone(timezone.utc), label, value))
+    dated.sort(key=lambda entry: entry[0])
+    return [(label, value) for _, label, value in dated]
+
+
 def _bounded_series(points: list[dict[str, Any]], max_points: int) -> list[TrendSeriesPoint]:
     normalized = [
-        TrendSeriesPoint(date=str(point["date"]), value=value)
-        for point in points
-        if point.get("date") is not None
-        and (value := _normalized_interest(point.get("value"))) is not None
+        TrendSeriesPoint(date=label, value=value)
+        for label, value in _chronological_interest(points)
     ]
     if len(normalized) <= max_points:
         return normalized
@@ -311,7 +331,7 @@ def _bounded_series(points: list[dict[str, Any]], max_points: int) -> list[Trend
 
 
 def _interest_metrics(points: list[dict[str, Any]]) -> InterestMetrics:
-    values = [value for point in points if (value := _normalized_interest(point.get("value"))) is not None]
+    values = [value for _, value in _chronological_interest(points)]
     if not values:
         return InterestMetrics()
     return InterestMetrics(
