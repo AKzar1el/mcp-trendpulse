@@ -254,6 +254,32 @@ async def test_discover_trends_is_bounded_and_preserves_provider_metadata(fake_p
     assert all(len(item.context_articles) <= 3 for item in result.trends)
 
 
+async def test_discover_trends_skips_invalid_ranked_rows_and_optional_news(fake_providers, monkeypatch):
+    valid_story = {
+        "title": "Useful report",
+        "url": "https://example.com/report",
+        "source": "Example",
+    }
+
+    async def malformed_rankings(**kwargs):
+        return [
+            None,
+            {"keyword": "alpha", "volume": 100, "news": [None, valid_story]},
+            {"volume": 90, "news": [valid_story]},
+            {"keyword": "beta", "volume": 80, "news": {"bad": "shape"}},
+            {"keyword": "gamma", "volume": 70, "news": [valid_story]},
+        ]
+
+    monkeypatch.setattr(fake_providers.trends, "get_ranked_trends", malformed_rankings)
+    with use_provider_set(fake_providers):
+        result = await hosted.discover_trends(limit=3)
+
+    assert [trend.keyword for trend in result.trends] == ["alpha", "beta", "gamma"]
+    assert [[story.title for story in trend.context_articles] for trend in result.trends] == [
+        ["Useful report"], [], ["Useful report"]
+    ]
+
+
 async def test_analyze_and_compare_return_bounded_series(fake_providers):
     with use_provider_set(fake_providers):
         analysis = await hosted.analyze_keyword_trend(

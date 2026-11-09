@@ -495,26 +495,51 @@ async def discover_trends(
     )
 
     trends: list[DiscoveredTrend] = []
-    for row in rows[:limit]:
-        context_articles = [
-            TrendNewsSnippet(
-                title=str(article.get("title", "")),
-                url=str(article.get("url", "")),
-                source=str(article["source"]) if article.get("source") else None,
-                time=article.get("time"),
-                snippet=str(article["snippet"]) if article.get("snippet") else None,
-            )
-            for article in (row.get("news") or [])[:3]
-        ]
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("keyword"), str):
+            continue
+        keyword = row["keyword"].strip()
+        if not keyword:
+            continue
+        context_articles: list[TrendNewsSnippet] = []
+        news = row.get("news")
+        if isinstance(news, (list, tuple)):
+            for article in news:
+                if not isinstance(article, dict):
+                    continue
+                title, url = article.get("title"), article.get("url")
+                if (
+                    not isinstance(title, str)
+                    or not title.strip()
+                    or not isinstance(url, str)
+                    or not url.strip()
+                ):
+                    continue
+                try:
+                    context_articles.append(
+                        TrendNewsSnippet(
+                            title=title,
+                            url=url,
+                            source=str(article["source"]) if article.get("source") else None,
+                            time=article.get("time"),
+                            snippet=str(article["snippet"]) if article.get("snippet") else None,
+                        )
+                    )
+                except ValidationError:
+                    continue
+                if len(context_articles) >= 3:
+                    break
         trends.append(
             DiscoveredTrend(
-                keyword=str(row.get("keyword", "")),
+                keyword=keyword,
                 volume=row.get("volume"),
                 growth_pct=_as_float(row.get("growth_pct")),
                 started=row.get("started") if isinstance(row.get("started"), int) else None,
                 context_articles=context_articles,
             )
         )
+        if len(trends) >= limit:
+            break
 
     return DiscoverTrendsResult(
         provider=providers.trends.provider_id,
