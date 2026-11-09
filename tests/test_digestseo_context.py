@@ -5,6 +5,7 @@ from urllib.error import HTTPError
 import pytest
 
 from mcp_trendpulse import digestseo
+from mcp_trendpulse.providers import get_provider_set, use_provider_set
 
 
 class FakeResponse:
@@ -174,3 +175,31 @@ def test_context_client_maps_project_not_found_without_echoing_remote_details(mo
     assert exc.value.code == "project_not_found"
     assert exc.value.status == 404
     assert "internal project detail" not in str(exc.value)
+
+
+def test_context_client_preserves_auth_error_through_generator_provider_scope(monkeypatch):
+    body = json.dumps({"error": "forbidden", "message": "private account details"}).encode()
+
+    def fake_open(request, timeout):
+        raise HTTPError(
+            request.full_url,
+            403,
+            "Forbidden",
+            {},
+            SimpleNamespace(read=lambda size=-1: body, close=lambda: None),
+        )
+
+    monkeypatch.setattr(digestseo, "_open_no_redirects", fake_open)
+    with pytest.raises(digestseo.DigestSeoContextError, match="denied access") as exc:
+        with use_provider_set(get_provider_set()):
+            digestseo._post_context_sync(
+                url="https://digestseo.example.test/api/trendpulse/context",
+                authorization="Bearer secret",
+                project_id="project_1",
+                keywords=["seo"],
+                days=28,
+            )
+
+    assert exc.value.code == "forbidden"
+    assert exc.value.status == 403
+    assert "private account details" not in str(exc.value)
