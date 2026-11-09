@@ -359,10 +359,15 @@ def _growth_by_keyword(results: list[dict[str, Any]]) -> dict[str, dict[str, flo
     return growth
 
 
-def _series_by_keyword(results: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+def _series_by_keyword(results: list[Any]) -> dict[str, list[dict[str, Any]]]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for item in results:
-        grouped[str(item.get("keyword", ""))].append(item)
+        if not isinstance(item, dict):
+            continue
+        keyword = item.get("keyword")
+        if not isinstance(keyword, str) or not keyword.strip():
+            continue
+        grouped[keyword].append(item)
     return grouped
 
 
