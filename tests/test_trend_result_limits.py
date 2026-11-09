@@ -79,6 +79,17 @@ async def test_trending_feed_ignores_malformed_rows_before_result_limit(monkeypa
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
+@pytest.mark.parametrize("payload", [None, 42, "not a feed", {"keyword": "invalid root"}])
+async def test_trending_feeds_ignore_nonsequence_provider_payload(monkeypatch, fetch, payload):
+    upstream = AsyncMock(return_value=payload)
+    monkeypatch.setattr(news, "_call_trends_async", upstream)
+
+    assert await fetch(limit=5) == []
+    upstream.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
 async def test_trending_feeds_isolate_malformed_nested_news(monkeypatch, fetch):
     article = SimpleNamespace(
         title="Valid &amp; useful",
