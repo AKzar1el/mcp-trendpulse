@@ -1,5 +1,6 @@
 """Offline bounds for community ranked/top Trends tools and direct providers."""
 
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -131,6 +132,38 @@ async def test_trending_feeds_ignore_noniterable_optional_news(monkeypatch, fetc
 
     assert result[0]["keyword"] == "useful trend"
     assert result[0]["news"] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
+@pytest.mark.parametrize(
+    ("started_timestamp", "expected"),
+    [
+        ("2026-11-08T12:00:00Z", "2026-11-08T12:00:00Z"),
+        (1762603200, 1762603200),
+        (["2026-11-08T12:00:00Z"], "2026-11-08T12:00:00Z"),
+        (("2026-11-08T12:00:00Z",), "2026-11-08T12:00:00Z"),
+        (datetime(2026, 11, 8, 12, tzinfo=timezone.utc), datetime(2026, 11, 8, 12, tzinfo=timezone.utc)),
+        ([], None),
+        ({"unexpected": "mapping"}, None),
+        (True, None),
+        (float("nan"), None),
+        ("   ", None),
+    ],
+)
+async def test_trending_feeds_normalize_started_timestamp_shapes(
+    monkeypatch, fetch, started_timestamp, expected
+):
+    trend = SimpleNamespace(
+        keyword="useful trend", volume=100, volume_growth_pct=25,
+        started_timestamp=started_timestamp, started=None,
+        link=None, picture=None, news=[],
+    )
+    monkeypatch.setattr(news, "_call_trends_async", AsyncMock(return_value=[trend]))
+
+    result = await fetch(limit=1)
+
+    assert result[0]["started"] == expected
 
 
 @pytest.mark.asyncio
