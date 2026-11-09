@@ -320,6 +320,64 @@ def test_brief_pack_rejects_nonnumeric_provider_values_in_numeric_columns():
     providers.trends.get_growth.assert_awaited_once()
 
 
+def test_brief_pack_omits_malformed_trend_rows_but_preserves_valid_evidence():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        None,
+        "invalid row",
+        {"date": "2026-09-13", "value": 42, "keyword": "ChatGPT"},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[
+        {"keyword": "ChatGPT", "growth": {"3M": 5, "1Y": -1}},
+    ])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US", "--timeframe", "today 5-y"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "Excluded 2 malformed Trends rows" in result.output
+    assert "| ChatGPT | 42 | +5.00% | -1.00% |" in result.output
+
+
+def test_brief_pack_explains_invalid_provider_containers_instead_of_crashing():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=None)
+    providers.trends.get_growth = AsyncMock(return_value=None)
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US", "--timeframe", "today 5-y"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "invalid observation container" in result.output
+    assert "invalid growth response" in result.output
+    assert "Latest complete Trends point" not in result.output
+    assert "| ChatGPT | n/a | n/a | n/a |" in result.output
+
+
+def test_brief_pack_omits_malformed_growth_entries_without_losing_series():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-09-13", "value": 42, "keyword": "ChatGPT"},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[
+        None,
+        {"keyword": "ChatGPT", "growth": "malformed growth"},
+    ])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US", "--timeframe", "today 5-y"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "Excluded 2 malformed growth entries" in result.output
+    assert "| ChatGPT | 42 | n/a | n/a |" in result.output
+
+
 def test_brief_pack_keeps_dedicated_growth_fetch_for_custom_timeframe():
     runner = CliRunner()
     providers = FakeBriefProviders()

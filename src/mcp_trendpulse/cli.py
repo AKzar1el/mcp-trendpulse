@@ -379,27 +379,43 @@ def brief_pack(keywords, markets, timeframe):
         click.echo("> Google Trends values are normalized relative-interest indices, not absolute search volume. Compare terms within the same market request; do not compare index values directly across markets.")
 
         for market in cleaned_markets:
-            points = await providers.trends.get_trends(
+            raw_points = await providers.trends.get_trends(
                 keyword=cleaned_keywords,
                 source="google search",
                 geo=market,
                 timeframe=timeframe,
             )
+            invalid_points_container = not isinstance(raw_points, (list, tuple))
+            points = [point for point in raw_points if isinstance(point, dict)] if not invalid_points_container else []
+            malformed_points = len(raw_points) - len(points) if not invalid_points_container else 0
             dated_points = [
                 (point, _brief_observation_time(point.get("date"))) for point in points
             ]
             dated_points = [(point, when) for point, when in dated_points if when is not None]
             if timeframe.strip().lower() == "today 12-m":
-                growth_rows = _growth_from_trend_points(
+                raw_growth_rows = _growth_from_trend_points(
                     [point for point, _ in dated_points], cleaned_keywords, ["3M", "1Y"]
                 )
             else:
-                growth_rows = await providers.trends.get_growth(
+                raw_growth_rows = await providers.trends.get_growth(
                     keyword=cleaned_keywords,
                     source="google search",
                     percent_growth=["3M", "1Y"],
                     geo=market,
                 )
+            invalid_growth_container = not isinstance(raw_growth_rows, (list, tuple))
+            growth_rows = (
+                [
+                    row for row in raw_growth_rows
+                    if isinstance(row, dict)
+                    and isinstance(row.get("keyword"), str)
+                    and isinstance(row.get("growth"), dict)
+                ]
+                if not invalid_growth_container else []
+            )
+            malformed_growth_rows = (
+                len(raw_growth_rows) - len(growth_rows) if not invalid_growth_container else 0
+            )
 
             series = defaultdict(list)
             for point, when in dated_points:
@@ -415,6 +431,12 @@ def brief_pack(keywords, markets, timeframe):
 
             click.echo()
             click.echo(f"## {market}")
+            if invalid_points_container:
+                click.echo()
+                click.echo("> Google Trends returned an invalid observation container; no series observations were usable.")
+            elif malformed_points:
+                click.echo()
+                click.echo(f"> Excluded {malformed_points} malformed Trends rows from this evidence table.")
             skipped_dates = len(points) - len(dated_points)
             if skipped_dates:
                 click.echo()
@@ -426,6 +448,12 @@ def brief_pack(keywords, markets, timeframe):
                     f"> 3M and 1Y growth use separate Google Trends lookback requests; "
                     f"they are not calculated from the selected {display_timeframe} time series."
                 )
+            if invalid_growth_container:
+                click.echo()
+                click.echo("> Google Trends returned an invalid growth response; growth values are unavailable.")
+            elif malformed_growth_rows:
+                click.echo()
+                click.echo(f"> Excluded {malformed_growth_rows} malformed growth entries from this evidence table.")
             if latest_trends_date:
                 click.echo()
                 click.echo(f"Latest complete Trends point: **{latest_trends_date}**")
