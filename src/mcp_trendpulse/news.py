@@ -138,6 +138,23 @@ def _provider_identity_text(value: object) -> str | None:
     return value.strip() or None
 
 
+def _trend_started_timestamp(value: object) -> object | None:
+    """Accept scalar or one-element feed timestamps without indexing text values."""
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        return value if value.strip() else None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and isfinite(value):
+        return value
+    return None
+
+
 def _trend_news_context(articles: object) -> list[dict]:
     """Preserve usable publisher context when a Trends feed contains bad articles."""
     try:
@@ -1586,14 +1603,17 @@ def _related_trend_value(value: object) -> tuple[float | None, bool]:
 
 def _trends_frame_to_points(df: pandas.DataFrame, keywords: list[str]) -> list[dict]:
     """Flatten one completed Trends frame into the package's stable point shape."""
+    # Only a genuine timestamp index can establish when interest was observed.
+    # A malformed RangeIndex would otherwise become fabricated dates "0", "1", etc.
+    if not isinstance(df.index, pandas.DatetimeIndex):
+        return []
     results: list[dict] = []
     intraday = False
-    if isinstance(df.index, pandas.DatetimeIndex):
-        # Missing provider timestamps cannot be labeled or used as growth baselines.
-        # Provider row order is not guaranteed; consumers treat the final point as latest.
-        df = df.loc[df.index.notna()].sort_index(kind="stable")
-        days = df.index.normalize()
-        intraday = not df.index.equals(days) or days.has_duplicates
+    # Missing provider timestamps cannot be labeled or used as growth baselines.
+    # Provider row order is not guaranteed; consumers treat the final point as latest.
+    df = df.loc[df.index.notna()].sort_index(kind="stable")
+    days = df.index.normalize()
+    intraday = not df.index.equals(days) or days.has_duplicates
     for dt, row in df.iterrows():
         if intraday:
             date_str = dt.isoformat()
@@ -1893,8 +1913,7 @@ async def get_ranked_trends(
 
     results = []
     for t, keyword, growth, volume in ranked:
-        started_values = getattr(t, "started_timestamp", None)
-        started_ts = started_values[0] if started_values else None
+        started_ts = _trend_started_timestamp(getattr(t, "started_timestamp", None))
 
         results.append({
             "keyword": _decode_provider_text(keyword),
@@ -1944,9 +1963,8 @@ async def get_top_trends(
     results = []
     for t, keyword in valid_trends:
         started = getattr(t, "started", None)
-        started_timestamp = getattr(t, "started_timestamp", None)
-        if started is None and started_timestamp:
-            started = started_timestamp[0]
+        if started is None:
+            started = _trend_started_timestamp(getattr(t, "started_timestamp", None))
         volume = getattr(t, "volume", None)
         if volume is not None and not isinstance(volume, str):
             volume = str(volume)

@@ -102,6 +102,17 @@ async def test_get_trends_skips_missing_hourly_timestamp_and_retains_hour_precis
     ]
 
 
+async def test_get_trends_does_not_label_undated_rows_as_calendar_observations():
+    # A malformed provider frame must not advertise positional row IDs as dates.
+    frames = [
+        pd.DataFrame({"python": [10.0, 20.0]}),
+        pd.DataFrame({"python": [10.0]}, index=pd.Index(["not-a-date"])),
+    ]
+    for frame in frames:
+        with patch.object(news.tr, "interest_over_time", return_value=frame):
+            assert await news.get_trends("python", timeframe="today 3-m") == []
+
+
 async def test_get_trends_preserves_legacy_data_mode_when_timeframe_is_omitted():
     dates = pd.date_range(start="2021-01-01", periods=1, freq="YS")
     frame = pd.DataFrame(
