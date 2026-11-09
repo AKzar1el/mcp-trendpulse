@@ -874,3 +874,27 @@ async def test_find_seo_opportunities_does_not_hide_digestseo_client_errors(
     with use_provider_set(fake_providers), pytest.raises(DigestSeoContextError) as caught:
         await hosted.find_seo_opportunities(seed_keyword="technical seo", project_id="project_123")
     assert caught.value is error
+
+
+def test_hosted_interest_metrics_and_bounded_series_use_observation_time_not_provider_order():
+    # These two instants cross offsets; lexical timestamp order is not UTC order.
+    points = [
+        {"date": "2026-11-01T01:15:00+00:00", "value": 20},
+        {"date": "2026-11-01T01:30:00+01:00", "value": 80},
+        {"date": "not-a-timestamp", "value": 99},
+        {"date": "2026-10-31", "value": 10},
+    ]
+
+    metrics = hosted._interest_metrics(points)
+    series = hosted._bounded_series(points, max_points=3)
+
+    assert metrics.latest == 20
+    assert metrics.average == 36.67
+    assert metrics.peak == 80
+    assert metrics.points_observed == 3
+    assert [(item.date, item.value) for item in series] == [
+        ("2026-10-31", 10),
+        ("2026-11-01T01:30:00+01:00", 80),
+        ("2026-11-01T01:15:00+00:00", 20),
+    ]
+    assert hosted._bounded_series(points, max_points=1)[0].value == 20
