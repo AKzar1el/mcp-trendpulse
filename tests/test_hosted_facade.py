@@ -360,6 +360,48 @@ def test_hosted_growth_ignores_malformed_provider_rows_and_mappings():
         {"keyword": "four", "growth": {"3M": "NaN", "1Y": 2}},
     ]) == {"one": {}, "two": {"3M": 9.5}, "three": {}, "four": {"1Y": 2.0}}
 
+async def test_compare_preserves_valid_trends_when_provider_returns_malformed_rows(
+    fake_providers, monkeypatch
+):
+    async def mixed_trends(keyword, **kwargs):
+        return [
+            None,
+            ["unexpected row"],
+            {"keyword": keyword[0], "date": "2026-11-01", "value": 25},
+            {"keyword": keyword[1], "date": "2026-11-01", "value": 0},
+            {"keyword": None, "date": "2026-11-02", "value": 80},
+        ]
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", mixed_trends)
+    with use_provider_set(fake_providers):
+        result = await hosted.compare_keyword_trends(keywords=["first", "second"])
+
+    assert [entry.metrics.latest for entry in result.comparisons] == [25.0, 0.0]
+    assert [entry.metrics.points_observed for entry in result.comparisons] == [1, 1]
+    assert [entry.series[0].value for entry in result.comparisons] == [25.0, 0.0]
+
+
+async def test_seo_opportunities_keep_valid_interest_when_provider_returns_malformed_rows(
+    fake_providers, monkeypatch
+):
+    async def mixed_trends(keyword, **kwargs):
+        return [
+            None,
+            "unexpected row",
+            {"keyword": keyword[0], "date": "2026-11-01", "value": 35},
+            {"keyword": keyword[1], "date": "2026-11-01", "value": 0},
+        ]
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", mixed_trends)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(seed_keyword="seo", limit=2)
+
+    assert [item.latest_interest for item in result.candidates] == [35.0, 0.0]
+    assert [item.interest_validation_status for item in result.candidates] == [
+        "observed", "observed"
+    ]
+
+
 @pytest.mark.parametrize("keywords", [["same", "same"], ["same", " SAME "]])
 async def test_compare_rejects_duplicate_keywords(fake_providers, keywords):
     with use_provider_set(fake_providers), pytest.raises(ValueError, match="unique"):
