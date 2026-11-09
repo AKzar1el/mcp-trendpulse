@@ -823,7 +823,7 @@ async def test_find_seo_opportunities_degrades_when_gsc_is_unavailable(
     assert any("remain trend-only" in limitation for limitation in result.limitations)
 
 
-@pytest.mark.parametrize("status", [502, 503, 504])
+@pytest.mark.parametrize("status", [429, 502, 503, 504])
 async def test_find_seo_opportunities_preserves_trends_on_transient_digestseo_error(
     fake_providers, monkeypatch, status
 ):
