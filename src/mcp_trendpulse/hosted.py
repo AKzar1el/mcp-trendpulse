@@ -296,6 +296,8 @@ def _normalized_interest(value: Any) -> float | None:
 
 def _chronological_interest(points: list[dict[str, Any]]) -> list[tuple[str, float]]:
     """Only use dated, normalized observations, ordered by actual UTC instant."""
+    if not isinstance(points, (list, tuple)):
+        return []
     dated: list[tuple[datetime, str, float]] = []
     for point in points:
         if not isinstance(point, dict):
@@ -344,6 +346,8 @@ def _interest_metrics(points: list[dict[str, Any]]) -> InterestMetrics:
 
 def _growth_by_keyword(results: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
     growth: dict[str, dict[str, float]] = {}
+    if not isinstance(results, (list, tuple)):
+        return growth
     for item in results:
         if not isinstance(item, dict):
             continue
@@ -361,6 +365,8 @@ def _growth_by_keyword(results: list[dict[str, Any]]) -> dict[str, dict[str, flo
 
 def _series_by_keyword(results: list[Any]) -> dict[str, list[dict[str, Any]]]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    if not isinstance(results, (list, tuple)):
+        return grouped
     for item in results:
         if not isinstance(item, dict):
             continue
@@ -578,6 +584,7 @@ async def analyze_keyword_trend(
         geo=geo,
     )
     growth = _growth_by_keyword(growth_rows).get(keyword, {})
+    malformed_series = not isinstance(points, (list, tuple))
 
     return KeywordTrendAnalysis(
         provider=providers.trends.provider_id,
@@ -588,6 +595,10 @@ async def analyze_keyword_trend(
         metrics=_interest_metrics(points),
         growth=growth,
         series=_bounded_series(points, max_points),
+        note=(
+            "Google Trends values are normalized interest scores, not absolute search volume."
+            + (" Invalid provider interest-series payload; no observations were validated." if malformed_series else "")
+        ),
     )
 
 
@@ -621,6 +632,7 @@ async def compare_keyword_trends(
     )
     grouped = _series_by_keyword(points)
     growth = _growth_by_keyword(growth_rows)
+    malformed_series = not isinstance(points, (list, tuple))
 
     comparisons = [
         KeywordComparison(
@@ -637,6 +649,10 @@ async def compare_keyword_trends(
         source=source,
         timeframe=timeframe,
         comparisons=comparisons,
+        note=(
+            "Values are normalized within the Google Trends comparison, not absolute search volume."
+            + (" Invalid provider interest-series payload; no observations were validated." if malformed_series else "")
+        ),
     )
 
 
@@ -872,6 +888,7 @@ async def find_seo_opportunities(
         if candidate_keywords
         else []
     )
+    invalid_trend_rows = not isinstance(trend_rows, (list, tuple))
     grouped = _series_by_keyword(trend_rows)
 
     candidates: list[SeoOpportunityCandidate] = []
@@ -923,6 +940,8 @@ async def find_seo_opportunities(
                 candidate.search_console = search_console_by_keyword.get(candidate.keyword)
 
     limitations = _seo_limitations(project_context)
+    if invalid_trend_rows:
+        limitations.append("Google Trends returned an invalid interest-series payload; candidate interest could not be validated.")
     if invalid_related_response:
         limitations.append("Related queries returned an invalid provider response; no SEO candidates could be established.")
     if skipped_invalid_rows:

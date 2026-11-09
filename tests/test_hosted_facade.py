@@ -386,6 +386,45 @@ def test_hosted_growth_ignores_malformed_provider_rows_and_mappings():
         {"keyword": "four", "growth": {"3M": "NaN", "1Y": 2}},
     ]) == {"one": {}, "two": {"3M": 9.5}, "three": {}, "four": {"1Y": 2.0}}
 
+@pytest.mark.parametrize("invalid_rows", [None, 42, "invalid rows", {"date": "2026-11-01"}])
+async def test_hosted_reports_invalid_whole_trends_payload_without_crashing(fake_providers, monkeypatch, invalid_rows):
+    async def malformed_trends(**kwargs):
+        return invalid_rows
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", malformed_trends)
+    with use_provider_set(fake_providers):
+        single = await hosted.analyze_keyword_trend(keyword="seo")
+        comparison = await hosted.compare_keyword_trends(keywords=["seo", "agents"])
+        opportunities = await hosted.find_seo_opportunities(seed_keyword="seo", limit=2)
+
+    assert single.metrics.points_observed == 0
+    assert single.series == []
+    assert "invalid" in single.note.lower()
+    assert all(entry.metrics.points_observed == 0 for entry in comparison.comparisons)
+    assert all(entry.series == [] for entry in comparison.comparisons)
+    assert "invalid" in comparison.note.lower()
+    assert opportunities.candidates
+    assert all(item.interest_validation_status == "unavailable" for item in opportunities.candidates)
+    assert any("invalid" in note.lower() for note in opportunities.limitations)
+
+
+@pytest.mark.parametrize("invalid_growth", [None, 13, "invalid growth", {"keyword": "seo"}])
+async def test_hosted_ignores_invalid_whole_growth_payload_but_preserves_interest(
+    fake_providers, monkeypatch, invalid_growth
+):
+    async def malformed_growth(**kwargs):
+        return invalid_growth
+
+    monkeypatch.setattr(fake_providers.trends, "get_growth", malformed_growth)
+    with use_provider_set(fake_providers):
+        single = await hosted.analyze_keyword_trend(keyword="seo")
+        comparison = await hosted.compare_keyword_trends(keywords=["seo", "agents"])
+
+    assert single.metrics.points_observed == 30
+    assert single.growth == {}
+    assert all(entry.metrics.points_observed == 30 and entry.growth == {} for entry in comparison.comparisons)
+
+
 async def test_compare_preserves_valid_trends_when_provider_returns_malformed_rows(
     fake_providers, monkeypatch
 ):
