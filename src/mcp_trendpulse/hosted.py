@@ -744,6 +744,11 @@ async def get_trend_context(
         limitations.append(
             "Google News headlines are temporarily unavailable; trend metrics come from Google Trends only."
         )
+    if not isinstance(articles, (list, tuple)):
+        articles = []
+        limitations.append(
+            "The malformed Google News RSS response was ignored; trend metrics come from Google Trends only."
+        )
     context_articles: list[ContextArticle] = []
     skipped_invalid = False
     for article in articles:
