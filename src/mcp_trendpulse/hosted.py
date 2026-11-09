@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from math import isfinite
 from statistics import fmean
 from typing import Annotated, Any, Literal, TypeVar
+from urllib.parse import urlsplit
 
 from fastmcp import FastMCP
 from fastmcp.server.middleware.error_handling import ErrorHandlingMiddleware
@@ -384,11 +385,27 @@ def _context_article(article: object) -> ContextArticle | None:
     url = article.get("url")
     if not isinstance(title, str) or not title.strip() or not isinstance(url, str) or not url.strip():
         return None
+    link = url.strip()
+    # RSS metadata is untrusted: never surface executable or malformed link schemes.
+    if any(character.isspace() or ord(character) < 32 for character in link):
+        return None
+    try:
+        parsed = urlsplit(link)
+        if (
+            parsed.scheme.lower() not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.port == 0
+        ):
+            return None
+    except ValueError:
+        return None
     source = article.get("meta_site_name")
     published = article.get("publish_date")
     return ContextArticle(
         title=title.strip(),
-        url=url.strip(),
+        url=link,
         publish_date=published if isinstance(published, str) else None,
         source=source.strip() if isinstance(source, str) and source.strip() else None,
     )
