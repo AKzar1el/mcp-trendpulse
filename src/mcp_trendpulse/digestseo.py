@@ -21,9 +21,9 @@ MAX_ERROR_RESPONSE_BYTES = 32_000
 CONTEXT_TIMEOUT_SECONDS = 12
 
 
-@dataclass(frozen=True)
+@dataclass
 class DigestSeoContextError(RuntimeError):
-    """Safe error raised when optional DigestSEO project context cannot be resolved."""
+    """Safe context error; generator context managers must be able to update its traceback."""
 
     message: str
     code: str = "digestseo_context_error"
