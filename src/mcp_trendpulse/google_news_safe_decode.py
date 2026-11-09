@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+from time import monotonic
 from urllib.parse import quote, urlsplit
 
 from requests import Session
@@ -21,18 +22,23 @@ _TIMESTAMP = re.compile(r"[0-9]{1,16}\Z")
 _GOOGLE_NEWS_BATCH = "https://news.google.com/_/DotsSplashUi/data/batchexecute"
 
 
-def _bounded_body(response, max_bytes: int) -> str | None:
-    """Reject redirects, HTTP failures and oversized decompressed responses."""
+def _bounded_body(response, max_bytes: int, *, deadline: float) -> str | None:
+    """Reject failed, oversized or cumulatively slow streamed responses."""
     with response:
-        if response.status_code != 200:
+        if response.status_code != 200 or monotonic() >= deadline:
             return None
         chunks: list[bytes] = []
         total = 0
         for chunk in response.iter_content(chunk_size=16_384):
+            # Socket read timeouts alone do not bound a slow-drip response.
+            if monotonic() >= deadline:
+                return None
             total += len(chunk)
             if total > max_bytes:
                 return None
             chunks.append(chunk)
+        if monotonic() >= deadline:
+            return None
     return b"".join(chunks).decode("utf-8", errors="replace")
 
 
@@ -68,14 +74,20 @@ def decode_google_news_url_pinned(
         if timeout <= 0 or max_bytes <= 0:
             return {"status": False, "message": "Invalid resource budget."}
 
+        deadline = monotonic() + timeout
+
         signature: str | None = None
         timestamp: str | None = None
         for path in ("articles", "rss/articles"):
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                return {"status": False, "message": "Google News decoding timed out."}
             # Never let a redirect or response-supplied URL become a new target.
             url = f"https://news.google.com/{path}/{token}"
             text = _bounded_body(
-                session.get(url, timeout=timeout, stream=True, allow_redirects=False),
+                session.get(url, timeout=remaining, stream=True, allow_redirects=False),
                 max_bytes,
+                deadline=deadline,
             )
             if text is None:
                 continue
@@ -98,16 +110,20 @@ def decode_google_news_url_pinned(
             "Fbv4je",
             f'["garturlreq",[["X","X",["X","X"],null,null,1,1,"US:en",null,1,null,null,null,null,null,0,1],"X","X",1,[1,1,1],1,1,null,0,0,null,0],"{token}",{timestamp},"{signature}"]',
         ]
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            return {"status": False, "message": "Google News decoding timed out."}
         text = _bounded_body(
             session.post(
                 _GOOGLE_NEWS_BATCH,
                 headers={"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"},
                 data=f"f.req={quote(json.dumps([[payload]]))}",
-                timeout=timeout,
+                timeout=remaining,
                 stream=True,
                 allow_redirects=False,
             ),
             max_bytes,
+            deadline=deadline,
         )
         if text is None:
             return {"status": False, "message": "Google News batch response unavailable."}
