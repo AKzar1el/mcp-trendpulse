@@ -639,6 +639,10 @@ async def discover_related_demand(
         gprop=gprop,
     )
     limitations: list[str] = []
+    if not isinstance(queries, dict):
+        # Keep independent topic/suggestion evidence without inventing queries.
+        queries = {}
+        limitations.append("Related queries returned an invalid provider response; no related-query evidence is available.")
     topics: dict[str, list[dict[str, Any]]] = {"top": [], "rising": []}
     suggestions: list[dict[str, Any]] = []
     skip_suggestions = False
@@ -795,6 +799,9 @@ async def find_seo_opportunities(
         geo=geo,
         gprop=_SOURCE_TO_GPROP[source],
     )
+    invalid_related_response = not isinstance(related, dict)
+    if invalid_related_response:
+        related = {}
 
     candidate_rows: list[tuple[str, str, dict[str, Any]]] = []
     seen: set[str] = {seed_keyword.casefold()}
@@ -803,6 +810,9 @@ async def find_seo_opportunities(
         ("rising_related_query", related.get("rising") or []),
         ("top_related_query", related.get("top") or []),
     ):
+        if not isinstance(rows, list):
+            skipped_invalid_rows = True
+            continue
         for row in rows:
             if not isinstance(row, dict):
                 skipped_invalid_rows = True
@@ -882,6 +892,8 @@ async def find_seo_opportunities(
                 candidate.search_console = search_console_by_keyword.get(candidate.keyword)
 
     limitations = _seo_limitations(project_context)
+    if invalid_related_response:
+        limitations.append("Related queries returned an invalid provider response; no SEO candidates could be established.")
     if skipped_invalid_rows:
         limitations.append("Some malformed related-query entries were omitted from provider data.")
     if any(candidate.interest_points_observed == 0 for candidate in candidates):

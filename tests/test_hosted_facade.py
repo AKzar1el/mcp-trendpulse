@@ -532,6 +532,24 @@ async def test_related_demand_preserves_queries_on_malformed_optional_topics(
     assert any("topics" in item and "invalid" in item for item in result.limitations)
 
 
+@pytest.mark.parametrize("malformed_queries", [None, ["unexpected provider payload"]])
+async def test_related_demand_preserves_independent_enrichment_on_invalid_queries(
+    fake_providers, monkeypatch, malformed_queries
+):
+    async def invalid_queries(**kwargs):
+        return malformed_queries
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_queries", invalid_queries)
+    with use_provider_set(fake_providers):
+        result = await hosted.discover_related_demand(keyword="technical seo", limit=2)
+
+    assert result.top_queries == []
+    assert result.rising_queries == []
+    assert len(result.top_topics) == 2
+    assert len(result.suggestions) == 2
+    assert any("related queries" in item.lower() and "invalid" in item for item in result.limitations)
+
+
 async def test_related_demand_skips_extra_lookup_after_optional_rate_limit(fake_providers, monkeypatch):
     suggestion_calls = []
 
@@ -726,6 +744,40 @@ async def test_find_seo_opportunities_skips_non_mapping_related_rows(fake_provid
 
     assert [candidate.keyword for candidate in result.candidates] == ["valid rising", "valid top"]
     assert [candidate.interest_points_observed for candidate in result.candidates] == [30, 30]
+
+
+@pytest.mark.parametrize("malformed_queries", [None, ["unexpected provider payload"]])
+async def test_find_seo_opportunities_labels_invalid_related_query_container(
+    fake_providers, monkeypatch, malformed_queries
+):
+    async def invalid_queries(**kwargs):
+        return malformed_queries
+
+    async def unexpected_trends(**kwargs):
+        raise AssertionError("No Trends validation is possible without related keywords")
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_queries", invalid_queries)
+    monkeypatch.setattr(fake_providers.trends, "get_trends", unexpected_trends)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(seed_keyword="technical seo")
+
+    assert result.candidates == []
+    assert any("related queries" in item.lower() and "invalid" in item for item in result.limitations)
+
+
+async def test_find_seo_opportunities_preserves_valid_section_when_other_is_malformed(
+    fake_providers, monkeypatch
+):
+    async def mixed_queries(**kwargs):
+        return {"rising": 42, "top": [{"query": "valid keyword", "value": 80}]}
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_queries", mixed_queries)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(seed_keyword="seed")
+
+    assert [candidate.keyword for candidate in result.candidates] == ["valid keyword"]
+    assert result.candidates[0].interest_points_observed == 30
+    assert any("malformed related-query" in item for item in result.limitations)
 
 
 async def test_find_seo_opportunities_distinguishes_missing_interest_from_zero(
