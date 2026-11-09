@@ -288,11 +288,17 @@ def _as_float(value: Any) -> float | None:
     return numeric if isfinite(numeric) else None
 
 
+def _normalized_interest(value: Any) -> float | None:
+    numeric = _as_float(value)
+    return numeric if numeric is not None and 0 <= numeric <= 100 else None
+
+
 def _bounded_series(points: list[dict[str, Any]], max_points: int) -> list[TrendSeriesPoint]:
     normalized = [
-        TrendSeriesPoint(date=str(point["date"]), value=float(point["value"]))
+        TrendSeriesPoint(date=str(point["date"]), value=value)
         for point in points
-        if point.get("date") is not None and _as_float(point.get("value")) is not None
+        if point.get("date") is not None
+        and (value := _normalized_interest(point.get("value"))) is not None
     ]
     if len(normalized) <= max_points:
         return normalized
@@ -305,7 +311,7 @@ def _bounded_series(points: list[dict[str, Any]], max_points: int) -> list[Trend
 
 
 def _interest_metrics(points: list[dict[str, Any]]) -> InterestMetrics:
-    values = [value for point in points if (value := _as_float(point.get("value"))) is not None]
+    values = [value for point in points if (value := _normalized_interest(point.get("value"))) is not None]
     if not values:
         return InterestMetrics()
     return InterestMetrics(

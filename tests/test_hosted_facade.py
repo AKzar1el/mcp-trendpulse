@@ -319,6 +319,20 @@ def test_hosted_excludes_nonfinite_trend_numbers():
     ]) == {"seo": {"1Y": 15.0}}
 
 
+def test_hosted_excludes_out_of_range_normalized_interest_points():
+    # Google Trends interest is a normalized 0-100 score, not arbitrary volume.
+    points = [
+        {"date": "2026-11-01", "value": -4},
+        {"date": "2026-11-02", "value": 0},
+        {"date": "2026-11-03", "value": 100},
+        {"date": "2026-11-04", "value": 125},
+    ]
+    metrics = hosted._interest_metrics(points)
+    assert (metrics.latest, metrics.average, metrics.peak, metrics.points_observed) == (100.0, 50.0, 100.0, 2)
+    assert [point.value for point in hosted._bounded_series(points, 10)] == [0.0, 100.0]
+    assert hosted._interest_metrics(points[:1] + points[-1:]).points_observed == 0
+
+
 def test_hosted_ignores_boolean_provider_interest_and_growth_values():
     assert hosted._as_float(True) is None
     assert hosted._as_float(False) is None
