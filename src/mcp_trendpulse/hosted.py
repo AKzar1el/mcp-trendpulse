@@ -625,6 +625,11 @@ async def discover_related_demand(
     except Exception:
         limitations.append("Related topics could not be retrieved; related queries remain available.")
 
+    if not isinstance(topics, dict):
+        # A malformed optional provider response must not erase usable queries.
+        topics = {"top": [], "rising": []}
+        limitations.append("Related topics returned an invalid provider response; related queries remain available.")
+
     if not skip_suggestions:
         try:
             suggestions = await providers.trends.get_suggestions(keyword=keyword)
