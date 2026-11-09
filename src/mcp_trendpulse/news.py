@@ -1488,22 +1488,25 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
         keyword = _decode_provider_text(getattr(trend, "keyword", None))
         if _provider_identity_text(keyword) is None or not isinstance(volume, str) or not volume.strip():
             continue
-        trend.keyword = keyword
-        if hasattr(trend, "picture_source"):
-            trend.picture_source = _decode_provider_text(trend.picture_source)
+        # Cached provider objects may be returned again; normalize copies only.
+        normalized_trend = copy.copy(trend)
+        normalized_trend.keyword = keyword
+        if hasattr(normalized_trend, "picture_source"):
+            normalized_trend.picture_source = _decode_provider_text(normalized_trend.picture_source)
         articles = getattr(trend, "news", None)
         valid_articles = []
         for article in articles if isinstance(articles, (list, tuple)) else []:
             title = _provider_identity_text(_decode_provider_text(getattr(article, "title", None)))
             if title is None:
                 continue
-            article.title = title
-            article.source = _decode_provider_text(getattr(article, "source", None))
-            article.snippet = _decode_provider_text(getattr(article, "snippet", None))
-            valid_articles.append(article)
-        if hasattr(trend, "news"):
-            trend.news = valid_articles
-        valid_trends.append(trend)
+            normalized_article = copy.copy(article)
+            normalized_article.title = title
+            normalized_article.source = _decode_provider_text(getattr(article, "source", None))
+            normalized_article.snippet = _decode_provider_text(getattr(article, "snippet", None))
+            valid_articles.append(normalized_article)
+        if hasattr(normalized_trend, "news"):
+            normalized_trend.news = valid_articles
+        valid_trends.append(normalized_trend)
     trends = sorted(valid_trends, key=lambda trend: parse_trending_volume(trend.volume), reverse=True)
     if not full_data:
         return [{"keyword": trend.keyword, "volume": trend.volume} for trend in trends]
