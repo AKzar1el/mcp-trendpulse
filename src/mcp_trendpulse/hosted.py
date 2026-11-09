@@ -319,8 +319,12 @@ def _interest_metrics(points: list[dict[str, Any]]) -> InterestMetrics:
 def _growth_by_keyword(results: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
     growth: dict[str, dict[str, float]] = {}
     for item in results:
+        if not isinstance(item, dict):
+            continue
         keyword = str(item.get("keyword", ""))
         values = item.get("growth") or {}
+        if not isinstance(values, dict):
+            values = {}
         growth[keyword] = {
             str(period): float(value)
             for period, value in values.items()

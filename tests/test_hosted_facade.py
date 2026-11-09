@@ -335,6 +335,17 @@ def test_hosted_ignores_boolean_provider_interest_and_growth_values():
         {"keyword": "seo", "growth": {"3M": True, "6M": False, "1Y": 12.5}}
     ]) == {"seo": {"1Y": 12.5}}
 
+
+def test_hosted_growth_ignores_malformed_provider_rows_and_mappings():
+    # Optional growth data must not abort the usable trend-series response.
+    assert hosted._growth_by_keyword([
+        None,
+        {"keyword": "one", "growth": ["not a mapping"]},
+        {"keyword": "two", "growth": {"3M": 9.5}},
+        {"keyword": "three", "growth": "unavailable"},
+        {"keyword": "four", "growth": {"3M": "NaN", "1Y": 2}},
+    ]) == {"one": {}, "two": {"3M": 9.5}, "three": {}, "four": {"1Y": 2.0}}
+
 @pytest.mark.parametrize("keywords", [["same", "same"], ["same", " SAME "]])
 async def test_compare_rejects_duplicate_keywords(fake_providers, keywords):
     with use_provider_set(fake_providers), pytest.raises(ValueError, match="unique"):
