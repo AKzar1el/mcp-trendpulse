@@ -823,17 +823,23 @@ async def find_seo_opportunities(
             )
         except DigestSeoContextError as exc:
             # Optional context must not discard validated Trends results on a
-            # temporary upstream failure. Auth and project-access errors remain fatal.
-            if exc.status is None or exc.status < 500:
+            # temporary upstream failure or rate limit. Auth and project-access
+            # errors remain fatal; never retry the throttled provider here.
+            if exc.status not in (408, 429) and (exc.status is None or exc.status < 500):
                 raise
+            rate_limited = exc.status == 429
             project_context = SeoProjectContext(
                 project_id=project_id,
                 project_name="",
                 origin="",
                 search_console_available=False,
-                reason="digestseo_temporarily_unavailable",
+                reason="digestseo_rate_limited" if rate_limited else "digestseo_temporarily_unavailable",
                 retryable=True,
-                message="DigestSEO Search Console context is temporarily unavailable; retry later.",
+                message=(
+                    "DigestSEO Search Console context is rate-limited; retry later."
+                    if rate_limited
+                    else "DigestSEO Search Console context is temporarily unavailable; retry later."
+                ),
             )
         else:
             project_context, search_console_by_keyword = _search_console_context(context_payload)

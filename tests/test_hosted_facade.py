@@ -830,3 +830,31 @@ async def test_find_seo_opportunities_does_not_hide_digestseo_client_errors(
     with use_provider_set(fake_providers), pytest.raises(DigestSeoContextError) as caught:
         await hosted.find_seo_opportunities(seed_keyword="technical seo", project_id="project_123")
     assert caught.value is error
+
+
+@pytest.mark.parametrize(
+    ("status", "expected_reason"),
+    [(408, "digestseo_temporarily_unavailable"), (429, "digestseo_rate_limited")],
+)
+async def test_find_seo_opportunities_keeps_trends_when_optional_context_is_throttled(
+    fake_providers, monkeypatch, status, expected_reason
+):
+    async def failing_context(**kwargs):
+        raise DigestSeoContextError("Temporary upstream failure", status=status)
+
+    monkeypatch.setattr(hosted, "fetch_digestseo_project_context", failing_context)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(
+            seed_keyword="technical seo", limit=2, project_id="project_123"
+        )
+
+    assert len(result.candidates) == 2
+    assert all(candidate.interest_points_observed > 0 for candidate in result.candidates)
+    assert all(candidate.search_console is None for candidate in result.candidates)
+    assert result.project_context is not None
+    assert result.project_context.search_console_available is False
+    assert result.project_context.reason == expected_reason
+    assert result.project_context.retryable is True
+    assert any("remain trend-only" in limitation for limitation in result.limitations)
+    if status == 429:
+        assert "rate-limit" in result.project_context.message.lower()
