@@ -83,6 +83,40 @@ async def test_get_trending_terms_full_data_decodes_nested_provider_display_text
     assert result[0].news[0].snippet == "Arby's fans remember it."
 
 
+@pytest.mark.parametrize("full_data", [False, True])
+async def test_get_trending_terms_ignores_malformed_nested_rss_news(full_data):
+    complete = SimpleNamespace(
+        title="Valid &amp; relevant", source="News &amp; Analysis", snippet="A &amp; B"
+    )
+    minimal = SimpleNamespace(title="Still useful")
+    trend = SimpleNamespace(
+        keyword="reliable topic", volume="200+",
+        news=[None, {"title": "unsupported mapping"}, SimpleNamespace(url="missing title"), complete, minimal],
+    )
+
+    with patch.object(news.tr, "trending_now_by_rss", return_value=[trend]):
+        result = await news.get_trending_terms(full_data=full_data)
+
+    if not full_data:
+        assert result == [{"keyword": "reliable topic", "volume": "200+"}]
+    else:
+        assert result[0].news == [complete, minimal]
+        assert complete.title == "Valid & relevant"
+        assert complete.source == "News & Analysis"
+        assert complete.snippet == "A & B"
+        assert minimal.source is None
+        assert minimal.snippet is None
+
+
+@pytest.mark.parametrize("news_items", [None, 42, "not a list", {"invalid": True}])
+async def test_get_trending_terms_ignores_nonsequence_nested_rss_news(news_items):
+    trend = SimpleNamespace(keyword="valid keyword", volume="300+", news=news_items)
+    with patch.object(news.tr, "trending_now_by_rss", return_value=[trend]):
+        result = await news.get_trending_terms(full_data=True)
+    assert result[0].keyword == "valid keyword"
+    assert result[0].news == []
+
+
 def test_trending_cli_discloses_approximate_traffic(monkeypatch):
     """Trending RSS CLI must not present provider buckets as precise search counts."""
     from click.testing import CliRunner

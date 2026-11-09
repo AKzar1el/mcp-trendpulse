@@ -254,6 +254,32 @@ async def test_discover_trends_is_bounded_and_preserves_provider_metadata(fake_p
     assert all(len(item.context_articles) <= 3 for item in result.trends)
 
 
+async def test_discover_trends_skips_invalid_ranked_rows_and_optional_news(fake_providers, monkeypatch):
+    valid_story = {
+        "title": "Useful report",
+        "url": "https://example.com/report",
+        "source": "Example",
+    }
+
+    async def malformed_rankings(**kwargs):
+        return [
+            None,
+            {"keyword": "alpha", "volume": 100, "news": [None, valid_story]},
+            {"volume": 90, "news": [valid_story]},
+            {"keyword": "beta", "volume": 80, "news": {"bad": "shape"}},
+            {"keyword": "gamma", "volume": 70, "news": [valid_story]},
+        ]
+
+    monkeypatch.setattr(fake_providers.trends, "get_ranked_trends", malformed_rankings)
+    with use_provider_set(fake_providers):
+        result = await hosted.discover_trends(limit=3)
+
+    assert [trend.keyword for trend in result.trends] == ["alpha", "beta", "gamma"]
+    assert [[story.title for story in trend.context_articles] for trend in result.trends] == [
+        ["Useful report"], [], ["Useful report"]
+    ]
+
+
 async def test_analyze_and_compare_return_bounded_series(fake_providers):
     with use_provider_set(fake_providers):
         analysis = await hosted.analyze_keyword_trend(
@@ -319,6 +345,20 @@ def test_hosted_excludes_nonfinite_trend_numbers():
     ]) == {"seo": {"1Y": 15.0}}
 
 
+def test_hosted_excludes_out_of_range_normalized_interest_points():
+    # Google Trends interest is a normalized 0-100 score, not arbitrary volume.
+    points = [
+        {"date": "2026-11-01", "value": -4},
+        {"date": "2026-11-02", "value": 0},
+        {"date": "2026-11-03", "value": 100},
+        {"date": "2026-11-04", "value": 125},
+    ]
+    metrics = hosted._interest_metrics(points)
+    assert (metrics.latest, metrics.average, metrics.peak, metrics.points_observed) == (100.0, 50.0, 100.0, 2)
+    assert [point.value for point in hosted._bounded_series(points, 10)] == [0.0, 100.0]
+    assert hosted._interest_metrics(points[:1] + points[-1:]).points_observed == 0
+
+
 def test_hosted_ignores_boolean_provider_interest_and_growth_values():
     assert hosted._as_float(True) is None
     assert hosted._as_float(False) is None
@@ -345,6 +385,48 @@ def test_hosted_growth_ignores_malformed_provider_rows_and_mappings():
         {"keyword": "three", "growth": "unavailable"},
         {"keyword": "four", "growth": {"3M": "NaN", "1Y": 2}},
     ]) == {"one": {}, "two": {"3M": 9.5}, "three": {}, "four": {"1Y": 2.0}}
+
+async def test_compare_preserves_valid_trends_when_provider_returns_malformed_rows(
+    fake_providers, monkeypatch
+):
+    async def mixed_trends(keyword, **kwargs):
+        return [
+            None,
+            ["unexpected row"],
+            {"keyword": keyword[0], "date": "2026-11-01", "value": 25},
+            {"keyword": keyword[1], "date": "2026-11-01", "value": 0},
+            {"keyword": None, "date": "2026-11-02", "value": 80},
+        ]
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", mixed_trends)
+    with use_provider_set(fake_providers):
+        result = await hosted.compare_keyword_trends(keywords=["first", "second"])
+
+    assert [entry.metrics.latest for entry in result.comparisons] == [25.0, 0.0]
+    assert [entry.metrics.points_observed for entry in result.comparisons] == [1, 1]
+    assert [entry.series[0].value for entry in result.comparisons] == [25.0, 0.0]
+
+
+async def test_seo_opportunities_keep_valid_interest_when_provider_returns_malformed_rows(
+    fake_providers, monkeypatch
+):
+    async def mixed_trends(keyword, **kwargs):
+        return [
+            None,
+            "unexpected row",
+            {"keyword": keyword[0], "date": "2026-11-01", "value": 35},
+            {"keyword": keyword[1], "date": "2026-11-01", "value": 0},
+        ]
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", mixed_trends)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(seed_keyword="seo", limit=2)
+
+    assert [item.latest_interest for item in result.candidates] == [35.0, 0.0]
+    assert [item.interest_validation_status for item in result.candidates] == [
+        "observed", "observed"
+    ]
+
 
 @pytest.mark.parametrize("keywords", [["same", "same"], ["same", " SAME "]])
 async def test_compare_rejects_duplicate_keywords(fake_providers, keywords):
@@ -476,6 +558,24 @@ async def test_related_demand_preserves_queries_on_malformed_optional_topics(
     assert any("topics" in item and "invalid" in item for item in result.limitations)
 
 
+@pytest.mark.parametrize("malformed_queries", [None, ["unexpected provider payload"]])
+async def test_related_demand_preserves_independent_enrichment_on_invalid_queries(
+    fake_providers, monkeypatch, malformed_queries
+):
+    async def invalid_queries(**kwargs):
+        return malformed_queries
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_queries", invalid_queries)
+    with use_provider_set(fake_providers):
+        result = await hosted.discover_related_demand(keyword="technical seo", limit=2)
+
+    assert result.top_queries == []
+    assert result.rising_queries == []
+    assert len(result.top_topics) == 2
+    assert len(result.suggestions) == 2
+    assert any("related queries" in item.lower() and "invalid" in item for item in result.limitations)
+
+
 async def test_related_demand_skips_extra_lookup_after_optional_rate_limit(fake_providers, monkeypatch):
     suggestion_calls = []
 
@@ -539,6 +639,24 @@ async def test_trend_context_handles_empty_rss_headlines(fake_providers, monkeyp
 
     assert result.recent_articles == []
     assert result.metrics.points_observed == 30
+
+
+@pytest.mark.parametrize("malformed_payload", [None, {"title": "not a list"}, "not a list"])
+async def test_trend_context_preserves_trends_when_rss_container_is_malformed(
+    fake_providers, monkeypatch, malformed_payload
+):
+    async def malformed_headlines(**kwargs):
+        return malformed_payload
+
+    monkeypatch.setattr(
+        fake_providers.news, "get_rss_headlines_by_keyword", malformed_headlines
+    )
+    with use_provider_set(fake_providers):
+        result = await hosted.get_trend_context(keyword="AI search")
+
+    assert result.metrics.points_observed == 30
+    assert result.recent_articles == []
+    assert any("malformed Google News RSS response" in note for note in result.limitations)
 
 
 @pytest.mark.parametrize(
@@ -670,6 +788,40 @@ async def test_find_seo_opportunities_skips_non_mapping_related_rows(fake_provid
 
     assert [candidate.keyword for candidate in result.candidates] == ["valid rising", "valid top"]
     assert [candidate.interest_points_observed for candidate in result.candidates] == [30, 30]
+
+
+@pytest.mark.parametrize("malformed_queries", [None, ["unexpected provider payload"]])
+async def test_find_seo_opportunities_labels_invalid_related_query_container(
+    fake_providers, monkeypatch, malformed_queries
+):
+    async def invalid_queries(**kwargs):
+        return malformed_queries
+
+    async def unexpected_trends(**kwargs):
+        raise AssertionError("No Trends validation is possible without related keywords")
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_queries", invalid_queries)
+    monkeypatch.setattr(fake_providers.trends, "get_trends", unexpected_trends)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(seed_keyword="technical seo")
+
+    assert result.candidates == []
+    assert any("related queries" in item.lower() and "invalid" in item for item in result.limitations)
+
+
+async def test_find_seo_opportunities_preserves_valid_section_when_other_is_malformed(
+    fake_providers, monkeypatch
+):
+    async def mixed_queries(**kwargs):
+        return {"rising": 42, "top": [{"query": "valid keyword", "value": 80}]}
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_queries", mixed_queries)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(seed_keyword="seed")
+
+    assert [candidate.keyword for candidate in result.candidates] == ["valid keyword"]
+    assert result.candidates[0].interest_points_observed == 30
+    assert any("malformed related-query" in item for item in result.limitations)
 
 
 async def test_find_seo_opportunities_distinguishes_missing_interest_from_zero(
@@ -823,7 +975,7 @@ async def test_find_seo_opportunities_degrades_when_gsc_is_unavailable(
     assert any("remain trend-only" in limitation for limitation in result.limitations)
 
 
-@pytest.mark.parametrize("status", [502, 503, 504])
+@pytest.mark.parametrize("status", [429, 502, 503, 504])
 async def test_find_seo_opportunities_preserves_trends_on_transient_digestseo_error(
     fake_providers, monkeypatch, status
 ):
@@ -843,7 +995,8 @@ async def test_find_seo_opportunities_preserves_trends_on_transient_digestseo_er
     assert result.project_context.project_id == "project_123"
     assert result.project_context.search_console_available is False
     assert result.project_context.retryable is True
-    assert result.project_context.reason == "digestseo_temporarily_unavailable"
+    expected_reason = "digestseo_rate_limited" if status == 429 else "digestseo_temporarily_unavailable"
+    assert result.project_context.reason == expected_reason
     assert any("remain trend-only" in limitation for limitation in result.limitations)
 
 
@@ -860,6 +1013,30 @@ async def test_find_seo_opportunities_does_not_hide_digestseo_client_errors(
     with use_provider_set(fake_providers), pytest.raises(DigestSeoContextError) as caught:
         await hosted.find_seo_opportunities(seed_keyword="technical seo", project_id="project_123")
     assert caught.value is error
+
+
+def test_hosted_interest_metrics_and_bounded_series_use_observation_time_not_provider_order():
+    # These two instants cross offsets; lexical timestamp order is not UTC order.
+    points = [
+        {"date": "2026-11-01T01:15:00+00:00", "value": 20},
+        {"date": "2026-11-01T01:30:00+01:00", "value": 80},
+        {"date": "not-a-timestamp", "value": 99},
+        {"date": "2026-10-31", "value": 10},
+    ]
+
+    metrics = hosted._interest_metrics(points)
+    series = hosted._bounded_series(points, max_points=3)
+
+    assert metrics.latest == 20
+    assert metrics.average == 36.67
+    assert metrics.peak == 80
+    assert metrics.points_observed == 3
+    assert [(item.date, item.value) for item in series] == [
+        ("2026-10-31", 10),
+        ("2026-11-01T01:30:00+01:00", 80),
+        ("2026-11-01T01:15:00+00:00", 20),
+    ]
+    assert hosted._bounded_series(points, max_points=1)[0].value == 20
 
 
 @pytest.mark.parametrize(

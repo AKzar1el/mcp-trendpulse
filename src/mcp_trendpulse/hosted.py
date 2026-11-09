@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from math import isfinite
 from statistics import fmean
 from typing import Annotated, Any, Literal, TypeVar
@@ -288,11 +289,36 @@ def _as_float(value: Any) -> float | None:
     return numeric if isfinite(numeric) else None
 
 
+def _normalized_interest(value: Any) -> float | None:
+    numeric = _as_float(value)
+    return numeric if numeric is not None and 0 <= numeric <= 100 else None
+
+
+def _chronological_interest(points: list[dict[str, Any]]) -> list[tuple[str, float]]:
+    """Only use dated, normalized observations, ordered by actual UTC instant."""
+    dated: list[tuple[datetime, str, float]] = []
+    for point in points:
+        if not isinstance(point, dict):
+            continue
+        label = point.get("date")
+        value = _normalized_interest(point.get("value"))
+        if not isinstance(label, str) or value is None:
+            continue
+        try:
+            observed = datetime.fromisoformat(label.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if observed.tzinfo is None:
+            observed = observed.replace(tzinfo=timezone.utc)
+        dated.append((observed.astimezone(timezone.utc), label, value))
+    dated.sort(key=lambda entry: entry[0])
+    return [(label, value) for _, label, value in dated]
+
+
 def _bounded_series(points: list[dict[str, Any]], max_points: int) -> list[TrendSeriesPoint]:
     normalized = [
-        TrendSeriesPoint(date=str(point["date"]), value=float(point["value"]))
-        for point in points
-        if point.get("date") is not None and _as_float(point.get("value")) is not None
+        TrendSeriesPoint(date=label, value=value)
+        for label, value in _chronological_interest(points)
     ]
     if len(normalized) <= max_points:
         return normalized
@@ -305,7 +331,7 @@ def _bounded_series(points: list[dict[str, Any]], max_points: int) -> list[Trend
 
 
 def _interest_metrics(points: list[dict[str, Any]]) -> InterestMetrics:
-    values = [value for point in points if (value := _as_float(point.get("value"))) is not None]
+    values = [value for _, value in _chronological_interest(points)]
     if not values:
         return InterestMetrics()
     return InterestMetrics(
@@ -333,10 +359,15 @@ def _growth_by_keyword(results: list[dict[str, Any]]) -> dict[str, dict[str, flo
     return growth
 
 
-def _series_by_keyword(results: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+def _series_by_keyword(results: list[Any]) -> dict[str, list[dict[str, Any]]]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for item in results:
-        grouped[str(item.get("keyword", ""))].append(item)
+        if not isinstance(item, dict):
+            continue
+        keyword = item.get("keyword")
+        if not isinstance(keyword, str) or not keyword.strip():
+            continue
+        grouped[keyword].append(item)
     return grouped
 
 
@@ -464,26 +495,51 @@ async def discover_trends(
     )
 
     trends: list[DiscoveredTrend] = []
-    for row in rows[:limit]:
-        context_articles = [
-            TrendNewsSnippet(
-                title=str(article.get("title", "")),
-                url=str(article.get("url", "")),
-                source=str(article["source"]) if article.get("source") else None,
-                time=article.get("time"),
-                snippet=str(article["snippet"]) if article.get("snippet") else None,
-            )
-            for article in (row.get("news") or [])[:3]
-        ]
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("keyword"), str):
+            continue
+        keyword = row["keyword"].strip()
+        if not keyword:
+            continue
+        context_articles: list[TrendNewsSnippet] = []
+        news = row.get("news")
+        if isinstance(news, (list, tuple)):
+            for article in news:
+                if not isinstance(article, dict):
+                    continue
+                title, url = article.get("title"), article.get("url")
+                if (
+                    not isinstance(title, str)
+                    or not title.strip()
+                    or not isinstance(url, str)
+                    or not url.strip()
+                ):
+                    continue
+                try:
+                    context_articles.append(
+                        TrendNewsSnippet(
+                            title=title,
+                            url=url,
+                            source=str(article["source"]) if article.get("source") else None,
+                            time=article.get("time"),
+                            snippet=str(article["snippet"]) if article.get("snippet") else None,
+                        )
+                    )
+                except ValidationError:
+                    continue
+                if len(context_articles) >= 3:
+                    break
         trends.append(
             DiscoveredTrend(
-                keyword=str(row.get("keyword", "")),
+                keyword=keyword,
                 volume=row.get("volume"),
                 growth_pct=_as_float(row.get("growth_pct")),
                 started=row.get("started") if isinstance(row.get("started"), int) else None,
                 context_articles=context_articles,
             )
         )
+        if len(trends) >= limit:
+            break
 
     return DiscoverTrendsResult(
         provider=providers.trends.provider_id,
@@ -608,6 +664,10 @@ async def discover_related_demand(
         gprop=gprop,
     )
     limitations: list[str] = []
+    if not isinstance(queries, dict):
+        # Keep independent topic/suggestion evidence without inventing queries.
+        queries = {}
+        limitations.append("Related queries returned an invalid provider response; no related-query evidence is available.")
     topics: dict[str, list[dict[str, Any]]] = {"top": [], "rising": []}
     suggestions: list[dict[str, Any]] = []
     skip_suggestions = False
@@ -709,6 +769,11 @@ async def get_trend_context(
         limitations.append(
             "Google News headlines are temporarily unavailable; trend metrics come from Google Trends only."
         )
+    if not isinstance(articles, (list, tuple)):
+        articles = []
+        limitations.append(
+            "The malformed Google News RSS response was ignored; trend metrics come from Google Trends only."
+        )
     context_articles: list[ContextArticle] = []
     skipped_invalid = False
     for article in articles:
@@ -764,6 +829,9 @@ async def find_seo_opportunities(
         geo=geo,
         gprop=_SOURCE_TO_GPROP[source],
     )
+    invalid_related_response = not isinstance(related, dict)
+    if invalid_related_response:
+        related = {}
 
     candidate_rows: list[tuple[str, str, dict[str, Any]]] = []
     seen: set[str] = {seed_keyword.casefold()}
@@ -772,6 +840,9 @@ async def find_seo_opportunities(
         ("rising_related_query", related.get("rising") or []),
         ("top_related_query", related.get("top") or []),
     ):
+        if not isinstance(rows, list):
+            skipped_invalid_rows = True
+            continue
         for row in rows:
             if not isinstance(row, dict):
                 skipped_invalid_rows = True
@@ -833,7 +904,7 @@ async def find_seo_opportunities(
         except DigestSeoContextError as exc:
             # Optional context must not discard validated Trends results on a
             # temporary upstream failure or rate limit. Auth and project-access
-            # errors remain fatal; never retry the throttled provider here.
+            # errors remain fatal; do not retry a rate-limited upstream here.
             if exc.status not in (408, 429) and (exc.status is None or exc.status < 500):
                 raise
             rate_limited = exc.status == 429
@@ -844,11 +915,7 @@ async def find_seo_opportunities(
                 search_console_available=False,
                 reason="digestseo_rate_limited" if rate_limited else "digestseo_temporarily_unavailable",
                 retryable=True,
-                message=(
-                    "DigestSEO Search Console context is rate-limited; retry later."
-                    if rate_limited
-                    else "DigestSEO Search Console context is temporarily unavailable; retry later."
-                ),
+                message="DigestSEO Search Console context is temporarily unavailable or rate-limited; retry later.",
             )
         else:
             project_context, search_console_by_keyword = _search_console_context(context_payload)
@@ -856,6 +923,8 @@ async def find_seo_opportunities(
                 candidate.search_console = search_console_by_keyword.get(candidate.keyword)
 
     limitations = _seo_limitations(project_context)
+    if invalid_related_response:
+        limitations.append("Related queries returned an invalid provider response; no SEO candidates could be established.")
     if skipped_invalid_rows:
         limitations.append("Some malformed related-query entries were omitted from provider data.")
     if any(candidate.interest_points_observed == 0 for candidate in candidates):

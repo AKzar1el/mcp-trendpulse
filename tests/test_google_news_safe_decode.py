@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 import pytest
 
 from mcp_trendpulse import news
+from mcp_trendpulse import google_news_safe_decode as decoder
 from mcp_trendpulse.google_news_safe_decode import decode_google_news_url_pinned
 
 
@@ -78,7 +79,7 @@ def test_decodes_using_only_fixed_google_hosts_and_bounded_no_redirect_requests(
     assert [method for method, _, _ in session.calls] == ["GET", "POST"]
     assert all(urlsplit(url).hostname == "news.google.com" for _, url, _ in session.calls)
     assert all(kwargs["allow_redirects"] is False for _, _, kwargs in session.calls)
-    assert all(kwargs["stream"] is True and kwargs["timeout"] == 4 for _, _, kwargs in session.calls)
+    assert all(kwargs["stream"] is True and 0 < kwargs["timeout"] <= 4 for _, _, kwargs in session.calls)
     assert "f.req=" in session.calls[-1][2]["data"]
 
 
@@ -110,6 +111,32 @@ def test_oversized_or_invalid_metadata_fails_closed_without_posting():
     )
     assert result["status"] is False
     assert all(method == "GET" for method, _, _ in invalid.calls)
+
+
+@pytest.mark.parametrize("drip_stage", ["GET", "POST"])
+def test_slow_drip_decoder_response_expires_cumulative_budget(monkeypatch, drip_stage):
+    clock = [0.0]
+    monkeypatch.setattr(decoder, "monotonic", lambda: clock[0], raising=False)
+
+    class DrippingResponse(_Response):
+        def iter_content(self, chunk_size: int):
+            for chunk in super().iter_content(chunk_size):
+                clock[0] += 0.8
+                yield chunk
+
+    # Each chunk arrives before a per-read timeout, but the entire body does not.
+    if drip_stage == "GET":
+        session = _Session([DrippingResponse(_HTML + " " * 35_000)], _Response(_BATCH))
+    else:
+        session = _Session([_Response(_HTML)], DrippingResponse(_BATCH + " " * 35_000))
+    result = decode_google_news_url_pinned(
+        "https://news.google.com/rss/articles/C123", session,
+        timeout=1, max_bytes=60_000,
+    )
+    assert result["status"] is False
+    assert [method for method, _, _ in session.calls] == (
+        ["GET"] if drip_stage == "GET" else ["GET", "POST"]
+    )
 
 
 def test_real_session_configuration_disables_ambient_proxies_and_pins_both_schemes(monkeypatch):
