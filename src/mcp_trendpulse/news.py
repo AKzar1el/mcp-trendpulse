@@ -2083,6 +2083,17 @@ async def get_interest_by_region(
     return results
 
 
+def _validated_related_frames(result: object, operation: str) -> Mapping[str, Any]:
+    """Make malformed provider containers an explicit unavailable result."""
+    if not isinstance(result, Mapping) or any(
+        result.get(section) is not None
+        and not isinstance(result[section], pandas.DataFrame)
+        for section in ("top", "rising")
+    ):
+        raise ProviderUnavailableError("google_trends", operation)
+    return result
+
+
 async def get_related_queries(
     keyword: str,
     timeframe: str = "today 12-m",
@@ -2104,6 +2115,7 @@ async def get_related_queries(
             headers={"referer": "https://www.google.com/"}
         )
     )
+    res = _validated_related_frames(res, "related_queries")
     out = {"top": [], "rising": []}
     for key in ("top", "rising"):
         df = res.get(key)
@@ -2146,6 +2158,7 @@ async def get_related_topics(
             headers={"referer": "https://www.google.com/"}
         )
     )
+    res = _validated_related_frames(res, "related_topics")
     out = {"top": [], "rising": []}
     for key in ("top", "rising"):
         df = res.get(key)
@@ -2178,6 +2191,8 @@ async def get_suggestions(keyword: str, language: Optional[str] = None) -> list[
         "suggestions",
         lambda: tr.suggestions(keyword=keyword, language=language)
     )
+    if not isinstance(df, pandas.DataFrame):
+        raise ProviderUnavailableError("google_trends", "suggestions")
     if df.empty:
         return []
     results = []

@@ -5,8 +5,33 @@ from math import isfinite
 from unittest.mock import patch
 
 import pandas as pd
+import pytest
 
 from mcp_trendpulse import news
+
+
+@pytest.mark.parametrize("payload", [None, ["unexpected"], {"top": ["unexpected"]}])
+async def test_related_queries_report_malformed_provider_containers(payload):
+    with patch.object(news, "_call_related_queries_with_unavailable_retry", return_value=payload):
+        with pytest.raises(news.ProviderUnavailableError) as error:
+            await news.get_related_queries("python")
+    assert error.value.operation == "related_queries"
+
+
+@pytest.mark.parametrize("payload", [None, ["unexpected"], {"rising": {"value": 100}}])
+async def test_related_topics_report_malformed_provider_containers(payload):
+    with patch.object(news.tr, "related_topics", return_value=payload):
+        with pytest.raises(news.ProviderUnavailableError) as error:
+            await news.get_related_topics("python")
+    assert error.value.operation == "related_topics"
+
+
+@pytest.mark.parametrize("payload", [None, ["unexpected"]])
+async def test_suggestions_report_malformed_provider_containers(payload):
+    with patch.object(news.tr, "suggestions", return_value=payload):
+        with pytest.raises(news.ProviderUnavailableError) as error:
+            await news.get_suggestions("python")
+    assert error.value.operation == "suggestions"
 
 
 async def test_trends_drop_nonfinite_points_without_discarding_valid_observations():
