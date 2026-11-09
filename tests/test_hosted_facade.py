@@ -615,6 +615,24 @@ async def test_trend_context_handles_empty_rss_headlines(fake_providers, monkeyp
     assert result.metrics.points_observed == 30
 
 
+@pytest.mark.parametrize("malformed_payload", [None, {"title": "not a list"}, "not a list"])
+async def test_trend_context_preserves_trends_when_rss_container_is_malformed(
+    fake_providers, monkeypatch, malformed_payload
+):
+    async def malformed_headlines(**kwargs):
+        return malformed_payload
+
+    monkeypatch.setattr(
+        fake_providers.news, "get_rss_headlines_by_keyword", malformed_headlines
+    )
+    with use_provider_set(fake_providers):
+        result = await hosted.get_trend_context(keyword="AI search")
+
+    assert result.metrics.points_observed == 30
+    assert result.recent_articles == []
+    assert any("malformed Google News RSS response" in note for note in result.limitations)
+
+
 @pytest.mark.parametrize(
     "error_type", [ProviderRateLimitError, ProviderTimeoutError, ProviderUnavailableError]
 )
