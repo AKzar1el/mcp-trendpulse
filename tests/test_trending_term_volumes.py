@@ -62,6 +62,32 @@ async def test_get_trending_terms_full_data_decodes_provider_keyword_html_entiti
     assert result[0].keyword == "arby's"
 
 
+@pytest.mark.parametrize("full_data", [False, True])
+@pytest.mark.parametrize("encoded_blank", ["&nbsp;", "&#32;", " &#x2003; "])
+async def test_get_trending_terms_skips_keywords_blank_after_entity_decoding(encoded_blank, full_data):
+    valid = SimpleNamespace(keyword="useful &amp; valid", volume="200+")
+    malformed = SimpleNamespace(keyword=encoded_blank, volume="900+")
+    with patch.object(news.tr, "trending_now_by_rss", return_value=[malformed, valid]):
+        result = await news.get_trending_terms(full_data=full_data)
+
+    if full_data:
+        assert result == [valid]
+        assert valid.keyword == "useful & valid"
+    else:
+        assert result == [{"keyword": "useful & valid", "volume": "200+"}]
+
+
+async def test_get_trending_terms_full_data_skips_article_titles_blank_after_entity_decoding():
+    valid = SimpleNamespace(title="Meaningful &amp; verified", source="Publisher")
+    blank = SimpleNamespace(title="&nbsp;", source="Publisher")
+    trend = SimpleNamespace(keyword="topic", volume="500+", news=[blank, valid])
+    with patch.object(news.tr, "trending_now_by_rss", return_value=[trend]):
+        result = await news.get_trending_terms(full_data=True)
+
+    assert result[0].news == [valid]
+    assert valid.title == "Meaningful & verified"
+
+
 async def test_get_trending_terms_full_data_decodes_nested_provider_display_text():
     article = SimpleNamespace(
         title="The &apos;90s Arby&apos;s Deal",

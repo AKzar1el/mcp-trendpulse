@@ -1485,18 +1485,19 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
     valid_trends = []
     for trend in trends:
         volume = getattr(trend, "volume", None)
-        if _provider_identity_text(getattr(trend, "keyword", None)) is None or not isinstance(volume, str) or not volume.strip():
+        keyword = _decode_provider_text(getattr(trend, "keyword", None))
+        if _provider_identity_text(keyword) is None or not isinstance(volume, str) or not volume.strip():
             continue
-        trend.keyword = _decode_provider_text(trend.keyword)
+        trend.keyword = keyword
         if hasattr(trend, "picture_source"):
             trend.picture_source = _decode_provider_text(trend.picture_source)
         articles = getattr(trend, "news", None)
         valid_articles = []
         for article in articles if isinstance(articles, (list, tuple)) else []:
-            title = _provider_identity_text(getattr(article, "title", None))
+            title = _provider_identity_text(_decode_provider_text(getattr(article, "title", None)))
             if title is None:
                 continue
-            article.title = _decode_provider_text(title)
+            article.title = title
             article.source = _decode_provider_text(getattr(article, "source", None))
             article.snippet = _decode_provider_text(getattr(article, "snippet", None))
             valid_articles.append(article)
