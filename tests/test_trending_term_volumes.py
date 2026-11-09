@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -143,6 +144,29 @@ async def test_get_trending_terms_skips_malformed_root_rss_rows(invalid_row, ful
             {"keyword": "high", "volume": "500+"},
             {"keyword": "low", "volume": "100+"},
         ]
+
+
+@pytest.mark.parametrize("full_data", [False, True])
+@pytest.mark.parametrize(
+    "invalid_volume",
+    [None, float("nan"), float("inf"), float("-inf"), 500, True, {}, [], b"500+", "", "   "],
+)
+async def test_get_trending_terms_skips_malformed_volume_rows(invalid_volume, full_data):
+    low = SimpleNamespace(keyword="low", volume="100+")
+    invalid = SimpleNamespace(keyword="invalid", volume=invalid_volume)
+    high = SimpleNamespace(keyword="high", volume="500+")
+
+    with patch.object(news.tr, "trending_now_by_rss", return_value=[low, invalid, high]):
+        result = await news.get_trending_terms(full_data=full_data)
+
+    if full_data:
+        assert result == [high, low]
+    else:
+        assert result == [
+            {"keyword": "high", "volume": "500+"},
+            {"keyword": "low", "volume": "100+"},
+        ]
+        json.dumps(result, allow_nan=False)
 
 
 def test_trending_cli_discloses_approximate_traffic(monkeypatch):

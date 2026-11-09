@@ -1484,7 +1484,8 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
     )
     valid_trends = []
     for trend in trends:
-        if _provider_identity_text(getattr(trend, "keyword", None)) is None or not hasattr(trend, "volume"):
+        volume = getattr(trend, "volume", None)
+        if _provider_identity_text(getattr(trend, "keyword", None)) is None or not isinstance(volume, str) or not volume.strip():
             continue
         trend.keyword = _decode_provider_text(trend.keyword)
         if hasattr(trend, "picture_source"):
