@@ -457,6 +457,25 @@ async def test_related_demand_preserves_queries_on_optional_failure(
     assert ("topics" if failed_enrichment == "get_related_topics" else "suggestions") in result.limitations[0].lower()
 
 
+@pytest.mark.parametrize("malformed_topics", [None, ["unexpected provider row"]])
+async def test_related_demand_preserves_queries_on_malformed_optional_topics(
+    fake_providers, monkeypatch, malformed_topics
+):
+    async def invalid_topics(**kwargs):
+        return malformed_topics
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_topics", invalid_topics)
+    with use_provider_set(fake_providers):
+        result = await hosted.discover_related_demand(keyword="technical seo", limit=2)
+
+    assert len(result.top_queries) == 2
+    assert len(result.rising_queries) == 2
+    assert result.top_topics == []
+    assert result.rising_topics == []
+    assert len(result.suggestions) == 2
+    assert any("topics" in item and "invalid" in item for item in result.limitations)
+
+
 async def test_related_demand_skips_extra_lookup_after_optional_rate_limit(fake_providers, monkeypatch):
     suggestion_calls = []
 
