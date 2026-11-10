@@ -276,6 +276,39 @@ async def test_get_growth_preserves_short_valid_window_when_year_missing():
     assert result[0]["growth"]["1Y"] is None
 
 
+@pytest.mark.parametrize("window", ["1M", "3M"])
+def test_growth_does_not_substitute_distant_history_for_missing_window_baseline(window):
+    """A nearest sample across a long outage is not a real lookback baseline."""
+    dates = pd.date_range("2026-05-01", periods=8, freq="D").append(
+        pd.date_range("2026-10-18", periods=14, freq="D")
+    )
+    points = [
+        {"keyword": "keyword", "date": stamp.date().isoformat(), "value": 20.0 if idx < 8 else 80.0}
+        for idx, stamp in enumerate(dates)
+    ]
+
+    result = news._growth_from_trend_points(points, ["keyword"], [window])
+
+    assert result == [{"keyword": "keyword", "growth": {window: None}}]
+
+
+def test_growth_excludes_stale_neighbors_around_a_valid_window_baseline():
+    """An actual baseline must not be averaged with distant outage-edge rows."""
+    dates = (
+        pd.date_range("2026-03-01", periods=4, freq="D")
+        .append(pd.date_range("2026-08-01", periods=2, freq="D"))
+        .append(pd.date_range("2026-10-28", periods=4, freq="D"))
+    )
+    points = [
+        {"keyword": "keyword", "date": stamp.date().isoformat(), "value": value}
+        for stamp, value in zip(dates, [20.0] * 4 + [40.0] * 2 + [80.0] * 4)
+    ]
+
+    result = news._growth_from_trend_points(points, ["keyword"], ["3M"])
+
+    assert result == [{"keyword": "keyword", "growth": {"3M": 100.0}}]
+
+
 async def test_get_growth_does_not_invent_daily_growth_from_weekly_observations():
     dates = pd.date_range(start="2026-04-05", periods=24, freq="W")
     frame = pd.DataFrame({"keyword": [20.0] * 12 + [40.0] * 12}, index=dates)

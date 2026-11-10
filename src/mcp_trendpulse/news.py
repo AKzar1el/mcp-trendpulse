@@ -1786,9 +1786,27 @@ def _growth_from_trend_points(
                 continue
             indices = series.index.get_indexer([target_date], method="nearest")
             idx = len(series) - 1 if len(indices) == 0 or indices[0] < 0 else indices[0]
+            baseline_date = series.index[idx]
+            # A gap around the target date is not a valid measurement of that
+            # window, even when plentiful samples elsewhere hide it in the median.
+            baseline_tolerance = min(
+                pandas.Timedelta(days=31), observed_interval / 2 + pandas.Timedelta(days=1)
+            )
+            if target_date < series.index[0]:
+                # Preserve the bounded first-bucket slack already allowed for
+                # histories that end just short of a full calendar window.
+                baseline_tolerance = max(baseline_tolerance, edge_slack)
+            if abs(baseline_date - target_date) > baseline_tolerance:
+                growth_dict[window] = None
+                continue
             start_idx = max(0, idx - 2)
             end_idx = min(len(series), idx + 2)
-            past_val = float(series.iloc[start_idx:end_idx].mean())
+            neighborhood = series.iloc[start_idx:end_idx]
+            neighbor_tolerance = min(
+                pandas.Timedelta(days=62), observed_interval * 2 + pandas.Timedelta(days=1)
+            )
+            neighborhood = neighborhood[abs(neighborhood.index - baseline_date) <= neighbor_tolerance]
+            past_val = float(neighborhood.mean())
 
             if past_val > 0:
                 growth_pct = ((current_val - past_val) / past_val) * 100
