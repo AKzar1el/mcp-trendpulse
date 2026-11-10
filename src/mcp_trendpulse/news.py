@@ -1581,6 +1581,13 @@ def save_article_to_json(
             raise
 
 
+def _require_trends_frame(result: object, operation: str) -> pandas.DataFrame:
+    """Reject unexpected provider payloads without leaking an attribute error."""
+    if not isinstance(result, pandas.DataFrame):
+        raise ProviderUnavailableError("google_trends", operation)
+    return result
+
+
 def _completed_trends_frame(df: pandas.DataFrame) -> pandas.DataFrame:
     """Exclude provider rows explicitly marked partial from decision metrics."""
     if "isPartial" not in df.columns:
@@ -1843,7 +1850,7 @@ async def get_trends(
         lambda: tr.interest_over_time(keywords, timeframe=timeframe, geo=geo, cat=cat, gprop=gprop)
     )
 
-    df = _completed_trends_frame(df)
+    df = _completed_trends_frame(_require_trends_frame(df, "interest_over_time"))
     if df.empty:
         return []
 
@@ -1873,7 +1880,7 @@ async def get_growth(
         lambda: tr.interest_over_time(keywords, timeframe=timeframe, geo=geo, gprop=gprop)
     )
 
-    df = _completed_trends_frame(df)
+    df = _completed_trends_frame(_require_trends_frame(df, "interest_over_time"))
     if df.empty:
         return []
 
@@ -2052,6 +2059,7 @@ async def get_interest_by_region(
             inc_low_vol=inc_low_vol,
         )
     )
+    df = _require_trends_frame(df, "interest_by_region")
     if df.empty:
         return []
     results = []
