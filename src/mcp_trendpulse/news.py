@@ -2029,7 +2029,11 @@ async def get_top_trends(
         if started is None:
             started = _trend_started_timestamp(getattr(t, "started_timestamp", None))
         volume = getattr(t, "volume", None)
-        if not isinstance(volume, str):
+        if isinstance(volume, str):
+            # Retain provider bucket labels, but never surface an invalid measurement.
+            if parse_trending_volume(volume) == _INVALID_TREND_VOLUME:
+                volume = None
+        else:
             whole_volume = _ranked_trend_volume(volume)
             volume = str(whole_volume) if whole_volume is not None else None
         results.append({
