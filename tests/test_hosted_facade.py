@@ -587,6 +587,33 @@ async def test_breakout_demand_is_preserved_without_fabricated_percentage(fake_p
 
 
 @pytest.mark.parametrize(
+    ("raw_breakout", "expected"),
+    [
+        ("false", False),
+        ("true", False),
+        (1, False),
+        ({"unexpected": "shape"}, False),
+        (False, False),
+        (True, True),
+    ],
+)
+async def test_seo_opportunities_only_accept_explicit_provider_breakout_flags(
+    fake_providers, monkeypatch, raw_breakout, expected
+):
+    async def related_queries(**kwargs):
+        return {
+            "top": [],
+            "rising": [{"query": "rising query", "value": None, "is_breakout": raw_breakout}],
+        }
+
+    monkeypatch.setattr(fake_providers.trends, "get_related_queries", related_queries)
+    with use_provider_set(fake_providers):
+        result = await hosted.find_seo_opportunities(seed_keyword="seed")
+
+    assert result.candidates[0].related_signal_is_breakout is expected
+
+
+@pytest.mark.parametrize(
     ("failed_enrichment", "topic_count", "suggestion_count"),
     [("get_related_topics", 0, 2), ("get_suggestions", 2, 0)],
 )
