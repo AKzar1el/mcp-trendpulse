@@ -60,6 +60,8 @@ async def test_get_trending_terms_full_data_decodes_provider_keyword_html_entiti
         result = await news.get_trending_terms(full_data=True)
 
     assert result[0].keyword == "arby's"
+    assert result[0] is not trends[0]
+    assert trends[0].keyword == "arby&apos;s"
 
 
 @pytest.mark.parametrize("full_data", [False, True])
@@ -71,10 +73,12 @@ async def test_get_trending_terms_skips_keywords_blank_after_entity_decoding(enc
         result = await news.get_trending_terms(full_data=full_data)
 
     if full_data:
-        assert result == [valid]
-        assert valid.keyword == "useful & valid"
+        assert len(result) == 1
+        assert result[0].keyword == "useful & valid"
+        assert result[0] is not valid
     else:
         assert result == [{"keyword": "useful & valid", "volume": "200+"}]
+    assert valid.keyword == "useful &amp; valid"
 
 
 async def test_get_trending_terms_full_data_skips_article_titles_blank_after_entity_decoding():
@@ -84,8 +88,10 @@ async def test_get_trending_terms_full_data_skips_article_titles_blank_after_ent
     with patch.object(news.tr, "trending_now_by_rss", return_value=[trend]):
         result = await news.get_trending_terms(full_data=True)
 
-    assert result[0].news == [valid]
-    assert valid.title == "Meaningful & verified"
+    assert len(result[0].news) == 1
+    assert result[0].news[0].title == "Meaningful & verified"
+    assert result[0].news[0] is not valid
+    assert valid.title == "Meaningful &amp; verified"
 
 
 async def test_get_trending_terms_full_data_decodes_nested_provider_display_text():
@@ -108,6 +114,41 @@ async def test_get_trending_terms_full_data_decodes_nested_provider_display_text
     assert result[0].news[0].title == "The '90s Arby's Deal"
     assert result[0].news[0].source == "What's on Netflix"
     assert result[0].news[0].snippet == "Arby's fans remember it."
+    assert article.title == "The &apos;90s Arby&apos;s Deal"
+    assert trend.picture_source == "What&apos;s on Netflix"
+
+
+@pytest.mark.parametrize("full_data", [False, True])
+async def test_get_trending_terms_does_not_mutate_reused_provider_objects(full_data):
+    article = SimpleNamespace(
+        title="Weather &amp;nbsp; story",
+        source="Publisher &amp; Co",
+        snippet="Story &amp;nbsp; summary",
+    )
+    trend = SimpleNamespace(
+        keyword="Weather &amp;nbsp; topic",
+        volume="500+",
+        picture_source="Publisher &amp; Co",
+        news=[article],
+    )
+
+    with patch.object(news.tr, "trending_now_by_rss", return_value=[trend]):
+        first = await news.get_trending_terms(full_data=full_data)
+        second = await news.get_trending_terms(full_data=full_data)
+
+    assert trend.keyword == "Weather &amp;nbsp; topic"
+    assert trend.picture_source == "Publisher &amp; Co"
+    assert trend.news == [article]
+    assert article.title == "Weather &amp;nbsp; story"
+    assert article.source == "Publisher &amp; Co"
+    assert article.snippet == "Story &amp;nbsp; summary"
+    if full_data:
+        assert first[0] is not trend
+        assert first[0].news[0] is not article
+        assert first[0].keyword == second[0].keyword == "Weather &nbsp; topic"
+        assert first[0].news[0].title == second[0].news[0].title == "Weather &nbsp; story"
+    else:
+        assert first == second == [{"keyword": "Weather &nbsp; topic", "volume": "500+"}]
 
 
 @pytest.mark.parametrize("full_data", [False, True])
@@ -127,12 +168,15 @@ async def test_get_trending_terms_ignores_malformed_nested_rss_news(full_data):
     if not full_data:
         assert result == [{"keyword": "reliable topic", "volume": "200+"}]
     else:
-        assert result[0].news == [complete, minimal]
-        assert complete.title == "Valid & relevant"
-        assert complete.source == "News & Analysis"
-        assert complete.snippet == "A & B"
-        assert minimal.source is None
-        assert minimal.snippet is None
+        assert len(result[0].news) == 2
+        assert result[0].news[0] is not complete
+        assert result[0].news[0].title == "Valid & relevant"
+        assert result[0].news[0].source == "News & Analysis"
+        assert result[0].news[0].snippet == "A & B"
+        assert result[0].news[1].source is None
+        assert result[0].news[1].snippet is None
+        assert complete.title == "Valid &amp; relevant"
+        assert not hasattr(minimal, "source")
 
 
 @pytest.mark.parametrize("news_items", [None, 42, "not a list", {"invalid": True}])
