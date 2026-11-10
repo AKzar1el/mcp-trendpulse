@@ -403,6 +403,41 @@ async def test_ranked_trends_normalizes_provider_metrics_and_sorts_missing_last(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("provider_volume", "expected"),
+    [
+        (None, None),
+        (True, None),
+        (False, None),
+        (float("nan"), None),
+        (float("inf"), None),
+        (-1, None),
+        (1.5, None),
+        ([], None),
+        ({}, None),
+        (object(), None),
+        (0, "0"),
+        (100, "100"),
+        (10.0, "10"),
+        ("100K+", "100K+"),
+    ],
+)
+async def test_top_trends_does_not_stringify_invalid_provider_volumes(
+    monkeypatch, provider_volume, expected
+):
+    trend = SimpleNamespace(
+        keyword="topic", volume=provider_volume, started=None,
+        started_timestamp=None, link=None, picture=None, news=[],
+    )
+    monkeypatch.setattr(news, "_call_trends_async", AsyncMock(return_value=[trend]))
+
+    result = await news.get_top_trends(limit=1)
+
+    assert result[0]["volume"] == expected
+    assert trend.volume is provider_volume
+
+
+@pytest.mark.asyncio
 async def test_community_trend_mcp_schemas_expose_shared_limit():
     async with Client(server.mcp) as client:
         tools = {tool.name: tool for tool in await client.list_tools()}
