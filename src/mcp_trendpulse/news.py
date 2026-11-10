@@ -2029,8 +2029,9 @@ async def get_top_trends(
         if started is None:
             started = _trend_started_timestamp(getattr(t, "started_timestamp", None))
         volume = getattr(t, "volume", None)
-        if volume is not None and not isinstance(volume, str):
-            volume = str(volume)
+        if not isinstance(volume, str):
+            whole_volume = _ranked_trend_volume(volume)
+            volume = str(whole_volume) if whole_volume is not None else None
         results.append({
             "keyword": keyword,
             "volume": volume,
