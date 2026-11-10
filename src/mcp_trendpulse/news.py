@@ -2309,4 +2309,4 @@ async def get_categories() -> list[dict]:
     )
     if not isinstance(cats, (list, tuple)) or any(not isinstance(cat, Mapping) for cat in cats):
         raise ProviderUnavailableError("google_trends", "categories")
-    return [dict(cat) for cat in cats]
+    return [copy.deepcopy(dict(cat)) for cat in cats]
