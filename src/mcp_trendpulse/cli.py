@@ -515,19 +515,19 @@ def _brief_table_cell(value):
 
 
 def _brief_value(value):
-    if value is None:
+    if value is None or isinstance(value, bool):
         return "n/a"
     try:
         number = float(value)
     except (TypeError, ValueError):
         return "n/a"
-    if not isfinite(number):
+    if not isfinite(number) or not 0 <= number <= 100:
         return "n/a"
     return f"{number:g}"
 
 
 def _brief_percent(value):
-    if value is None:
+    if value is None or isinstance(value, bool):
         return "n/a"
     try:
         number = float(value)
