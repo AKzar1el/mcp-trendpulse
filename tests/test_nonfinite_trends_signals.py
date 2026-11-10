@@ -55,6 +55,28 @@ async def test_categories_accept_valid_list_and_tuple_provider_containers(payloa
         assert await news.get_categories() == list(payload)
 
 
+async def test_categories_nested_rows_do_not_alias_provider_or_later_results():
+    provider_rows = [
+        {
+            "id": 0,
+            "name": "All categories",
+            "children": [{"id": 3, "name": "Arts", "metadata": {"code": "arts"}}],
+        }
+    ]
+    with patch.object(news.tr, "categories", return_value=provider_rows):
+        first = await news.get_categories()
+        first[0]["children"][0]["name"] = "tampered"
+        first[0]["children"][0]["metadata"]["code"] = "changed"
+        second = await news.get_categories()
+
+    assert provider_rows[0]["children"][0] == {
+        "id": 3,
+        "name": "Arts",
+        "metadata": {"code": "arts"},
+    }
+    assert second == provider_rows
+
+
 @pytest.mark.parametrize("payload", [None, {}, []])
 @pytest.mark.parametrize(
     ("tool", "provider_method", "operation"),
