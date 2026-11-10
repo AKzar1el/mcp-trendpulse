@@ -324,6 +324,42 @@ async def test_trending_feeds_normalize_started_timestamp_shapes(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
+    "started",
+    [[], {}, True, float("nan"), "  ", object()],
+)
+async def test_top_trends_rejects_malformed_started_and_uses_timestamp_fallback(
+    monkeypatch, started
+):
+    trend = SimpleNamespace(
+        keyword="useful trend", volume=100, started=started,
+        started_timestamp=["2026-11-08T12:00:00Z"], link=None,
+        picture=None, news=[],
+    )
+    monkeypatch.setattr(news, "_call_trends_async", AsyncMock(return_value=[trend]))
+
+    result = await news.get_top_trends(limit=1)
+
+    assert result[0]["started"] == "2026-11-08T12:00:00Z"
+    assert trend.started is started
+
+
+@pytest.mark.asyncio
+async def test_top_trends_keeps_valid_started_over_timestamp_fallback(monkeypatch):
+    trend = SimpleNamespace(
+        keyword="useful trend", volume=100,
+        started="2026-11-09T12:00:00Z",
+        started_timestamp="2026-11-08T12:00:00Z",
+        link=None, picture=None, news=[],
+    )
+    monkeypatch.setattr(news, "_call_trends_async", AsyncMock(return_value=[trend]))
+
+    result = await news.get_top_trends(limit=1)
+
+    assert result[0]["started"] == "2026-11-09T12:00:00Z"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
     ("sort", "expected"),
     [
         ("recent_growth_pct", ["good", "string", "declining"]),
@@ -364,6 +400,41 @@ async def test_ranked_trends_normalizes_provider_metrics_and_sorts_missing_last(
     for keyword in ("nan", "boolean", "inf"):
         assert by_keyword[keyword]["growth_pct"] is None
         assert by_keyword[keyword]["volume"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("provider_volume", "expected"),
+    [
+        (None, None),
+        (True, None),
+        (False, None),
+        (float("nan"), None),
+        (float("inf"), None),
+        (-1, None),
+        (1.5, None),
+        ([], None),
+        ({}, None),
+        (object(), None),
+        (0, "0"),
+        (100, "100"),
+        (10.0, "10"),
+        ("100K+", "100K+"),
+    ],
+)
+async def test_top_trends_does_not_stringify_invalid_provider_volumes(
+    monkeypatch, provider_volume, expected
+):
+    trend = SimpleNamespace(
+        keyword="topic", volume=provider_volume, started=None,
+        started_timestamp=None, link=None, picture=None, news=[],
+    )
+    monkeypatch.setattr(news, "_call_trends_async", AsyncMock(return_value=[trend]))
+
+    result = await news.get_top_trends(limit=1)
+
+    assert result[0]["volume"] == expected
+    assert trend.volume is provider_volume
 
 
 @pytest.mark.asyncio
