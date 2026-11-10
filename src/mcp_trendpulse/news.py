@@ -183,12 +183,12 @@ def _trend_news_context(articles: object) -> list[dict]:
 
     result = []
     for article in items:
-        title = _provider_identity_text(getattr(article, "title", None))
+        title = _provider_identity_text(_decode_provider_text(getattr(article, "title", None)))
         url = _provider_web_link(getattr(article, "url", None))
         if title is None or url is None:
             continue
         result.append({
-            "title": _decode_provider_text(title),
+            "title": title,
             "url": url,
             "source": _decode_provider_text(getattr(article, "source", None)),
             "picture": _provider_web_link(getattr(article, "picture", None)),

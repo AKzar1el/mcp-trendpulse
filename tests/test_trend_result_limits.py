@@ -152,6 +152,32 @@ async def test_trending_feeds_isolate_malformed_nested_news(monkeypatch, fetch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
+@pytest.mark.parametrize("blank_title", ["&nbsp;", " &#160; ", "&#x2003;", "&#9;", "&#10;"])
+async def test_trending_feeds_skip_news_titles_blank_after_entity_decoding(
+    monkeypatch, fetch, blank_title
+):
+    blank = SimpleNamespace(title=blank_title, url="https://example.com/blank")
+    valid = SimpleNamespace(title="Useful &amp; verified", url="https://example.com/valid")
+    trend = SimpleNamespace(
+        keyword="useful trend", volume=100, volume_growth_pct=25,
+        started_timestamp=[], started=None, link=None, picture=None,
+        news=[blank, valid],
+    )
+    monkeypatch.setattr(news, "_call_trends_async", AsyncMock(return_value=[trend]))
+
+    result = await fetch(limit=1)
+
+    assert len(result) == 1
+    assert result[0]["news"] == [
+        {"title": "Useful & verified", "url": "https://example.com/valid",
+         "source": None, "picture": None, "time": None, "snippet": None}
+    ]
+    assert blank.title == blank_title
+    assert valid.title == "Useful &amp; verified"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
 @pytest.mark.parametrize(
     "unsafe_url",
     [
