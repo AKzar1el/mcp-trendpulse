@@ -144,6 +144,60 @@ class StalledProgressContext(MockSamplingContext):
         await asyncio.Event().wait()
 
 
+class NonCooperativeProgressContext(MockSamplingContext):
+    def __init__(self):
+        super().__init__("Valid news summary")
+        self.release = asyncio.Event()
+        self.progress_calls = 0
+
+    async def report_progress(self, progress, total):
+        self.progress_calls += 1
+        try:
+            await self.release.wait()
+        except asyncio.CancelledError:
+            # Some client transports swallow cancellation while closing.
+            await self.release.wait()
+
+
+async def test_article_progress_deadline_survives_noncooperative_client(monkeypatch):
+    monkeypatch.setattr(server, "ARTICLE_PROGRESS_REPORT_TIMEOUT_SECONDS", 0.01)
+    context = NonCooperativeProgressContext()
+    reporting = asyncio.create_task(server._report_article_progress(context, 1, 1))
+    try:
+        done, _ = await asyncio.wait({reporting}, timeout=0.12)
+        assert reporting in done, "Best-effort progress must finish despite ignored cancellation"
+        assert reporting.result() is False
+        assert context.progress_calls == 1
+    finally:
+        context.release.set()
+        await asyncio.wait_for(reporting, timeout=0.5)
+
+
+async def test_article_progress_limits_detached_noncooperative_reports(monkeypatch):
+    monkeypatch.setattr(server, "ARTICLE_PROGRESS_REPORT_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(server, "ARTICLE_PROGRESS_REPORT_MAX_INFLIGHT", 2)
+    context = NonCooperativeProgressContext()
+    try:
+        assert await server._report_article_progress(context, 1, 3) is False
+        assert await server._report_article_progress(context, 2, 3) is False
+        assert len(server._active_progress_tasks) == 2
+        assert await server._report_article_progress(context, 3, 3) is False
+        assert context.progress_calls == 2
+    finally:
+        context.release.set()
+        await asyncio.wait_for(asyncio.gather(*tuple(server._active_progress_tasks)), timeout=0.5)
+        await asyncio.sleep(0)
+    assert not server._active_progress_tasks
+
+
+async def test_article_progress_treats_cancelled_client_report_as_optional():
+    class CancellingContext:
+        async def report_progress(self, progress, total):
+            raise asyncio.CancelledError()
+
+    assert await server._report_article_progress(CancellingContext(), 1, 1) is False
+
+
 async def test_article_progress_callback_does_not_block_completed_news(monkeypatch):
     monkeypatch.setattr(server, "is_session_active", lambda _ctx: True)
     monkeypatch.setattr(server, "ARTICLE_PROGRESS_REPORT_TIMEOUT_SECONDS", 0.01, raising=False)

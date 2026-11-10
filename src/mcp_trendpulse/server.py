@@ -355,18 +355,39 @@ async def llm_summarize_article(article: Article, ctx: Context) -> bool:
 
 
 ARTICLE_PROGRESS_REPORT_TIMEOUT_SECONDS = 5
+ARTICLE_PROGRESS_REPORT_MAX_INFLIGHT = 4
+_active_progress_tasks: set[asyncio.Task[Any]] = set()
+
+
+def _finish_progress_task(task: asyncio.Task[Any]) -> None:
+    _active_progress_tasks.discard(task)
+    if not task.cancelled():
+        task.exception()  # Consume late failures if a client ignores cancellation.
 
 
 async def _report_article_progress(ctx: Context, progress: float, total: float | None) -> bool:
     """Best-effort session reporting must not delay the article response indefinitely."""
+    if len(_active_progress_tasks) >= ARTICLE_PROGRESS_REPORT_MAX_INFLIGHT:
+        return False
     try:
-        await asyncio.wait_for(
-            ctx.report_progress(progress, total),
-            timeout=ARTICLE_PROGRESS_REPORT_TIMEOUT_SECONDS,
-        )
+        task = asyncio.create_task(ctx.report_progress(progress, total))
     except Exception:
         return False
-    return True
+    _active_progress_tasks.add(task)
+    task.add_done_callback(_finish_progress_task)
+    try:
+        done, _ = await asyncio.wait((task,), timeout=ARTICLE_PROGRESS_REPORT_TIMEOUT_SECONDS)
+        if not done:
+            return False
+        if task.cancelled():
+            return False
+        task.result()
+        return True
+    except Exception:
+        return False
+    finally:
+        if not task.done():
+            task.cancel()
 
 
 async def summarize_articles(articles: list[Article], ctx: Context, *, report_progress: bool = True) -> None:
