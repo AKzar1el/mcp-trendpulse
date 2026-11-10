@@ -26,6 +26,19 @@ async def test_invalid_trend_result_limit_is_rejected_before_provider_call(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
+@pytest.mark.parametrize("limit", [True, False, 1.5, 20.5, "2", None])
+async def test_invalid_trend_result_limit_types_never_call_provider(
+    monkeypatch, fetch, limit
+):
+    upstream = AsyncMock(side_effect=AssertionError("provider must not be called"))
+    monkeypatch.setattr(news, "_call_trends_async", upstream)
+    with pytest.raises(ValueError, match="between 1 and 100"):
+        await fetch(limit=limit)
+    upstream.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
 @pytest.mark.parametrize("limit", [1, 20, 100])
 async def test_valid_trend_result_limits_bound_offline_feed(monkeypatch, fetch, limit):
     feed = [

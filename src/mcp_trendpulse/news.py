@@ -87,7 +87,11 @@ _ALLOWED_REGION_RESOLUTIONS = frozenset({"COUNTRY", "REGION", "CITY", "DMA"})
 
 
 def _validated_trend_result_limit(limit: int) -> int:
-    if not 1 <= limit <= GOOGLE_TRENDS_MAX_RESULTS:
+    if (
+        not isinstance(limit, int)
+        or isinstance(limit, bool)
+        or not 1 <= limit <= GOOGLE_TRENDS_MAX_RESULTS
+    ):
         raise ValueError(f"Trend result limit must be between 1 and {GOOGLE_TRENDS_MAX_RESULTS}.")
     return limit
 
