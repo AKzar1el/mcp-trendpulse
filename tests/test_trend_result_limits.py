@@ -79,6 +79,26 @@ async def test_trending_feed_ignores_malformed_rows_before_result_limit(monkeypa
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
+@pytest.mark.parametrize("blank_keyword", ["&nbsp;", " &#160; ", "&#xA0;", "&#9;", "&#10;"])
+async def test_trending_feeds_skip_entity_decoded_blank_keywords_before_limit(
+    monkeypatch, fetch, blank_keyword
+):
+    blank = SimpleNamespace(keyword=blank_keyword, volume=9999, volume_growth_pct=9999)
+    valid = SimpleNamespace(keyword=" Useful &amp; safe ", volume=50,
+                            volume_growth_pct=50, started_timestamp=[], news=[])
+    upstream = AsyncMock(return_value=[blank, valid])
+    monkeypatch.setattr(news, "_call_trends_async", upstream)
+
+    result = await fetch(limit=1)
+
+    assert [item["keyword"] for item in result] == ["Useful & safe"]
+    assert blank.keyword == blank_keyword
+    assert valid.keyword == " Useful &amp; safe "
+    upstream.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
 @pytest.mark.parametrize("payload", [None, 42, "not a feed", {"keyword": "invalid root"}])
 async def test_trending_feeds_ignore_nonsequence_provider_payload(monkeypatch, fetch, payload):
     upstream = AsyncMock(return_value=payload)

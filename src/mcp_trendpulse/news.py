@@ -1949,7 +1949,7 @@ async def get_ranked_trends(
 
     ranked = []
     for trend in trends:
-        keyword = _provider_identity_text(getattr(trend, "keyword", None))
+        keyword = _provider_identity_text(_decode_provider_text(getattr(trend, "keyword", None)))
         if keyword is None:
             continue
         ranked.append((
@@ -1976,7 +1976,7 @@ async def get_ranked_trends(
         started_ts = _trend_started_timestamp(getattr(t, "started_timestamp", None))
 
         results.append({
-            "keyword": _decode_provider_text(keyword),
+            "keyword": keyword,
             "volume": volume,
             "growth_pct": growth,
             "started": started_ts,
@@ -2016,7 +2016,7 @@ async def get_top_trends(
     # Invalid upstream rows must not consume the caller's result limit.
     valid_trends = []
     for trend in trends:
-        keyword = _provider_identity_text(getattr(trend, "keyword", None))
+        keyword = _provider_identity_text(_decode_provider_text(getattr(trend, "keyword", None)))
         if keyword is None:
             continue
         valid_trends.append((trend, keyword))
@@ -2032,7 +2032,7 @@ async def get_top_trends(
         if volume is not None and not isinstance(volume, str):
             volume = str(volume)
         results.append({
-            "keyword": _decode_provider_text(keyword),
+            "keyword": keyword,
             "volume": volume,
             "link": _provider_web_link(getattr(t, "link", None)),
             "started": started,
