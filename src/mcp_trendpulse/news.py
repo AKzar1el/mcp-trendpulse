@@ -191,7 +191,7 @@ def _trend_news_context(articles: object) -> list[dict]:
             "title": _decode_provider_text(title),
             "url": url,
             "source": _decode_provider_text(getattr(article, "source", None)),
-            "picture": getattr(article, "picture", None),
+            "picture": _provider_web_link(getattr(article, "picture", None)),
             "time": getattr(article, "time", None),
             "snippet": _decode_provider_text(getattr(article, "snippet", None)),
         })
@@ -1515,6 +1515,8 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
         normalized_trend.keyword = keyword
         if hasattr(normalized_trend, "link"):
             normalized_trend.link = _provider_web_link(getattr(trend, "link", None))
+        if hasattr(normalized_trend, "picture"):
+            normalized_trend.picture = _provider_web_link(getattr(trend, "picture", None))
         if hasattr(normalized_trend, "picture_source"):
             normalized_trend.picture_source = _decode_provider_text(normalized_trend.picture_source)
         articles = getattr(trend, "news", None)
@@ -1530,6 +1532,8 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
             normalized_article.title = title
             if article_url is not None:
                 normalized_article.url = article_url
+            if hasattr(normalized_article, "picture"):
+                normalized_article.picture = _provider_web_link(getattr(article, "picture", None))
             normalized_article.source = _decode_provider_text(getattr(article, "source", None))
             normalized_article.snippet = _decode_provider_text(getattr(article, "snippet", None))
             valid_articles.append(normalized_article)
@@ -2032,7 +2036,7 @@ async def get_top_trends(
             "volume": volume,
             "link": _provider_web_link(getattr(t, "link", None)),
             "started": started,
-            "picture": getattr(t, "picture", None),
+            "picture": _provider_web_link(getattr(t, "picture", None)),
             "news": _trend_news_context(getattr(t, "news", None)),
         })
     return results
