@@ -2230,4 +2230,6 @@ async def get_categories() -> list[dict]:
         "categories",
         lambda: tr.categories()
     )
-    return cats
+    if not isinstance(cats, (list, tuple)) or any(not isinstance(cat, Mapping) for cat in cats):
+        raise ProviderUnavailableError("google_trends", "categories")
+    return [dict(cat) for cat in cats]
