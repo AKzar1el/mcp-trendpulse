@@ -320,6 +320,23 @@ def test_brief_pack_rejects_nonnumeric_provider_values_in_numeric_columns():
     providers.trends.get_growth.assert_awaited_once()
 
 
+@pytest.mark.parametrize("value", [True, False, -1, -0.5, 100.01, 101])
+def test_brief_pack_rejects_invalid_relative_interest_indices(value):
+    # A Demand Brief must not present booleans or out-of-range provider values as evidence.
+    assert cli_module._brief_value(value) == "n/a"
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_brief_pack_rejects_boolean_growth_percentages(value):
+    assert cli_module._brief_percent(value) == "n/a"
+
+
+def test_brief_pack_accepts_valid_interest_bounds_and_negative_growth():
+    assert cli_module._brief_value(0) == "0"
+    assert cli_module._brief_value(100) == "100"
+    assert cli_module._brief_percent(-25) == "-25.00%"
+
+
 def test_brief_pack_omits_malformed_trend_rows_but_preserves_valid_evidence():
     providers = FakeBriefProviders()
     providers.trends.get_trends = AsyncMock(return_value=[
