@@ -1651,11 +1651,14 @@ def _ranked_trend_volume(value: object) -> int | None:
     return int(number) if number is not None and number >= 0 and number.is_integer() else None
 
 
-def _related_trend_value(value: object) -> tuple[float | None, bool]:
-    """Keep Google's Breakout label without pretending it is a measured percentage."""
+def _related_trend_value(value: object, section: str) -> tuple[float | None, bool]:
+    """Validate top's 0-100 scores separately from nonnegative rising growth."""
     if isinstance(value, str) and value.strip().casefold() == "breakout":
-        return None, True
-    return _finite_trend_number(value), False
+        return None, section == "rising"
+    number = _finite_trend_number(value)
+    if number is None or number < 0 or (section == "top" and number > 100):
+        return None, False
+    return number, False
 
 
 def _trends_frame_to_points(df: pandas.DataFrame, keywords: list[str]) -> list[dict]:
@@ -2200,7 +2203,7 @@ async def get_related_queries(
                 query = _provider_identity_text(row.get("query"))
                 if query is None:
                     continue
-                value, is_breakout = _related_trend_value(row.get("value"))
+                value, is_breakout = _related_trend_value(row.get("value"), key)
                 if value is None and not is_breakout:
                     continue
                 item = {
@@ -2245,7 +2248,7 @@ async def get_related_topics(
                 topic_type = _provider_identity_text(row.get("type"))
                 if mid is None or title is None or topic_type is None:
                     continue
-                value, is_breakout = _related_trend_value(row.get("value"))
+                value, is_breakout = _related_trend_value(row.get("value"), key)
                 if value is None and not is_breakout:
                     continue
                 item = {

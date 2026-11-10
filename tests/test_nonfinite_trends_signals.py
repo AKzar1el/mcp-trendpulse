@@ -240,6 +240,29 @@ async def test_related_queries_skip_invalid_provider_values_only():
     json.dumps(rows, allow_nan=False)
 
 
+async def test_related_queries_respect_top_score_and_rising_growth_ranges():
+    related = {
+        "top": pd.DataFrame({
+            "query": ["zero", "maximum", "negative", "oversized", "bad breakout"],
+            "value": [0, 100, -1, 101, "Breakout"],
+        }),
+        "rising": pd.DataFrame({
+            "query": ["negative", "valid growth", "breakout"],
+            "value": [-25, 1250, "Breakout"],
+        }),
+    }
+    with patch.object(news, "_call_related_queries_with_unavailable_retry", return_value=related):
+        rows = await news.get_related_queries("python")
+
+    assert rows == {
+        "top": [{"query": "zero", "value": 0.0}, {"query": "maximum", "value": 100.0}],
+        "rising": [
+            {"query": "valid growth", "value": 1250.0},
+            {"query": "breakout", "value": None, "is_breakout": True},
+        ],
+    }
+
+
 async def test_related_queries_skip_rows_without_value_column_and_keep_valid_rising():
     related = {
         "top": pd.DataFrame({"query": ["malformed"]}),
@@ -293,6 +316,36 @@ async def test_related_topics_skip_invalid_provider_values_only():
         "rising": [{"mid": "/m/new", "title": "New", "type": "Topic", "value": 250.0}],
     }
     json.dumps(rows, allow_nan=False)
+
+
+async def test_related_topics_respect_top_score_and_rising_growth_ranges():
+    def frame(names, values):
+        return pd.DataFrame({
+            "mid": [f"/m/{name}" for name in names],
+            "title": names,
+            "type": ["Topic"] * len(names),
+            "value": values,
+        })
+
+    related = {
+        "top": frame(["zero", "maximum", "negative", "oversized", "invalid"],
+                     [0, 100, -1, 101, "Breakout"]),
+        "rising": frame(["negative", "growth", "breakout"], [-1, 1200, "Breakout"]),
+    }
+    with patch.object(news.tr, "related_topics", return_value=related):
+        rows = await news.get_related_topics("python")
+
+    assert rows == {
+        "top": [
+            {"mid": "/m/zero", "title": "zero", "type": "Topic", "value": 0.0},
+            {"mid": "/m/maximum", "title": "maximum", "type": "Topic", "value": 100.0},
+        ],
+        "rising": [
+            {"mid": "/m/growth", "title": "growth", "type": "Topic", "value": 1200.0},
+            {"mid": "/m/breakout", "title": "breakout", "type": "Topic", "value": None,
+             "is_breakout": True},
+        ],
+    }
 
 
 async def test_related_topics_skip_rows_without_value_column_and_keep_valid_rising():
