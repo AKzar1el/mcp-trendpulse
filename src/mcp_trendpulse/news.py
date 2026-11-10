@@ -138,6 +138,25 @@ def _provider_identity_text(value: object) -> str | None:
     return value.strip() or None
 
 
+def _provider_web_link(value: object) -> str | None:
+    """Expose only ordinary web links from optional provider metadata."""
+    link = _provider_identity_text(value)
+    if link is None or "\\" in link or any(char.isspace() for char in link):
+        return None
+    try:
+        parsed = urlsplit(link)
+        if (
+            parsed.scheme not in ("http", "https")
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
+            return None
+    except ValueError:
+        return None
+    return link
+
+
 def _trend_started_timestamp(value: object) -> object | None:
     """Accept scalar or one-element feed timestamps without indexing text values."""
     if isinstance(value, (list, tuple)):
@@ -165,7 +184,7 @@ def _trend_news_context(articles: object) -> list[dict]:
     result = []
     for article in items:
         title = _provider_identity_text(getattr(article, "title", None))
-        url = _provider_identity_text(getattr(article, "url", None))
+        url = _provider_web_link(getattr(article, "url", None))
         if title is None or url is None:
             continue
         result.append({
@@ -2004,7 +2023,7 @@ async def get_top_trends(
         results.append({
             "keyword": _decode_provider_text(keyword),
             "volume": volume,
-            "link": getattr(t, "link", None),
+            "link": _provider_web_link(getattr(t, "link", None)),
             "started": started,
             "picture": getattr(t, "picture", None),
             "news": _trend_news_context(getattr(t, "news", None)),

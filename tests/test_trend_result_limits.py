@@ -132,6 +132,58 @@ async def test_trending_feeds_isolate_malformed_nested_news(monkeypatch, fetch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
+@pytest.mark.parametrize(
+    "unsafe_url",
+    [
+        "javascript:alert(1)",
+        "data:text/html,unsafe",
+        "ftp://example.com/story",
+        "//example.com/story",
+        "https://user:password@example.com/story",
+        "https://[invalid/story",
+    ],
+)
+async def test_trending_feeds_ignore_unsafe_provider_news_urls(monkeypatch, fetch, unsafe_url):
+    def article(url):
+        return SimpleNamespace(title="Article", url=url, source="Publisher", picture=None,
+                               time=None, snippet="Snippet")
+
+    trend = SimpleNamespace(
+        keyword="useful trend", volume=100, volume_growth_pct=25,
+        started_timestamp=[], started=None, link="https://trends.google.com/trending",
+        picture=None, news=[article(unsafe_url), article("https://example.com/story")],
+    )
+    monkeypatch.setattr(news, "_call_trends_async", AsyncMock(return_value=[trend]))
+
+    result = await fetch(limit=1)
+
+    assert [item["url"] for item in result[0]["news"]] == ["https://example.com/story"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("link", "expected"),
+    [
+        ("javascript:alert(1)", None),
+        ("//example.com/story", None),
+        ("https://user:password@example.com/story", None),
+        ("https://[invalid/story", None),
+        ("http://example.com/trend", "http://example.com/trend"),
+        ("https://trends.google.com/trending", "https://trends.google.com/trending"),
+    ],
+)
+async def test_top_trends_exposes_only_http_provider_links(monkeypatch, link, expected):
+    trend = SimpleNamespace(keyword="trend", volume=100, started=None,
+                            started_timestamp=[], link=link, picture=None, news=[])
+    monkeypatch.setattr(news, "_call_trends_async", AsyncMock(return_value=[trend]))
+
+    result = await news.get_top_trends(limit=1)
+
+    assert result[0]["link"] == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
 async def test_trending_feeds_ignore_noniterable_optional_news(monkeypatch, fetch):
     trend = SimpleNamespace(
         keyword="useful trend", volume=100, volume_growth_pct=25,
