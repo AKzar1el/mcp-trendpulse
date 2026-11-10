@@ -34,6 +34,27 @@ async def test_suggestions_report_malformed_provider_containers(payload):
     assert error.value.operation == "suggestions"
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [None, {}, "unexpected", 7, [None], [{"id": 0, "name": "All categories"}, 7]],
+)
+async def test_categories_report_malformed_provider_containers_and_rows(payload):
+    with patch.object(news.tr, "categories", return_value=payload):
+        with pytest.raises(news.ProviderUnavailableError) as error:
+            await news.get_categories()
+    assert error.value.provider == "google_trends"
+    assert error.value.operation == "categories"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [[{"id": 0, "name": "All categories"}], ({"id": 0, "name": "All categories"},)],
+)
+async def test_categories_accept_valid_list_and_tuple_provider_containers(payload):
+    with patch.object(news.tr, "categories", return_value=payload):
+        assert await news.get_categories() == list(payload)
+
+
 @pytest.mark.parametrize("payload", [None, {}, []])
 @pytest.mark.parametrize(
     ("tool", "provider_method", "operation"),
