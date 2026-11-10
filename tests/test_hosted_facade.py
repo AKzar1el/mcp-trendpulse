@@ -753,6 +753,36 @@ async def test_trend_context_skips_malformed_rss_rows_and_keeps_valid_headlines(
     assert any("malformed" in limitation.lower() for limitation in result.limitations)
 
 
+@pytest.mark.parametrize(
+    "untrusted_url",
+    [
+        "javascript:alert(1)",
+        "data:text/html,<script>alert(1)</script>",
+        "file:///etc/passwd",
+        "//evil.example/article",
+        "https://user:pass@evil.example/article",
+        "https://news.google.com/invalid\nHost:evil.example",
+        "https://[broken-ipv6/article",
+    ],
+)
+async def test_trend_context_rejects_unsafe_rss_links_without_losing_valid_headlines(
+    fake_providers, monkeypatch, untrusted_url
+):
+    async def rss_with_unsafe_link(**kwargs):
+        return [
+            {"title": "Untrusted link", "url": untrusted_url},
+            {"title": "Valid publisher headline", "url": "https://publisher.example/news"},
+        ]
+
+    monkeypatch.setattr(fake_providers.news, "get_rss_headlines_by_keyword", rss_with_unsafe_link)
+    with use_provider_set(fake_providers):
+        result = await hosted.get_trend_context(keyword="AI search", max_articles=2)
+
+    assert result.metrics.points_observed == 30
+    assert [article.url for article in result.recent_articles] == ["https://publisher.example/news"]
+    assert any("malformed" in limitation.lower() for limitation in result.limitations)
+
+
 async def test_find_seo_opportunities_remains_trend_only_without_project(fake_providers):
     with use_provider_set(fake_providers):
         result = await hosted.find_seo_opportunities(
