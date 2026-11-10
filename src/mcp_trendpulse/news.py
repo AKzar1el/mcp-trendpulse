@@ -1513,6 +1513,8 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
         # Cached provider objects may be returned again; normalize copies only.
         normalized_trend = copy.copy(trend)
         normalized_trend.keyword = keyword
+        if hasattr(normalized_trend, "link"):
+            normalized_trend.link = _provider_web_link(getattr(trend, "link", None))
         if hasattr(normalized_trend, "picture_source"):
             normalized_trend.picture_source = _decode_provider_text(normalized_trend.picture_source)
         articles = getattr(trend, "news", None)
@@ -1521,8 +1523,13 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
             title = _provider_identity_text(_decode_provider_text(getattr(article, "title", None)))
             if title is None:
                 continue
+            article_url = _provider_web_link(getattr(article, "url", None))
+            if hasattr(article, "url") and article_url is None:
+                continue
             normalized_article = copy.copy(article)
             normalized_article.title = title
+            if article_url is not None:
+                normalized_article.url = article_url
             normalized_article.source = _decode_provider_text(getattr(article, "source", None))
             normalized_article.snippet = _decode_provider_text(getattr(article, "snippet", None))
             valid_articles.append(normalized_article)
