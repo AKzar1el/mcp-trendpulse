@@ -118,6 +118,49 @@ async def test_get_trending_terms_full_data_decodes_nested_provider_display_text
     assert trend.picture_source == "What&apos;s on Netflix"
 
 
+@pytest.mark.parametrize(
+    "unsafe_url",
+    [
+        "javascript:alert(1)",
+        "data:text/html,unsafe",
+        "ftp://example.com/story",
+        "//example.com/story",
+        "https://user:password@example.com/story",
+        "https://[invalid/story",
+        "https://example.com/has space",
+        "https://example.com\\@evil.test/story",
+    ],
+)
+async def test_get_trending_terms_full_data_filters_unsafe_nested_news_urls(unsafe_url):
+    unsafe = SimpleNamespace(title="Unsafe story", url=unsafe_url, source="Publisher")
+    valid = SimpleNamespace(title="Valid story", url="https://example.com/story", source="Publisher")
+    trend = SimpleNamespace(keyword="useful trend", volume="500+", news=[unsafe, valid])
+
+    with patch.object(news.tr, "trending_now_by_rss", return_value=[trend]):
+        result = await news.get_trending_terms(full_data=True)
+
+    assert len(result) == 1
+    assert [(article.title, article.url) for article in result[0].news] == [
+        ("Valid story", "https://example.com/story")
+    ]
+    assert trend.news == [unsafe, valid]
+    assert unsafe.url == unsafe_url
+
+
+@pytest.mark.parametrize(
+    "unsafe_link", ["javascript:alert(1)", "ftp://bad.test", "//bad.test", "https://user:pass@bad.test"]
+)
+async def test_get_trending_terms_full_data_nulls_unsafe_optional_trend_links(unsafe_link):
+    trend = SimpleNamespace(keyword="useful trend", volume="500+", link=unsafe_link)
+
+    with patch.object(news.tr, "trending_now_by_rss", return_value=[trend]):
+        result = await news.get_trending_terms(full_data=True)
+
+    assert len(result) == 1
+    assert result[0].link is None
+    assert trend.link == unsafe_link
+
+
 @pytest.mark.parametrize("full_data", [False, True])
 async def test_get_trending_terms_does_not_mutate_reused_provider_objects(full_data):
     article = SimpleNamespace(
