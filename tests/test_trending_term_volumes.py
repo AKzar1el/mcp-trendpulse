@@ -313,7 +313,10 @@ async def test_get_trending_terms_accepts_tuple_rss_provider_payload(full_data):
 @pytest.mark.parametrize("full_data", [False, True])
 @pytest.mark.parametrize(
     "invalid_volume",
-    [None, float("nan"), float("inf"), float("-inf"), 500, True, {}, [], b"500+", "", "   "],
+    [
+        None, float("nan"), float("inf"), float("-inf"), 500, True, {}, [], b"500+", "", "   ",
+        "N/A", "1.2MM", "-10+", "Infinity",
+    ],
 )
 async def test_get_trending_terms_skips_malformed_volume_rows(invalid_volume, full_data):
     low = SimpleNamespace(keyword="low", volume="100+")

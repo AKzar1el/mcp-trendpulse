@@ -1508,7 +1508,11 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
     for trend in trends:
         volume = getattr(trend, "volume", None)
         keyword = _decode_provider_text(getattr(trend, "keyword", None))
-        if _provider_identity_text(keyword) is None or not isinstance(volume, str) or not volume.strip():
+        if (
+            _provider_identity_text(keyword) is None
+            or not isinstance(volume, str)
+            or parse_trending_volume(volume) == _INVALID_TREND_VOLUME
+        ):
             continue
         # Cached provider objects may be returned again; normalize copies only.
         normalized_trend = copy.copy(trend)
