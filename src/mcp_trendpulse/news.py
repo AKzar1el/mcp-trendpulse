@@ -2025,7 +2025,7 @@ async def get_top_trends(
 
     results = []
     for t, keyword in valid_trends:
-        started = getattr(t, "started", None)
+        started = _trend_started_timestamp(getattr(t, "started", None))
         if started is None:
             started = _trend_started_timestamp(getattr(t, "started_timestamp", None))
         volume = getattr(t, "volume", None)
