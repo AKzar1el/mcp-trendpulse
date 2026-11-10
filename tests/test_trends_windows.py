@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 import pandas as pd
+import pytest
 
 from mcp_trendpulse import news
 
@@ -228,6 +229,16 @@ async def test_get_growth_rejects_invalid_window_instead_of_mislabeling_it():
             assert "Invalid growth window" in str(exc)
         else:
             raise AssertionError("invalid growth window should fail")
+
+    request.assert_not_called()
+
+
+@pytest.mark.parametrize("window", ["300Y", "999999999999999999999999999999D", 7, None])
+async def test_get_growth_rejects_unrepresentable_windows_before_provider_call(window):
+    """Invalid windows must not spend a provider request before pandas overflows."""
+    with patch.object(news.tr, "interest_over_time") as request:
+        with pytest.raises(ValueError, match="Invalid growth window"):
+            await news.get_growth("keyword", percent_growth=[window])
 
     request.assert_not_called()
 

@@ -420,10 +420,22 @@ async def test_ranked_trends_normalizes_provider_metrics_and_sorts_missing_last(
         (100, "100"),
         (10.0, "10"),
         ("100K+", "100K+"),
+        ("1,200+", "1,200+"),
+        ("1.2K", "1.2K"),
+        ("500+", "500+"),
+        ("NaN", None),
+        ("True", None),
+        ("Infinity", None),
+        ("-1", None),
+        ("unknown", None),
+        ("1.5", None),
+        ("", None),
+        ("   ", None),
     ],
 )
+@pytest.mark.parametrize("trend_type", ["Google Trends", "Daily Trends"])
 async def test_top_trends_does_not_stringify_invalid_provider_volumes(
-    monkeypatch, provider_volume, expected
+    monkeypatch, provider_volume, expected, trend_type
 ):
     trend = SimpleNamespace(
         keyword="topic", volume=provider_volume, started=None,
@@ -431,7 +443,7 @@ async def test_top_trends_does_not_stringify_invalid_provider_volumes(
     )
     monkeypatch.setattr(news, "_call_trends_async", AsyncMock(return_value=[trend]))
 
-    result = await news.get_top_trends(limit=1)
+    result = await news.get_top_trends(type=trend_type, limit=1)
 
     assert result[0]["volume"] == expected
     assert trend.volume is provider_volume
