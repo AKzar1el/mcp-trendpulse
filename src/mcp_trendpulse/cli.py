@@ -172,7 +172,7 @@ def watch_evaluate(rule_id, evidence):
 
 @cli.command(help=get_news_by_keyword.__doc__)
 @click.argument("keyword")
-@click.option("--period", type=int, default=7, help="Period in days to search for articles.")
+@click.option("--period", type=click.IntRange(min=1), default=7, help="Period in days to search for articles.")
 @click.option(
     "--max-results",
     "max_results",
@@ -204,7 +204,7 @@ def keyword(keyword, period, max_results, no_nlp, headlines_only, save_json_dir)
 
 @cli.command(help=get_news_by_location.__doc__)
 @click.argument("location")
-@click.option("--period", type=int, default=7, help="Period in days to search for articles.")
+@click.option("--period", type=click.IntRange(min=1), default=7, help="Period in days to search for articles.")
 @click.option(
     "--max-results",
     "max_results",
@@ -236,7 +236,7 @@ def location(location, period, max_results, no_nlp, headlines_only, save_json_di
 
 @cli.command(help=get_news_by_topic.__doc__)
 @click.argument("topic")
-@click.option("--period", type=int, default=7, help="Period in days to search for articles.")
+@click.option("--period", type=click.IntRange(min=1), default=7, help="Period in days to search for articles.")
 @click.option(
     "--max-results",
     "max_results",
@@ -291,7 +291,7 @@ def trending(geo, full_data):
 
 
 @cli.command(help=get_top_news.__doc__)
-@click.option("--period", type=int, default=3, help="Period in days to search for top articles.")
+@click.option("--period", type=click.IntRange(min=1), default=3, help="Period in days to search for top articles.")
 @click.option(
     "--max-results",
     "max_results",
@@ -323,7 +323,7 @@ def top(period, max_results, no_nlp, headlines_only, save_json_dir):
 
 @cli.command(help=get_news_by_site.__doc__)
 @click.argument("site")
-@click.option("--period", type=int, default=7, help="Period in days to search for articles.")
+@click.option("--period", type=click.IntRange(min=1), default=7, help="Period in days to search for articles.")
 @click.option("--max-results", "max_results", type=click.IntRange(1, GOOGLE_NEWS_MAX_RESULTS), default=10, help="Maximum number of results.")
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")

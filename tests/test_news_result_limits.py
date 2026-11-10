@@ -17,6 +17,22 @@ def test_news_factory_rejects_out_of_range_before_upstream_client(max_results):
     client_factory.assert_not_called()
 
 
+@pytest.mark.parametrize("period", [0, -3, True, 1.5, "7"])
+def test_news_factory_rejects_invalid_period_before_upstream_client(period):
+    with patch.object(news, "_DeferredUrlGNews") as client_factory:
+        with pytest.raises(ValueError, match="positive whole number"):
+            news._new_google_news(period=period, max_results=10)
+    client_factory.assert_not_called()
+
+
+@pytest.mark.parametrize("max_results", [True, 1.5, "10"])
+def test_news_factory_rejects_noninteger_limits_before_upstream_client(max_results):
+    with patch.object(news, "_DeferredUrlGNews") as client_factory:
+        with pytest.raises(ValueError, match="whole number"):
+            news._new_google_news(period=7, max_results=max_results)
+    client_factory.assert_not_called()
+
+
 @pytest.mark.parametrize("max_results", [1, 100])
 def test_news_factory_preserves_period_at_valid_boundaries(max_results):
     with patch.object(news, "_DeferredUrlGNews") as client_factory:
@@ -62,4 +78,26 @@ def test_news_cli_rejects_out_of_range_without_provider_calls(command, max_resul
         )
     assert result.exit_code == 2
     assert "Invalid value for '--max-results'" in result.output
+    provider.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ("keyword", "ai"),
+        ("location", "Ljubljana"),
+        ("topic", "TECHNOLOGY"),
+        ("top",),
+        ("site", "example.com"),
+    ],
+)
+@pytest.mark.parametrize("period", [0, -7])
+def test_news_cli_rejects_nonpositive_period_without_provider_calls(command, period):
+    with patch.object(cli_module, "get_provider_set") as provider:
+        result = CliRunner().invoke(
+            cli_module.cli,
+            [*command, "--period", str(period), "--headlines-only"],
+        )
+    assert result.exit_code == 2
+    assert "Invalid value for '--period'" in result.output
     provider.assert_not_called()

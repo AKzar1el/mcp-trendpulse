@@ -461,9 +461,17 @@ class _DeferredUrlGNews(GNews):
 
 def _new_google_news(period: int, max_results: int) -> GNews:
     """Create an isolated Google News client for one request."""
+    if not isinstance(period, int) or isinstance(period, bool) or period < 1:
+        raise ValueError("Google News period must be a positive whole number of days.")
     # GNews drops its configured date window when paginating over 100 items.
-    if not 1 <= max_results <= GOOGLE_NEWS_MAX_RESULTS:
-        raise ValueError(f"Google News max_results must be between 1 and {GOOGLE_NEWS_MAX_RESULTS}.")
+    if (
+        not isinstance(max_results, int)
+        or isinstance(max_results, bool)
+        or not 1 <= max_results <= GOOGLE_NEWS_MAX_RESULTS
+    ):
+        raise ValueError(
+            f"Google News max_results must be a whole number between 1 and {GOOGLE_NEWS_MAX_RESULTS}."
+        )
     client = _DeferredUrlGNews(
         language=get_google_news_language(),
         country=get_google_news_country(),
