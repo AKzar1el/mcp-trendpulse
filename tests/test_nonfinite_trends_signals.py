@@ -34,6 +34,22 @@ async def test_suggestions_report_malformed_provider_containers(payload):
     assert error.value.operation == "suggestions"
 
 
+@pytest.mark.parametrize("payload", [None, {}, []])
+@pytest.mark.parametrize(
+    ("tool", "provider_method", "operation"),
+    [
+        (news.get_trends, "interest_over_time", "interest_over_time"),
+        (news.get_growth, "interest_over_time", "interest_over_time"),
+        (news.get_interest_by_region, "interest_by_region", "interest_by_region"),
+    ],
+)
+async def test_core_trends_report_malformed_provider_frame(payload, tool, provider_method, operation):
+    with patch.object(news.tr, provider_method, return_value=payload):
+        with pytest.raises(news.ProviderUnavailableError) as error:
+            await tool("python")
+    assert error.value.operation == operation
+
+
 async def test_trends_drop_nonfinite_points_without_discarding_valid_observations():
     frame = pd.DataFrame(
         {"python": [20.0, float("nan"), float("inf"), 40.0]},

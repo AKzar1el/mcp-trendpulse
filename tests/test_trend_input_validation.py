@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+import pandas as pd
 import pytest
 from fastmcp import Client
 
@@ -161,7 +162,7 @@ def test_seed_keyword_normalization_trims_surrounding_whitespace():
 @pytest.mark.asyncio
 async def test_region_filters_normalize_supported_direct_provider_values():
     with patch.object(news.tr, "interest_by_region") as request:
-        request.return_value.empty = True
+        request.return_value = pd.DataFrame()
         await news.get_interest_by_region("python", gprop=" YouTube ", resolution=" region ")
 
     request.assert_called_once()
