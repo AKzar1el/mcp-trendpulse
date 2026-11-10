@@ -161,6 +161,53 @@ async def test_trending_feeds_ignore_unsafe_provider_news_urls(monkeypatch, fetc
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("fetch", [news.get_ranked_trends, news.get_top_trends])
+@pytest.mark.parametrize(
+    ("picture", "expected"),
+    [
+        ("javascript:alert(1)", None),
+        ("data:image/png;base64,AA", None),
+        ("//example.com/photo.png", None),
+        ("https://user:pass@example.com/photo.png", None),
+        ("https://[invalid/photo.png", None),
+        ("https://example.com/photo.png", "https://example.com/photo.png"),
+    ],
+)
+async def test_trending_feeds_validate_optional_article_pictures(monkeypatch, fetch, picture, expected):
+    article = SimpleNamespace(title="Story", url="https://example.com/story", picture=picture)
+    trend = SimpleNamespace(keyword="topic", volume=100, volume_growth_pct=5,
+                            started_timestamp=[], started=None, link=None,
+                            picture=None, news=[article])
+    monkeypatch.setattr(news, "_call_trends_async", AsyncMock(return_value=[trend]))
+
+    result = await fetch(limit=1)
+
+    assert result[0]["news"][0]["picture"] == expected
+    assert article.picture == picture
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("picture", "expected"),
+    [
+        ("javascript:alert(1)", None),
+        ("data:image/svg+xml,unsafe", None),
+        ("https://user:pass@example.com/photo.png", None),
+        ("https://example.com/photo.png", "https://example.com/photo.png"),
+    ],
+)
+async def test_top_trends_validates_optional_trend_pictures(monkeypatch, picture, expected):
+    trend = SimpleNamespace(keyword="topic", volume=100, started=None,
+                            started_timestamp=[], link=None, picture=picture, news=[])
+    monkeypatch.setattr(news, "_call_trends_async", AsyncMock(return_value=[trend]))
+
+    result = await news.get_top_trends(limit=1)
+
+    assert result[0]["picture"] == expected
+    assert trend.picture == picture
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("link", "expected"),
     [

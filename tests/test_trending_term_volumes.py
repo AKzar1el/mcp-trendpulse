@@ -161,6 +161,33 @@ async def test_get_trending_terms_full_data_nulls_unsafe_optional_trend_links(un
     assert trend.link == unsafe_link
 
 
+@pytest.mark.parametrize(
+    ("picture", "expected"),
+    [
+        ("javascript:alert(1)", None),
+        ("data:image/png;base64,AA", None),
+        ("//example.com/photo.png", None),
+        ("https://user:pass@example.com/photo.png", None),
+        ("https://example.com/photo.png", "https://example.com/photo.png"),
+    ],
+)
+async def test_get_trending_terms_full_data_validates_pictures_without_mutating_cache(
+    picture, expected
+):
+    article = SimpleNamespace(title="Story", url="https://example.com/story", picture=picture)
+    trend = SimpleNamespace(keyword="topic", volume="500+", picture=picture,
+                            picture_source="Publisher &amp; Co", news=[article])
+
+    with patch.object(news.tr, "trending_now_by_rss", return_value=[trend]):
+        first = await news.get_trending_terms(full_data=True)
+        second = await news.get_trending_terms(full_data=True)
+
+    assert first[0].picture == second[0].picture == expected
+    assert first[0].news[0].picture == second[0].news[0].picture == expected
+    assert first[0].picture_source == "Publisher & Co"
+    assert trend.picture == article.picture == picture
+
+
 @pytest.mark.parametrize("full_data", [False, True])
 async def test_get_trending_terms_does_not_mutate_reused_provider_objects(full_data):
     article = SimpleNamespace(
