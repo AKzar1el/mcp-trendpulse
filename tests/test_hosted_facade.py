@@ -280,6 +280,36 @@ async def test_discover_trends_skips_invalid_ranked_rows_and_optional_news(fake_
     ]
 
 
+async def test_discover_trends_rejects_untrusted_news_links_and_decoded_blank_labels(
+    fake_providers, monkeypatch
+):
+    async def untrusted_rankings(**kwargs):
+        return [
+            {"keyword": "&nbsp;", "news": [{"title": "Hidden", "url": "https://example.com/hidden"}]},
+            {
+                "keyword": "Useful topic",
+                "news": [
+                    {"title": "&nbsp;", "url": "https://example.com/empty-title"},
+                    {"title": "Script link", "url": "javascript:alert(1)"},
+                    {"title": "Credential link", "url": "https://user:pass@example.com/story"},
+                    {"title": "Bad host", "url": "https://[broken-ipv6/story"},
+                    {"title": "Useful &amp; verified", "url": "https://example.com/story"},
+                    {"title": "Another valid", "url": "http://example.com/second"},
+                ],
+            },
+        ]
+
+    monkeypatch.setattr(fake_providers.trends, "get_ranked_trends", untrusted_rankings)
+    with use_provider_set(fake_providers):
+        result = await hosted.discover_trends(limit=2)
+
+    assert [trend.keyword for trend in result.trends] == ["Useful topic"]
+    assert [(story.title, story.url) for story in result.trends[0].context_articles] == [
+        ("Useful &amp; verified", "https://example.com/story"),
+        ("Another valid", "http://example.com/second"),
+    ]
+
+
 async def test_analyze_and_compare_return_bounded_series(fake_providers):
     with use_provider_set(fake_providers):
         analysis = await hosted.analyze_keyword_trend(
@@ -780,6 +810,22 @@ async def test_trend_context_rejects_unsafe_rss_links_without_losing_valid_headl
 
     assert result.metrics.points_observed == 30
     assert [article.url for article in result.recent_articles] == ["https://publisher.example/news"]
+    assert any("malformed" in limitation.lower() for limitation in result.limitations)
+
+
+@pytest.mark.parametrize("blank_title", ["&nbsp;", " &#160; ", "&#x2003;", "&#9;", "&#10;"])
+async def test_trend_context_discards_decoded_blank_rss_titles(fake_providers, monkeypatch, blank_title):
+    async def rss_with_blank_title(**kwargs):
+        return [
+            {"title": blank_title, "url": "https://news.google.com/rss/articles/blank"},
+            {"title": "Useful &amp; accurate", "url": "https://news.google.com/rss/articles/valid"},
+        ]
+
+    monkeypatch.setattr(fake_providers.news, "get_rss_headlines_by_keyword", rss_with_blank_title)
+    with use_provider_set(fake_providers):
+        result = await hosted.get_trend_context(keyword="AI search", max_articles=2)
+
+    assert [article.title for article in result.recent_articles] == ["Useful &amp; accurate"]
     assert any("malformed" in limitation.lower() for limitation in result.limitations)
 
 

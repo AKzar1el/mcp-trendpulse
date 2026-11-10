@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from html import unescape
 from math import isfinite
 from statistics import fmean
 from typing import Annotated, Any, Literal, TypeVar
@@ -378,17 +379,18 @@ def _series_by_keyword(results: list[Any]) -> dict[str, list[dict[str, Any]]]:
     return grouped
 
 
-def _context_article(article: object) -> ContextArticle | None:
-    if not isinstance(article, dict):
-        return None
-    title = article.get("title")
-    url = article.get("url")
-    if not isinstance(title, str) or not title.strip() or not isinstance(url, str) or not url.strip():
-        return None
+def _valid_news_context(title: object, url: object) -> bool:
+    if (
+        not isinstance(title, str)
+        or not unescape(title).strip()
+        or not isinstance(url, str)
+        or not url.strip()
+    ):
+        return False
     link = url.strip()
-    # RSS metadata is untrusted: never surface executable or malformed link schemes.
+    # Both hosted news surfaces may receive untrusted provider metadata.
     if any(character.isspace() or ord(character) < 32 for character in link):
-        return None
+        return False
     try:
         parsed = urlsplit(link)
         if (
@@ -398,9 +400,20 @@ def _context_article(article: object) -> ContextArticle | None:
             or parsed.password is not None
             or parsed.port == 0
         ):
-            return None
+            return False
     except ValueError:
+        return False
+    return True
+
+
+def _context_article(article: object) -> ContextArticle | None:
+    if not isinstance(article, dict):
         return None
+    title = article.get("title")
+    url = article.get("url")
+    if not _valid_news_context(title, url):
+        return None
+    link = url.strip()
     source = article.get("meta_site_name")
     published = article.get("publish_date")
     return ContextArticle(
@@ -522,7 +535,7 @@ async def discover_trends(
         if not isinstance(row, dict) or not isinstance(row.get("keyword"), str):
             continue
         keyword = row["keyword"].strip()
-        if not keyword:
+        if not unescape(keyword).strip():
             continue
         context_articles: list[TrendNewsSnippet] = []
         news = row.get("news")
@@ -531,18 +544,13 @@ async def discover_trends(
                 if not isinstance(article, dict):
                     continue
                 title, url = article.get("title"), article.get("url")
-                if (
-                    not isinstance(title, str)
-                    or not title.strip()
-                    or not isinstance(url, str)
-                    or not url.strip()
-                ):
+                if not _valid_news_context(title, url):
                     continue
                 try:
                     context_articles.append(
                         TrendNewsSnippet(
-                            title=title,
-                            url=url,
+                            title=title.strip(),
+                            url=url.strip(),
                             source=str(article["source"]) if article.get("source") else None,
                             time=article.get("time"),
                             snippet=str(article["snippet"]) if article.get("snippet") else None,
