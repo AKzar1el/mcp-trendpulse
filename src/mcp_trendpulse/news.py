@@ -1691,14 +1691,23 @@ def _trends_frame_to_points(df: pandas.DataFrame, keywords: list[str]) -> list[d
 
 def _growth_window_days(window: str) -> int:
     """Parse a growth window without silently relabeling unsupported input."""
+    if not isinstance(window, str):
+        raise ValueError(f"Invalid growth window {window!r}; expected a string such as '3M'.")
     match = re.fullmatch(r"([1-9]\d*)([DWMY])", window.strip().upper())
     if not match:
         raise ValueError(
             f"Invalid growth window {window!r}; expected a positive integer followed by D, W, M, or Y (for example '90D', '3M', or '1Y')."
         )
-    amount = int(match.group(1))
+    amount_text = match.group(1)
+    # A 7+-digit amount is necessarily beyond pandas' representable day span.
+    if len(amount_text) > 6:
+        raise ValueError(f"Invalid growth window {window!r}; exceeds supported date range.")
+    amount = int(amount_text)
     unit = match.group(2)
-    return amount * {"D": 1, "W": 7, "M": 30, "Y": 365}[unit]
+    days = amount * {"D": 1, "W": 7, "M": 30, "Y": 365}[unit]
+    if days > pandas.Timedelta.max.days:
+        raise ValueError(f"Invalid growth window {window!r}; exceeds supported date range.")
+    return days
 
 
 def _growth_fetch_timeframe(windows: list[str]) -> str:
