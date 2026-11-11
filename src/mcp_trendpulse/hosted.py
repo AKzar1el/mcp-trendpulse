@@ -560,12 +560,14 @@ async def discover_trends(
                     continue
                 if len(context_articles) >= 3:
                     break
+        volume = row.get("volume")
+        started = row.get("started")
         trends.append(
             DiscoveredTrend(
                 keyword=keyword,
-                volume=row.get("volume"),
+                volume=volume if not isinstance(volume, bool) else None,
                 growth_pct=_as_float(row.get("growth_pct")),
-                started=row.get("started") if isinstance(row.get("started"), int) else None,
+                started=started if type(started) is int else None,
                 context_articles=context_articles,
             )
         )

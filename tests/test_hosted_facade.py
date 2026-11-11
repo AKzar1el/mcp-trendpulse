@@ -254,6 +254,31 @@ async def test_discover_trends_is_bounded_and_preserves_provider_metadata(fake_p
     assert all(len(item.context_articles) <= 3 for item in result.trends)
 
 
+@pytest.mark.parametrize(
+    ("volume", "started", "expected_volume", "expected_started"),
+    [
+        (True, True, None, None),
+        (False, False, None, None),
+        (True, 1_700_000_000, None, 1_700_000_000),
+        (1000, False, 1000, None),
+        ("100K+", 0, "100K+", 0),
+    ],
+)
+async def test_discover_trends_does_not_coerce_boolean_metadata_to_numbers(
+    fake_providers, monkeypatch, volume, started, expected_volume, expected_started
+):
+    async def malformed_rankings(**kwargs):
+        return [{"keyword": "useful topic", "volume": volume, "started": started}]
+
+    monkeypatch.setattr(fake_providers.trends, "get_ranked_trends", malformed_rankings)
+    with use_provider_set(fake_providers):
+        result = await hosted.discover_trends(limit=1)
+
+    assert len(result.trends) == 1
+    assert result.trends[0].volume == expected_volume
+    assert result.trends[0].started == expected_started
+
+
 async def test_discover_trends_skips_invalid_ranked_rows_and_optional_news(fake_providers, monkeypatch):
     valid_story = {
         "title": "Useful report",
