@@ -10,6 +10,7 @@ import pytest
 from types import SimpleNamespace
 
 from mcp_trendpulse import cli as cli_module
+from mcp_trendpulse.errors import ProviderRateLimitError, ProviderTimeoutError
 
 
 class NoopBrowserManager:
@@ -283,6 +284,31 @@ def test_brief_pack_json_exports_typed_attributed_two_market_evidence():
     }
     assert evidence["markets"][1]["keywords"][0]["latest_index"] == 60.0
     providers.trends.get_growth.assert_not_awaited()
+
+
+@pytest.mark.parametrize("output_format", ["json", "markdown"])
+@pytest.mark.parametrize(
+    ("error", "code", "advice"),
+    [
+        (ProviderRateLimitError("google_trends", "interest_over_time"), "provider_rate_limited", "Try again later"),
+        (ProviderTimeoutError("google_trends", "interest_over_time"), "provider_timeout", "Try again"),
+    ],
+)
+def test_brief_pack_reports_actionable_upstream_failure(output_format, error, code, advice):
+    provider = SimpleNamespace(trends=SimpleNamespace(get_trends=AsyncMock(side_effect=error)))
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=provider):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "Example", "--market", "US", "--format", output_format],
+        )
+
+    assert result.exit_code == 1
+    assert f"Error: {code}:" in result.output
+    assert advice in result.output
+    assert "Traceback" not in result.output
+    if output_format == "json":
+        assert not result.output.startswith("{\"schema_version\"")
+    provider.trends.get_trends.assert_awaited_once()
 
 
 def test_brief_pack_json_marks_unavailable_values_and_stale_observations():
