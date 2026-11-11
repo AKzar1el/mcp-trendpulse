@@ -511,6 +511,34 @@ async def test_hosted_ignores_invalid_whole_growth_payload_but_preserves_interes
     assert all(entry.metrics.points_observed == 30 and entry.growth == {} for entry in comparison.comparisons)
 
 
+@pytest.mark.parametrize(
+    "failure_type", [ProviderRateLimitError, ProviderTimeoutError, ProviderUnavailableError]
+)
+async def test_compare_keeps_valid_interest_when_optional_growth_provider_fails(
+    fake_providers, monkeypatch, failure_type
+):
+    async def failed_growth(**kwargs):
+        raise failure_type("fake_trends", "get_growth")
+
+    monkeypatch.setattr(fake_providers.trends, "get_growth", failed_growth)
+    with use_provider_set(fake_providers):
+        result = await hosted.compare_keyword_trends(keywords=["seo", "agents"])
+
+    assert all(entry.metrics.points_observed == 30 for entry in result.comparisons)
+    assert all(entry.growth == {} for entry in result.comparisons)
+    assert "growth metrics unavailable" in result.note.lower()
+    assert failure_type.code.value in result.note
+
+
+async def test_compare_propagates_primary_interest_provider_failures(fake_providers, monkeypatch):
+    async def failed_trends(**kwargs):
+        raise ProviderRateLimitError("fake_trends", "get_trends")
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", failed_trends)
+    with use_provider_set(fake_providers), pytest.raises(ProviderRateLimitError):
+        await hosted.compare_keyword_trends(keywords=["seo", "agents"])
+
+
 async def test_compare_preserves_valid_trends_when_provider_returns_malformed_rows(
     fake_providers, monkeypatch
 ):

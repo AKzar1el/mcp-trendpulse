@@ -674,12 +674,18 @@ async def compare_keyword_trends(
         geo=geo,
         timeframe=timeframe,
     )
-    growth_rows = await providers.trends.get_growth(
-        keyword=keywords,
-        source=source,
-        percent_growth=["3M", "1Y"],
-        geo=geo,
-    )
+    growth_note = ""
+    try:
+        growth_rows = await providers.trends.get_growth(
+            keyword=keywords,
+            source=source,
+            percent_growth=["3M", "1Y"],
+            geo=geo,
+        )
+    except ProviderError as exc:
+        # Optional growth evidence must not discard a valid shared-scale series.
+        growth_rows = []
+        growth_note = f" Growth metrics unavailable ({exc.code.value}); no growth is inferred."
     grouped = _series_by_keyword(points)
     growth = _growth_by_keyword(growth_rows)
     malformed_series = not isinstance(points, (list, tuple))
@@ -702,6 +708,7 @@ async def compare_keyword_trends(
         note=(
             "Values are normalized within the Google Trends comparison, not absolute search volume."
             + (" Invalid provider interest-series payload; no observations were validated." if malformed_series else "")
+            + growth_note
         ),
     )
 
