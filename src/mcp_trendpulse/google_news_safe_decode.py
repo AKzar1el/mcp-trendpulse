@@ -13,7 +13,7 @@ from time import monotonic
 from urllib.parse import quote, urlsplit
 
 from requests import Session
-from selectolax.parser import HTMLParser
+from selectolax.lexbor import LexborHTMLParser
 
 
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{1,4096}={0,2}\Z")
@@ -91,7 +91,7 @@ def decode_google_news_url_pinned(
             )
             if text is None:
                 continue
-            element = HTMLParser(text).css_first("c-wiz > div[jscontroller]")
+            element = LexborHTMLParser(text).css_first("c-wiz > div[jscontroller]")
             if element is None:
                 continue
             signature = element.attributes.get("data-n-a-sg")
