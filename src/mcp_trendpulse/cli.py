@@ -12,6 +12,8 @@ from pathlib import Path
 
 import click
 from mcp_trendpulse.config import GOOGLE_NEWS_MAX_RESULTS, load_environment
+from mcp_trendpulse.errors import ProviderError
+
 # Delay heavyweight news/browser/NLP imports until a CLI command needs them.
 # Click help text preserves the underlying news API documentation.
 def _news_export(name):
@@ -382,6 +384,7 @@ def brief_pack(keywords, markets, timeframe, output_format):
             click.echo("> Google Trends values are normalized relative-interest indices, not absolute search volume. Compare terms within the same market request; do not compare index values directly across markets.")
 
         for market in cleaned_markets:
+            growth_fetch_warning = None
             raw_points = await providers.trends.get_trends(
                 keyword=cleaned_keywords,
                 source="google search",
@@ -400,12 +403,20 @@ def brief_pack(keywords, markets, timeframe, output_format):
                     [point for point, _ in dated_points], cleaned_keywords, ["3M", "1Y"]
                 )
             else:
-                raw_growth_rows = await providers.trends.get_growth(
-                    keyword=cleaned_keywords,
-                    source="google search",
-                    percent_growth=["3M", "1Y"],
-                    geo=market,
-                )
+                try:
+                    raw_growth_rows = await providers.trends.get_growth(
+                        keyword=cleaned_keywords,
+                        source="google search",
+                        percent_growth=["3M", "1Y"],
+                        geo=market,
+                    )
+                except ProviderError as exc:
+                    # This secondary request must not discard already-fetched primary evidence.
+                    raw_growth_rows = []
+                    growth_fetch_warning = (
+                        f"Separate 3M and 1Y growth unavailable ({exc.code.value}); "
+                        "valid primary Trends observations, if any, are retained."
+                    )
             invalid_growth_container = not isinstance(raw_growth_rows, (list, tuple))
             growth_rows = (
                 [
@@ -447,6 +458,8 @@ def brief_pack(keywords, markets, timeframe, output_format):
                     warnings.append("Google Trends returned an invalid growth response; growth values are unavailable.")
                 elif malformed_growth_rows:
                     warnings.append(f"Excluded {malformed_growth_rows} malformed growth entries.")
+                if growth_fetch_warning:
+                    warnings.append(growth_fetch_warning)
                 keyword_evidence = []
                 for keyword in cleaned_keywords:
                     latest_point = max(series.get(keyword, []), key=lambda entry: entry[0][0], default=None)
@@ -495,6 +508,9 @@ def brief_pack(keywords, markets, timeframe, output_format):
             elif malformed_growth_rows:
                 click.echo()
                 click.echo(f"> Excluded {malformed_growth_rows} malformed growth entries from this evidence table.")
+            if growth_fetch_warning:
+                click.echo()
+                click.echo(f"> {growth_fetch_warning}")
             if latest_trends_date:
                 click.echo()
                 click.echo(f"Latest complete Trends point: **{latest_trends_date}**")
