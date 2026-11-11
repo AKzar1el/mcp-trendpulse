@@ -291,6 +291,29 @@ def _as_float(value: Any) -> float | None:
     return numeric if isfinite(numeric) else None
 
 
+def _as_started_unix_seconds(value: Any) -> int | None:
+    """Preserve only unambiguous whole-second trend start instants."""
+    if type(value) is int:
+        return value
+    if isinstance(value, float):
+        return int(value) if isfinite(value) and value.is_integer() else None
+    if isinstance(value, str):
+        label = value.strip()
+        if not label:
+            return None
+        try:
+            value = datetime.fromisoformat(label.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+        return None
+    try:
+        seconds = value.timestamp()
+    except (OverflowError, OSError, ValueError):
+        return None
+    return int(seconds) if isfinite(seconds) and seconds.is_integer() else None
+
+
 def _normalized_interest(value: Any) -> float | None:
     numeric = _as_float(value)
     return numeric if numeric is not None and 0 <= numeric <= 100 else None
@@ -567,7 +590,7 @@ async def discover_trends(
                 keyword=keyword,
                 volume=volume if not isinstance(volume, bool) else None,
                 growth_pct=_as_float(row.get("growth_pct")),
-                started=started if type(started) is int else None,
+                started=_as_started_unix_seconds(started),
                 context_articles=context_articles,
             )
         )

@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import pytest
 from fastmcp import Client
 
@@ -277,6 +279,35 @@ async def test_discover_trends_does_not_coerce_boolean_metadata_to_numbers(
     assert len(result.trends) == 1
     assert result.trends[0].volume == expected_volume
     assert result.trends[0].started == expected_started
+
+
+@pytest.mark.parametrize(
+    ("started", "expected"),
+    [
+        ("2026-11-08T12:00:00Z", 1_794_139_200),
+        ("2026-11-08T13:00:00+01:00", 1_794_139_200),
+        (datetime(2026, 11, 8, 12, tzinfo=timezone.utc), 1_794_139_200),
+        (1_762_603_200.0, 1_762_603_200),
+        (1_762_603_200, 1_762_603_200),
+        ("not a timestamp", None),
+        ("2026-11-08T12:00:00", None),
+        (datetime(2026, 11, 8, 12), None),
+        (1_762_603_200.5, None),
+        (float("nan"), None),
+    ],
+)
+async def test_discover_trends_converts_unambiguous_provider_starts_to_unix_seconds(
+    fake_providers, monkeypatch, started, expected
+):
+    async def ranked_with_start(**kwargs):
+        return [{"keyword": "useful topic", "started": started}]
+
+    monkeypatch.setattr(fake_providers.trends, "get_ranked_trends", ranked_with_start)
+    with use_provider_set(fake_providers):
+        result = await hosted.discover_trends(limit=1)
+
+    assert len(result.trends) == 1
+    assert result.trends[0].started == expected
 
 
 async def test_discover_trends_skips_invalid_ranked_rows_and_optional_news(fake_providers, monkeypatch):
