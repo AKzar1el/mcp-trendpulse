@@ -353,8 +353,9 @@ def site(site, period, max_results, no_nlp, headlines_only, save_json_dir):
 @click.option("--keyword", "keywords", multiple=True, required=True, help="Keyword or phrase; repeat up to five times.")
 @click.option("--market", "markets", multiple=True, required=True, help="Country or subregion code such as US or US-CA; repeat up to twice.")
 @click.option("--timeframe", type=str, default="today 12-m", show_default=True, help="Shared Google Trends timeframe.")
-@click.option("--format", "output_format", type=click.Choice(["markdown", "json"]), default="markdown", show_default=True, help="Human-readable evidence or structured evidence for local report workflows.")
-def brief_pack(keywords, markets, timeframe, output_format):
+@click.option("--format", "output_format", type=click.Choice(["markdown", "json", "watch-json"]), default="markdown", show_default=True, help="Human-readable, structured brief, or manual Trend Watch evidence.")
+@click.option("--watch-evidence-file", type=click.Path(dir_okay=False, path_type=Path), default=None, help="Write UTF-8 watch-json to a new file, never overwriting existing evidence.")
+def brief_pack(keywords, markets, timeframe, output_format, watch_evidence_file):
     """Emit an attributed evidence pack for human Demand Brief fulfillment."""
     cleaned_keywords = [value.strip() for value in keywords if value.strip()]
     cleaned_markets = [value.strip().upper() for value in markets if value.strip()]
@@ -368,6 +369,13 @@ def brief_pack(keywords, markets, timeframe, output_format):
         raise click.UsageError("Invalid --market: use a two-letter country code, optionally with region suffixes.")
     if len(set(cleaned_markets)) != len(cleaned_markets):
         raise click.UsageError("Markets must be unique.")
+    if output_format == "watch-json" and (len(cleaned_keywords) != 1 or len(cleaned_markets) != 1):
+        raise click.UsageError("Watch evidence needs exactly one keyword and one market.")
+    if watch_evidence_file is not None:
+        if output_format != "watch-json":
+            raise click.UsageError("--watch-evidence-file requires --format watch-json.")
+        if watch_evidence_file.exists() or not watch_evidence_file.parent.is_dir():
+            raise click.ClickException("Watch evidence destination must be a new file in an existing directory.")
 
     async def _build():
         providers = get_provider_set()
@@ -388,6 +396,18 @@ def brief_pack(keywords, markets, timeframe, output_format):
                 geo=market,
                 timeframe=timeframe,
             )
+            if output_format == "watch-json":
+                payload = _brief_watch_payload(raw_points, cleaned_keywords[0], market, timeframe)
+                if watch_evidence_file is None:
+                    click.echo(payload, nl=False)
+                else:
+                    try:
+                        with watch_evidence_file.open("x", encoding="utf-8", newline="\n") as handle:
+                            handle.write(payload)
+                    except OSError as exc:
+                        raise click.ClickException(f"Watch evidence file was not saved: {exc}") from exc
+                    click.echo(f"Wrote Watch evidence to {watch_evidence_file}")
+                return
             invalid_points_container = not isinstance(raw_points, (list, tuple))
             points = [point for point in raw_points if isinstance(point, dict)] if not invalid_points_container else []
             malformed_points = len(raw_points) - len(points) if not invalid_points_container else 0
@@ -556,6 +576,49 @@ def _brief_observation_time(value):
         return utc_instant, utc_instant.isoformat().replace("+00:00", "Z")
     except ValueError:
         return None
+
+
+def _brief_watch_payload(raw_points, keyword, market, timeframe):
+    """Produce strict date-only, single-series evidence for offline manual Watch."""
+    from mcp_trendpulse.trend_watch import MAX_EVIDENCE_BYTES, MAX_POINTS, parse_evidence
+
+    if not isinstance(raw_points, (list, tuple)) or not 0 < len(raw_points) <= MAX_POINTS:
+        raise click.ClickException("Watch evidence needs 1-520 date-only Trends observations.")
+    points = []
+    for point in raw_points:
+        if not isinstance(point, dict) or point.get("keyword") != keyword:
+            raise click.ClickException("Watch evidence contains an invalid or different keyword series.")
+        when = point.get("date")
+        if not isinstance(when, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", when) is None:
+            raise click.ClickException("Watch evidence requires ISO calendar dates; hourly timestamps cannot be converted silently.")
+        value = _brief_number(point.get("value"), interest=True)
+        if value is None:
+            raise click.ClickException("Watch evidence contains an invalid normalized interest score.")
+        partial = point.get("isPartial", False)
+        if not isinstance(partial, bool):
+            raise click.ClickException("Watch evidence has an invalid isPartial marker.")
+        record = {"date": when, "value": value}
+        if partial:
+            record["isPartial"] = True
+        points.append(record)
+    points.sort(key=lambda row: row["date"])
+    payload = json.dumps({
+        "keyword": keyword,
+        "market": market,
+        "source": "Google Trends",
+        "source_url": "https://trends.google.com/trends/",
+        "property": "Google Search",
+        "timeframe": " ".join(timeframe.split()),
+        "points": points,
+    }, ensure_ascii=False, allow_nan=False, indent=2) + "\n"
+    encoded = payload.encode("utf-8")
+    if len(encoded) > MAX_EVIDENCE_BYTES:
+        raise click.ClickException("Watch evidence exceeds the 256 KiB offline input limit.")
+    try:
+        parse_evidence(encoded, keyword=keyword, market=market)
+    except ValueError as exc:
+        raise click.ClickException(f"Watch evidence is not usable: {exc}") from exc
+    return payload
 
 
 def _brief_table_cell(value):

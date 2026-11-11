@@ -225,6 +225,122 @@ class FakeBriefProviders:
         self.trends = FakeBriefTrendsProvider()
 
 
+def test_brief_pack_watch_json_is_directly_consumable_by_manual_watch(tmp_path):
+    from mcp_trendpulse.trend_watch import WatchStore, parse_evidence
+
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": (date.today() - timedelta(weeks=7 - index)).isoformat(),
+         "keyword": "ChatGPT", "value": 20 if index < 6 else 80}
+        for index in range(8)
+    ])
+    providers.trends.get_growth = AsyncMock(side_effect=AssertionError("Watch export must use one Trends request"))
+    target = tmp_path / "watch-evidence.json"
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US",
+            "--format", "watch-json", "--watch-evidence-file", str(target),
+        ])
+
+    assert result.exit_code == 0, result.output
+    data = json.loads(target.read_text(encoding="utf-8"))
+    assert data["keyword"] == "ChatGPT" and data["market"] == "US"
+    assert data["source"] == "Google Trends"
+    assert len(data["points"]) == 8
+    assert parse_evidence(target.read_bytes(), keyword="ChatGPT", market="US")
+    rule = WatchStore(tmp_path / "watch-rules").create(keyword="ChatGPT", market="US", window=2)
+    assert WatchStore(tmp_path / "watch-rules").evaluate_and_record(rule.id, target.read_bytes()).status == "triggered"
+    providers.trends.get_trends.assert_awaited_once()
+    providers.trends.get_growth.assert_not_awaited()
+
+
+@pytest.mark.parametrize("extra", [
+    ["--keyword", "Claude"],
+    ["--market", "GB"],
+])
+def test_brief_pack_watch_json_rejects_mixed_series_before_provider_call(extra):
+    with patch("mcp_trendpulse.cli.get_provider_set") as get_providers:
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US",
+            *extra, "--format", "watch-json",
+        ])
+    assert result.exit_code != 0
+    assert "one keyword and one market" in result.output.lower()
+    get_providers.assert_not_called()
+
+
+@pytest.mark.parametrize("point", [
+    {"date": "2026-09-01T10:00:00Z", "keyword": "ChatGPT", "value": 40},
+    {"date": "2026-09-01", "keyword": "ChatGPT", "value": 101},
+    {"date": "2026-09-01", "keyword": "Other", "value": 40},
+    {"date": "2026-09-01", "keyword": "ChatGPT", "value": True},
+])
+def test_brief_pack_watch_json_fails_closed_on_incompatible_series(tmp_path, point):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[point])
+    target = tmp_path / "watch.json"
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US",
+            "--format", "watch-json", "--watch-evidence-file", str(target),
+        ])
+    assert result.exit_code != 0
+    assert not target.exists()
+
+
+def test_brief_pack_watch_json_never_overwrites_existing_file_before_fetch(tmp_path):
+    target = tmp_path / "watch.json"
+    target.write_text("owner data", encoding="utf-8")
+    with patch("mcp_trendpulse.cli.get_provider_set") as get_providers:
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US",
+            "--format", "watch-json", "--watch-evidence-file", str(target),
+        ])
+    assert result.exit_code != 0
+    assert target.read_text(encoding="utf-8") == "owner data"
+    get_providers.assert_not_called()
+
+
+def test_brief_pack_watch_json_stdout_retains_partial_marker():
+    from mcp_trendpulse.trend_watch import parse_evidence
+
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"keyword": "ChatGPT", "date": "2026-09-08", "value": 25, "isPartial": True},
+        {"keyword": "ChatGPT", "date": "2026-09-01", "value": 20},
+    ])
+    providers.trends.get_growth = AsyncMock(side_effect=AssertionError("No growth fetch for Watch output"))
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--format", "watch-json",
+        ])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["points"] == [
+        {"date": "2026-09-01", "value": 20.0},
+        {"date": "2026-09-08", "value": 25.0, "isPartial": True},
+    ]
+    assert len(parse_evidence(result.output.encode("utf-8"), keyword="ChatGPT", market="US")) == 1
+    providers.trends.get_growth.assert_not_awaited()
+
+
+def test_brief_pack_watch_json_rejects_duplicate_dates_without_writing(tmp_path):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"keyword": "ChatGPT", "date": "2026-09-01", "value": 20},
+        {"keyword": "ChatGPT", "date": "2026-09-01", "value": 30},
+    ])
+    target = tmp_path / "watch.json"
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US",
+            "--format", "watch-json", "--watch-evidence-file", str(target),
+        ])
+    assert result.exit_code != 0
+    assert "duplicate" in result.output.lower()
+    assert not target.exists()
+
+
 def test_brief_pack_emits_two_market_evidence_tables():
     runner = CliRunner()
     providers = FakeBriefProviders()
