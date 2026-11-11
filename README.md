@@ -342,6 +342,8 @@ uv run mcp-trendpulse-cli brief-pack --keyword "ChatGPT" --keyword "Claude" --ma
 
 The JSON includes source attribution, the shared timeframe, per-market latest observation dates, numeric indices/growth percentages (or `null` when unavailable), and warnings about stale or malformed evidence. Indices are normalized **within each market request**; they are not search volume and should not be directly compared across markets. The command fetches Google Trends data but does not generate recommendations or send a Demand Brief.
 
+For an explicitly requested one-keyword, one-market Trend Watch series instead of a brief summary, use `brief-pack --format watch-json --watch-evidence-file ./trend-series.json`. The new UTF-8 file can be passed to the offline `watch evaluate --evidence` command without hand-editing; existing files and invalid/hourly evidence are rejected. This is a manual Google Trends fetch, not automatic monitoring. See `docs/trend-watch.md`.
+
 The CLI and MCP surfaces are intentionally documented separately because they do not expose the same command set.
 
 ## Development

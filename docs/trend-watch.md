@@ -23,6 +23,27 @@ Prepare a UTF-8 JSON file from an **authorized and reviewed** data source,
 such as a manually exported trend series. This example is fabricated and
 intended only to show the expected shape:
 
+If you already use the local TrendPulse CLI's Google Trends provider, you can
+prepare Watch-compatible evidence with **one explicit** Trends query, without
+manually transforming a Demand Brief. The file is created only if its
+destination does not exist:
+
+```bash
+uv run mcp-trendpulse-cli brief-pack --keyword "AI research" --market US --format watch-json --watch-evidence-file ./trend-series.json
+uv run mcp-trendpulse-cli watch evaluate --id YOUR_RULE_ID --evidence ./trend-series.json
+```
+
+This is an opt-in, user-started provider request; `watch evaluate` still works
+offline and never fetches data. The export requires exactly one keyword and
+market, accepts complete date-only observations with normalized 0-100 scores,
+preserves partial-point markers, and refuses duplicate, future, malformed,
+hourly or oversized evidence rather than silently changing its meaning.
+The ordinary `brief-pack --format json` is a separate summary schema and
+cannot be passed directly to `watch evaluate`. Existing output files are
+never overwritten. A stale or irregular resulting series still cannot
+trigger an alert; provider permissions, quota limits and source review remain
+the operator's responsibility.
+
 ```json
 {
   "keyword": "AI research",
