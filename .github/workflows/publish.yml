@@ -37,13 +37,24 @@ jobs:
         run: uv sync --locked --dev
 
       - name: Verify Registry package metadata
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          python - <<'PY'
+          uv run --locked --python 3.12 python - <<'PY'
           import json
+          import os
+          import tomllib
           from pathlib import Path
 
           server = json.loads(Path('server.json').read_text())
-          version = '0.2.46'
+          project = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))['project']
+          version = project['version']
+          assert isinstance(version, str) and version
+          if os.environ['EVENT_NAME'] == 'release':
+              assert os.environ['RELEASE_TAG'] == f'v{version}', (
+                  f"Release tag must be v{version} (from pyproject.toml)"
+              )
           assert server['name'] == 'io.github.AKzar1el/mcp-trendpulse'
           assert server['version'] == version
           assert '<!-- mcp-name: io.github.AKzar1el/mcp-trendpulse -->' in Path('README.md').read_text()
