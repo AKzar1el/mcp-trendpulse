@@ -353,8 +353,9 @@ def site(site, period, max_results, no_nlp, headlines_only, save_json_dir):
 @click.option("--keyword", "keywords", multiple=True, required=True, help="Keyword or phrase; repeat up to five times.")
 @click.option("--market", "markets", multiple=True, required=True, help="Country or subregion code such as US or US-CA; repeat up to twice.")
 @click.option("--timeframe", type=str, default="today 12-m", show_default=True, help="Shared Google Trends timeframe.")
-def brief_pack(keywords, markets, timeframe):
-    """Emit a deterministic Markdown evidence pack for human Demand Brief fulfillment."""
+@click.option("--format", "output_format", type=click.Choice(["markdown", "json"]), default="markdown", show_default=True, help="Human-readable evidence or structured evidence for local report workflows.")
+def brief_pack(keywords, markets, timeframe, output_format):
+    """Emit an attributed evidence pack for human Demand Brief fulfillment."""
     cleaned_keywords = [value.strip() for value in keywords if value.strip()]
     cleaned_markets = [value.strip().upper() for value in markets if value.strip()]
     if not 1 <= len(cleaned_keywords) <= 5 or len(cleaned_keywords) != len(keywords):
@@ -371,12 +372,14 @@ def brief_pack(keywords, markets, timeframe):
     async def _build():
         providers = get_provider_set()
         display_timeframe = _brief_table_cell(" ".join(timeframe.split()))
-        click.echo("# TrendPulse Demand Brief evidence pack")
-        click.echo()
-        click.echo(f"Timeframe: **{display_timeframe}** | Google Trends property: **Google Search**")
-        click.echo("Data source: **Google Trends** (https://trends.google.com/trends/)")
-        click.echo()
-        click.echo("> Google Trends values are normalized relative-interest indices, not absolute search volume. Compare terms within the same market request; do not compare index values directly across markets.")
+        markets_output = []
+        if output_format == "markdown":
+            click.echo("# TrendPulse Demand Brief evidence pack")
+            click.echo()
+            click.echo(f"Timeframe: **{display_timeframe}** | Google Trends property: **Google Search**")
+            click.echo("Data source: **Google Trends** (https://trends.google.com/trends/)")
+            click.echo()
+            click.echo("> Google Trends values are normalized relative-interest indices, not absolute search volume. Compare terms within the same market request; do not compare index values directly across markets.")
 
         for market in cleaned_markets:
             raw_points = await providers.trends.get_trends(
@@ -428,6 +431,44 @@ def brief_pack(keywords, markets, timeframe):
                 str(row.get("keyword", "")): row.get("growth") or {}
                 for row in growth_rows
             }
+
+            if output_format == "json":
+                warnings = []
+                if invalid_points_container:
+                    warnings.append("Google Trends returned an invalid observation container; no series observations were usable.")
+                elif malformed_points:
+                    warnings.append(f"Excluded {malformed_points} malformed Trends rows.")
+                skipped_dates = len(points) - len(dated_points)
+                if skipped_dates:
+                    warnings.append(f"Excluded {skipped_dates} Trends observations with invalid dates.")
+                if timeframe.strip().lower() != "today 12-m":
+                    warnings.append("3M and 1Y growth use separate Google Trends lookback requests, not the selected timeframe time series.")
+                if invalid_growth_container:
+                    warnings.append("Google Trends returned an invalid growth response; growth values are unavailable.")
+                elif malformed_growth_rows:
+                    warnings.append(f"Excluded {malformed_growth_rows} malformed growth entries.")
+                keyword_evidence = []
+                for keyword in cleaned_keywords:
+                    latest_point = max(series.get(keyword, []), key=lambda entry: entry[0][0], default=None)
+                    last_date = latest_point[0][1] if latest_point else None
+                    if latest_point and latest_trends_point and latest_point[0][0] < latest_trends_point[0]:
+                        warnings.append(f"{keyword}: latest observation {last_date} is older than market latest {latest_trends_date}.")
+                    keyword_growth = growth.get(keyword, {})
+                    keyword_evidence.append({
+                        "keyword": keyword,
+                        "latest_index": _brief_number(latest_point[1].get("value"), interest=True) if latest_point else None,
+                        "latest_observation": last_date,
+                        "growth_3m_pct": _brief_number(keyword_growth.get("3M")),
+                        "growth_1y_pct": _brief_number(keyword_growth.get("1Y")),
+                    })
+                markets_output.append({
+                    "market": market,
+                    "latest_complete_trends_point": latest_trends_date,
+                    "growth_basis": "selected_timeframe" if timeframe.strip().lower() == "today 12-m" else "separate_lookback_requests",
+                    "keywords": keyword_evidence,
+                    "warnings": warnings,
+                })
+                continue
 
             click.echo()
             click.echo(f"## {market}")
@@ -485,6 +526,17 @@ def brief_pack(keywords, markets, timeframe):
                         f"(market latest **{latest_trends_date}**)"
                     )
 
+        if output_format == "json":
+            click.echo(json.dumps({
+                "schema_version": 1,
+                "source": "Google Trends",
+                "source_url": "https://trends.google.com/trends/",
+                "property": "Google Search",
+                "timeframe": " ".join(timeframe.split()),
+                "comparability_note": "Google Trends indices are normalized relative interest, not absolute search volume. Compare terms only within each market request; do not compare indices directly across markets.",
+                "markets": markets_output,
+            }, ensure_ascii=False, allow_nan=False, indent=2))
+
     asyncio.run(_build())
 
 
@@ -514,26 +566,28 @@ def _brief_table_cell(value):
     return text
 
 
-def _brief_value(value):
+def _brief_number(value, *, interest=False):
     if value is None or isinstance(value, bool):
-        return "n/a"
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError):
-        return "n/a"
-    if not isfinite(number) or not 0 <= number <= 100:
+        return None
+    if not isfinite(number) or (interest and not 0 <= number <= 100):
+        return None
+    return number
+
+
+def _brief_value(value):
+    number = _brief_number(value, interest=True)
+    if number is None:
         return "n/a"
     return f"{number:g}"
 
 
 def _brief_percent(value):
-    if value is None or isinstance(value, bool):
-        return "n/a"
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return "n/a"
-    if not isfinite(number):
+    number = _brief_number(value)
+    if number is None:
         return "n/a"
     return f"{number:+.2f}%"
 

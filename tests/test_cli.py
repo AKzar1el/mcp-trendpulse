@@ -256,6 +256,69 @@ def test_brief_pack_emits_two_market_evidence_tables():
     providers.trends.get_growth.assert_not_awaited()
 
 
+def test_brief_pack_json_exports_typed_attributed_two_market_evidence():
+    providers = FakeBriefProviders()
+    providers.trends.get_growth = AsyncMock(side_effect=AssertionError("default brief pack must reuse trend points"))
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--keyword", "Claude", "--market", "US", "--market", "GB", "--format", "json"],
+        )
+
+    assert result.exit_code == 0, result.output
+    evidence = json.loads(result.output)
+    assert evidence["schema_version"] == 1
+    assert evidence["source"] == "Google Trends"
+    assert evidence["source_url"] == "https://trends.google.com/trends/"
+    assert evidence["property"] == "Google Search"
+    assert evidence["timeframe"] == "today 12-m"
+    assert "not absolute search volume" in evidence["comparability_note"]
+    assert len(evidence["markets"]) == 2
+    assert [row["market"] for row in evidence["markets"]] == ["US", "GB"]
+    assert evidence["markets"][0]["latest_complete_trends_point"] == "2026-09-13"
+    assert evidence["markets"][0]["growth_basis"] == "selected_timeframe"
+    assert evidence["markets"][0]["keywords"][0] == {
+        "keyword": "ChatGPT", "latest_index": 80.0,
+        "latest_observation": "2026-09-13", "growth_3m_pct": 100.0, "growth_1y_pct": 100.0,
+    }
+    assert evidence["markets"][1]["keywords"][0]["latest_index"] == 60.0
+    providers.trends.get_growth.assert_not_awaited()
+
+
+def test_brief_pack_json_marks_unavailable_values_and_stale_observations():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-09-10", "keyword": "ChatGPT", "value": True},
+        {"date": "2026-09-13", "keyword": "Claude", "value": float("nan")},
+        {"keyword": "Claude", "value": 50},
+        "malformed",
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[
+        {"keyword": "ChatGPT", "growth": {"3M": float("inf"), "1Y": -11.5}},
+        {"keyword": "Claude", "growth": {"3M": True, "1Y": None}},
+    ])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--keyword", "Claude", "--market", "US", "--timeframe", "today 5-y", "--format", "json"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "NaN" not in result.output and "Infinity" not in result.output
+    market = json.loads(result.output)["markets"][0]
+    assert market["growth_basis"] == "separate_lookback_requests"
+    assert market["latest_complete_trends_point"] == "2026-09-13"
+    assert market["keywords"] == [
+        {"keyword": "ChatGPT", "latest_index": None, "latest_observation": "2026-09-10", "growth_3m_pct": None, "growth_1y_pct": -11.5},
+        {"keyword": "Claude", "latest_index": None, "latest_observation": "2026-09-13", "growth_3m_pct": None, "growth_1y_pct": None},
+    ]
+    assert any("malformed Trends rows" in warning for warning in market["warnings"])
+    assert any("invalid dates" in warning for warning in market["warnings"])
+    assert any("older" in warning for warning in market["warnings"])
+    assert any("separate Google Trends lookback" in warning for warning in market["warnings"])
+    providers.trends.get_growth.assert_awaited_once()
+
+
 def test_brief_pack_escapes_untrusted_keyword_markdown_table_cell():
     keyword = "AI | **Retail**\n<img src=x>"
     providers = FakeBriefProviders()
