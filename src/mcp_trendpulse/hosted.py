@@ -924,7 +924,7 @@ async def find_seo_opportunities(
                 keyword=keyword,
                 signal_type=signal_type,
                 related_signal=_as_float(row.get("value")),
-                related_signal_is_breakout=bool(row.get("is_breakout", False)),
+                related_signal_is_breakout=row.get("is_breakout") is True,
                 latest_interest=metrics.latest,
                 average_interest=metrics.average,
                 peak_interest=metrics.peak,
