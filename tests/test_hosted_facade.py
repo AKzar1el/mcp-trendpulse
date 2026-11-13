@@ -591,6 +591,47 @@ async def test_compare_preserves_valid_trends_when_provider_returns_malformed_ro
     assert [entry.series[0].value for entry in result.comparisons] == [25.0, 0.0]
 
 
+@pytest.mark.parametrize(
+    ("point_rows", "missing_count"),
+    [
+        ([], 2),
+        ([{"keyword": "seo", "date": "2026-11-01", "value": 0}], 1),
+        (
+            [
+                {"keyword": "seo", "date": "2026-11-01", "value": 0},
+                {"keyword": "agents", "date": "2026-11-01", "value": 25},
+            ],
+            0,
+        ),
+    ],
+)
+async def test_compare_discloses_missing_primary_interest_despite_optional_growth(
+    fake_providers, monkeypatch, point_rows, missing_count
+):
+    async def trends(**kwargs):
+        return point_rows
+
+    async def growth(**kwargs):
+        return [
+            {"keyword": "seo", "growth": {"3M": 24}},
+            {"keyword": "agents", "growth": {"3M": 11}},
+        ]
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", trends)
+    monkeypatch.setattr(fake_providers.trends, "get_growth", growth)
+    with use_provider_set(fake_providers):
+        result = await hosted.compare_keyword_trends(keywords=["seo", "agents"])
+
+    assert all(entry.growth for entry in result.comparisons)
+    if missing_count:
+        assert f"{missing_count} of 2 keywords" in result.note
+        assert "missing primary interest observations" in result.note.lower()
+        assert "growth metrics" in result.note.lower()
+    else:
+        assert [entry.metrics.points_observed for entry in result.comparisons] == [1, 1]
+        assert "missing primary interest" not in result.note.lower()
+
+
 async def test_seo_opportunities_keep_valid_interest_when_provider_returns_malformed_rows(
     fake_providers, monkeypatch
 ):

@@ -706,6 +706,13 @@ async def compare_keyword_trends(
         )
         for keyword in keywords
     ]
+    missing_count = sum(item.metrics.points_observed == 0 for item in comparisons)
+    coverage_note = (
+        f" Missing primary interest observations for {missing_count} of {len(keywords)} keywords;"
+        " growth metrics alone cannot establish comparable interest."
+        if missing_count
+        else ""
+    )
     return CompareKeywordTrendsResult(
         provider=providers.trends.provider_id,
         geo=geo,
@@ -715,6 +722,7 @@ async def compare_keyword_trends(
         note=(
             "Values are normalized within the Google Trends comparison, not absolute search volume."
             + (" Invalid provider interest-series payload; no observations were validated." if malformed_series else "")
+            + coverage_note
             + growth_note
         ),
     )
