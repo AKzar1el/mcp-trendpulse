@@ -530,6 +530,37 @@ async def test_compare_keeps_valid_interest_when_optional_growth_provider_fails(
     assert failure_type.code.value in result.note
 
 
+@pytest.mark.parametrize(
+    "failure_type", [ProviderRateLimitError, ProviderTimeoutError, ProviderUnavailableError]
+)
+async def test_single_analysis_keeps_interest_when_optional_growth_provider_fails(
+    fake_providers, monkeypatch, failure_type
+):
+    async def failed_growth(**kwargs):
+        raise failure_type("fake_trends", "get_growth")
+
+    monkeypatch.setattr(fake_providers.trends, "get_growth", failed_growth)
+    with use_provider_set(fake_providers):
+        result = await hosted.analyze_keyword_trend(keyword="seo")
+
+    assert result.metrics.points_observed == 30
+    assert result.series
+    assert result.growth == {}
+    assert "growth metrics unavailable" in result.note.lower()
+    assert failure_type.code.value in result.note
+
+
+async def test_single_analysis_does_not_hide_primary_interest_provider_failure(
+    fake_providers, monkeypatch
+):
+    async def failed_trends(**kwargs):
+        raise ProviderRateLimitError("fake_trends", "get_trends")
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", failed_trends)
+    with use_provider_set(fake_providers), pytest.raises(ProviderRateLimitError):
+        await hosted.analyze_keyword_trend(keyword="seo")
+
+
 async def test_compare_propagates_primary_interest_provider_failures(fake_providers, monkeypatch):
     async def failed_trends(**kwargs):
         raise ProviderRateLimitError("fake_trends", "get_trends")
