@@ -641,6 +641,7 @@ async def analyze_keyword_trend(
         growth_note = f" Growth metrics unavailable ({exc.code.value}); no growth is inferred."
     growth = _growth_by_keyword(growth_rows).get(keyword, {})
     malformed_series = not isinstance(points, (list, tuple))
+    metrics = _interest_metrics(points)
 
     return KeywordTrendAnalysis(
         provider=providers.trends.provider_id,
@@ -648,12 +649,16 @@ async def analyze_keyword_trend(
         geo=geo,
         source=source,
         timeframe=timeframe,
-        metrics=_interest_metrics(points),
+        metrics=metrics,
         growth=growth,
         series=_bounded_series(points, max_points),
         note=(
             "Google Trends values are normalized interest scores, not absolute search volume."
             + (" Invalid provider interest-series payload; no observations were validated." if malformed_series else "")
+            + (
+                " No validated primary interest observations; growth metrics alone cannot establish current interest."
+                if metrics.points_observed == 0 else ""
+            )
             + growth_note
         ),
     )

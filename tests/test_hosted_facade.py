@@ -561,6 +561,37 @@ async def test_single_analysis_does_not_hide_primary_interest_provider_failure(
         await hosted.analyze_keyword_trend(keyword="seo")
 
 
+@pytest.mark.parametrize(
+    ("primary_rows", "has_primary"),
+    [
+        ([], False),
+        ([{"date": "2026-11-12", "value": True}], False),
+        ([{"date": "2026-11-12", "value": 0}], True),
+    ],
+)
+async def test_single_analysis_discloses_missing_primary_with_independent_growth(
+    fake_providers, monkeypatch, primary_rows, has_primary
+):
+    async def trends(**kwargs):
+        return primary_rows
+
+    async def growth(**kwargs):
+        return [{"keyword": "seo", "growth": {"3M": 12.5}}]
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", trends)
+    monkeypatch.setattr(fake_providers.trends, "get_growth", growth)
+    with use_provider_set(fake_providers):
+        result = await hosted.analyze_keyword_trend(keyword="seo")
+
+    assert result.growth == {"3M": 12.5}
+    assert result.metrics.points_observed == (1 if has_primary else 0)
+    assert ("no validated primary interest observations" in result.note.lower()) is not has_primary
+    if has_primary:
+        assert result.metrics.latest == 0.0
+    else:
+        assert "growth" in result.note.lower()
+
+
 async def test_compare_propagates_primary_interest_provider_failures(fake_providers, monkeypatch):
     async def failed_trends(**kwargs):
         raise ProviderRateLimitError("fake_trends", "get_trends")
