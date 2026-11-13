@@ -442,6 +442,13 @@ def brief_pack(keywords, markets, timeframe, output_format):
                 str(row.get("keyword", "")): row.get("growth") or {}
                 for row in growth_rows
             }
+            missing_primary_keywords = [
+                keyword for keyword in cleaned_keywords
+                if not any(
+                    _brief_number(point.get("value"), interest=True) is not None
+                    for _, point in series.get(keyword, [])
+                )
+            ]
 
             if output_format == "json":
                 warnings = []
@@ -452,6 +459,11 @@ def brief_pack(keywords, markets, timeframe, output_format):
                 skipped_dates = len(points) - len(dated_points)
                 if skipped_dates:
                     warnings.append(f"Excluded {skipped_dates} Trends observations with invalid dates.")
+                for keyword in missing_primary_keywords:
+                    warnings.append(
+                        f"{keyword}: no validated primary Google Trends interest observations in {market}; "
+                        "separate growth values do not replace primary evidence."
+                    )
                 if timeframe.strip().lower() != "today 12-m":
                     warnings.append("3M and 1Y growth use separate Google Trends lookback requests, not the selected timeframe time series.")
                 if invalid_growth_container:
@@ -496,6 +508,13 @@ def brief_pack(keywords, markets, timeframe, output_format):
                 click.echo()
                 noun = "observation" if skipped_dates == 1 else "observations"
                 click.echo(f"> Excluded {skipped_dates} Trends {noun} with invalid dates from this evidence table.")
+            for keyword in missing_primary_keywords:
+                click.echo()
+                click.echo(
+                    f"> {_brief_table_cell(keyword)}: no validated primary Google Trends "
+                    f"interest observations in {market}; separate growth values do not "
+                    "replace primary evidence."
+                )
             if timeframe.strip().lower() != "today 12-m":
                 click.echo()
                 click.echo(

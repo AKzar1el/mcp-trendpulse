@@ -381,6 +381,84 @@ def test_brief_pack_growth_failure_is_scoped_to_its_market():
     assert providers.trends.get_growth.await_count == 2
 
 
+@pytest.mark.parametrize("output_format", ["json", "markdown"])
+def test_brief_pack_discloses_absent_primary_even_with_separate_growth(output_format):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[])
+    providers.trends.get_growth = AsyncMock(return_value=[
+        {"keyword": "ChatGPT", "growth": {"3M": 15.0, "1Y": 22.0}},
+    ])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US",
+             "--timeframe", "today 5-y", "--format", output_format],
+        )
+
+    assert result.exit_code == 0, result.output
+    warning = "ChatGPT: no validated primary Google Trends interest observations in US"
+    if output_format == "json":
+        market = json.loads(result.output)["markets"][0]
+        assert market["keywords"][0] == {
+            "keyword": "ChatGPT", "latest_index": None, "latest_observation": None,
+            "growth_3m_pct": 15.0, "growth_1y_pct": 22.0,
+        }
+        assert any(warning in item and "growth" in item for item in market["warnings"])
+    else:
+        assert warning in result.output
+        assert "| ChatGPT | n/a | +15.00% | +22.00% |" in result.output
+    providers.trends.get_growth.assert_awaited_once()
+
+
+@pytest.mark.parametrize("output_format", ["json", "markdown"])
+def test_brief_pack_discloses_only_missing_keyword_and_preserves_valid_zero(output_format):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-09-13", "keyword": "ChatGPT", "value": 0},
+        {"date": "2026-09-13", "keyword": "Claude", "value": True},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[
+        {"keyword": "ChatGPT", "growth": {"3M": 1.0, "1Y": 2.0}},
+        {"keyword": "Claude", "growth": {"3M": 3.0, "1Y": 4.0}},
+    ])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--keyword", "Claude",
+             "--market", "US", "--timeframe", "today 5-y", "--format", output_format],
+        )
+
+    assert result.exit_code == 0, result.output
+    warning = "Claude: no validated primary Google Trends interest observations in US"
+    if output_format == "json":
+        market = json.loads(result.output)["markets"][0]
+        assert market["keywords"][0]["latest_index"] == 0.0
+        assert market["keywords"][1]["latest_index"] is None
+        assert any(warning in item for item in market["warnings"])
+        assert not any("ChatGPT: no validated" in item for item in market["warnings"])
+    else:
+        assert "| ChatGPT | 0 | +1.00% | +2.00% |" in result.output
+        assert "| Claude | n/a | +3.00% | +4.00% |" in result.output
+        assert warning in result.output
+        assert "ChatGPT: no validated" not in result.output
+
+
+def test_brief_pack_escapes_missing_primary_keyword_in_markdown_warning():
+    keyword = "AI |\n<img src=x>"
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[])
+    providers.trends.get_growth = AsyncMock(return_value=[])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", keyword, "--market", "US", "--timeframe", "today 5-y"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "> AI \\| &lt;img src=x&gt;: no validated primary" in result.output
+    assert "<img src=x>" not in result.output
+
+
 def test_brief_pack_does_not_hide_primary_provider_failure():
     providers = FakeBriefProviders()
     providers.trends.get_trends = AsyncMock(side_effect=ProviderUnavailableError("Google Trends", "get_trends"))
