@@ -443,6 +443,38 @@ def test_brief_pack_discloses_only_missing_keyword_and_preserves_valid_zero(outp
         assert "ChatGPT: no validated" not in result.output
 
 
+@pytest.mark.parametrize("output_format", ["json", "markdown"])
+def test_brief_pack_uses_latest_valid_interest_when_newer_row_is_invalid(output_format):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-09-10", "keyword": "ChatGPT", "value": 65},
+        {"date": "2026-09-13", "keyword": "ChatGPT", "value": True},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[
+        {"keyword": "ChatGPT", "growth": {"3M": 15.0, "1Y": 22.0}},
+    ])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US",
+             "--timeframe", "today 5-y", "--format", output_format],
+        )
+
+    assert result.exit_code == 0, result.output
+    if output_format == "json":
+        market = json.loads(result.output)["markets"][0]
+        assert market["keywords"][0] == {
+            "keyword": "ChatGPT", "latest_index": 65.0,
+            "latest_observation": "2026-09-10",
+            "growth_3m_pct": 15.0, "growth_1y_pct": 22.0,
+        }
+        assert any("ChatGPT" in warning and "older" in warning for warning in market["warnings"])
+    else:
+        assert "| ChatGPT | 65 | +15.00% | +22.00% |" in result.output
+        assert "ChatGPT: last observation **2026-09-10**" in result.output
+    providers.trends.get_growth.assert_awaited_once()
+
+
 def test_brief_pack_escapes_missing_primary_keyword_in_markdown_warning():
     keyword = "AI |\n<img src=x>"
     providers = FakeBriefProviders()

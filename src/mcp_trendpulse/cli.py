@@ -442,12 +442,15 @@ def brief_pack(keywords, markets, timeframe, output_format):
                 str(row.get("keyword", "")): row.get("growth") or {}
                 for row in growth_rows
             }
+            validated_series = {
+                keyword: [
+                    entry for entry in series.get(keyword, [])
+                    if _brief_number(entry[1].get("value"), interest=True) is not None
+                ]
+                for keyword in cleaned_keywords
+            }
             missing_primary_keywords = [
-                keyword for keyword in cleaned_keywords
-                if not any(
-                    _brief_number(point.get("value"), interest=True) is not None
-                    for _, point in series.get(keyword, [])
-                )
+                keyword for keyword in cleaned_keywords if not validated_series[keyword]
             ]
 
             if output_format == "json":
@@ -474,7 +477,10 @@ def brief_pack(keywords, markets, timeframe, output_format):
                     warnings.append(growth_fetch_warning)
                 keyword_evidence = []
                 for keyword in cleaned_keywords:
-                    latest_point = max(series.get(keyword, []), key=lambda entry: entry[0][0], default=None)
+                    latest_point = max(
+                        validated_series[keyword] or series.get(keyword, []),
+                        key=lambda entry: entry[0][0], default=None,
+                    )
                     last_date = latest_point[0][1] if latest_point else None
                     if latest_point and latest_trends_point and latest_point[0][0] < latest_trends_point[0]:
                         warnings.append(f"{keyword}: latest observation {last_date} is older than market latest {latest_trends_date}.")
@@ -539,7 +545,10 @@ def brief_pack(keywords, markets, timeframe, output_format):
             older_observations = []
             for keyword in cleaned_keywords:
                 keyword_points = series.get(keyword, [])
-                latest_point = max(keyword_points, key=lambda entry: entry[0][0], default=None)
+                latest_point = max(
+                    validated_series[keyword] or keyword_points,
+                    key=lambda entry: entry[0][0], default=None,
+                )
                 latest = latest_point[1].get("value") if latest_point else None
                 last_date = latest_point[0][1] if latest_point else ""
                 if (
