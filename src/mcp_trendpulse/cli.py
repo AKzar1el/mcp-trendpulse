@@ -434,10 +434,6 @@ def brief_pack(keywords, markets, timeframe, output_format):
             series = defaultdict(list)
             for point, when in dated_points:
                 series[str(point.get("keyword", ""))].append((when, point))
-            latest_trends_point = max(
-                (when for _, when in dated_points), key=lambda when: when[0], default=None
-            )
-            latest_trends_date = latest_trends_point[1] if latest_trends_point else None
             growth = {
                 str(row.get("keyword", "")): row.get("growth") or {}
                 for row in growth_rows
@@ -449,6 +445,11 @@ def brief_pack(keywords, markets, timeframe, output_format):
                 ]
                 for keyword in cleaned_keywords
             }
+            latest_trends_point = max(
+                (when for keyword in cleaned_keywords for when, _ in validated_series[keyword]),
+                key=lambda when: when[0], default=None,
+            )
+            latest_trends_date = latest_trends_point[1] if latest_trends_point else None
             missing_primary_keywords = [
                 keyword for keyword in cleaned_keywords if not validated_series[keyword]
             ]
