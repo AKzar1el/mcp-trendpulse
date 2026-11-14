@@ -4,6 +4,8 @@ This is a public example of the **EUR 49 TrendPulse Demand Brief**. It demonstra
 
 Data refreshed: **2026-09-19** using TrendPulse's completed-period filtering. The newest provider-marked partial week is excluded from the decision metrics below.
 
+> **Historical example, not a live ranking.** The data, product-news context and recommendations reflect the September 2026 research snapshot. They should not be treated as current market guidance in November 2026 or later. A new paid brief uses the latest available completed observations for its own research date.
+
 ## Decision
 
 An AI/devtools company has one near-term content and integration sprint. Which assistant ecosystems should it prioritize for the **US and UK** based on current search-interest momentum plus recent product-news context?
@@ -48,7 +50,7 @@ TrendPulse queried the five terms together in each market. Google Trends values 
 
 The growth figures are TrendPulse estimates based on normalized Google Trends series. They are directional signals rather than market-size estimates.
 
-## What the signal suggests
+## What the September 2026 signal suggested
 
 ### 1. ChatGPT remains the reach-first choice
 
@@ -74,7 +76,7 @@ For a buyer deciding where to place one sprint, this argues for keeping Claude i
 
 Likewise, `Claude` and `Gemini` are plain-language names as well as AI brands. Search-term analysis should be paired with topic/entity variants or additional context when ambiguity materially affects the decision.
 
-## Current-news context
+## News context at the time of research
 
 Recent official product activity shows that all three leading ecosystems are still moving quickly:
 
