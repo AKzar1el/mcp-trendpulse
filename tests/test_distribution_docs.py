@@ -282,11 +282,14 @@ def test_pages_publish_current_mcpvault_verification_badge():
     assert 'alt="MCPVault: verified"' in page
 
 
-def test_pages_python_floor_matches_installed_package():
+def test_pages_python_floor_tracks_current_published_release():
     page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
     project = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
 
-    assert project["requires-python"] == ">=3.11"
+    # The site still documents the published v0.2.46 release; don't silently
+    # deploy an unreleased support-policy change through the Pages workflow.
+    assert project["requires-python"] == ">=3.11.5"
+    assert 'v0.2.46' in page
     assert "python ≥ 3.11" in page
     assert "python ≥ 3.10" not in page
 
