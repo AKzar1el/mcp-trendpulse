@@ -401,10 +401,64 @@ def test_brief_pack_partial_custom_timeframe_handles_growth_fetch_failure():
 
     assert result.exit_code == 1
     payload = json.loads(result.output)
-    assert [row["market"] for row in payload["markets"]] == ["GB"]
-    assert payload["markets"][0]["keywords"][0]["growth_3m_pct"] == 5.0
+    assert [row["market"] for row in payload["markets"]] == ["US", "GB"]
+    assert payload["markets"][0]["keywords"][0]["latest_index"] == 80.0
+    assert payload["markets"][0]["keywords"][0]["growth_3m_pct"] is None
+    assert payload["markets"][1]["keywords"][0]["growth_3m_pct"] == 5.0
+    assert any("growth" in warning.lower() for warning in payload["markets"][0]["warnings"])
+    assert payload["failed_markets"][0]["component"] == "growth"
     assert payload["failed_markets"][0]["code"] == "provider_timeout"
     assert providers.trends.get_growth.await_count == 2
+
+
+@pytest.mark.parametrize("output_format", ["json", "markdown"])
+def test_brief_pack_partial_growth_rate_limit_preserves_primary_and_stops(output_format):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(side_effect=providers.trends.get_trends)
+    providers.trends.get_growth = AsyncMock(
+        side_effect=ProviderRateLimitError("google_trends", "get_growth")
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--timeframe", "today 5-y", "--format", output_format, "--allow-partial",
+        ])
+
+    assert result.exit_code == 1, result.output
+    providers.trends.get_trends.assert_awaited_once()
+    providers.trends.get_growth.assert_awaited_once()
+    if output_format == "json":
+        payload = json.loads(result.output)
+        assert payload["incomplete"] is True
+        assert [row["market"] for row in payload["markets"]] == ["US"]
+        assert payload["markets"][0]["keywords"][0]["latest_index"] == 80.0
+        assert payload["markets"][0]["keywords"][0]["growth_3m_pct"] is None
+        assert [row["market"] for row in payload["failed_markets"]] == ["US", "GB"]
+        assert payload["failed_markets"][0]["component"] == "growth"
+        assert payload["failed_markets"][0]["code"] == "provider_rate_limited"
+        assert payload["failed_markets"][1]["code"] == "not_attempted_due_to_rate_limit"
+    else:
+        assert "## US" in result.output and "| ChatGPT | 80 | n/a | n/a |" in result.output
+        assert "Growth unavailable" in result.output
+        assert "## GB" in result.output and "NOT ATTEMPTED" in result.output
+        assert "INCOMPLETE" in result.output
+
+
+def test_brief_pack_strict_growth_rate_limit_keeps_fail_fast_behavior():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(side_effect=providers.trends.get_trends)
+    providers.trends.get_growth = AsyncMock(
+        side_effect=ProviderRateLimitError("google_trends", "get_growth")
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--timeframe", "today 5-y", "--format", "json",
+        ])
+    assert result.exit_code != 0
+    assert not result.output.startswith("{")
+    providers.trends.get_trends.assert_awaited_once()
+    providers.trends.get_growth.assert_awaited_once()
 
 
 def test_brief_pack_partial_all_success_keeps_original_json_schema_and_success_exit():

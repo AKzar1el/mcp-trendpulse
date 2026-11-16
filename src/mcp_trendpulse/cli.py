@@ -385,6 +385,7 @@ def brief_pack(keywords, markets, timeframe, output_format, allow_partial):
             click.echo("> Google Trends values are normalized relative-interest indices, not absolute search volume. Compare terms within the same market request; do not compare index values directly across markets.")
 
         for index, market in enumerate(cleaned_markets):
+            growth_failure = None
             try:
                 raw_points = await providers.trends.get_trends(
                     keyword=cleaned_keywords,
@@ -404,12 +405,18 @@ def brief_pack(keywords, markets, timeframe, output_format, allow_partial):
                         [point for point, _ in dated_points], cleaned_keywords, ["3M", "1Y"]
                     )
                 else:
-                    raw_growth_rows = await providers.trends.get_growth(
-                        keyword=cleaned_keywords,
-                        source="google search",
-                        percent_growth=["3M", "1Y"],
-                        geo=market,
-                    )
+                    try:
+                        raw_growth_rows = await providers.trends.get_growth(
+                            keyword=cleaned_keywords,
+                            source="google search",
+                            percent_growth=["3M", "1Y"],
+                            geo=market,
+                        )
+                    except ProviderError as exc:
+                        if not allow_partial:
+                            raise
+                        growth_failure = exc
+                        raw_growth_rows = []
             except ProviderError as exc:
                 if not allow_partial:
                     raise
@@ -436,6 +443,31 @@ def brief_pack(keywords, markets, timeframe, output_format, allow_partial):
                             click.echo(f"\n## {skipped}\n\n> **NOT ATTEMPTED**: {skipped_message}")
                     break
                 continue
+            stop_after_market = bool(
+                growth_failure and growth_failure.code == ProviderErrorCode.RATE_LIMITED
+            )
+            growth_warning = None
+            if growth_failure is not None:
+                public_error = json.loads(growth_failure.public_message)
+                failed_markets.append({
+                    "market": market,
+                    "component": "growth",
+                    "code": public_error["code"],
+                    "retryable": public_error["retryable"],
+                    "message": public_error["message"],
+                })
+                growth_warning = (
+                    f"Growth unavailable ({public_error['code']}): {public_error['message']} "
+                    "Available primary Trends observations were retained."
+                )
+                if stop_after_market:
+                    for skipped in cleaned_markets[index + 1:]:
+                        failed_markets.append({
+                            "market": skipped,
+                            "code": "not_attempted_due_to_rate_limit",
+                            "retryable": True,
+                            "message": "Not queried after the provider rate limit; no observations are available.",
+                        })
             invalid_growth_container = not isinstance(raw_growth_rows, (list, tuple))
             growth_rows = (
                 [
@@ -477,6 +509,8 @@ def brief_pack(keywords, markets, timeframe, output_format, allow_partial):
                     warnings.append("Google Trends returned an invalid growth response; growth values are unavailable.")
                 elif malformed_growth_rows:
                     warnings.append(f"Excluded {malformed_growth_rows} malformed growth entries.")
+                if growth_warning:
+                    warnings.append(growth_warning)
                 keyword_evidence = []
                 for keyword in cleaned_keywords:
                     latest_point = max(series.get(keyword, []), key=lambda entry: entry[0][0], default=None)
@@ -498,6 +532,8 @@ def brief_pack(keywords, markets, timeframe, output_format, allow_partial):
                     "keywords": keyword_evidence,
                     "warnings": warnings,
                 })
+                if stop_after_market:
+                    break
                 continue
 
             click.echo()
@@ -525,6 +561,9 @@ def brief_pack(keywords, markets, timeframe, output_format, allow_partial):
             elif malformed_growth_rows:
                 click.echo()
                 click.echo(f"> Excluded {malformed_growth_rows} malformed growth entries from this evidence table.")
+            if growth_warning:
+                click.echo()
+                click.echo(f"> {growth_warning}")
             if latest_trends_date:
                 click.echo()
                 click.echo(f"Latest complete Trends point: **{latest_trends_date}**")
@@ -555,6 +594,13 @@ def brief_pack(keywords, markets, timeframe, output_format, allow_partial):
                         f"> {_brief_table_cell(keyword)}: last observation **{last_date}** "
                         f"(market latest **{latest_trends_date}**)"
                     )
+            if stop_after_market:
+                for skipped in cleaned_markets[index + 1:]:
+                    click.echo(
+                        f"\n## {skipped}\n\n> **NOT ATTEMPTED**: "
+                        "Not queried after the provider rate limit; no observations are available."
+                    )
+                break
 
         if output_format == "json":
             payload = {
@@ -572,7 +618,11 @@ def brief_pack(keywords, markets, timeframe, output_format, allow_partial):
             click.echo(json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2))
         elif failed_markets:
             click.echo()
-            click.echo(f"> **INCOMPLETE EVIDENCE:** {len(failed_markets)} of {len(cleaned_markets)} markets unavailable or not attempted. Do not use as a complete Demand Brief.")
+            click.echo(
+                f"> **INCOMPLETE EVIDENCE:** {len(failed_markets)} failed or unattempted "
+                f"market components across {len(cleaned_markets)} requested markets. "
+                "Do not use as a complete Demand Brief."
+            )
         if failed_markets:
             raise click.exceptions.Exit(1)
 
