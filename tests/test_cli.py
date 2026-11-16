@@ -444,6 +444,39 @@ def test_brief_pack_partial_growth_rate_limit_preserves_primary_and_stops(output
         assert "INCOMPLETE" in result.output
 
 
+def test_brief_pack_partial_mixed_secondary_errors_preserve_both_primary_markets():
+    providers = FakeBriefProviders()
+    original_get_trends = providers.trends.get_trends
+    providers.trends.get_trends = AsyncMock(side_effect=original_get_trends)
+    providers.trends.get_growth = AsyncMock(side_effect=[
+        ProviderTimeoutError("google_trends", "get_growth"),
+        ProviderRateLimitError("google_trends", "get_growth"),
+    ])
+
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--timeframe", "today 5-y", "--format", "json", "--allow-partial",
+        ])
+
+    assert result.exit_code == 1, result.output
+    evidence = json.loads(result.output)
+    assert evidence["incomplete"] is True
+    assert [market["market"] for market in evidence["markets"]] == ["US", "GB"]
+    assert [market["keywords"][0]["latest_index"] for market in evidence["markets"]] == [80.0, 60.0]
+    for market in evidence["markets"]:
+        assert market["keywords"][0]["growth_3m_pct"] is None
+        assert market["keywords"][0]["growth_1y_pct"] is None
+        assert any("Growth unavailable" in warning for warning in market["warnings"])
+    assert [(failure["market"], failure["component"], failure["code"])
+            for failure in evidence["failed_markets"]] == [
+        ("US", "growth", "provider_timeout"),
+        ("GB", "growth", "provider_rate_limited"),
+    ]
+    assert providers.trends.get_trends.await_count == 2
+    assert providers.trends.get_growth.await_count == 2
+
+
 def test_brief_pack_strict_growth_rate_limit_keeps_fail_fast_behavior():
     providers = FakeBriefProviders()
     providers.trends.get_trends = AsyncMock(side_effect=providers.trends.get_trends)
