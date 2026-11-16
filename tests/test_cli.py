@@ -530,7 +530,7 @@ def test_brief_pack_strict_mode_keeps_fail_fast_json_behavior():
     assert providers.trends.get_trends.await_count == 2
 
 
-def test_brief_pack_json_marks_unavailable_values_and_stale_observations():
+def test_brief_pack_json_excludes_invalid_indices_without_inventing_latest_evidence():
     providers = FakeBriefProviders()
     providers.trends.get_trends = AsyncMock(return_value=[
         {"date": "2026-09-10", "keyword": "ChatGPT", "value": True},
@@ -552,14 +552,14 @@ def test_brief_pack_json_marks_unavailable_values_and_stale_observations():
     assert "NaN" not in result.output and "Infinity" not in result.output
     market = json.loads(result.output)["markets"][0]
     assert market["growth_basis"] == "separate_lookback_requests"
-    assert market["latest_complete_trends_point"] == "2026-09-13"
+    assert market["latest_complete_trends_point"] is None
     assert market["keywords"] == [
-        {"keyword": "ChatGPT", "latest_index": None, "latest_observation": "2026-09-10", "growth_3m_pct": None, "growth_1y_pct": -11.5},
-        {"keyword": "Claude", "latest_index": None, "latest_observation": "2026-09-13", "growth_3m_pct": None, "growth_1y_pct": None},
+        {"keyword": "ChatGPT", "latest_index": None, "latest_observation": None, "growth_3m_pct": None, "growth_1y_pct": -11.5},
+        {"keyword": "Claude", "latest_index": None, "latest_observation": None, "growth_3m_pct": None, "growth_1y_pct": None},
     ]
     assert any("malformed Trends rows" in warning for warning in market["warnings"])
     assert any("invalid dates" in warning for warning in market["warnings"])
-    assert any("older" in warning for warning in market["warnings"])
+    assert any("Excluded 2 Trends observations with invalid relative-interest indices" in warning for warning in market["warnings"])
     assert any("separate Google Trends lookback" in warning for warning in market["warnings"])
     providers.trends.get_growth.assert_awaited_once()
 
@@ -845,6 +845,66 @@ def test_brief_pack_does_not_treat_invalid_dates_as_latest_observations():
     assert "bad-date" not in result.output
     providers.trends.get_trends.assert_awaited_once()
     providers.trends.get_growth.assert_awaited_once()
+
+
+@pytest.mark.parametrize("output_format", ["json", "markdown"])
+@pytest.mark.parametrize("allow_partial", [False, True])
+def test_brief_pack_uses_latest_valid_index_not_later_invalid_value(output_format, allow_partial):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-11-14", "keyword": "ChatGPT", "value": 75},
+        {"date": "2026-11-15", "keyword": "ChatGPT", "value": 101},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[])
+    args = [
+        "brief-pack", "--keyword", "ChatGPT", "--market", "US",
+        "--timeframe", "today 5-y", "--format", output_format,
+    ]
+    if allow_partial:
+        args.append("--allow-partial")
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, args)
+
+    assert result.exit_code == 0, result.output
+    if output_format == "json":
+        evidence = json.loads(result.output)
+        assert evidence["markets"][0]["latest_complete_trends_point"] == "2026-11-14"
+        assert evidence["markets"][0]["keywords"][0]["latest_index"] == 75.0
+        assert evidence["markets"][0]["keywords"][0]["latest_observation"] == "2026-11-14"
+        assert any(
+            "Excluded 1 Trends observation with invalid relative-interest indices" in warning
+            for warning in evidence["markets"][0]["warnings"]
+        )
+    else:
+        assert "Latest complete Trends point: **2026-11-14**" in result.output
+        assert "| ChatGPT | 75 | n/a | n/a |" in result.output
+        assert "2026-11-15" not in result.output
+        assert "Excluded 1 Trends observation with invalid relative-interest indices" in result.output
+    providers.trends.get_trends.assert_awaited_once()
+    providers.trends.get_growth.assert_awaited_once()
+
+
+def test_brief_pack_excludes_invalid_index_from_default_growth_computation():
+    providers = FakeBriefProviders()
+    good = {"date": "2026-11-14", "keyword": "ChatGPT", "value": 75}
+    providers.trends.get_trends = AsyncMock(return_value=[
+        good, {"date": "2026-11-15", "keyword": "ChatGPT", "value": True},
+    ])
+    providers.trends.get_growth = AsyncMock(
+        side_effect=AssertionError("default timeframe must reuse valid points")
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers), patch(
+        "mcp_trendpulse.cli._growth_from_trend_points",
+        return_value=[{"keyword": "ChatGPT", "growth": {"3M": None, "1Y": None}}],
+    ) as growth:
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US",
+        ])
+
+    assert result.exit_code == 0, result.output
+    assert "| ChatGPT | 75 | n/a | n/a |" in result.output
+    growth.assert_called_once_with([good], ["ChatGPT"], ["3M", "1Y"])
+    providers.trends.get_growth.assert_not_awaited()
 
 
 def test_brief_pack_excludes_invalid_dates_from_default_growth_computation():

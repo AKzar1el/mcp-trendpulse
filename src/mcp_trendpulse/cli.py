@@ -400,9 +400,13 @@ def brief_pack(keywords, markets, timeframe, output_format, allow_partial):
                     (point, _brief_observation_time(point.get("date"))) for point in points
                 ]
                 dated_points = [(point, when) for point, when in dated_points if when is not None]
+                valid_interest_points = [
+                    (point, when) for point, when in dated_points
+                    if _brief_number(point.get("value"), interest=True) is not None
+                ]
                 if timeframe.strip().lower() == "today 12-m":
                     raw_growth_rows = _growth_from_trend_points(
-                        [point for point, _ in dated_points], cleaned_keywords, ["3M", "1Y"]
+                        [point for point, _ in valid_interest_points], cleaned_keywords, ["3M", "1Y"]
                     )
                 else:
                     try:
@@ -483,10 +487,10 @@ def brief_pack(keywords, markets, timeframe, output_format, allow_partial):
             )
 
             series = defaultdict(list)
-            for point, when in dated_points:
+            for point, when in valid_interest_points:
                 series[str(point.get("keyword", ""))].append((when, point))
             latest_trends_point = max(
-                (when for _, when in dated_points), key=lambda when: when[0], default=None
+                (when for _, when in valid_interest_points), key=lambda when: when[0], default=None
             )
             latest_trends_date = latest_trends_point[1] if latest_trends_point else None
             growth = {
@@ -503,6 +507,10 @@ def brief_pack(keywords, markets, timeframe, output_format, allow_partial):
                 skipped_dates = len(points) - len(dated_points)
                 if skipped_dates:
                     warnings.append(f"Excluded {skipped_dates} Trends observations with invalid dates.")
+                skipped_indices = len(dated_points) - len(valid_interest_points)
+                if skipped_indices:
+                    noun = "observation" if skipped_indices == 1 else "observations"
+                    warnings.append(f"Excluded {skipped_indices} Trends {noun} with invalid relative-interest indices.")
                 if timeframe.strip().lower() != "today 12-m":
                     warnings.append("3M and 1Y growth use separate Google Trends lookback requests, not the selected timeframe time series.")
                 if invalid_growth_container:
@@ -549,6 +557,11 @@ def brief_pack(keywords, markets, timeframe, output_format, allow_partial):
                 click.echo()
                 noun = "observation" if skipped_dates == 1 else "observations"
                 click.echo(f"> Excluded {skipped_dates} Trends {noun} with invalid dates from this evidence table.")
+            skipped_indices = len(dated_points) - len(valid_interest_points)
+            if skipped_indices:
+                click.echo()
+                noun = "observation" if skipped_indices == 1 else "observations"
+                click.echo(f"> Excluded {skipped_indices} Trends {noun} with invalid relative-interest indices from this evidence table.")
             if timeframe.strip().lower() != "today 12-m":
                 click.echo()
                 click.echo(
