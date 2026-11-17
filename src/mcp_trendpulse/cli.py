@@ -12,6 +12,7 @@ from pathlib import Path
 
 import click
 from mcp_trendpulse.config import GOOGLE_NEWS_MAX_RESULTS, load_environment
+from mcp_trendpulse.errors import ProviderError
 # Delay heavyweight news/browser/NLP imports until a CLI command needs them.
 # Click help text preserves the underlying news API documentation.
 def _news_export(name):
@@ -537,7 +538,14 @@ def brief_pack(keywords, markets, timeframe, output_format):
                 "markets": markets_output,
             }, ensure_ascii=False, allow_nan=False, indent=2))
 
-    asyncio.run(_build())
+    try:
+        asyncio.run(_build())
+    except ProviderError as exc:
+        # Preserve the provider's public retry guidance without a raw CLI traceback.
+        public_error = json.loads(exc.public_message)
+        raise click.ClickException(
+            f"{public_error['code']}: {public_error['message']}"
+        ) from exc
 
 
 def _brief_observation_time(value):
