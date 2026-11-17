@@ -342,6 +342,8 @@ uv run mcp-trendpulse-cli brief-pack --keyword "ChatGPT" --keyword "Claude" --ma
 
 The JSON includes source attribution, the shared timeframe, per-market latest observation dates, numeric indices/growth percentages (or `null` when unavailable), and warnings about stale or malformed evidence. Indices are normalized **within each market request**; they are not search volume and should not be directly compared across markets. The command fetches Google Trends data but does not generate recommendations or send a Demand Brief.
 
+**Source checkout only (not yet a published package feature):** Add `--allow-partial` to retain successfully fetched markets if a provider timeout, rate limit, or outage interrupts a two-market evidence pack. A partial JSON result remains one valid document with `incomplete: true`, usable records in `markets`, and explicit `failed_markets` error codes; Markdown ends with an **INCOMPLETE EVIDENCE** warning. For nondefault timeframes, a failed secondary growth request leaves successful primary Trends observations in `markets` with null growth, a warning, and a `failed_markets` entry marked `component: "growth"`. The command still exits nonzero, so consumers must check the exit status and must not present this as a complete brief. If rate-limited, remaining markets are **not queried**. Without the flag, the original strict behavior and full-success JSON schema remain unchanged. No automatic retries, extra polling, or recommendations are added.
+
 The CLI and MCP surfaces are intentionally documented separately because they do not expose the same command set.
 
 ## Development

@@ -12,8 +12,7 @@ from pathlib import Path
 
 import click
 from mcp_trendpulse.config import GOOGLE_NEWS_MAX_RESULTS, load_environment
-from mcp_trendpulse.errors import ProviderError
-
+from mcp_trendpulse.errors import ProviderError, ProviderErrorCode
 # Delay heavyweight news/browser/NLP imports until a CLI command needs them.
 # Click help text preserves the underlying news API documentation.
 def _news_export(name):
@@ -356,7 +355,8 @@ def site(site, period, max_results, no_nlp, headlines_only, save_json_dir):
 @click.option("--market", "markets", multiple=True, required=True, help="Country or subregion code such as US or US-CA; repeat up to twice.")
 @click.option("--timeframe", type=str, default="today 12-m", show_default=True, help="Shared Google Trends timeframe.")
 @click.option("--format", "output_format", type=click.Choice(["markdown", "json"]), default="markdown", show_default=True, help="Human-readable evidence or structured evidence for local report workflows.")
-def brief_pack(keywords, markets, timeframe, output_format):
+@click.option("--allow-partial", is_flag=True, help="Keep usable markets when a provider fails; incomplete output still exits nonzero.")
+def brief_pack(keywords, markets, timeframe, output_format, allow_partial):
     """Emit an attributed evidence pack for human Demand Brief fulfillment."""
     cleaned_keywords = [value.strip() for value in keywords if value.strip()]
     cleaned_markets = [value.strip().upper() for value in markets if value.strip()]
@@ -375,6 +375,7 @@ def brief_pack(keywords, markets, timeframe, output_format):
         providers = get_provider_set()
         display_timeframe = _brief_table_cell(" ".join(timeframe.split()))
         markets_output = []
+        failed_markets = []
         if output_format == "markdown":
             click.echo("# TrendPulse Demand Brief evidence pack")
             click.echo()
@@ -383,40 +384,94 @@ def brief_pack(keywords, markets, timeframe, output_format):
             click.echo()
             click.echo("> Google Trends values are normalized relative-interest indices, not absolute search volume. Compare terms within the same market request; do not compare index values directly across markets.")
 
-        for market in cleaned_markets:
-            growth_fetch_warning = None
-            raw_points = await providers.trends.get_trends(
-                keyword=cleaned_keywords,
-                source="google search",
-                geo=market,
-                timeframe=timeframe,
-            )
-            invalid_points_container = not isinstance(raw_points, (list, tuple))
-            points = [point for point in raw_points if isinstance(point, dict)] if not invalid_points_container else []
-            malformed_points = len(raw_points) - len(points) if not invalid_points_container else 0
-            dated_points = [
-                (point, _brief_observation_time(point.get("date"))) for point in points
-            ]
-            dated_points = [(point, when) for point, when in dated_points if when is not None]
-            if timeframe.strip().lower() == "today 12-m":
-                raw_growth_rows = _growth_from_trend_points(
-                    [point for point, _ in dated_points], cleaned_keywords, ["3M", "1Y"]
+        for index, market in enumerate(cleaned_markets):
+            growth_failure = None
+            try:
+                raw_points = await providers.trends.get_trends(
+                    keyword=cleaned_keywords,
+                    source="google search",
+                    geo=market,
+                    timeframe=timeframe,
                 )
-            else:
-                try:
-                    raw_growth_rows = await providers.trends.get_growth(
-                        keyword=cleaned_keywords,
-                        source="google search",
-                        percent_growth=["3M", "1Y"],
-                        geo=market,
+                invalid_points_container = not isinstance(raw_points, (list, tuple))
+                points = [point for point in raw_points if isinstance(point, dict)] if not invalid_points_container else []
+                malformed_points = len(raw_points) - len(points) if not invalid_points_container else 0
+                dated_points = [
+                    (point, _brief_observation_time(point.get("date"))) for point in points
+                ]
+                dated_points = [(point, when) for point, when in dated_points if when is not None]
+                valid_interest_points = [
+                    (point, when) for point, when in dated_points
+                    if _brief_number(point.get("value"), interest=True) is not None
+                ]
+                if timeframe.strip().lower() == "today 12-m":
+                    raw_growth_rows = _growth_from_trend_points(
+                        [point for point, _ in valid_interest_points], cleaned_keywords, ["3M", "1Y"]
                     )
-                except ProviderError as exc:
-                    # This secondary request must not discard already-fetched primary evidence.
-                    raw_growth_rows = []
-                    growth_fetch_warning = (
-                        f"Separate 3M and 1Y growth unavailable ({exc.code.value}); "
-                        "valid primary Trends observations, if any, are retained."
-                    )
+                else:
+                    try:
+                        raw_growth_rows = await providers.trends.get_growth(
+                            keyword=cleaned_keywords,
+                            source="google search",
+                            percent_growth=["3M", "1Y"],
+                            geo=market,
+                        )
+                    except ProviderError as exc:
+                        if not allow_partial:
+                            raise
+                        growth_failure = exc
+                        raw_growth_rows = []
+            except ProviderError as exc:
+                if not allow_partial:
+                    raise
+                public_error = json.loads(exc.public_message)
+                failed_markets.append({
+                    "market": market,
+                    "code": public_error["code"],
+                    "retryable": public_error["retryable"],
+                    "message": public_error["message"],
+                })
+                if output_format == "markdown":
+                    click.echo(f"\n## {market}\n\n> **UNAVAILABLE ({exc.code.value})**: {public_error['message']} No observations are reported for this market.")
+                if exc.code == ProviderErrorCode.RATE_LIMITED:
+                    # A rate limit is a stop signal, not permission to try another market.
+                    for skipped in cleaned_markets[index + 1:]:
+                        skipped_message = "Not queried after the provider rate limit; no observations are available."
+                        failed_markets.append({
+                            "market": skipped,
+                            "code": "not_attempted_due_to_rate_limit",
+                            "retryable": True,
+                            "message": skipped_message,
+                        })
+                        if output_format == "markdown":
+                            click.echo(f"\n## {skipped}\n\n> **NOT ATTEMPTED**: {skipped_message}")
+                    break
+                continue
+            stop_after_market = bool(
+                growth_failure and growth_failure.code == ProviderErrorCode.RATE_LIMITED
+            )
+            growth_warning = None
+            if growth_failure is not None:
+                public_error = json.loads(growth_failure.public_message)
+                failed_markets.append({
+                    "market": market,
+                    "component": "growth",
+                    "code": public_error["code"],
+                    "retryable": public_error["retryable"],
+                    "message": public_error["message"],
+                })
+                growth_warning = (
+                    f"Growth unavailable ({public_error['code']}): {public_error['message']} "
+                    "Available primary Trends observations were retained."
+                )
+                if stop_after_market:
+                    for skipped in cleaned_markets[index + 1:]:
+                        failed_markets.append({
+                            "market": skipped,
+                            "code": "not_attempted_due_to_rate_limit",
+                            "retryable": True,
+                            "message": "Not queried after the provider rate limit; no observations are available.",
+                        })
             invalid_growth_container = not isinstance(raw_growth_rows, (list, tuple))
             growth_rows = (
                 [
@@ -432,7 +487,7 @@ def brief_pack(keywords, markets, timeframe, output_format):
             )
 
             series = defaultdict(list)
-            for point, when in dated_points:
+            for point, when in valid_interest_points:
                 series[str(point.get("keyword", ""))].append((when, point))
             growth = {
                 str(row.get("keyword", "")): row.get("growth") or {}
@@ -468,14 +523,18 @@ def brief_pack(keywords, markets, timeframe, output_format):
                         f"{keyword}: no validated primary Google Trends interest observations in {market}; "
                         "separate growth values do not replace primary evidence."
                     )
+                skipped_indices = len(dated_points) - len(valid_interest_points)
+                if skipped_indices:
+                    noun = "observation" if skipped_indices == 1 else "observations"
+                    warnings.append(f"Excluded {skipped_indices} Trends {noun} with invalid relative-interest indices.")
                 if timeframe.strip().lower() != "today 12-m":
                     warnings.append("3M and 1Y growth use separate Google Trends lookback requests, not the selected timeframe time series.")
                 if invalid_growth_container:
                     warnings.append("Google Trends returned an invalid growth response; growth values are unavailable.")
                 elif malformed_growth_rows:
                     warnings.append(f"Excluded {malformed_growth_rows} malformed growth entries.")
-                if growth_fetch_warning:
-                    warnings.append(growth_fetch_warning)
+                if growth_warning:
+                    warnings.append(growth_warning)
                 keyword_evidence = []
                 for keyword in cleaned_keywords:
                     latest_point = max(
@@ -500,6 +559,8 @@ def brief_pack(keywords, markets, timeframe, output_format):
                     "keywords": keyword_evidence,
                     "warnings": warnings,
                 })
+                if stop_after_market:
+                    break
                 continue
 
             click.echo()
@@ -522,6 +583,11 @@ def brief_pack(keywords, markets, timeframe, output_format):
                     f"interest observations in {market}; separate growth values do not "
                     "replace primary evidence."
                 )
+            skipped_indices = len(dated_points) - len(valid_interest_points)
+            if skipped_indices:
+                click.echo()
+                noun = "observation" if skipped_indices == 1 else "observations"
+                click.echo(f"> Excluded {skipped_indices} Trends {noun} with invalid relative-interest indices from this evidence table.")
             if timeframe.strip().lower() != "today 12-m":
                 click.echo()
                 click.echo(
@@ -534,9 +600,9 @@ def brief_pack(keywords, markets, timeframe, output_format):
             elif malformed_growth_rows:
                 click.echo()
                 click.echo(f"> Excluded {malformed_growth_rows} malformed growth entries from this evidence table.")
-            if growth_fetch_warning:
+            if growth_warning:
                 click.echo()
-                click.echo(f"> {growth_fetch_warning}")
+                click.echo(f"> {growth_warning}")
             if latest_trends_date:
                 click.echo()
                 click.echo(f"Latest complete Trends point: **{latest_trends_date}**")
@@ -570,9 +636,16 @@ def brief_pack(keywords, markets, timeframe, output_format):
                         f"> {_brief_table_cell(keyword)}: last observation **{last_date}** "
                         f"(market latest **{latest_trends_date}**)"
                     )
+            if stop_after_market:
+                for skipped in cleaned_markets[index + 1:]:
+                    click.echo(
+                        f"\n## {skipped}\n\n> **NOT ATTEMPTED**: "
+                        "Not queried after the provider rate limit; no observations are available."
+                    )
+                break
 
         if output_format == "json":
-            click.echo(json.dumps({
+            payload = {
                 "schema_version": 1,
                 "source": "Google Trends",
                 "source_url": "https://trends.google.com/trends/",
@@ -580,7 +653,20 @@ def brief_pack(keywords, markets, timeframe, output_format):
                 "timeframe": " ".join(timeframe.split()),
                 "comparability_note": "Google Trends indices are normalized relative interest, not absolute search volume. Compare terms only within each market request; do not compare indices directly across markets.",
                 "markets": markets_output,
-            }, ensure_ascii=False, allow_nan=False, indent=2))
+            }
+            if failed_markets:
+                payload["incomplete"] = True
+                payload["failed_markets"] = failed_markets
+            click.echo(json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2))
+        elif failed_markets:
+            click.echo()
+            click.echo(
+                f"> **INCOMPLETE EVIDENCE:** {len(failed_markets)} failed or unattempted "
+                f"market components across {len(cleaned_markets)} requested markets. "
+                "Do not use as a complete Demand Brief."
+            )
+        if failed_markets:
+            raise click.exceptions.Exit(1)
 
     asyncio.run(_build())
 
