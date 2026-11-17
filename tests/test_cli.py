@@ -10,7 +10,11 @@ import pytest
 from types import SimpleNamespace
 
 from mcp_trendpulse import cli as cli_module
-from mcp_trendpulse.errors import ProviderRateLimitError, ProviderTimeoutError
+from mcp_trendpulse.errors import (
+    ProviderRateLimitError,
+    ProviderTimeoutError,
+    ProviderUnavailableError,
+)
 
 
 class NoopBrowserManager:
@@ -427,7 +431,251 @@ def test_brief_pack_reports_actionable_upstream_failure(output_format, error, co
     provider.trends.get_trends.assert_awaited_once()
 
 
-def test_brief_pack_json_marks_unavailable_values_and_stale_observations():
+@pytest.mark.parametrize("output_format", ["json", "markdown"])
+def test_brief_pack_opt_in_salvages_successful_market_and_marks_rate_limited_market(output_format):
+    providers = FakeBriefProviders()
+    original = providers.trends.get_trends
+
+    async def get_trends(**kwargs):
+        if kwargs["geo"] == "GB":
+            raise ProviderRateLimitError("google_trends", "get_trends")
+        return await original(**kwargs)
+
+    providers.trends.get_trends = AsyncMock(side_effect=get_trends)
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--format", output_format, "--allow-partial",
+        ])
+
+    assert result.exit_code == 1, result.output
+    assert providers.trends.get_trends.await_count == 2
+    if output_format == "json":
+        payload = json.loads(result.output)
+        assert payload["schema_version"] == 1
+        assert payload["incomplete"] is True
+        assert [row["market"] for row in payload["markets"]] == ["US"]
+        assert payload["markets"][0]["keywords"][0]["latest_index"] == 80.0
+        assert payload["failed_markets"] == [{
+            "market": "GB", "code": "provider_rate_limited", "retryable": True,
+            "message": "The upstream provider is rate limiting requests. Try again later.",
+        }]
+    else:
+        assert "## US" in result.output and "| ChatGPT | 80 |" in result.output
+        assert "## GB" in result.output and "provider_rate_limited" in result.output
+        assert "INCOMPLETE" in result.output
+
+
+def test_brief_pack_partial_stops_after_rate_limit_without_querying_another_market():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(
+        side_effect=ProviderRateLimitError("google_trends", "get_trends")
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--format", "json", "--allow-partial",
+        ])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["markets"] == []
+    assert [row["market"] for row in payload["failed_markets"]] == ["US", "GB"]
+    assert payload["failed_markets"][0]["code"] == "provider_rate_limited"
+    assert payload["failed_markets"][1]["code"] == "not_attempted_due_to_rate_limit"
+    providers.trends.get_trends.assert_awaited_once()
+
+
+def test_brief_pack_partial_continues_once_after_timeout_and_preserves_second_market():
+    providers = FakeBriefProviders()
+    original = providers.trends.get_trends
+
+    async def get_trends(**kwargs):
+        if kwargs["geo"] == "US":
+            raise ProviderTimeoutError("google_trends", "get_trends")
+        return await original(**kwargs)
+
+    providers.trends.get_trends = AsyncMock(side_effect=get_trends)
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--format", "json", "--allow-partial",
+        ])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert [row["market"] for row in payload["markets"]] == ["GB"]
+    assert payload["markets"][0]["keywords"][0]["latest_index"] == 60.0
+    assert payload["failed_markets"][0]["code"] == "provider_timeout"
+    assert providers.trends.get_trends.await_count == 2
+
+
+def test_brief_pack_partial_all_markets_unavailable_never_invents_observations():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(
+        side_effect=ProviderUnavailableError("google_trends", "get_trends")
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--format", "json", "--allow-partial",
+        ])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["markets"] == []
+    assert payload["incomplete"] is True
+    assert [row["code"] for row in payload["failed_markets"]] == [
+        "provider_unavailable", "provider_unavailable",
+    ]
+    assert providers.trends.get_trends.await_count == 2
+
+
+def test_brief_pack_partial_custom_timeframe_handles_growth_fetch_failure():
+    providers = FakeBriefProviders()
+    providers.trends.get_growth = AsyncMock(
+        side_effect=[ProviderTimeoutError("google_trends", "get_growth"), [
+            {"keyword": "ChatGPT", "growth": {"3M": 5.0, "1Y": 8.0}},
+        ]]
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--timeframe", "today 5-y", "--format", "json", "--allow-partial",
+        ])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert [row["market"] for row in payload["markets"]] == ["US", "GB"]
+    assert payload["markets"][0]["keywords"][0]["latest_index"] == 80.0
+    assert payload["markets"][0]["keywords"][0]["growth_3m_pct"] is None
+    assert payload["markets"][1]["keywords"][0]["growth_3m_pct"] == 5.0
+    assert any("growth" in warning.lower() for warning in payload["markets"][0]["warnings"])
+    assert payload["failed_markets"][0]["component"] == "growth"
+    assert payload["failed_markets"][0]["code"] == "provider_timeout"
+    assert providers.trends.get_growth.await_count == 2
+
+
+@pytest.mark.parametrize("output_format", ["json", "markdown"])
+def test_brief_pack_partial_growth_rate_limit_preserves_primary_and_stops(output_format):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(side_effect=providers.trends.get_trends)
+    providers.trends.get_growth = AsyncMock(
+        side_effect=ProviderRateLimitError("google_trends", "get_growth")
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--timeframe", "today 5-y", "--format", output_format, "--allow-partial",
+        ])
+
+    assert result.exit_code == 1, result.output
+    providers.trends.get_trends.assert_awaited_once()
+    providers.trends.get_growth.assert_awaited_once()
+    if output_format == "json":
+        payload = json.loads(result.output)
+        assert payload["incomplete"] is True
+        assert [row["market"] for row in payload["markets"]] == ["US"]
+        assert payload["markets"][0]["keywords"][0]["latest_index"] == 80.0
+        assert payload["markets"][0]["keywords"][0]["growth_3m_pct"] is None
+        assert [row["market"] for row in payload["failed_markets"]] == ["US", "GB"]
+        assert payload["failed_markets"][0]["component"] == "growth"
+        assert payload["failed_markets"][0]["code"] == "provider_rate_limited"
+        assert payload["failed_markets"][1]["code"] == "not_attempted_due_to_rate_limit"
+    else:
+        assert "## US" in result.output and "| ChatGPT | 80 | n/a | n/a |" in result.output
+        assert "Growth unavailable" in result.output
+        assert "## GB" in result.output and "NOT ATTEMPTED" in result.output
+        assert "INCOMPLETE" in result.output
+
+
+def test_brief_pack_partial_mixed_secondary_errors_preserve_both_primary_markets():
+    providers = FakeBriefProviders()
+    original_get_trends = providers.trends.get_trends
+    providers.trends.get_trends = AsyncMock(side_effect=original_get_trends)
+    providers.trends.get_growth = AsyncMock(side_effect=[
+        ProviderTimeoutError("google_trends", "get_growth"),
+        ProviderRateLimitError("google_trends", "get_growth"),
+    ])
+
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--timeframe", "today 5-y", "--format", "json", "--allow-partial",
+        ])
+
+    assert result.exit_code == 1, result.output
+    evidence = json.loads(result.output)
+    assert evidence["incomplete"] is True
+    assert [market["market"] for market in evidence["markets"]] == ["US", "GB"]
+    assert [market["keywords"][0]["latest_index"] for market in evidence["markets"]] == [80.0, 60.0]
+    for market in evidence["markets"]:
+        assert market["keywords"][0]["growth_3m_pct"] is None
+        assert market["keywords"][0]["growth_1y_pct"] is None
+        assert any("Growth unavailable" in warning for warning in market["warnings"])
+    assert [(failure["market"], failure["component"], failure["code"])
+            for failure in evidence["failed_markets"]] == [
+        ("US", "growth", "provider_timeout"),
+        ("GB", "growth", "provider_rate_limited"),
+    ]
+    assert providers.trends.get_trends.await_count == 2
+    assert providers.trends.get_growth.await_count == 2
+
+
+def test_brief_pack_strict_growth_rate_limit_keeps_fail_fast_behavior():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(side_effect=providers.trends.get_trends)
+    providers.trends.get_growth = AsyncMock(
+        side_effect=ProviderRateLimitError("google_trends", "get_growth")
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--timeframe", "today 5-y", "--format", "json",
+        ])
+    assert result.exit_code != 0
+    assert not result.output.startswith("{")
+    providers.trends.get_trends.assert_awaited_once()
+    providers.trends.get_growth.assert_awaited_once()
+
+
+def test_brief_pack_partial_all_success_keeps_original_json_schema_and_success_exit():
+    providers = FakeBriefProviders()
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--format", "json", "--allow-partial",
+        ])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == 1
+    assert "incomplete" not in payload and "failed_markets" not in payload
+    assert len(payload["markets"]) == 2
+
+
+def test_brief_pack_strict_mode_keeps_fail_fast_json_behavior():
+    providers = FakeBriefProviders()
+    original = providers.trends.get_trends
+
+    async def get_trends(**kwargs):
+        if kwargs["geo"] == "GB":
+            raise ProviderRateLimitError("google_trends", "get_trends")
+        return await original(**kwargs)
+
+    providers.trends.get_trends = AsyncMock(side_effect=get_trends)
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--format", "json",
+        ])
+
+    assert result.exit_code != 0
+    assert not result.output.startswith("{")
+    assert providers.trends.get_trends.await_count == 2
+
+
+def test_brief_pack_json_excludes_invalid_indices_without_inventing_latest_evidence():
     providers = FakeBriefProviders()
     providers.trends.get_trends = AsyncMock(return_value=[
         {"date": "2026-09-10", "keyword": "ChatGPT", "value": True},
@@ -449,16 +697,269 @@ def test_brief_pack_json_marks_unavailable_values_and_stale_observations():
     assert "NaN" not in result.output and "Infinity" not in result.output
     market = json.loads(result.output)["markets"][0]
     assert market["growth_basis"] == "separate_lookback_requests"
-    assert market["latest_complete_trends_point"] == "2026-09-13"
+    assert market["latest_complete_trends_point"] is None
     assert market["keywords"] == [
-        {"keyword": "ChatGPT", "latest_index": None, "latest_observation": "2026-09-10", "growth_3m_pct": None, "growth_1y_pct": -11.5},
-        {"keyword": "Claude", "latest_index": None, "latest_observation": "2026-09-13", "growth_3m_pct": None, "growth_1y_pct": None},
+        {"keyword": "ChatGPT", "latest_index": None, "latest_observation": None, "growth_3m_pct": None, "growth_1y_pct": -11.5},
+        {"keyword": "Claude", "latest_index": None, "latest_observation": None, "growth_3m_pct": None, "growth_1y_pct": None},
     ]
     assert any("malformed Trends rows" in warning for warning in market["warnings"])
     assert any("invalid dates" in warning for warning in market["warnings"])
-    assert any("older" in warning for warning in market["warnings"])
+    assert any("no validated primary" in warning for warning in market["warnings"])
+    assert not any("older" in warning for warning in market["warnings"])
+    assert any("Excluded 2 Trends observations with invalid relative-interest indices" in warning for warning in market["warnings"])
     assert any("separate Google Trends lookback" in warning for warning in market["warnings"])
     providers.trends.get_growth.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("error_type", "code"),
+    [
+        (ProviderRateLimitError, "provider_rate_limited"),
+        (ProviderTimeoutError, "provider_timeout"),
+        (ProviderUnavailableError, "provider_unavailable"),
+    ],
+)
+@pytest.mark.parametrize("output_format", ["markdown", "json"])
+def test_brief_pack_retains_primary_evidence_when_optional_growth_fails(error_type, code, output_format):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-09-13", "value": 48, "keyword": "ChatGPT"},
+    ])
+    providers.trends.get_growth = AsyncMock(side_effect=error_type("Google Trends", "get_growth"))
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US", "--timeframe", "today 5-y", "--format", output_format, "--allow-partial"],
+        )
+
+    assert result.exit_code == 1, result.output
+    if output_format == "json":
+        payload = json.loads(result.output)
+        assert payload["incomplete"] is True
+        assert payload["failed_markets"][0]["component"] == "growth"
+        market = payload["markets"][0]
+        assert market["keywords"] == [{
+            "keyword": "ChatGPT", "latest_index": 48.0, "latest_observation": "2026-09-13",
+            "growth_3m_pct": None, "growth_1y_pct": None,
+        }]
+        assert any(code in warning and "unavailable" in warning for warning in market["warnings"])
+    else:
+        assert "| ChatGPT | 48 | n/a | n/a |" in result.output
+        assert code in result.output and "growth unavailable" in result.output.lower()
+        assert "INCOMPLETE EVIDENCE" in result.output
+    providers.trends.get_growth.assert_awaited_once()
+
+
+def test_brief_pack_growth_failure_is_scoped_to_its_market():
+    providers = FakeBriefProviders()
+    providers.trends.get_growth = AsyncMock(side_effect=[
+        ProviderTimeoutError("Google Trends", "get_growth"),
+        [{"keyword": "ChatGPT", "growth": {"3M": 10.0, "1Y": 20.0}}],
+    ])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB", "--timeframe", "today 5-y", "--format", "json", "--allow-partial"],
+        )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["incomplete"] is True
+    assert payload["failed_markets"][0]["component"] == "growth"
+    first, second = payload["markets"]
+    assert first["keywords"][0]["growth_3m_pct"] is None
+    assert any("provider_timeout" in warning for warning in first["warnings"])
+    assert second["keywords"][0]["growth_3m_pct"] == 10.0
+    assert second["keywords"][0]["growth_1y_pct"] == 20.0
+    assert not any("growth unavailable" in warning for warning in second["warnings"])
+    assert providers.trends.get_growth.await_count == 2
+
+
+@pytest.mark.parametrize("output_format", ["json", "markdown"])
+def test_brief_pack_discloses_absent_primary_even_with_separate_growth(output_format):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[])
+    providers.trends.get_growth = AsyncMock(return_value=[
+        {"keyword": "ChatGPT", "growth": {"3M": 15.0, "1Y": 22.0}},
+    ])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US",
+             "--timeframe", "today 5-y", "--format", output_format],
+        )
+
+    assert result.exit_code == 0, result.output
+    warning = "ChatGPT: no validated primary Google Trends interest observations in US"
+    if output_format == "json":
+        market = json.loads(result.output)["markets"][0]
+        assert market["keywords"][0] == {
+            "keyword": "ChatGPT", "latest_index": None, "latest_observation": None,
+            "growth_3m_pct": 15.0, "growth_1y_pct": 22.0,
+        }
+        assert any(warning in item and "growth" in item for item in market["warnings"])
+    else:
+        assert warning in result.output
+        assert "| ChatGPT | n/a | +15.00% | +22.00% |" in result.output
+    providers.trends.get_growth.assert_awaited_once()
+
+
+@pytest.mark.parametrize("output_format", ["json", "markdown"])
+def test_brief_pack_discloses_only_missing_keyword_and_preserves_valid_zero(output_format):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-09-13", "keyword": "ChatGPT", "value": 0},
+        {"date": "2026-09-13", "keyword": "Claude", "value": True},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[
+        {"keyword": "ChatGPT", "growth": {"3M": 1.0, "1Y": 2.0}},
+        {"keyword": "Claude", "growth": {"3M": 3.0, "1Y": 4.0}},
+    ])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--keyword", "Claude",
+             "--market", "US", "--timeframe", "today 5-y", "--format", output_format],
+        )
+
+    assert result.exit_code == 0, result.output
+    warning = "Claude: no validated primary Google Trends interest observations in US"
+    if output_format == "json":
+        market = json.loads(result.output)["markets"][0]
+        assert market["keywords"][0]["latest_index"] == 0.0
+        assert market["keywords"][1]["latest_index"] is None
+        assert any(warning in item for item in market["warnings"])
+        assert not any("ChatGPT: no validated" in item for item in market["warnings"])
+    else:
+        assert "| ChatGPT | 0 | +1.00% | +2.00% |" in result.output
+        assert "| Claude | n/a | +3.00% | +4.00% |" in result.output
+        assert warning in result.output
+        assert "ChatGPT: no validated" not in result.output
+
+
+@pytest.mark.parametrize("output_format", ["json", "markdown"])
+def test_brief_pack_uses_latest_valid_interest_when_newer_row_is_invalid(output_format):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-09-10", "keyword": "ChatGPT", "value": 65},
+        {"date": "2026-09-13", "keyword": "ChatGPT", "value": True},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[
+        {"keyword": "ChatGPT", "growth": {"3M": 15.0, "1Y": 22.0}},
+    ])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US",
+             "--timeframe", "today 5-y", "--format", output_format],
+        )
+
+    assert result.exit_code == 0, result.output
+    if output_format == "json":
+        market = json.loads(result.output)["markets"][0]
+        assert market["keywords"][0] == {
+            "keyword": "ChatGPT", "latest_index": 65.0,
+            "latest_observation": "2026-09-10",
+            "growth_3m_pct": 15.0, "growth_1y_pct": 22.0,
+        }
+        assert market["latest_complete_trends_point"] == "2026-09-10"
+        assert not any("ChatGPT" in warning and "older" in warning for warning in market["warnings"])
+    else:
+        assert "| ChatGPT | 65 | +15.00% | +22.00% |" in result.output
+        assert "Latest complete Trends point: **2026-09-10**" in result.output
+        assert "ChatGPT: last observation" not in result.output
+    providers.trends.get_growth.assert_awaited_once()
+
+
+@pytest.mark.parametrize("output_format", ["json", "markdown"])
+@pytest.mark.parametrize(
+    ("observations", "expected_market_date"),
+    [
+        (
+            [
+                {"date": "2026-09-10", "keyword": "ChatGPT", "value": 65},
+                {"date": "2026-09-13", "keyword": "ChatGPT", "value": True},
+            ],
+            "2026-09-10",
+        ),
+        (
+            [
+                {"date": "2026-09-10", "keyword": "ChatGPT", "value": 65},
+                {"date": "2026-09-13", "keyword": "Unrequested", "value": 85},
+            ],
+            "2026-09-10",
+        ),
+        (
+            [
+                {"date": "2026-09-10", "keyword": "ChatGPT", "value": 65},
+                {"date": "2026-09-13", "keyword": "ChatGPT", "value": 0},
+            ],
+            "2026-09-13",
+        ),
+        (
+            [
+                {"date": "2026-09-13", "keyword": "ChatGPT", "value": True},
+                {"date": "2026-09-14", "keyword": "Unrequested", "value": 85},
+            ],
+            None,
+        ),
+    ],
+    ids=["invalid-later", "other-keyword-later", "valid-zero-later", "no-valid-requested"],
+)
+def test_brief_pack_market_date_uses_valid_requested_observation(
+    output_format, observations, expected_market_date,
+):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=observations)
+    providers.trends.get_growth = AsyncMock(return_value=[])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US",
+             "--timeframe", "today 5-y", "--format", output_format],
+        )
+
+    assert result.exit_code == 0, result.output
+    if output_format == "json":
+        market = json.loads(result.output)["markets"][0]
+        assert market["latest_complete_trends_point"] == expected_market_date
+    elif expected_market_date is None:
+        assert "Latest complete Trends point:" not in result.output
+    else:
+        assert f"Latest complete Trends point: **{expected_market_date}**" in result.output
+    providers.trends.get_growth.assert_awaited_once()
+
+
+def test_brief_pack_escapes_missing_primary_keyword_in_markdown_warning():
+    keyword = "AI |\n<img src=x>"
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[])
+    providers.trends.get_growth = AsyncMock(return_value=[])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", keyword, "--market", "US", "--timeframe", "today 5-y"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "> AI \\| &lt;img src=x&gt;: no validated primary" in result.output
+    assert "<img src=x>" not in result.output
+
+
+def test_brief_pack_does_not_hide_primary_provider_failure():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(side_effect=ProviderUnavailableError("Google Trends", "get_trends"))
+    providers.trends.get_growth = AsyncMock()
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(
+            cli_module.cli,
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US", "--timeframe", "today 5-y", "--format", "json"],
+        )
+
+    assert result.exit_code != 0
+    assert "Error: provider_unavailable:" in result.output
+    assert not result.output.startswith("{")
+    providers.trends.get_growth.assert_not_awaited()
 
 
 def test_brief_pack_escapes_untrusted_keyword_markdown_table_cell():
@@ -742,6 +1243,66 @@ def test_brief_pack_does_not_treat_invalid_dates_as_latest_observations():
     assert "bad-date" not in result.output
     providers.trends.get_trends.assert_awaited_once()
     providers.trends.get_growth.assert_awaited_once()
+
+
+@pytest.mark.parametrize("output_format", ["json", "markdown"])
+@pytest.mark.parametrize("allow_partial", [False, True])
+def test_brief_pack_uses_latest_valid_index_not_later_invalid_value(output_format, allow_partial):
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": "2026-11-14", "keyword": "ChatGPT", "value": 75},
+        {"date": "2026-11-15", "keyword": "ChatGPT", "value": 101},
+    ])
+    providers.trends.get_growth = AsyncMock(return_value=[])
+    args = [
+        "brief-pack", "--keyword", "ChatGPT", "--market", "US",
+        "--timeframe", "today 5-y", "--format", output_format,
+    ]
+    if allow_partial:
+        args.append("--allow-partial")
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, args)
+
+    assert result.exit_code == 0, result.output
+    if output_format == "json":
+        evidence = json.loads(result.output)
+        assert evidence["markets"][0]["latest_complete_trends_point"] == "2026-11-14"
+        assert evidence["markets"][0]["keywords"][0]["latest_index"] == 75.0
+        assert evidence["markets"][0]["keywords"][0]["latest_observation"] == "2026-11-14"
+        assert any(
+            "Excluded 1 Trends observation with invalid relative-interest indices" in warning
+            for warning in evidence["markets"][0]["warnings"]
+        )
+    else:
+        assert "Latest complete Trends point: **2026-11-14**" in result.output
+        assert "| ChatGPT | 75 | n/a | n/a |" in result.output
+        assert "2026-11-15" not in result.output
+        assert "Excluded 1 Trends observation with invalid relative-interest indices" in result.output
+    providers.trends.get_trends.assert_awaited_once()
+    providers.trends.get_growth.assert_awaited_once()
+
+
+def test_brief_pack_excludes_invalid_index_from_default_growth_computation():
+    providers = FakeBriefProviders()
+    good = {"date": "2026-11-14", "keyword": "ChatGPT", "value": 75}
+    providers.trends.get_trends = AsyncMock(return_value=[
+        good, {"date": "2026-11-15", "keyword": "ChatGPT", "value": True},
+    ])
+    providers.trends.get_growth = AsyncMock(
+        side_effect=AssertionError("default timeframe must reuse valid points")
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers), patch(
+        "mcp_trendpulse.cli._growth_from_trend_points",
+        return_value=[{"keyword": "ChatGPT", "growth": {"3M": None, "1Y": None}}],
+    ) as growth:
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US",
+        ])
+
+    assert result.exit_code == 0, result.output
+    assert "| ChatGPT | 75 | n/a | n/a |" in result.output
+    growth.assert_called_once_with([good], ["ChatGPT"], ["3M", "1Y"])
+    providers.trends.get_growth.assert_not_awaited()
 
 
 def test_brief_pack_excludes_invalid_dates_from_default_growth_computation():

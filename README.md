@@ -342,6 +342,8 @@ uv run mcp-trendpulse-cli brief-pack --keyword "ChatGPT" --keyword "Claude" --ma
 
 The JSON includes source attribution, the shared timeframe, per-market latest observation dates, numeric indices/growth percentages (or `null` when unavailable), and warnings about stale or malformed evidence. Indices are normalized **within each market request**; they are not search volume and should not be directly compared across markets. The command fetches Google Trends data but does not generate recommendations or send a Demand Brief.
 
+**Source checkout only (not yet a published package feature):** Add `--allow-partial` to retain successfully fetched markets if a provider timeout, rate limit, or outage interrupts a two-market evidence pack. A partial JSON result remains one valid document with `incomplete: true`, usable records in `markets`, and explicit `failed_markets` error codes; Markdown ends with an **INCOMPLETE EVIDENCE** warning. For nondefault timeframes, a failed secondary growth request leaves successful primary Trends observations in `markets` with null growth, a warning, and a `failed_markets` entry marked `component: "growth"`. The command still exits nonzero, so consumers must check the exit status and must not present this as a complete brief. If rate-limited, remaining markets are **not queried**. Without the flag, the original strict behavior and full-success JSON schema remain unchanged. No automatic retries, extra polling, or recommendations are added.
+
 **Windows PowerShell 5.1 evidence capture:** its native `>` redirection produces UTF-16LE, not the UTF-8 bytes from the CLI. From a source checkout, use the small cross-shell example instead:
 
 ```powershell
@@ -349,7 +351,7 @@ uv run python examples/capture_brief_pack_json.py --output evidence.json --keywo
 if ($LASTEXITCODE -ne 0) { Write-Warning "Evidence generation failed or is incomplete; inspect before use." }
 ```
 
-The example executes one local CLI request, validates schema-v1 JSON, writes the original UTF-8 bytes to a **new** file without overwriting existing evidence, and preserves a nonzero CLI exit status. If a future CLI produces valid partial JSON with an error exit, the file is retained for review but is **not** considered a complete brief. It performs no retries or provider calls beyond that single requested CLI invocation.
+The example executes one local CLI request, validates schema-v1 JSON, writes the original UTF-8 bytes to a **new** file without overwriting existing evidence, and preserves a nonzero CLI exit status. With `--allow-partial`, valid but incomplete JSON is saved for review and returns nonzero; it is **not** considered a complete brief. It performs no retries or provider calls beyond that single requested CLI invocation.
 
 For an explicitly requested one-keyword, one-market Trend Watch series instead of a brief summary, use `brief-pack --format watch-json --watch-evidence-file ./trend-series.json`. The new UTF-8 file can be passed to the offline `watch evaluate --evidence` command without hand-editing; existing files and invalid/hourly evidence are rejected. This is a manual Google Trends fetch, not automatic monitoring. See `docs/trend-watch.md`.
 
