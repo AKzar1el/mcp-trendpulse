@@ -511,6 +511,96 @@ async def test_hosted_ignores_invalid_whole_growth_payload_but_preserves_interes
     assert all(entry.metrics.points_observed == 30 and entry.growth == {} for entry in comparison.comparisons)
 
 
+@pytest.mark.parametrize(
+    "failure_type", [ProviderRateLimitError, ProviderTimeoutError, ProviderUnavailableError]
+)
+async def test_compare_keeps_valid_interest_when_optional_growth_provider_fails(
+    fake_providers, monkeypatch, failure_type
+):
+    async def failed_growth(**kwargs):
+        raise failure_type("fake_trends", "get_growth")
+
+    monkeypatch.setattr(fake_providers.trends, "get_growth", failed_growth)
+    with use_provider_set(fake_providers):
+        result = await hosted.compare_keyword_trends(keywords=["seo", "agents"])
+
+    assert all(entry.metrics.points_observed == 30 for entry in result.comparisons)
+    assert all(entry.growth == {} for entry in result.comparisons)
+    assert "growth metrics unavailable" in result.note.lower()
+    assert failure_type.code.value in result.note
+
+
+@pytest.mark.parametrize(
+    "failure_type", [ProviderRateLimitError, ProviderTimeoutError, ProviderUnavailableError]
+)
+async def test_single_analysis_keeps_interest_when_optional_growth_provider_fails(
+    fake_providers, monkeypatch, failure_type
+):
+    async def failed_growth(**kwargs):
+        raise failure_type("fake_trends", "get_growth")
+
+    monkeypatch.setattr(fake_providers.trends, "get_growth", failed_growth)
+    with use_provider_set(fake_providers):
+        result = await hosted.analyze_keyword_trend(keyword="seo")
+
+    assert result.metrics.points_observed == 30
+    assert result.series
+    assert result.growth == {}
+    assert "growth metrics unavailable" in result.note.lower()
+    assert failure_type.code.value in result.note
+
+
+async def test_single_analysis_does_not_hide_primary_interest_provider_failure(
+    fake_providers, monkeypatch
+):
+    async def failed_trends(**kwargs):
+        raise ProviderRateLimitError("fake_trends", "get_trends")
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", failed_trends)
+    with use_provider_set(fake_providers), pytest.raises(ProviderRateLimitError):
+        await hosted.analyze_keyword_trend(keyword="seo")
+
+
+@pytest.mark.parametrize(
+    ("primary_rows", "has_primary"),
+    [
+        ([], False),
+        ([{"date": "2026-11-12", "value": True}], False),
+        ([{"date": "2026-11-12", "value": 0}], True),
+    ],
+)
+async def test_single_analysis_discloses_missing_primary_with_independent_growth(
+    fake_providers, monkeypatch, primary_rows, has_primary
+):
+    async def trends(**kwargs):
+        return primary_rows
+
+    async def growth(**kwargs):
+        return [{"keyword": "seo", "growth": {"3M": 12.5}}]
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", trends)
+    monkeypatch.setattr(fake_providers.trends, "get_growth", growth)
+    with use_provider_set(fake_providers):
+        result = await hosted.analyze_keyword_trend(keyword="seo")
+
+    assert result.growth == {"3M": 12.5}
+    assert result.metrics.points_observed == (1 if has_primary else 0)
+    assert ("no validated primary interest observations" in result.note.lower()) is not has_primary
+    if has_primary:
+        assert result.metrics.latest == 0.0
+    else:
+        assert "growth" in result.note.lower()
+
+
+async def test_compare_propagates_primary_interest_provider_failures(fake_providers, monkeypatch):
+    async def failed_trends(**kwargs):
+        raise ProviderRateLimitError("fake_trends", "get_trends")
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", failed_trends)
+    with use_provider_set(fake_providers), pytest.raises(ProviderRateLimitError):
+        await hosted.compare_keyword_trends(keywords=["seo", "agents"])
+
+
 async def test_compare_preserves_valid_trends_when_provider_returns_malformed_rows(
     fake_providers, monkeypatch
 ):
@@ -530,6 +620,47 @@ async def test_compare_preserves_valid_trends_when_provider_returns_malformed_ro
     assert [entry.metrics.latest for entry in result.comparisons] == [25.0, 0.0]
     assert [entry.metrics.points_observed for entry in result.comparisons] == [1, 1]
     assert [entry.series[0].value for entry in result.comparisons] == [25.0, 0.0]
+
+
+@pytest.mark.parametrize(
+    ("point_rows", "missing_count"),
+    [
+        ([], 2),
+        ([{"keyword": "seo", "date": "2026-11-01", "value": 0}], 1),
+        (
+            [
+                {"keyword": "seo", "date": "2026-11-01", "value": 0},
+                {"keyword": "agents", "date": "2026-11-01", "value": 25},
+            ],
+            0,
+        ),
+    ],
+)
+async def test_compare_discloses_missing_primary_interest_despite_optional_growth(
+    fake_providers, monkeypatch, point_rows, missing_count
+):
+    async def trends(**kwargs):
+        return point_rows
+
+    async def growth(**kwargs):
+        return [
+            {"keyword": "seo", "growth": {"3M": 24}},
+            {"keyword": "agents", "growth": {"3M": 11}},
+        ]
+
+    monkeypatch.setattr(fake_providers.trends, "get_trends", trends)
+    monkeypatch.setattr(fake_providers.trends, "get_growth", growth)
+    with use_provider_set(fake_providers):
+        result = await hosted.compare_keyword_trends(keywords=["seo", "agents"])
+
+    assert all(entry.growth for entry in result.comparisons)
+    if missing_count:
+        assert f"{missing_count} of 2 keywords" in result.note
+        assert "missing primary interest observations" in result.note.lower()
+        assert "growth metrics" in result.note.lower()
+    else:
+        assert [entry.metrics.points_observed for entry in result.comparisons] == [1, 1]
+        assert "missing primary interest" not in result.note.lower()
 
 
 async def test_seo_opportunities_keep_valid_interest_when_provider_returns_malformed_rows(
