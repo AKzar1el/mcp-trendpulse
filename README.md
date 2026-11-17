@@ -342,6 +342,15 @@ uv run mcp-trendpulse-cli brief-pack --keyword "ChatGPT" --keyword "Claude" --ma
 
 The JSON includes source attribution, the shared timeframe, per-market latest observation dates, numeric indices/growth percentages (or `null` when unavailable), and warnings about stale or malformed evidence. Indices are normalized **within each market request**; they are not search volume and should not be directly compared across markets. The command fetches Google Trends data but does not generate recommendations or send a Demand Brief.
 
+**Windows PowerShell 5.1 evidence capture:** its native `>` redirection produces UTF-16LE, not the UTF-8 bytes from the CLI. From a source checkout, use the small cross-shell example instead:
+
+```powershell
+uv run python examples/capture_brief_pack_json.py --output evidence.json --keyword "ChatGPT" --keyword "Claude" --market US
+if ($LASTEXITCODE -ne 0) { Write-Warning "Evidence generation failed or is incomplete; inspect before use." }
+```
+
+The example executes one local CLI request, validates schema-v1 JSON, writes the original UTF-8 bytes to a **new** file without overwriting existing evidence, and preserves a nonzero CLI exit status. If a future CLI produces valid partial JSON with an error exit, the file is retained for review but is **not** considered a complete brief. It performs no retries or provider calls beyond that single requested CLI invocation.
+
 For an explicitly requested one-keyword, one-market Trend Watch series instead of a brief summary, use `brief-pack --format watch-json --watch-evidence-file ./trend-series.json`. The new UTF-8 file can be passed to the offline `watch evaluate --evidence` command without hand-editing; existing files and invalid/hourly evidence are rejected. This is a manual Google Trends fetch, not automatic monitoring. See `docs/trend-watch.md`.
 
 The CLI and MCP surfaces are intentionally documented separately because they do not expose the same command set.
