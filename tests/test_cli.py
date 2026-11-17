@@ -729,12 +729,15 @@ def test_brief_pack_retains_primary_evidence_when_optional_growth_fails(error_ty
     with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
         result = CliRunner().invoke(
             cli_module.cli,
-            ["brief-pack", "--keyword", "ChatGPT", "--market", "US", "--timeframe", "today 5-y", "--format", output_format],
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US", "--timeframe", "today 5-y", "--format", output_format, "--allow-partial"],
         )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     if output_format == "json":
-        market = json.loads(result.output)["markets"][0]
+        payload = json.loads(result.output)
+        assert payload["incomplete"] is True
+        assert payload["failed_markets"][0]["component"] == "growth"
+        market = payload["markets"][0]
         assert market["keywords"] == [{
             "keyword": "ChatGPT", "latest_index": 48.0, "latest_observation": "2026-09-13",
             "growth_3m_pct": None, "growth_1y_pct": None,
@@ -742,7 +745,8 @@ def test_brief_pack_retains_primary_evidence_when_optional_growth_fails(error_ty
         assert any(code in warning and "unavailable" in warning for warning in market["warnings"])
     else:
         assert "| ChatGPT | 48 | n/a | n/a |" in result.output
-        assert code in result.output and "growth unavailable" in result.output
+        assert code in result.output and "growth unavailable" in result.output.lower()
+        assert "INCOMPLETE EVIDENCE" in result.output
     providers.trends.get_growth.assert_awaited_once()
 
 
@@ -755,11 +759,14 @@ def test_brief_pack_growth_failure_is_scoped_to_its_market():
     with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
         result = CliRunner().invoke(
             cli_module.cli,
-            ["brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB", "--timeframe", "today 5-y", "--format", "json"],
+            ["brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB", "--timeframe", "today 5-y", "--format", "json", "--allow-partial"],
         )
 
-    assert result.exit_code == 0, result.output
-    first, second = json.loads(result.output)["markets"]
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["incomplete"] is True
+    assert payload["failed_markets"][0]["component"] == "growth"
+    first, second = payload["markets"]
     assert first["keywords"][0]["growth_3m_pct"] is None
     assert any("provider_timeout" in warning for warning in first["warnings"])
     assert second["keywords"][0]["growth_3m_pct"] == 10.0
@@ -950,7 +957,8 @@ def test_brief_pack_does_not_hide_primary_provider_failure():
         )
 
     assert result.exit_code != 0
-    assert result.output == ""
+    assert "Error: provider_unavailable:" in result.output
+    assert not result.output.startswith("{")
     providers.trends.get_growth.assert_not_awaited()
 
 
