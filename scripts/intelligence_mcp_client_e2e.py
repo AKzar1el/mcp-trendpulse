@@ -55,8 +55,17 @@ async def _call(session: ClientSession, name: str, args: dict[str, Any],
     return _unpack(result, expect_error=error)
 
 
+class Checkpoints(list):
+    """Print safe test case names; never print values from external tool outputs."""
+
+    def append(self, record):
+        super().append(record)
+        print(json.dumps({"checkpoint": record["case"], "status": "passed"}),
+              flush=True)
+
+
 async def exercise(mode: str, result_path: Path) -> int:
-    checked: list[dict[str, Any]] = []
+    checked: list[dict[str, Any]] = Checkpoints()
     with tempfile.TemporaryDirectory(prefix="trendpulse-intel-mcp-") as root:
         cache_dir = Path(root) / "cache"
         env = {
@@ -253,9 +262,26 @@ def main() -> int:
     try:
         return asyncio.run(exercise(args.mode, Path(args.report)))
     except Exception as exc:
-        # Never print raw MCP results or secret-bearing request arguments.
-        print(json.dumps({"mode": args.mode, "status": "failed",
-                          "error_type": type(exc).__name__}), file=sys.stderr)
+        # Groups come from stdio task groups; only print leaf exception
+        # *classes* and our own static assertions. Never print remote payloads.
+        def leaf_types(error):
+            if isinstance(error, BaseExceptionGroup):
+                return [name for inner in error.exceptions for name in leaf_types(inner)]
+            return [type(error).__name__]
+
+        def own_assertions(error):
+            if isinstance(error, BaseExceptionGroup):
+                return [name for inner in error.exceptions for name in own_assertions(inner)]
+            if isinstance(error, AssertionError):
+                return [str(error)[:140]]
+            return []
+
+        print(json.dumps({
+            "mode": args.mode, "status": "failed",
+            "error_type": type(exc).__name__,
+            "leaf_types": leaf_types(exc),
+            "assertions": own_assertions(exc),
+        }), file=sys.stderr)
         return 1
 
 
