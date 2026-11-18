@@ -1,0 +1,42 @@
+name: Free intelligence live contract smoke
+
+on:
+  pull_request:
+    paths:
+      - "src/mcp_trendpulse/intelligence_*.py"
+      - "scripts/intelligence_live_smoke.py"
+      - ".github/workflows/intelligence-live-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-source-smoke:
+    name: Verify free public data provider contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          version: "0.12.5"
+      - name: Install Python
+        run: uv python install 3.12
+      - name: Sync locked project without provider keys
+        run: uv sync --locked --dev
+      - name: Check public data contracts, no paid APIs or private keys
+        env:
+          TRENDPULSE_INTEL_CACHE_DIR: ${{ runner.temp }}/trendpulse-intelligence-smoke
+          TRENDPULSE_INTEL_SMOKE_REPORT: intelligence-live.json
+          TRENDPULSE_INTEL_SEC_USER_AGENT: "TrendPulse public research (contact: info@tomiseregi.si)"
+        run: uv run --locked python scripts/intelligence_live_smoke.py
+      - name: Upload diagnostics even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: intelligence-live-contract-${{ github.run_id }}
+          path: intelligence-live.json
+          if-no-files-found: warn
+          retention-days: 7
