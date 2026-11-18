@@ -109,7 +109,9 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
                 raise IntelligenceError("Greenhouse job ID must contain 3-20 digits")
             url = f"https://boards-api.greenhouse.io/v1/boards/{quote(board, safe='')}/jobs/{job_id}?content=true"
         elif source == "lever":
-            url = f"https://api.lever.co/v0/postings/{quote(board, safe='')}?mode=json"
+            url = (f"https://api.lever.co/v0/postings/{quote(board, safe='')}?" + urlencode({
+                "mode": "json", "skip": 0, "limit": limit,
+            }))
         elif source == "ashby":
             url = f"https://api.ashbyhq.com/posting-api/job-board/{quote(board, safe='')}?includeCompensation=true"
         else:

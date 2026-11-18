@@ -20,6 +20,8 @@ CASES = (
     ("worldbank", {"country": "SI", "identifier": "NY.GDP.MKTP.CD", "limit": 2}),
     ("greenhouse", {"company": "mozilla", "limit": 2}),
     ("smartrecruiters", {"company": "BoschGroup", "limit": 2}),
+    ("lever", {"company": "jobgether", "limit": 2}),
+    ("ashby", {"company": "euphoric", "limit": 2}),
     ("cfpb", {"keyword": "credit card", "limit": 2}),
     ("cordis", {"keyword": "battery", "limit": 2}),
     ("usaspending", {"keyword": "solar", "limit": 2}),
