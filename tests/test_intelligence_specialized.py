@@ -50,6 +50,19 @@ def test_local_rsshub_only_known_local_origin():
 def test_extended_sources_are_planned_without_credentials_for_public_ones():
     assert plan_source("copernicus").method == "GET"
     assert plan_source("epo", keyword="pa=siemens").method == "GET"
-    assert plan_source("opsi_slovenia", keyword="energy").method == "GET"
+    assert "opsi_slovenia" not in {row["id"] for row in source_catalog()}
     with pytest.raises(IntelligenceError, match="API key"):
         plan_source("changedetection_local", env={})
+
+
+
+def test_rsshub_stays_on_exact_local_port_without_ssrf():
+    from dataclasses import replace
+    from mcp_trendpulse.intelligence_core import _safe_origin
+
+    plan = plan_source("rsshub_local", identifier="test/1")
+    assert plan.url == "http://127.0.0.1:1200/test/1"
+    with pytest.raises(IntelligenceError, match="Unapproved"):
+        _safe_origin(replace(plan, url="http://127.0.0.1:9090/test/1"))
+    with pytest.raises(IntelligenceError, match="Unapproved"):
+        _safe_origin(replace(plan, url="http://localhost:1200/test/1"))
