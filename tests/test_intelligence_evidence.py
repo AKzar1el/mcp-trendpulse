@@ -13,7 +13,9 @@ from mcp_trendpulse.intelligence_evidence import evidence_projection, Unexpected
         "results": [{"title": "Solar", "name": "solar"}]}}, 1),
     ("copernicus", {"id": "sentinel-2-l2a", "type": "Collection", "title": "Sentinel 2"}, 1),
     ("worldbank", [{"page": 1}, [{"date": "2025", "value": 2.0}]], 1),
-    ("gdelt", {"articles": [{"title": "Battery"}]}, 1),
+    ("gdelt_latest", {"lines": [
+        "1234 aabbccddeeff00112233445566778899 https://data.gdeltproject.org/gdeltv2/20261118120000.export.CSV.zip"
+    ]}, 1),
     ("openalex", {"results": [{"id": "W123"}]}, 1),
     ("eurostat", {"id": ["geo", "time"], "value": {"0": 12}, "size": [1, 1]}, 1),
 ])
