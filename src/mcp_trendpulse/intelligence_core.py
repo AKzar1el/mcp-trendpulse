@@ -103,7 +103,9 @@ def plan_source(source: str, *, keyword: str = "", company: str = "",
         "identifier": _short(identifier, "identifier", 128, optional=True),
         "limit": limit,
     }
-    environment = dict(os.environ) if env is None else env
+    from mcp_trendpulse.intelligence_settings import resolved_environment
+
+    environment = resolved_environment(env)
     for module in _modules():
         if source in module.SOURCES:
             plan = module.build(source, params, environment)
@@ -161,8 +163,14 @@ def _safe_origin(plan: Plan) -> None:
     parsed = urlsplit(plan.url)
     if parsed.username or parsed.password or parsed.fragment:
         raise IntelligenceError("Credential-bearing or fragment URL refused")
-    if plan.allow_loopback and parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost"}:
-        return
+    local_ports = {"rsshub_local": 1200, "changedetection_local": 5000}
+    if plan.allow_loopback and plan.source in local_ports:
+        if (parsed.scheme == "http" and parsed.hostname == "127.0.0.1"
+                and parsed.port == local_ports[plan.source] and
+                parsed.username is None and parsed.password is None):
+            return
+    if plan.allow_loopback:
+        raise IntelligenceError("Unapproved self-hosted loopback address")
     if parsed.scheme != "https" or parsed.hostname not in _HOSTS or parsed.port not in (None, 443):
         raise IntelligenceError("Source plan contains an unapproved outbound host")
 
@@ -216,7 +224,8 @@ class BudgetCache:
 
 
 def collect(plan: Plan, *, cache: BudgetCache | None = None,
-            fetch: bool = False, timeout: int = DEFAULT_TIMEOUT) -> dict[str, Any]:
+            fetch: bool = False, timeout: int = DEFAULT_TIMEOUT,
+            env: dict[str, str] | None = None) -> dict[str, Any]:
     """Explicit fetching only. Never retry, follow redirects, or exceed a source cap."""
     _safe_origin(plan)
     if not fetch:
@@ -253,7 +262,11 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
     try:
         if plan.source == "epo":
             from mcp_trendpulse.intelligence_extended import epo_oauth_token
-            headers["Authorization"] = "Bearer " + epo_oauth_token(dict(os.environ), opener, timeout)
+            from mcp_trendpulse.intelligence_settings import resolved_environment
+
+            headers["Authorization"] = "Bearer " + epo_oauth_token(
+                resolved_environment(env), opener, timeout
+            )
         req = Request(plan.url, data=body, headers=headers, method=plan.method)
         with opener.open(req, timeout=timeout) as res:
             kind = res.headers.get("Content-Type", "").lower()
