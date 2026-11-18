@@ -62,18 +62,6 @@ SOURCES = {
         "docs": "https://developer.company-information.service.gov.uk/",
         "notes": "Requires a free Companies House API key; search alone does not establish spending."
     },
-    "cfpb": {
-        "wave": 2, "access": "public; endpoint requires live revalidation",
-        "signal": "U.S. consumer financial product complaint patterns",
-        "docs": "https://cfpb.github.io/api/ccdb/release-notes.html",
-        "notes": "2026 changes removed narratives and JSON exports; intentionally not auto-fetched."
-    },
-    "cordis": {
-        "wave": 2, "access": "public bulk datasets / linked open data",
-        "signal": "EU research grant projects and funded topics",
-        "docs": "https://cordis.europa.eu/projects/en",
-        "notes": "Bulk dataset ingestion deliberately separate to avoid huge network downloads."
-    },
     "usaspending": {
         "wave": 2, "access": "public/no-key; expert filters needed",
         "signal": "U.S. federal awards and actual expenditure",
@@ -87,12 +75,6 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
     limit, keyword = p["limit"], p["keyword"]
     meta = SOURCES[source]
     common = {"source": source, "wave": 2, "docs": meta["docs"], "caution": meta["notes"]}
-    if source in {"cfpb", "cordis"}:
-        # Public access alone does not justify guessing a changed API contract.
-        raise IntelligenceError(
-            f"{source}: catalogued but not fetch-enabled pending schema/size verification; "
-            "use the official free data source directly"
-        )
     if source == "usaspending":
         term = _required(keyword, "public procurement keyword")
         today = datetime.now(timezone.utc).date()

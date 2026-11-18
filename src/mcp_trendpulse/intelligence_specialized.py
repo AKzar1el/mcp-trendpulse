@@ -34,26 +34,7 @@ SOURCES = {
         "docs": "https://github.com/DIYgod/RSSHub",
         "notes": "Only 127.0.0.1:1200 is permitted; route must be verified against RSSHub documentation.",
     },
-    "copernicus": {
-        "wave": 3, "access": "free registration", "signal": "climate reanalysis and physical exposure",
-        "docs": "https://cds.climate.copernicus.eu/",
-        "notes": "Large downloads and dataset-specific licensing; API intentionally not auto-fetched.",
-    },
-    "epo": {
-        "wave": 3, "access": "free registered quota", "signal": "patent filing and technology maturation",
-        "docs": "https://www.epo.org/en/searching-for-patents/data/web-services/ops",
-        "notes": "Registered OAuth flow and quotas require separate validation; no paid fallback.",
-    },
-    "opsi_slovenia": {
-        "wave": 3, "access": "open-data portal", "signal": "Slovenian official public datasets",
-        "docs": "https://podatki.gov.si/",
-        "notes": "No universal dataset API assumed; inspect license and distribution URL individually.",
-    },
-    "changedetection_local": {
-        "wave": 3, "access": "local self-hosted only", "signal": "official-page and competitor change detection",
-        "docs": "https://github.com/dgtlmoon/changedetection.io",
-        "notes": "Local service and explicit watch configuration required; no website crawling is enabled.",
-    },
+
 }
 
 
@@ -61,11 +42,6 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
     meta = SOURCES[source]
     common = {"source": source, "wave": 3, "docs": meta["docs"], "caution": meta["notes"]}
     limit = p["limit"]
-    if source in {"copernicus", "epo", "opsi_slovenia", "changedetection_local"}:
-        raise IntelligenceError(
-            f"{source} is catalogued for free-only use but is not fetch-enabled; "
-            "configure and verify its specific public data distribution first"
-        )
     if source == "gleif":
         name = _required(p["keyword"], "legal entity name")
         url = "https://api.gleif.org/api/v1/lei-records?" + urlencode({
