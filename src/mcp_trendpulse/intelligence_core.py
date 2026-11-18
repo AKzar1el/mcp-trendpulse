@@ -151,7 +151,7 @@ _HOSTS = frozenset({
     "api.smartrecruiters.com", "data.sec.gov", "api.openalex.org",
     "api.company-information.service.gov.uk", "www.consumerfinance.gov",
     "api.gleif.org", "data-api.ecb.europa.eu", "web-api.tp.entsoe.eu",
-    "ops.epo.org", "cordis.europa.eu", "podatki.gov.si",
+    "ops.epo.org", "cordis.europa.eu",
     "data.gdeltproject.org",
     "stac.opensearch.dataspace.copernicus.eu",
 })

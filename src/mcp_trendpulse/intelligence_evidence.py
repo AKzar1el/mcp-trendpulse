@@ -44,19 +44,6 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
                 "issue", "sub_issue", "company", "state"
             ) if k in entry})
         return {"record_count": len(rows), "sample": rows, "unit": "published complaints"}
-    if source == "opsi_slovenia":
-        if not isinstance(payload, dict) or payload.get("success") is not True:
-            raise UnexpectedSourceShape("Expected successful CKAN action response")
-        result = payload.get("result", {})
-        if not isinstance(result, dict):
-            raise UnexpectedSourceShape("CKAN result was not an object")
-        rows = _objects(result.get("results"))
-        return {
-            "record_count": result.get("count", len(rows)),
-            "sample": [{k: r.get(k) for k in ("id", "name", "title", "license_id", "metadata_modified")
-                        if k in r} for r in rows],
-            "unit": "public dataset metadata",
-        }
     if source == "copernicus":
         if not isinstance(payload, dict):
             raise UnexpectedSourceShape("Expected STAC collection JSON")

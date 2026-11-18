@@ -41,12 +41,6 @@ SOURCES = {
         "docs": "https://www.epo.org/en/searching-for-patents/data/web-services/ops",
         "notes": "EPO OPS free volume 4GB/week, max roughly ten searches/minute under fair use; never paid-overage.",
     },
-    "opsi_slovenia": {
-        "wave": 3, "access": "public/no-key",
-        "signal": "Slovenian CKAN public dataset metadata",
-        "docs": "https://podatki.gov.si/data/metadata-api-docs",
-        "notes": "Searches metadata; licensing and file download terms vary by dataset.",
-    },
     "changedetection_local": {
         "wave": 3, "access": "self-hosted only",
         "signal": "read-only change monitor inventory on local machine",
@@ -114,15 +108,6 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
         return Plan(
             method="GET", url=url, content_type="xml", budget_per_day=40, **common,
         )
-    if source == "opsi_slovenia":
-        # OPSI's public CKAN endpoint sometimes returns HTTP 500 for full-text
-        # searches. Allow bounded unfiltered metadata listing as a fallback
-        # selected explicitly by omitting keyword, not via hidden retries.
-        params = {"rows": limit}
-        if keyword:
-            params["q"] = keyword
-        url = "https://podatki.gov.si/api/3/action/package_search?" + urlencode(params)
-        return Plan(method="GET", url=url, budget_per_day=30, **common)
     if source == "changedetection_local":
         token = env.get("TRENDPULSE_INTEL_CHANGEDETECTION_KEY", "").strip()
         if not token:
