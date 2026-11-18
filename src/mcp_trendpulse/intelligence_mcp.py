@@ -20,6 +20,7 @@ intel_mcp = FastMCP(
     instructions=(
         "This server is a read-only, local, opt-in market discovery adjunct. "
         "The source catalog describes access requirements and reliability limitations. "
+        "Provider settings are read-only: NEVER request API keys in MCP arguments. "
         "Tool calls only plan requests by default; explicit execute=True is required "
         "to fetch public information. Public hiring signals imply recruiting activity, "
         "not a vendor purchase budget. Do not infer market size from news or keyword "
@@ -97,6 +98,33 @@ def intelligence_analyze_job_postings(
 ) -> dict[str, Any]:
     jobs = normalize_jobs(source, company, public_board_json)
     return extract_job_pains(jobs)
+
+
+
+@intel_mcp.tool(
+    description=(
+        "Read-only status of optional free API providers, their required fields "
+        "and whether keys are configured. Never reveals any secret values."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_provider_settings(provider: str | None = None) -> list[dict[str, Any]]:
+    from mcp_trendpulse.intelligence_settings import provider_status
+
+    return provider_status(provider)
+
+
+@intel_mcp.tool(
+    description=(
+        "Read-only setup guidance for optional free provider credentials. "
+        "Never request keys, tokens, or secrets in MCP arguments or ChatGPT chat."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_provider_setup(provider: str) -> dict[str, Any]:
+    from mcp_trendpulse.intelligence_settings import setup_instructions
+
+    return setup_instructions(provider)
 
 
 def main() -> None:

@@ -886,6 +886,85 @@ def intelligence_query(source, keyword, company, dataset, country, identifier, l
     click.echo(json.dumps(result, ensure_ascii=False, sort_keys=True))
 
 
+
+@intelligence.group("settings")
+def intelligence_settings():
+    """Inspect optional provider settings and securely configure the local user."""
+
+
+@intelligence_settings.command("status")
+@click.argument("provider", required=False)
+def intelligence_settings_status(provider):
+    """Report which free credentials are present, without revealing values."""
+    from mcp_trendpulse.intelligence_settings import provider_status
+
+    try:
+        result = provider_status(provider)
+    except (ValueError, OSError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(result, ensure_ascii=False, sort_keys=True))
+
+
+@intelligence_settings.command("guide")
+@click.argument("provider")
+def intelligence_settings_guide(provider):
+    """Explain provider registration and local setup without collecting keys."""
+    from mcp_trendpulse.intelligence_settings import setup_instructions
+
+    try:
+        result = setup_instructions(provider)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(result, ensure_ascii=False, sort_keys=True))
+
+
+@intelligence_settings.command("set-key")
+@click.argument("provider")
+def intelligence_settings_set_key(provider):
+    """Hidden terminal input into Windows Credential Manager; never into chat."""
+    from mcp_trendpulse.intelligence_settings import (
+        PROVIDERS, SecureStoreUnavailable, save_provider_credentials,
+        _supports_native_store,
+    )
+
+    if provider not in PROVIDERS:
+        raise click.ClickException("Unknown provider; run intelligence settings status")
+    if not _supports_native_store():
+        raise click.ClickException(
+            "Native secure storage is Windows-only. Supply credentials via your MCP "
+            "client's secure environment-variable settings on this platform."
+        )
+    click.echo("Only this local terminal accepts your credentials, not the LLM.")
+    values = {}
+    for field in PROVIDERS[provider]["fields"]:
+        values[field] = click.prompt(field, hide_input=True, confirmation_prompt=False)
+    try:
+        save_provider_credentials(provider, values)
+    except (ValueError, OSError, SecureStoreUnavailable) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"{provider}: stored in Windows Credential Manager (values hidden).")
+    click.echo("Restart the optional intelligence MCP to load updated settings.")
+
+
+@intelligence_settings.command("remove-key")
+@click.argument("provider")
+def intelligence_settings_remove_key(provider):
+    """Delete the local provider credentials after explicit confirmation."""
+    from mcp_trendpulse.intelligence_settings import (
+        PROVIDERS, SecureStoreUnavailable, clear_provider_credentials,
+    )
+
+    if provider not in PROVIDERS:
+        raise click.ClickException("Unknown provider")
+    if not click.confirm(f"Remove {provider} credentials from your local store?", default=False):
+        raise click.ClickException("No change made")
+    try:
+        clear_provider_credentials(provider)
+    except (ValueError, OSError, SecureStoreUnavailable) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"{provider}: local credentials removed.")
+
+
 @intelligence.command("jobs-analyze")
 @click.option("--source", type=click.Choice(
     ["greenhouse", "lever", "ashby", "smartrecruiters"]), required=True)
