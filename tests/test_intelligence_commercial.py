@@ -82,3 +82,15 @@ def test_sec_companyconcept_is_scoped():
     assert p.url.endswith("/CIK0000320193/us-gaap/Assets.json")
     with pytest.raises(IntelligenceError):
         plan_source("sec_companyconcept", identifier="320193", keyword="../../bad", env=env)
+
+
+
+def test_full_greenhouse_detail_plan_and_pain_summary():
+    plan = plan_source("greenhouse_job", company="mozilla", identifier="123456")
+    assert plan.url.endswith("/boards/mozilla/jobs/123456?content=true")
+    detail = {"id": 123456, "title": "Operations Lead",
+              "content": "<p>Manually reconcile costs, reduce copy and paste work.</p>",
+              "absolute_url": "https://boards.greenhouse.io/mozilla/jobs/123456"}
+    jobs = normalize_jobs("greenhouse", "mozilla", detail)
+    assert len(jobs) == 1
+    assert extract_job_pains(jobs)["pain_hypotheses"]

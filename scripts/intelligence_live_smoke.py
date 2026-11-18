@@ -55,6 +55,33 @@ def main() -> int:
                     "detail": str(exc)[:150]}
         checks.append(item)
         print(json.dumps(item, sort_keys=True, ensure_ascii=False), flush=True)
+        if source == "greenhouse" and item["status"] == "observed":
+            try:
+                from mcp_trendpulse.intelligence_jobs import (
+                    extract_job_pains, normalize_jobs,
+                )
+                rows = (out.get("data") or {}).get("jobs", [])
+                job = next(x for x in rows if isinstance(x, dict) and x.get("id"))
+                detail_plan = plan_source(
+                    "greenhouse_job", company=params["company"],
+                    identifier=str(job["id"]),
+                )
+                detail = collect(detail_plan, cache=cache, fetch=True, timeout=10)
+                normalized = normalize_jobs("greenhouse", params["company"], detail.get("data"))
+                categories = extract_job_pains(normalized)["pain_hypotheses"]
+                detail_item = {
+                    "source": "greenhouse_job",
+                    "status": "observed" if detail["status"] == "observed" and
+                              normalized and normalized[0]["description"] else "unavailable",
+                    "records_observed": len(normalized),
+                    "description_chars": len(normalized[0]["description"]) if normalized else 0,
+                    "pain_categories_detected": [c["category"] for c in categories],
+                }
+            except (ValueError, OSError, KeyError, StopIteration, TypeError) as exc:
+                detail_item = {"source": "greenhouse_job", "status": "exception",
+                               "reason": type(exc).__name__}
+            checks.append(detail_item)
+            print(json.dumps(detail_item, sort_keys=True, ensure_ascii=False), flush=True)
     report = {
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "checks": checks,

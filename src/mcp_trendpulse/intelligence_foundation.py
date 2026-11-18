@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from urllib.parse import urlencode, quote
 
 from mcp_trendpulse.intelligence_core import IntelligenceError, Plan, _required
