@@ -47,12 +47,16 @@ jobs:
           TRENDPULSE_INTEL_CACHE_DIR: ${{ runner.temp }}/rsshub-local-smoke
           TRENDPULSE_INTEL_RSSHUB_REPORT: intelligence-rsshub.json
         run: uv run --locked python scripts/intelligence_rsshub_smoke.py
+      - name: Call the real optional intelligence MCP over stdio against RSSHub
+        run: uv run --locked python scripts/intelligence_mcp_client_e2e.py --mode rsshub --report intelligence-rsshub-mcp.json
       - name: Upload redacted local smoke diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rsshub-selfhosted-${{ github.run_id }}
-          path: intelligence-rsshub.json
+          path: |
+            intelligence-rsshub.json
+            intelligence-rsshub-mcp.json
           if-no-files-found: warn
           retention-days: 7
       - name: Tear down ephemeral RSSHub

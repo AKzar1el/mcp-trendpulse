@@ -48,10 +48,10 @@ jobs:
         env:
           TRENDPULSE_E2E_DISPOSABLE_INSTANCE: YES
         run: |
-          key=$(python - <<'PY'
+          key=$(docker exec -i --user 0 trendpulse-change-ci python - <<'PY'
           import json, os, sys
           from pathlib import Path
-          root = Path(os.environ['RUNNER_TEMP']) / 'trendpulse-disposable-change'
+          root = Path('/datastore')
           paths = (root / 'changedetection.json', root / 'url-watches.json')
           for p in paths:
               if not p.exists():
@@ -81,4 +81,6 @@ jobs:
         if: always()
         run: |
           docker rm -f trendpulse-change-ci || true
-          rm -rf "$RUNNER_TEMP/trendpulse-disposable-change"
+          if [ -n "$RUNNER_TEMP" ]; then
+            sudo rm -rf -- "$RUNNER_TEMP/trendpulse-disposable-change"
+          fi
