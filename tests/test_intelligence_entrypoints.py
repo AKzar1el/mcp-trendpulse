@@ -41,10 +41,11 @@ def test_intel_cli_offline_ats_file(tmp_path):
 async def test_intel_mcp_is_separate_and_readonly():
     async with Client(intel_mcp) as client:
         tools = {tool.name: tool for tool in await client.list_tools()}
-        assert len(tools) == 4
+        assert len(tools) == 6
         assert set(tools) == {
             "intelligence_source_catalog", "intelligence_plan",
-            "intelligence_collect", "intelligence_analyze_job_postings"
+            "intelligence_collect", "intelligence_analyze_job_postings",
+            "intelligence_provider_settings", "intelligence_provider_setup"
         }
         for tool in tools.values():
             assert tool.annotations.readOnlyHint is True
@@ -59,3 +60,19 @@ async def test_existing_community_surface_is_not_expanded():
         names = {tool.name for tool in await client.list_tools()}
     assert "intelligence_collect" not in names
     assert len(names) == 16
+
+
+
+def test_settings_cli_safe_and_separate(monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_INTEL_OPENALEX_KEY", "SECRET_NEVER_OUTPUT_123")
+    runner = CliRunner()
+    result = runner.invoke(cli, ["intelligence", "settings", "status"])
+    assert result.exit_code == 0, result.output
+    assert "SECRET_NEVER_OUTPUT_123" not in result.output
+    settings = json.loads(result.output)
+    assert any(row["provider"] == "openalex" and
+               row["ready_for_live_auth_test"] for row in settings)
+    guidance = runner.invoke(cli, ["intelligence", "settings", "guide", "openalex"])
+    assert guidance.exit_code == 0, guidance.output
+    assert "SECRET_NEVER_OUTPUT_123" not in guidance.output
+    assert "settings set-key openalex" in guidance.output
