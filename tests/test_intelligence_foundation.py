@@ -60,3 +60,39 @@ def test_daily_budget_and_cache(tmp_path: Path):
         store.reserve("test", 1)
     store.save("hello", {"status": "observed"}, 60)
     assert store.cached("hello") == {"status": "observed"}
+
+
+
+def test_collect_preserves_provenance_and_source_accept_header(tmp_path, monkeypatch):
+    from mcp_trendpulse import intelligence_core
+
+    headers_seen = {}
+
+    class Response:
+        headers = {"Content-Type": "application/json"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self, *_):
+            return b'{"data":[{"id":"example"}]}'
+
+    class Opener:
+        def open(self, request, *, timeout):
+            headers_seen["accept"] = request.get_header("Accept")
+            headers_seen["url"] = request.full_url
+            return Response()
+
+    monkeypatch.setattr(intelligence_core, "build_opener", lambda *_: Opener())
+    plan = plan_source("gleif", keyword="Example AG", limit=1)
+    result = collect(plan, cache=BudgetCache(tmp_path), fetch=True)
+    assert result["status"] == "observed"
+    assert result["source_url"] == plan.url
+    assert result["source_documentation"] == plan.docs
+    assert headers_seen["accept"] == "application/json"
+    assert headers_seen["url"] == plan.url
+    again = collect(plan, cache=BudgetCache(tmp_path), fetch=True)
+    assert again["cache_hit"] is True

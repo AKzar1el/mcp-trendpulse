@@ -226,8 +226,16 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
     if previously is not None:
         return {**previously, "cache_hit": True}
     store.reserve(plan.source, plan.budget_per_day)
-    headers = {"User-Agent": "mcp-trendpulse-intelligence/0.1 (research; read-only)",
-               "Accept": "application/json", **plan.headers}
+    accepted = {
+        "json": "application/json",
+        "csv": "text/csv",
+        "xml": "application/xml, application/rss+xml, application/atom+xml",
+    }
+    headers = {
+        "User-Agent": "mcp-trendpulse-intelligence/0.1 (research; read-only)",
+        "Accept": accepted.get(plan.content_type, "application/json"),
+        **plan.headers,
+    }
     body = json.dumps(plan.body, separators=(",", ":")).encode() if plan.body is not None else None
     if body is not None:
         headers["Content-Type"] = "application/json"
@@ -250,6 +258,8 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
     output = {
         "source": plan.source,
         "wave": plan.wave,
+        "source_url": plan.url,
+        "source_documentation": plan.docs,
         "status": "observed",
         "retrieved_at": datetime.now(timezone.utc).isoformat(),
         "evidence_level": "public_source_snapshot_not_purchasing_validation",
