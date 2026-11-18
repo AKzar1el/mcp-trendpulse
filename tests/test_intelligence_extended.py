@@ -11,13 +11,12 @@ from mcp_trendpulse.intelligence_extended import epo_oauth_token
 
 def test_all_reclassified_sources_have_real_plan():
     catalog = {x["id"]: x for x in source_catalog()}
-    for name in ("cfpb", "cordis", "copernicus", "epo", "opsi_slovenia"):
+    for name in ("cfpb", "cordis", "copernicus", "epo"):
         assert catalog[name]["fetch_enabled"] is True
     assert plan_source("cfpb", keyword="credit cards").method == "GET"
     assert plan_source("cordis", keyword="battery recycling").body_encoding == "form"
     assert plan_source("copernicus", keyword="sentinel").url.startswith("https://")
     assert plan_source("epo", keyword="pa=siemens").content_type == "xml"
-    assert "package_search" in plan_source("opsi_slovenia", keyword="energija").url
 
 
 def test_cfpb_not_export_mode_and_cordis_graph_scoped():

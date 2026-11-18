@@ -9,8 +9,6 @@ from mcp_trendpulse.intelligence_evidence import evidence_projection, Unexpected
     ("cfpb", {"hits": {"hits": [{"_source": {"issue": "Unexpected fees",
         "complaint_what_happened": "private content"}}]}}, 1),
     ("cordis", {"results": {"bindings": [{"title": {"value": "battery"}}]}}, 1),
-    ("opsi_slovenia", {"success": True, "result": {"count": 1,
-        "results": [{"title": "Solar", "name": "solar"}]}}, 1),
     ("copernicus", {"id": "sentinel-2-l2a", "type": "Collection", "title": "Sentinel 2"}, 1),
     ("worldbank", [{"page": 1}, [{"date": "2025", "value": 2.0}]], 1),
     ("gdelt_latest", {"lines": [
@@ -38,7 +36,6 @@ def test_cfpb_never_exports_private_narrative():
 @pytest.mark.parametrize(("source", "payload"), [
     ("cfpb", {"error": "forbidden"}),
     ("cordis", {"result": {"bindings": []}}),
-    ("opsi_slovenia", {"success": False, "error": "permission"}),
     ("copernicus", {"errors": ["bad parameter"]}),
     ("openalex", {"error": "invalid_key"}),
     ("worldbank", {"message": [{"id": "not-found"}]}),

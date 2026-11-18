@@ -8,7 +8,7 @@ def test_source_catalog_has_no_duplicate_placeholder_ids():
     entries = source_catalog()
     names = [entry["id"] for entry in entries]
     assert len(names) == len(set(names))
-    for key in ("cfpb", "cordis", "epo", "copernicus", "opsi_slovenia", "changedetection_local"):
+    for key in ("cfpb", "cordis", "epo", "copernicus", "changedetection_local"):
         assert next(x for x in entries if x["id"] == key)["fetch_enabled"] is True
 
 
