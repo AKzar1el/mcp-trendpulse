@@ -193,7 +193,7 @@ def review_saved_brief(raw, *, output_format="text"):
 
 def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
     """Compare saved evidence *coverage*, never normalized interest indices."""
-    if output_format not in ("text", "json", "csv"):
+    if output_format not in ("text", "json", "csv", "keyword-csv"):
         raise ValueError("Unsupported Demand Brief comparison format")
     before_text, _ = review_saved_brief(before_raw, output_format="json")
     after_text, needs_review = review_saved_brief(after_raw, output_format="json")
@@ -267,6 +267,54 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
     }
     if output_format == "json":
         return json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True) + "\n", needs_review
+    if output_format == "keyword-csv":
+        buffer = io.StringIO(newline="")
+        writer = csv.writer(buffer, lineterminator="\n")
+        writer.writerow([
+            "market", "keyword", "timeframe", "before_primary_available",
+            "after_primary_available", "primary_availability_change",
+            "before_latest_observation", "after_latest_observation",
+            "before_failure_code", "after_failure_code", "source_authenticated",
+            "needs_human_review", "caveats",
+        ])
+        source_markets = [
+            {market["market"]: market for market in document["markets"]}
+            for document in (before_data, after_data)
+        ]
+        timeframe = report["timeframe"]
+        if timeframe.lstrip().startswith(("=", "+", "-", "@")):
+            timeframe = "'" + timeframe.lstrip()
+        for market in sorted(before_scope):
+            snapshots = [
+                {word["keyword"].strip().casefold(): word for word in source.get(market, {}).get("keywords", [])}
+                for source in source_markets
+            ]
+            # A completely unavailable market needs a visible row, not an empty CSV.
+            for keyword_key in sorted(set(snapshots[0]) | set(snapshots[1])) or [None]:
+                earlier = snapshots[0].get(keyword_key)
+                later = snapshots[1].get(keyword_key)
+                label = (later or earlier or {}).get("keyword", "").strip()
+                if label.lstrip().startswith(("=", "+", "-", "@")):
+                    label = "'" + label.lstrip()
+                before_valid = _is_number(earlier["latest_index"], interest=True) if earlier else None
+                after_valid = _is_number(later["latest_index"], interest=True) if later else None
+                if before_valid is None or after_valid is None:
+                    change = "unknown"
+                elif before_valid == after_valid:
+                    change = "unchanged"
+                else:
+                    change = "gained" if after_valid else "lost"
+                writer.writerow([
+                    market, label, timeframe,
+                    str(before_valid).lower() if before_valid is not None else "",
+                    str(after_valid).lower() if after_valid is not None else "",
+                    change,
+                    earlier["latest_observation"] if before_valid else "",
+                    later["latest_observation"] if after_valid else "",
+                    before_failures.get(market), after_failures.get(market),
+                    "false", str(needs_review).lower(), "; ".join(caveats),
+                ])
+        return buffer.getvalue(), needs_review
     if output_format == "csv":
         buffer = io.StringIO(newline="")
         writer = csv.writer(buffer, lineterminator="\n")

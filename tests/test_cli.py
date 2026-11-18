@@ -2248,7 +2248,67 @@ def test_brief_compare_csv_preserves_partial_exit_and_unknown_delta(tmp_path):
     assert "private error data" not in result.output
 
 
-@pytest.mark.parametrize("output_format", ["text", "json", "csv"])
+def test_brief_compare_keyword_csv_exposes_offsetting_primary_coverage_changes(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    baseline = json.loads(before.read_text(encoding="utf-8"))
+    earlier = json.loads(json.dumps(baseline))
+    earlier["markets"][0]["keywords"][0]["latest_index"] = None
+    earlier["markets"][0]["keywords"][0]["latest_observation"] = None
+    before.write_text(json.dumps(earlier), encoding="utf-8")
+    later = json.loads(json.dumps(baseline))
+    later["markets"][0]["keywords"][1]["latest_index"] = None
+    later["markets"][0]["keywords"][1]["latest_observation"] = None
+    after.write_text(json.dumps(later), encoding="utf-8")
+    original = before.read_bytes(), after.read_bytes()
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("provider called")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-compare", "--before", str(before), "--after", str(after), "--format", "keyword-csv",
+        ])
+    assert result.exit_code == 2, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert len(rows) == 4
+    us = {row["keyword"]: row for row in rows if row["market"] == "US"}
+    assert us["ChatGPT"]["primary_availability_change"] == "gained"
+    assert us["Claude"]["primary_availability_change"] == "lost"
+    assert us["ChatGPT"]["before_primary_available"] == "false"
+    assert us["ChatGPT"]["after_primary_available"] == "true"
+    assert all(row["source_authenticated"] == "false" for row in rows)
+    assert all("normalized" in row["caveats"] for row in rows)
+    assert "42" not in result.output
+    assert (before.read_bytes(), after.read_bytes()) == original
+
+
+def test_brief_compare_keyword_csv_preserves_unknown_and_escapes_formula_labels(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    earlier = json.loads(before.read_text(encoding="utf-8"))
+    for market in earlier["markets"]:
+        market["keywords"][0]["keyword"] = '=HYPERLINK("https://example.test")'
+    before.write_text(json.dumps(earlier), encoding="utf-8")
+    later = json.loads(json.dumps(earlier))
+    later["markets"] = [market for market in later["markets"] if market["market"] != "GB"]
+    later["failed_markets"] = [{
+        "market": "GB", "component": None, "code": "rate_limited",
+        "retryable": True, "message": "private provider message",
+    }]
+    later["incomplete"] = True
+    after.write_text(json.dumps(later), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after), "--format", "keyword-csv",
+    ])
+    assert result.exit_code == 2, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    gb = [row for row in rows if row["market"] == "GB"]
+    assert len(gb) == 2
+    assert all(row["primary_availability_change"] == "unknown" for row in gb)
+    assert all(row["after_primary_available"] == "" for row in gb)
+    assert all(row["after_failure_code"] == "rate_limited" for row in gb)
+    assert any(row["keyword"].startswith("'=HYPERLINK(") for row in rows)
+    assert "private provider message" not in result.output
+
+
+@pytest.mark.parametrize("output_format", ["text", "json", "csv", "keyword-csv"])
 def test_brief_compare_can_save_exact_utf8_output_without_provider_calls(tmp_path, output_format):
     before = _saved_mock_brief(tmp_path)
     after = tmp_path / "after.json"
