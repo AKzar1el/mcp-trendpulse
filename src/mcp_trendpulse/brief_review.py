@@ -1,5 +1,7 @@
 """Provider-free readiness review of saved Demand Brief schema-v1 JSON."""
 
+import csv
+import io
 import json
 import math
 import re
@@ -191,7 +193,7 @@ def review_saved_brief(raw, *, output_format="text"):
 
 def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
     """Compare saved evidence *coverage*, never normalized interest indices."""
-    if output_format not in ("text", "json"):
+    if output_format not in ("text", "json", "csv"):
         raise ValueError("Unsupported Demand Brief comparison format")
     before_text, _ = review_saved_brief(before_raw, output_format="json")
     after_text, needs_review = review_saved_brief(after_raw, output_format="json")
@@ -265,6 +267,35 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
     }
     if output_format == "json":
         return json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True) + "\n", needs_review
+    if output_format == "csv":
+        buffer = io.StringIO(newline="")
+        writer = csv.writer(buffer, lineterminator="\n")
+        writer.writerow([
+            "market", "timeframe", "before_observed_keywords", "before_total_keywords",
+            "after_observed_keywords", "after_total_keywords", "primary_coverage_change",
+            "before_latest_observation", "after_latest_observation", "before_failure_code",
+            "after_failure_code", "before_growth_unavailable", "after_growth_unavailable",
+            "before_warning_count", "after_warning_count", "source_authenticated",
+            "needs_human_review", "caveats",
+        ])
+        # A timeframe is declared by the input file. Prevent spreadsheet formula execution.
+        timeframe = report["timeframe"]
+        if timeframe.lstrip().startswith(("=", "+", "-", "@")):
+            timeframe = "'" + timeframe.lstrip()
+        for item in comparisons:
+            earlier, later = item["before"], item["after"]
+            writer.writerow([
+                item["market"], timeframe,
+                earlier["observed_keywords"], earlier["total_keywords"],
+                later["observed_keywords"], later["total_keywords"],
+                item["primary_coverage_change"],
+                earlier["latest_market_observation"], later["latest_market_observation"],
+                earlier["failure_code"], later["failure_code"],
+                earlier["growth_unavailable"], later["growth_unavailable"],
+                earlier["warning_count"], later["warning_count"],
+                "false", str(needs_review).lower(), "; ".join(caveats),
+            ])
+        return buffer.getvalue(), needs_review
 
     lines = [
         "TrendPulse saved Demand Brief evidence coverage comparison (offline)",
