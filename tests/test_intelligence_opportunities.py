@@ -26,6 +26,7 @@ def candidate(*, lane="developer_reliability", ident="workflow-one", region="US"
         "id": ident, "title": "Reliability workflow",
         "lane": lane, "geography": region,
         "workflow": "incident_triage", "buyer": buyer,
+        "buyer_entity": "agency-test",
     }
 
 
@@ -34,6 +35,7 @@ def ev(source, num, *, candidate_id="workflow-one", workflow="incident_triage",
        observed="2026-11-07", polarity="support", claim="An attributed public source"):
     return {
         "id": f"example-{num}", "candidate": candidate_id, "source": source,
+        "buyer_entity": "agency-test" if source == "usaspending" else "",
         "origin_id": origin_id or f"original-{num}",
         "publisher": publisher or f"publisher-{num}",
         "geography": region, "workflow": workflow,
@@ -233,3 +235,19 @@ def test_oversized_or_duplicate_candidates_fail_closed():
         evaluate_opportunities([candidate()], [{}] * 301, as_of=ASOF)
     with pytest.raises(ValueError):
         evaluate_opportunities([candidate()], [], as_of="not-a-date")
+
+
+
+def test_public_award_must_match_same_buyer_before_interview_priority():
+    items = strong()
+    items[2]["buyer_entity"] = "different-agency"
+    result = evaluation(items)["results"][0]
+    assert result["status"] == "investigate"
+    assert result["priority_order"] == 2
+    assert "Awarding buyer identity" in " ".join(result["caveats"])
+
+
+def test_unknown_credential_source_does_not_create_buying_proof():
+    result = evaluation(strong(), source_health={"usaspending": "not_configured"})
+    assert result["status"] == "partial_provider_coverage"
+    assert result["success_probability"] is None

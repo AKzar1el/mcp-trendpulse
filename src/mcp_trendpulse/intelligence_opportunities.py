@@ -127,7 +127,7 @@ def _coverage(data: Any) -> dict[str, str]:
     if not isinstance(data, dict) or len(data) > 25:
         raise ValueError("source_health must be a bounded source/status mapping")
     for key, status in data.items():
-        if key not in SOURCE_KIND or status not in HEALTH:
+        if key not in SOURCE_KIND or not isinstance(status, str) or status not in HEALTH:
             raise ValueError("Invalid source_health provider or state")
     return dict(data)
 

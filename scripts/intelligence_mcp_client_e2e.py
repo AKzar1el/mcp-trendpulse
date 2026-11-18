@@ -175,6 +175,7 @@ async def exercise(mode: str, result_path: Path) -> int:
                     "lane": "developer_reliability",
                     "geography": "US",
                     "buyer": "Public agencies",
+                    "buyer_entity": "agency-test",
                     "workflow": "incident_triage",
                 }
                 items = []
@@ -182,6 +183,7 @@ async def exercise(mode: str, result_path: Path) -> int:
                     items.append({
                         "id": f"incident-example-{i}", "candidate": case["id"],
                         "source": source, "origin_id": f"origin-example-{i}",
+                        "buyer_entity": "agency-test" if source == "usaspending" else "",
                         "publisher": f"publisher-example-{i}",
                         "geography": "US", "workflow": "incident_triage",
                         "url": f"https://example.org/real-reference-format/{i}",
