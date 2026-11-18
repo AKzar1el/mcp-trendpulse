@@ -19,7 +19,7 @@ CASES = (
     ("github_issues", {"keyword": "webhook", "limit": 2}),
     ("worldbank", {"country": "SI", "identifier": "NY.GDP.MKTP.CD", "limit": 2}),
     ("greenhouse", {"company": "mozilla", "limit": 2}),
-    ("smartrecruiters", {"company": "Wolt", "limit": 2}),
+    ("smartrecruiters", {"company": "BoschGroup", "limit": 2}),
     ("cfpb", {"keyword": "credit card", "limit": 2}),
     ("cordis", {"keyword": "battery", "limit": 2}),
     ("usaspending", {"keyword": "solar", "limit": 2}),
