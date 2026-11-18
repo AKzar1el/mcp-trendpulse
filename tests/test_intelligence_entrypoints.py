@@ -16,7 +16,7 @@ def test_intel_cli_lists_all_waves_and_dry_runs():
     assert sources.exit_code == 0, sources.output
     registered = json.loads(sources.output)
     assert {item["wave"] for item in registered} == {1, 2, 3}
-    result = runner.invoke(cli, ["intelligence", "query", "--source", "gdelt",
+    result = runner.invoke(cli, ["intelligence", "query", "--source", "gdelt_latest",
                                  "--keyword", "consumer spending"])
     assert result.exit_code == 0, result.output
     parsed = json.loads(result.output)

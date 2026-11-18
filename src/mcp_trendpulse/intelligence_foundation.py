@@ -8,9 +8,11 @@ from urllib.parse import urlencode, quote
 from mcp_trendpulse.intelligence_core import IntelligenceError, Plan, _required
 
 SOURCES = {
-    "gdelt": {
-        "wave": 1, "access": "public/no-key", "signal": "news attention and event coverage",
-        "docs": "https://www.gdeltproject.org/", "notes": "Rate limited; media coverage is not market demand."
+    "gdelt_latest": {
+        "wave": 1, "access": "public/no-key",
+        "signal": "GDELT global event 15-minute batch manifest, not keyword searches",
+        "docs": "https://www.gdeltproject.org/",
+        "notes": "Latest raw batch only; DOC keyword API frequently returns HTTP 429."
     },
     "eurostat": {
         "wave": 1, "access": "public/no-key", "signal": "official population and economic time series",
@@ -44,13 +46,10 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
     keyword, limit = p["keyword"], p["limit"]
     meta = SOURCES[source]
     common = {"source": source, "wave": 1, "docs": meta["docs"], "caution": meta["notes"]}
-    if source == "gdelt":
-        terms = _required(keyword, "keyword")
-        url = "https://api.gdeltproject.org/api/v2/doc/doc?" + urlencode({
-            "query": terms, "mode": "artlist", "format": "json",
-            "maxrecords": limit, "timespan": "1week", "sort": "datedesc",
-        })
-        return Plan(method="GET", url=url, budget_per_day=12, **common)
+    if source == "gdelt_latest":
+        return Plan(method="GET",
+                    url="https://data.gdeltproject.org/gdeltv2/lastupdate.txt",
+                    content_type="text", budget_per_day=48, **common)
     if source == "eurostat":
         dataset = _required(p["dataset"], "dataset")
         country = _required(p["country"], "country")
@@ -81,9 +80,11 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
             f"FILTER(CONTAINS(LCASE(STR(?title)), LCASE({literal}))) "
             f"}} LIMIT {limit}"
         )
-        url = "https://publications.europa.eu/webapi/rdf/sparql?" + urlencode(
-            {"query": sparql, "format": "application/sparql-results+json"})
-        return Plan(method="GET", url=url, budget_per_day=8, **common)
+        return Plan(method="POST",
+                    url="https://publications.europa.eu/webapi/rdf/sparql",
+                    body={"query": sparql, "format": "application/sparql-results+json"},
+                    body_encoding="form", headers={"Accept": "application/sparql-results+json"},
+                    budget_per_day=5, **common)
     if source == "github_issues":
         terms = _required(keyword, "keyword")
         query = f'"{terms}" is:issue is:open'

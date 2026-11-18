@@ -10,12 +10,12 @@ from mcp_trendpulse.intelligence_core import (
 
 def test_foundation_registry_and_dry_run():
     # Other waves are available after the complete feature lands.
-    p = plan_source("gdelt", keyword="battery passport", limit=4)
-    assert p.url.startswith("https://api.gdeltproject.org/")
+    p = plan_source("gdelt_latest", limit=4)
+    assert p.url.startswith("https://data.gdeltproject.org/")
     result = collect(p)
     assert result["status"] == "planned"
     assert result["network_performed"] is False
-    assert result["budget_per_day"] <= 20
+    assert result["budget_per_day"] <= 48
 
 
 def test_fixed_origins_and_encoded_inputs():
@@ -39,7 +39,7 @@ def test_explicit_dataset_and_ted_expert_query():
 
 def test_invalid_limits_and_no_arbitrary_urls():
     with pytest.raises(IntelligenceError):
-        plan_source("gdelt", keyword="a", limit=100000)
+        plan_source("gdelt_latest", limit=100000)
     with pytest.raises(IntelligenceError):
         collect(Plan(source="bad", wave=1, method="GET",
                      url="https://evil.example/data", docs="", caution="", budget_per_day=1), fetch=True)
