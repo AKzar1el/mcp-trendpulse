@@ -251,3 +251,56 @@ def test_unknown_credential_source_does_not_create_buying_proof():
     result = evaluation(strong(), source_health={"usaspending": "not_configured"})
     assert result["status"] == "partial_provider_coverage"
     assert result["success_probability"] is None
+
+
+
+@pytest.mark.parametrize("lane", sorted(LANES))
+def test_every_lane_accepts_valid_independent_source_mix_without_fake_sales(lane):
+    base = candidate(lane=lane)
+    sources = list(LANES[lane]["sources"])
+    # Ensure at least one real-world work/spend signal where supported;
+    # regulations/research/economic context alone never imply customers.
+    sources = sources[:3] if any(SOURCE_KIND[x] in {
+        "reported_problem", "hiring", "procurement_notice", "public_award"
+    } for x in sources[:3]) else sources
+    items = [ev(src, i+20) for i, src in enumerate(sources)]
+    result = evaluate_opportunities([base], items, as_of=ASOF)
+    row = result["results"][0]
+    assert row["distinct_classes"] >= 2
+    assert row["independent_publishers"] >= 3
+    assert row["status"] == "investigate", (lane, row)
+    assert row["success_probability"] is None
+    assert not row["buying_intent_confirmed"]
+
+
+def test_same_original_url_aggregated_under_two_ids_only_once():
+    items = [ev("github_issues", 1), ev("greenhouse_job", 2)]
+    items[1]["url"] = items[0]["url"]
+    row = evaluation(items)["results"][0]
+    assert row["supporting_origins"] == 1
+    assert row["ignored_reasons"]["duplicate_origin"] == 1
+
+
+def test_two_lanes_on_one_topic_do_not_share_evidence_automatically():
+    c1 = candidate(lane="developer_reliability")
+    c2 = candidate(lane="fraud_identity", ident="other-problem")
+    result = evaluate_opportunities([c1, c2], strong(), as_of=ASOF)
+    statuses = {x["id"]: x["status"] for x in result["results"]}
+    assert statuses["other-problem"] == "insufficient"
+    assert statuses["workflow-one"] == "buyer_interview_priority"
+
+
+@pytest.mark.parametrize("health", [
+    "unavailable", "timeout", "rate_limited", "stale", "not_configured",
+])
+def test_each_provider_outage_suppresses_unsupported_high_priority(health):
+    row = evaluation(source_health={"github_issues": health})["results"][0]
+    assert row["priority_order"] <= 1
+    assert row["success_probability"] is None
+
+
+def test_invalid_aggregate_health_metadata_cannot_silently_rank():
+    with pytest.raises(ValueError, match="source_health"):
+        evaluation(source_health={"github_issues": ["timeout"]})
+    with pytest.raises(ValueError, match="source_health"):
+        evaluation(source_health={"ghost-provider": "ok"})
