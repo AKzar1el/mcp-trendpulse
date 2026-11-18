@@ -15,7 +15,7 @@ Use the existing TrendPulse installation and Python 3.11+:
 
     mcp-trendpulse-cli intelligence sources
     mcp-trendpulse-cli intelligence sources --wave 2
-    mcp-trendpulse-cli intelligence query --source gdelt --keyword "AI purchase approval"
+    mcp-trendpulse-cli intelligence query --source gdelt_latest
     mcp-trendpulse-cli intelligence query --source greenhouse --company public-board-slug
     mcp-trendpulse-cli intelligence query --source eurostat --dataset nama_10_gdp --country SI
     mcp-trendpulse-cli intelligence query --source ecb --identifier EXR/D.USD.EUR.SP00.A
@@ -48,7 +48,7 @@ Do not expose the standalone MCP as an unauthenticated public HTTP server.
 
 ## Source status and measured reality
 
-There are 26 distinct source families, including a dedicated one-job detail
+There are 25 distinct source families, including a dedicated one-job detail
 adapter. A request builder alone is **not** proof of live provider support.
 Only the current GitHub Actions "Free intelligence live contract smoke" run
 can establish which representative public requests returned valid data.
@@ -67,20 +67,13 @@ can establish which representative public requests returned valid data.
 | 3 | rsshub_local, changedetection_local | Your **own self-hosted** services only; no hosted subscriptions |
 | 3 | copernicus | Keyless **satellite collection metadata**; not climate projections or ERA5 reanalysis |
 | 3 | epo | Registered free EPO OPS OAuth key/secret; 4 GB/week free data allowance |
-| 3 | opsi_slovenia | Keyless CKAN metadata; full-text queries can return HTTP 500, so an explicit unfiltered browse mode is supported |
 
 No data source requires a credit-card trial or a paid vendor contract. The
 public research key sources only become available after **you** configure
 the free credentials locally. Sensitive environment variables are described
 below; do not paste them into chat or commit them to GitHub.
 
-The historical 17-source smoke first verified 10 sources. A subsequent
-16-source keyless check passed 15 of 16: the outstanding OPSI API returned
-HTTP 500 for a text search, so its no-query catalogue browse path is being
-checked separately. EU CELLAR originally returned zero records with a wrong
-title predicate; its legal-expression query has been corrected and requires
-a useful nonzero live sample to count as an information source, not merely
-an HTTP 200 response.
+The latest live smoke verifies global and cross-border public sources. Provider outages and empty results are preserved as evidence limitations rather than counted as demand.
 
 Responses exceeding 256 KiB fail rather than silently download or truncate.
 A job-index listing may omit descriptions; fetch one individual job with

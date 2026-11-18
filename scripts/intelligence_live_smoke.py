@@ -13,11 +13,11 @@ from mcp_trendpulse.intelligence_core import BudgetCache, collect, plan_source
 
 CASES = (
     ("gdelt_latest", {"limit": 2}),
-    ("eurostat", {"dataset": "nama_10_gdp", "country": "SI", "limit": 2}),
+    ("eurostat", {"dataset": "nama_10_gdp", "country": "DE", "limit": 2}),
     ("ted", {"keyword": "PD = (20261001 <> 20261031)", "limit": 2}),
     ("cellar", {"keyword": "battery", "limit": 2}),
     ("github_issues", {"keyword": "webhook", "limit": 2}),
-    ("worldbank", {"country": "SI", "identifier": "NY.GDP.MKTP.CD", "limit": 2}),
+    ("worldbank", {"country": "US", "identifier": "NY.GDP.MKTP.CD", "limit": 2}),
     ("greenhouse", {"company": "mozilla", "limit": 2}),
     ("smartrecruiters", {"company": "BoschGroup", "limit": 2}),
     ("lever", {"company": "jobgether", "limit": 2}),
@@ -30,10 +30,6 @@ CASES = (
     ("ecb", {"identifier": "EXR/D.USD.EUR.SP00.A", "limit": 2}),
     ("copernicus", {"limit": 2}),
 )
-
-# OPSI currently returns HTTP 500 from GitHub runners. Keep a transparent
-# optional probe; do not conflate provider outages with code regressions.
-OPTIONAL_CASES = (("opsi_slovenia", {"limit": 2}),)
 
 
 def main() -> int:
@@ -87,23 +83,7 @@ def main() -> int:
                                "reason": type(exc).__name__}
             checks.append(detail_item)
             print(json.dumps(detail_item, sort_keys=True, ensure_ascii=False), flush=True)
-    optional = []
-    for source, params in OPTIONAL_CASES:
-        try:
-            plan = plan_source(source, **params)
-            outcome = collect(plan, cache=cache, fetch=True, timeout=10)
-            item = {"source": source, "status": outcome.get("status"),
-                    "http_status": outcome.get("http_status"),
-                    "reason": outcome.get("reason"),
-                    "optional_external_provider": True}
-        except (ValueError, OSError) as exc:
-            item = {"source": source, "status": "exception",
-                    "reason": type(exc).__name__,
-                    "optional_external_provider": True}
-        optional.append(item)
-        print(json.dumps(item, sort_keys=True, ensure_ascii=False), flush=True)
     report = {
-        "optional_external_checks": optional,
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "checks": checks,
         "tested": len(checks),
