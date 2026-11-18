@@ -397,6 +397,29 @@ If you deploy TrendPulse remotely, retain these controls and add deployment-leve
 
 For responsible disclosure instructions, see [SECURITY.md](SECURITY.md).
 
+## Optional free market intelligence (separate MCP)
+
+Market-intelligence source adapters are **opt-in only** and do not change the
+default TrendPulse tools, hosted MCP, or scheduled workers. Use the existing CLI:
+
+```bash
+mcp-trendpulse-cli intelligence sources
+mcp-trendpulse-cli intelligence settings status
+mcp-trendpulse-cli intelligence settings guide openalex
+```
+
+Start the standalone read-only MCP only when explicitly wanted:
+
+```bash
+python -m mcp_trendpulse.intelligence_mcp
+```
+
+See [source verification and free-tier rules](docs/intelligence-free-sources.md)
+and [safe provider settings and self-hosted RSSHub](docs/intelligence-provider-settings.md).
+ChatGPT web needs a separately authenticated remote MCP connection or secure
+tunnel; the local stdio process is **not** a public plugin endpoint.
+No API secret should be provided in chat or committed into the repository.
+
 ## Roadmap
 
 Current production-readiness priorities are:

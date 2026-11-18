@@ -34,6 +34,14 @@ The job-board file must be UTF-8 JSON of at most 512 KiB. Data is not uploaded
 or used for marketing outreach. It identifies source-backed *possible* tasks
 and frustrations, not verified buying intent.
 
+## Secure provider setup and RSSHub self-hosting
+
+See [Optional intelligence provider settings](intelligence-provider-settings.md)
+for the Windows Credential Manager wizard, cross-platform secrets injection,
+read-only MCP settings tools, ChatGPT connection boundaries and the pinned
+loopback-only RSSHub Compose service. Credentials are added only by the human
+user, not by tool calls or chat prompts.
+
 ## Optional dedicated local MCP
 
 You can run a separate, strictly local, stdio MCP entry point:
