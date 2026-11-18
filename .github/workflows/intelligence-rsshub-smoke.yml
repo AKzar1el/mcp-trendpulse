@@ -1,0 +1,60 @@
+name: Optional intelligence RSSHub self-host smoke
+
+on:
+  pull_request:
+    paths:
+      - "src/mcp_trendpulse/intelligence_*.py"
+      - "scripts/intelligence_rsshub_smoke.py"
+      - ".github/workflows/intelligence-rsshub-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rsshub-local:
+    name: Real loopback RSSHub + XML source adapter
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          version: "0.12.5"
+      - run: uv python install 3.12
+      - run: uv sync --locked --dev
+      - name: Pull official free RSSHub container
+        run: docker pull ghcr.io/diygod/rsshub:latest
+      - name: Boot ephemeral self-hosted RSSHub on loopback only
+        run: |
+          docker run --detach --name trendpulse-rsshub-ci --init \
+            --memory 1g --pids-limit 256 --security-opt no-new-privileges \
+            --publish 127.0.0.1:1200:1200 \
+            --env NODE_ENV=production --env CACHE_EXPIRE=900 \
+            ghcr.io/diygod/rsshub:latest
+          docker image inspect ghcr.io/diygod/rsshub:latest --format '{{json .RepoDigests}}'
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:1200/healthz >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs --tail 100 trendpulse-rsshub-ci
+          exit 1
+      - name: Verify a real local RSS XML feed and optional external route
+        env:
+          TRENDPULSE_INTEL_CACHE_DIR: ${{ runner.temp }}/rsshub-local-smoke
+          TRENDPULSE_INTEL_RSSHUB_REPORT: intelligence-rsshub.json
+        run: uv run --locked python scripts/intelligence_rsshub_smoke.py
+      - name: Upload redacted local smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rsshub-selfhosted-${{ github.run_id }}
+          path: intelligence-rsshub.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Tear down ephemeral RSSHub
+        if: always()
+        run: docker rm --force trendpulse-rsshub-ci || true

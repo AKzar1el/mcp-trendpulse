@@ -1,0 +1,23 @@
+# Optional local-only RSSHub; not part of TrendPulse's main deployment.
+# Usage: docker compose -f deploy/intelligence-rsshub.compose.yml up -d
+# Pin the validated image digest when promoting to an owned production service.
+services:
+  rsshub:
+    image: ghcr.io/diygod/rsshub:latest
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:1200:1200"
+    environment:
+      NODE_ENV: production
+      CACHE_EXPIRE: "900"
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1200/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 4
+      start_period: 30s
