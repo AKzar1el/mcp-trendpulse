@@ -52,6 +52,8 @@ def normalize_jobs(source: str, company: str, response: Any, limit: int = 100) -
         raw = response
     elif source == "smartrecruiters":
         raw = response.get("content", []) if isinstance(response, dict) else []
+    elif source == "greenhouse" and isinstance(response, dict) and response.get("id"):
+        raw = [response]  # One full description from greenhouse_job.
     else:
         raw = response.get("jobs", []) if isinstance(response, dict) else []
     if not isinstance(raw, list):

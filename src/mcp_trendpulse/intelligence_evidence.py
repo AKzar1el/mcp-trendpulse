@@ -83,6 +83,13 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
             raise UnexpectedSourceShape("No valid GDELT batch entries")
         return {"record_count": len(rows), "sample": rows,
                 "unit": "15-minute event manifest, not topical news"}
+    if source == "greenhouse_job":
+        if not isinstance(payload, dict) or "id" not in payload or not payload.get("title"):
+            raise UnexpectedSourceShape("Expected one public Greenhouse job description")
+        return {"record_count": 1, "sample": [
+            {"id": payload["id"], "title": payload["title"],
+             "description_present": bool(payload.get("content"))}],
+            "unit": "one public job; not purchasing evidence"}
     if source == "worldbank":
         if not isinstance(payload, list) or len(payload) != 2 or not isinstance(payload[1], list):
             raise UnexpectedSourceShape("Expected [pagination, values] from World Bank")

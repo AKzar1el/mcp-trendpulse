@@ -15,9 +15,14 @@ from mcp_trendpulse.intelligence_core import IntelligenceError, Plan, _required
 
 SOURCES = {
     "greenhouse": {
-        "wave": 2, "access": "public/no-key", "signal": "company-specific open job responsibilities",
+        "wave": 2, "access": "public/no-key", "signal": "company-specific job index",
         "docs": "https://developers.greenhouse.io/job-board.html",
-        "notes": "Requires a known public board slug; postings are not a universe of all employers."
+        "notes": "Index only; use greenhouse_job for a bounded individual description."
+    },
+    "greenhouse_job": {
+        "wave": 2, "access": "public/no-key", "signal": "one full public job description",
+        "docs": "https://developers.greenhouse.io/job-board.html",
+        "notes": "Employer requirements show tasks, not proof of willingness to buy external software."
     },
     "lever": {
         "wave": 2, "access": "public/no-key", "signal": "company-specific open job responsibilities",
@@ -112,10 +117,15 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
         return Plan(method="POST",
                     url="https://api.usaspending.gov/api/v2/search/spending_by_award/",
                     body=body, budget_per_day=10, **common)
-    if source in {"greenhouse", "lever", "ashby", "smartrecruiters"}:
+    if source in {"greenhouse", "greenhouse_job", "lever", "ashby", "smartrecruiters"}:
         board = _required(p["company"], "company board slug")
         if source == "greenhouse":
             url = f"https://boards-api.greenhouse.io/v1/boards/{quote(board, safe='')}/jobs?content=false"
+        elif source == "greenhouse_job":
+            job_id = _required(p["identifier"], "public job ID")
+            if re.fullmatch(r"[0-9]{3,20}", job_id) is None:
+                raise IntelligenceError("Greenhouse job ID must contain 3-20 digits")
+            url = f"https://boards-api.greenhouse.io/v1/boards/{quote(board, safe='')}/jobs/{job_id}?content=true"
         elif source == "lever":
             url = f"https://api.lever.co/v0/postings/{quote(board, safe='')}?mode=json"
         elif source == "ashby":
