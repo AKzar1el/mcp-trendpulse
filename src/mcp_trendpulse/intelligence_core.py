@@ -24,6 +24,8 @@ from urllib.parse import urlencode, urlsplit
 from xml.etree import ElementTree
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
+from filelock import FileLock, Timeout as FileLockTimeout
+
 MAX_RESPONSE_BYTES = 256 * 1024
 MAX_RESULT_CHARS = 24000
 DEFAULT_TIMEOUT = 12
@@ -235,6 +237,32 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
     store = cache if cache is not None else BudgetCache()
     identity = hashlib.sha256(json.dumps(
         [plan.source, plan.method, plan.url, plan.body], sort_keys=True).encode()).hexdigest()
+    # Fast path: repeated requests avoid filesystem lock overhead entirely.
+    previously = store.cached(identity)
+    if previously is not None:
+        return {**previously, "cache_hit": True}
+
+    # Independent query hashes are never serialized with one another.
+    # Across threads/processes, only the first identical request uses free quota.
+    lock_root = store.db.parent / ".request_locks"
+    if lock_root.is_symlink():
+        raise IntelligenceError("Request lock directory may not be a symlink")
+    lock_root.mkdir(mode=0o700, exist_ok=True)
+    lock_path = lock_root / f"{identity}.lock"
+    if lock_path.is_symlink():
+        raise IntelligenceError("Request lock file may not be a symlink")
+    try:
+        with FileLock(str(lock_path), timeout=timeout + 5):
+            return _collect_under_lock(plan, store, identity, timeout, env)
+    except FileLockTimeout as exc:
+        raise IntelligenceError("Another identical free-source request is still running") from exc
+
+
+def _collect_under_lock(
+    plan: Plan, store: BudgetCache, identity: str, timeout: int,
+    env: dict[str, str] | None,
+) -> dict[str, Any]:
+    """Recheck cache inside the per-query lock before reserving free API quota."""
     previously = store.cached(identity)
     if previously is not None:
         return {**previously, "cache_hit": True}
