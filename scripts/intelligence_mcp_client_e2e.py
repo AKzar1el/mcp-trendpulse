@@ -13,7 +13,7 @@ import json
 import os
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -51,7 +51,7 @@ def _unpack(response: Any, *, expect_error: bool = False) -> Any:
 
 async def _call(session: ClientSession, name: str, args: dict[str, Any],
                 *, error: bool = False, timeout: int = 45) -> Any:
-    result = await session.call_tool(name, args, read_timeout_seconds=timeout)
+    result = await session.call_tool(name, args, read_timeout_seconds=timedelta(seconds=timeout))
     return _unpack(result, expect_error=error)
 
 
