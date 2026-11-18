@@ -277,8 +277,22 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
         # Avoid recording tokenized URLs, headers or response bodies in errors.
         return {"source": plan.source, "status": "unavailable", "reason": type(exc).__name__,
                 "retry_automatically": False, "cache_hit": False}
+    from mcp_trendpulse.intelligence_evidence import (
+        UnexpectedSourceShape, evidence_projection,
+    )
+    try:
+        observations = evidence_projection(plan.source, payload)
+    except UnexpectedSourceShape as exc:
+        return {
+            "source": plan.source,
+            "status": "invalid_source_shape",
+            "reason": str(exc),
+            "retry_automatically": False,
+            "cache_hit": False,
+        }
     reduced = _bound_payload(payload)
     output = {
+        "observations": _bound_payload(observations),
         "source": plan.source,
         "wave": plan.wave,
         "source_url": plan.url,
