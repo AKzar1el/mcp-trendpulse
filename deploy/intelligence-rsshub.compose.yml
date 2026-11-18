@@ -3,7 +3,7 @@
 # Pin the validated image digest when promoting to an owned production service.
 services:
   rsshub:
-    image: ghcr.io/diygod/rsshub:latest
+    image: ghcr.io/diygod/rsshub@sha256:f37cd775035b8e6685b63f7410600700163d7dd069cdc5474b9673b488c3b297
     restart: unless-stopped
     init: true
     ports:

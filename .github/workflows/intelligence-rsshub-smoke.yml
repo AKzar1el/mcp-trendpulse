@@ -25,15 +25,15 @@ jobs:
       - run: uv python install 3.12
       - run: uv sync --locked --dev
       - name: Pull official free RSSHub container
-        run: docker pull ghcr.io/diygod/rsshub:latest
+        run: docker pull ghcr.io/diygod/rsshub@sha256:f37cd775035b8e6685b63f7410600700163d7dd069cdc5474b9673b488c3b297
       - name: Boot ephemeral self-hosted RSSHub on loopback only
         run: |
           docker run --detach --name trendpulse-rsshub-ci --init \
             --memory 1g --pids-limit 256 --security-opt no-new-privileges \
             --publish 127.0.0.1:1200:1200 \
             --env NODE_ENV=production --env CACHE_EXPIRE=900 \
-            ghcr.io/diygod/rsshub:latest
-          docker image inspect ghcr.io/diygod/rsshub:latest --format '{{json .RepoDigests}}'
+            ghcr.io/diygod/rsshub@sha256:f37cd775035b8e6685b63f7410600700163d7dd069cdc5474b9673b488c3b297
+          docker image inspect ghcr.io/diygod/rsshub@sha256:f37cd775035b8e6685b63f7410600700163d7dd069cdc5474b9673b488c3b297 --format '{{json .RepoDigests}}'
           for attempt in $(seq 1 60); do
             if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:1200/healthz >/dev/null 2>&1; then
               exit 0
