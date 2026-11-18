@@ -27,8 +27,11 @@ CASES = (
     ("gleif", {"keyword": "Siemens", "limit": 2}),
     ("ecb", {"identifier": "EXR/D.USD.EUR.SP00.A", "limit": 2}),
     ("copernicus", {"limit": 2}),
-    ("opsi_slovenia", {"limit": 2}),
 )
+
+# OPSI currently returns HTTP 500 from GitHub runners. Keep a transparent
+# optional probe; do not conflate provider outages with code regressions.
+OPTIONAL_CASES = (("opsi_slovenia", {"limit": 2}),)
 
 
 def main() -> int:
@@ -40,7 +43,7 @@ def main() -> int:
         try:
             plan = plan_source(source, **params)
             out = collect(plan, cache=cache, fetch=True,
-                          timeout=25 if source == "worldbank" else 10)
+                          timeout=25 if source in {"worldbank", "ecb"} else 10)
             item = {
                 "source": source,
                 "status": out.get("status"),
@@ -82,7 +85,23 @@ def main() -> int:
                                "reason": type(exc).__name__}
             checks.append(detail_item)
             print(json.dumps(detail_item, sort_keys=True, ensure_ascii=False), flush=True)
+    optional = []
+    for source, params in OPTIONAL_CASES:
+        try:
+            plan = plan_source(source, **params)
+            outcome = collect(plan, cache=cache, fetch=True, timeout=10)
+            item = {"source": source, "status": outcome.get("status"),
+                    "http_status": outcome.get("http_status"),
+                    "reason": outcome.get("reason"),
+                    "optional_external_provider": True}
+        except (ValueError, OSError) as exc:
+            item = {"source": source, "status": "exception",
+                    "reason": type(exc).__name__,
+                    "optional_external_provider": True}
+        optional.append(item)
+        print(json.dumps(item, sort_keys=True, ensure_ascii=False), flush=True)
     report = {
+        "optional_external_checks": optional,
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "checks": checks,
         "tested": len(checks),
