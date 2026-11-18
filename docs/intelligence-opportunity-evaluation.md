@@ -14,11 +14,11 @@ The separate opt-in stdio MCP exposes nine read-only tools, including:
 
 CLI equivalents:
 
-\`\`\`bash
+```bash
 mcp-trendpulse-cli intelligence opportunities lanes
 mcp-trendpulse-cli intelligence opportunities evaluate --input-json research.json
 mcp-trendpulse-cli intelligence opportunities backtest --input-json outcomes.json --k 3
-\`\`\`
+```
 
 Default source queries remain plan-only. The evaluator never accesses a
 network, visits an arbitrary website, contacts buyers, sends mail, uses an LLM
@@ -58,7 +58,7 @@ candidate's identifier. A shared keyword or industry is **insufficient**.
 This fictional demonstration uses **synthetic observations and buyers**. Do
 not cite these records as market intelligence or send them to prospects.
 
-\`\`\`json
+```json
 {
   "as_of": "2026-11-18",
   "candidates": [{
@@ -101,7 +101,7 @@ not cite these records as market intelligence or send them to prospects.
     }
   ]
 }
-\`\`\`
+```
 
 A returned status of `buyer_interview_priority` means only that the
 caller described multiple distinct original publishers, material work signals,
