@@ -419,6 +419,7 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
         display_timeframe = _brief_table_cell(" ".join(timeframe.split()))
         markets_output = []
         failed_markets = []
+        markdown_coverage = {}
         if output_format == "markdown":
             echo_markdown("# TrendPulse Demand Brief evidence pack")
             echo_markdown()
@@ -563,6 +564,15 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
             missing_primary_keywords = [
                 keyword for keyword in cleaned_keywords if not validated_series[keyword]
             ]
+            if output_format == "markdown":
+                validated_count = len(cleaned_keywords) - len(missing_primary_keywords)
+                markdown_coverage[market] = (
+                    validated_count,
+                    latest_trends_date or "n/a",
+                    "growth unavailable" if growth_failure else (
+                        "observed" if validated_count else "no primary evidence"
+                    ),
+                )
 
             if output_format in ("json", "csv"):
                 warnings = []
@@ -774,13 +784,38 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
                     }
                     writer.writerow({column: _brief_csv_cell(values[column]) for column in columns})
             emit_document(stream.getvalue(), bool(failed_markets))
-        elif failed_markets:
-            echo_markdown()
-            echo_markdown(
-                f"> **INCOMPLETE EVIDENCE:** {len(failed_markets)} failed or unattempted "
-                f"market components across {len(cleaned_markets)} requested markets. "
-                "Do not use as a complete Demand Brief."
-            )
+        else:
+            if len(cleaned_markets) > 1:
+                failures = {item["market"]: item for item in failed_markets}
+                echo_markdown()
+                echo_markdown("## Cross-market evidence coverage (not a ranking)")
+                echo_markdown()
+                echo_markdown("| Market | Validated primary keywords | Latest validated point | Status |")
+                echo_markdown("| --- | ---: | --- | --- |")
+                for market in cleaned_markets:
+                    if market in markdown_coverage:
+                        count, latest, status = markdown_coverage[market]
+                    else:
+                        count, latest = 0, "n/a"
+                        failure = failures.get(market, {})
+                        status = (
+                            "not attempted" if failure.get("code") == "not_attempted_due_to_rate_limit"
+                            else "unavailable"
+                        )
+                    echo_markdown(f"| {market} | {count}/{len(cleaned_keywords)} | {latest} | {status} |")
+                echo_markdown()
+                echo_markdown(
+                    "> This compares evidence coverage and freshness only, not a ranking. "
+                    "Google Trends relative-interest indices from separate market requests "
+                    "are not directly comparable."
+                )
+            if failed_markets:
+                echo_markdown()
+                echo_markdown(
+                    f"> **INCOMPLETE EVIDENCE:** {len(failed_markets)} failed or unattempted "
+                    f"market components across {len(cleaned_markets)} requested markets. "
+                    "Do not use as a complete Demand Brief."
+                )
         if markdown_buffer is not None:
             emit_document(markdown_buffer.getvalue(), bool(failed_markets))
         if failed_markets:
