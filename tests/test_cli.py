@@ -448,6 +448,28 @@ def test_brief_pack_markdown_coverage_preserves_primary_when_growth_times_out():
     assert providers.trends.get_growth.await_count == 2
 
 
+def test_brief_pack_markdown_coverage_discloses_missing_primary_and_growth_failure():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(side_effect=[
+        [],
+        [{"date": "2026-09-13", "keyword": "ChatGPT", "value": 50}],
+    ])
+    providers.trends.get_growth = AsyncMock(
+        side_effect=ProviderTimeoutError("google_trends", "get_growth")
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--timeframe", "today 5-y", "--allow-partial",
+        ])
+
+    assert result.exit_code == 1, result.output
+    assert "| US | 0/1 | n/a | no primary evidence; growth unavailable |" in result.output
+    assert "| GB | 1/1 | 2026-09-13 | growth unavailable |" in result.output
+    assert providers.trends.get_trends.await_count == 2
+    assert providers.trends.get_growth.await_count == 2
+
+
 def test_brief_pack_markdown_one_market_has_no_cross_market_summary():
     with patch("mcp_trendpulse.cli.get_provider_set", return_value=FakeBriefProviders()):
         result = CliRunner().invoke(cli_module.cli, [
