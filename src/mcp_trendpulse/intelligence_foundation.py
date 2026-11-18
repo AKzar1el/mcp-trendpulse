@@ -70,14 +70,20 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
         return Plan(method="POST", url="https://api.ted.europa.eu/v3/notices/search",
                     body=body, budget_per_day=20, **common)
     if source == "cellar":
-        # Exact legal-title term matching via bounded SPARQL: no arbitrary user query.
-        term = _required(keyword, "keyword")
-        literal = json.dumps(term, ensure_ascii=False)
+        # CDM titles live on expressions, not on legal Work nodes.
+        # Virtuoso indexed full-text search avoids unbounded title scans.
+        term = _required(keyword, "legal-title keyword")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 -]{0,59}", term):
+            raise IntelligenceError("CELLAR legal-title keywords must be alphanumeric words")
+        full_text = json.dumps("'" + term.strip().lower() + "'")
         sparql = (
             "PREFIX cdm: <http://publications.europa.eu/ontology/cdm#> "
             "SELECT DISTINCT ?work ?title WHERE { "
-            "?work cdm:resource_legal_title ?title . "
-            f"FILTER(CONTAINS(LCASE(STR(?title)), LCASE({literal}))) "
+            "?expr cdm:expression_belongs_to_work ?work ; "
+            "cdm:expression_uses_language "
+            "<http://publications.europa.eu/resource/authority/language/ENG> ; "
+            "cdm:expression_title ?title . "
+            f"?title bif:contains {full_text} . "
             f"}} LIMIT {limit}"
         )
         return Plan(method="POST",

@@ -27,7 +27,7 @@ CASES = (
     ("gleif", {"keyword": "Siemens", "limit": 2}),
     ("ecb", {"identifier": "EXR/D.USD.EUR.SP00.A", "limit": 2}),
     ("copernicus", {"limit": 2}),
-    ("opsi_slovenia", {"keyword": "energija", "limit": 2}),
+    ("opsi_slovenia", {"limit": 2}),
 )
 
 

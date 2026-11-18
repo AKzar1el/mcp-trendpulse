@@ -115,10 +115,13 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
             method="GET", url=url, content_type="xml", budget_per_day=40, **common,
         )
     if source == "opsi_slovenia":
-        keyword = _required(keyword, "dataset search phrase")
-        url = "https://podatki.gov.si/api/3/action/package_search?" + urlencode({
-            "q": keyword, "rows": limit, "start": 0,
-        })
+        # OPSI's public CKAN endpoint sometimes returns HTTP 500 for full-text
+        # searches. Allow bounded unfiltered metadata listing as a fallback
+        # selected explicitly by omitting keyword, not via hidden retries.
+        params = {"rows": limit}
+        if keyword:
+            params["q"] = keyword
+        url = "https://podatki.gov.si/api/3/action/package_search?" + urlencode(params)
         return Plan(method="GET", url=url, budget_per_day=30, **common)
     if source == "changedetection_local":
         token = env.get("TRENDPULSE_INTEL_CHANGEDETECTION_KEY", "").strip()
