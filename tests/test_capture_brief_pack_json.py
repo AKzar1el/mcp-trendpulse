@@ -1,10 +1,16 @@
+import importlib.util
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
-from examples import capture_brief_pack_json as capture
+_EXAMPLE_PATH = Path(__file__).resolve().parents[1] / "examples" / "capture_brief_pack_json.py"
+_SPEC = importlib.util.spec_from_file_location("capture_brief_pack_json", _EXAMPLE_PATH)
+assert _SPEC is not None and _SPEC.loader is not None
+capture = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(capture)
 
 
 def _evidence_bytes(*, incomplete=False):
