@@ -371,6 +371,27 @@ def brief_review(evidence, review_format):
         raise click.exceptions.Exit(2)
 
 
+@cli.command("brief-compare", help="Compare saved Demand Brief evidence coverage offline.")
+@click.option("--before", "before_path", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
+@click.option("--after", "after_path", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
+@click.option("--format", "compare_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
+def brief_compare(before_path, after_path, compare_format):
+    """Compare two compatible saved evidence files without querying providers."""
+    from mcp_trendpulse.brief_review import MAX_EVIDENCE_BYTES, compare_saved_briefs
+
+    try:
+        with before_path.open("rb") as handle:
+            before_raw = handle.read(MAX_EVIDENCE_BYTES + 1)
+        with after_path.open("rb") as handle:
+            after_raw = handle.read(MAX_EVIDENCE_BYTES + 1)
+        report, needs_attention = compare_saved_briefs(before_raw, after_raw, output_format=compare_format)
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(f"Demand Brief comparison failed: {exc}") from exc
+    click.echo(report, nl=False)
+    if needs_attention:
+        raise click.exceptions.Exit(2)
+
+
 @cli.command("brief-pack", help="Build the core trend/growth evidence table for a TrendPulse Demand Brief.")
 @click.option("--keyword", "keywords", multiple=True, required=True, help="Keyword or phrase; repeat up to five times.")
 @click.option("--market", "markets", multiple=True, required=True, help="Country or subregion code such as US or US-CA; repeat up to twice.")
