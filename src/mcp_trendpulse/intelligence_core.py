@@ -12,7 +12,6 @@ import json
 import os
 import re
 import sqlite3
-import ssl
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -78,7 +77,11 @@ def source_catalog() -> list[dict[str, Any]]:
     sources = []
     for module in _modules():
         for name, meta in module.SOURCES.items():
-            sources.append({"id": name, **meta})
+            catalogue_only = {
+                "cfpb", "cordis", "usaspending", "copernicus", "epo",
+                "opsi_slovenia", "changedetection_local",
+            }
+            sources.append({"id": name, **meta, "fetch_enabled": name not in catalogue_only})
     return sorted(sources, key=lambda x: (x["wave"], x["id"]))
 
 
