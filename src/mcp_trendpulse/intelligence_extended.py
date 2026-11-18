@@ -99,9 +99,10 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
     if source == "copernicus":
         # 2026 OpenSearch STAC endpoint supports free-text collection search.
         # This is metadata only; actual raster/physical observations are separate.
-        url = "https://stac.opensearch.dataspace.copernicus.eu/v1/collections"
-        if keyword:
-            url += "?" + urlencode({"q": keyword, "limit": limit})
+        collection = p["identifier"] or "sentinel-2-l2a"
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{1,90}", collection):
+            raise IntelligenceError("Copernicus STAC collection must be a simple identifier")
+        url = "https://stac.opensearch.dataspace.copernicus.eu/v1/collections/" + collection
         return Plan(method="GET", url=url, budget_per_day=30, **common)
     if source == "epo":
         keyword = _required(keyword, "patent CQL search")

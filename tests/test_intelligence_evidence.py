@@ -11,7 +11,7 @@ from mcp_trendpulse.intelligence_evidence import evidence_projection, Unexpected
     ("cordis", {"results": {"bindings": [{"title": {"value": "battery"}}]}}, 1),
     ("opsi_slovenia", {"success": True, "result": {"count": 1,
         "results": [{"title": "Solar", "name": "solar"}]}}, 1),
-    ("copernicus", {"collections": [{"id": "S2", "title": "Sentinel 2"}]}, 1),
+    ("copernicus", {"id": "sentinel-2-l2a", "type": "Collection", "title": "Sentinel 2"}, 1),
     ("worldbank", [{"page": 1}, [{"date": "2025", "value": 2.0}]], 1),
     ("gdelt", {"articles": [{"title": "Battery"}]}, 1),
     ("openalex", {"results": [{"id": "W123"}]}, 1),
@@ -45,3 +45,11 @@ def test_cfpb_never_exports_private_narrative():
 def test_provider_errors_are_not_mistaken_for_zero_results(source, payload):
     with pytest.raises(UnexpectedSourceShape):
         evidence_projection(source, payload)
+
+
+def test_gdelt_manifest_preserves_file_size_and_name_only():
+    result = evidence_projection("gdelt_latest", {"lines": [
+        "12345 0123456789abcdef0123456789abcdef http://data.gdeltproject.org/gdeltv2/20261118120000.export.CSV.zip"
+    ]})
+    assert result["record_count"] == 1
+    assert result["sample"][0]["compressed_bytes"] == 12345

@@ -59,25 +59,42 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
         }
     if source == "copernicus":
         if not isinstance(payload, dict):
-            raise UnexpectedSourceShape("Expected STAC catalog JSON")
-        rows = _objects(payload.get("collections"))
-        return {
-            "record_count": len(rows),
-            "sample": [{k: r.get(k) for k in ("id", "title", "description") if k in r} for r in rows],
-            "unit": "satellite data collections (not climate-model observations)",
-        }
+            raise UnexpectedSourceShape("Expected STAC collection JSON")
+        rows = [payload] if isinstance(payload.get("id"), str) else _objects(payload.get("collections"))
+        if not rows:
+            raise UnexpectedSourceShape("Missing STAC collection identifier")
+        return {"record_count": len(rows),
+                "sample": [{k: r.get(k) for k in ("id", "title", "description") if k in r} for r in rows],
+                "unit": "satellite data collection (not climate-model observations)"}
+    if source == "gdelt_latest":
+        if not isinstance(payload, dict) or not isinstance(payload.get("lines"), list):
+            raise UnexpectedSourceShape("Expected GDELT batch manifest")
+        rows = []
+        for line in payload["lines"][:3]:
+            if not isinstance(line, str):
+                continue
+            fields = line.strip().split()
+            if len(fields) != 3 or not fields[0].isdigit() or not fields[2].startswith(
+                ("http://data.gdeltproject.org/gdeltv2/", "https://data.gdeltproject.org/gdeltv2/")
+            ):
+                continue
+            rows.append({"compressed_bytes": int(fields[0]), "filename": fields[2].rsplit("/", 1)[-1]})
+        if not rows:
+            raise UnexpectedSourceShape("No valid GDELT batch entries")
+        return {"record_count": len(rows), "sample": rows,
+                "unit": "15-minute event manifest, not topical news"}
     if source == "worldbank":
         if not isinstance(payload, list) or len(payload) != 2 or not isinstance(payload[1], list):
             raise UnexpectedSourceShape("Expected [pagination, values] from World Bank")
         rows = _objects(payload[1])
         return {"record_count": len(rows), "sample": rows, "unit": "official indicator observations"}
-    if source in {"gdelt", "github_issues", "usaspending", "openalex", "gleif", "ted",
+    if source in {"github_issues", "usaspending", "openalex", "gleif", "ted",
                   "greenhouse", "ashby", "smartrecruiters", "sec_companyfacts",
                   "sec_companyconcept", "companies_house"}:
         if not isinstance(payload, dict):
             raise UnexpectedSourceShape("Expected JSON object from provider")
         fields = {
-            "gdelt": "articles", "github_issues": "items", "usaspending": "results",
+            "github_issues": "items", "usaspending": "results",
             "openalex": "results", "gleif": "data", "ted": "notices",
             "greenhouse": "jobs", "ashby": "jobs", "smartrecruiters": "content",
             "companies_house": "items",
