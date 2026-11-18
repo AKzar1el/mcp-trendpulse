@@ -342,6 +342,8 @@ uv run mcp-trendpulse-cli brief-pack --keyword "ChatGPT" --keyword "Claude" --ma
 
 `--output-file` writes a **new UTF-8 file** without shell redirection and refuses to overwrite existing evidence. It supports JSON, CSV and Markdown; Watch JSON retains its dedicated `--watch-evidence-file` option. The JSON includes source attribution, the shared timeframe, per-market latest observation dates, numeric indices/growth percentages (or `null` when unavailable), and warnings about stale or malformed evidence. Indices are normalized **within each market request**; they are not search volume and should not be directly compared across markets. The command fetches Google Trends data but does not generate recommendations or send a Demand Brief.
 
+**Source checkout only:** To review previously saved schema-v1 JSON without contacting Google again, use `uv run mcp-trendpulse-cli brief-review --evidence evidence.json`. This bounded (1 MiB) read-only command checks the stored structure, source labels, per-market primary-evidence coverage, observation dates and failure flags. It prints a human-readable readiness summary; exit code 0 means structurally complete, 2 means incomplete or missing primary evidence, and 1 means the file could not be validated. It never fetches or rewrites data and cannot authenticate the file's provenance. Even a structurally complete file requires human review of warnings, relevance and comparability before buyer-facing use.
+
 **Source checkout only:** To review or share the human-readable evidence table as a Markdown file without PowerShell redirection or character-encoding surprises, use:
 
 ```bash

@@ -352,6 +352,23 @@ def site(site, period, max_results, no_nlp, headlines_only, save_json_dir):
     asyncio.run(_site())
 
 
+@cli.command("brief-review", help="Review saved Demand Brief JSON offline without provider calls.")
+@click.option("--evidence", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
+def brief_review(evidence):
+    """Review primary evidence coverage and incomplete markets from a saved JSON file."""
+    from mcp_trendpulse.brief_review import MAX_EVIDENCE_BYTES, review_saved_brief
+
+    try:
+        with evidence.open("rb") as handle:
+            raw = handle.read(MAX_EVIDENCE_BYTES + 1)
+        report, needs_attention = review_saved_brief(raw)
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(f"Demand Brief review failed: {exc}") from exc
+    click.echo(report, nl=False)
+    if needs_attention:
+        raise click.exceptions.Exit(2)
+
+
 @cli.command("brief-pack", help="Build the core trend/growth evidence table for a TrendPulse Demand Brief.")
 @click.option("--keyword", "keywords", multiple=True, required=True, help="Keyword or phrase; repeat up to five times.")
 @click.option("--market", "markets", multiple=True, required=True, help="Country or subregion code such as US or US-CA; repeat up to twice.")

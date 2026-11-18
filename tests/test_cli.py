@@ -1943,3 +1943,85 @@ def test_cli_help_remains_lazy_in_fresh_python_process():
         timeout=30,
     )
     assert result.returncode == 0, result.stderr
+
+
+def _saved_mock_brief(tmp_path):
+    target = tmp_path / "brief.json"
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=FakeBriefProviders()):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--keyword", "Claude",
+            "--market", "US", "--market", "GB", "--format", "json",
+            "--output-file", str(target),
+        ])
+    assert result.exit_code == 0, result.output
+    return target
+
+
+def test_brief_review_valid_saved_two_market_evidence_is_offline(tmp_path):
+    target = _saved_mock_brief(tmp_path)
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("unexpected provider call")):
+        result = CliRunner().invoke(cli_module.cli, ["brief-review", "--evidence", str(target)])
+    assert result.exit_code == 0, result.output
+    assert "US: 2/2" in result.output and "GB: 2/2" in result.output
+    assert "structurally complete" in result.output
+    assert "not authenticated" in result.output
+    assert target.exists()
+
+
+def test_brief_review_missing_primary_observation_exits_with_review_required(tmp_path):
+    target = _saved_mock_brief(tmp_path)
+    data = json.loads(target.read_text(encoding="utf-8"))
+    data["markets"][0]["keywords"][1]["latest_index"] = None
+    data["markets"][0]["keywords"][1]["latest_observation"] = None
+    target.write_text(json.dumps(data), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, ["brief-review", "--evidence", str(target)])
+    assert result.exit_code == 2
+    assert "US: 1/2" in result.output and "NEEDS HUMAN REVIEW" in result.output
+
+
+def test_brief_review_partial_growth_failure_does_not_hide_primary_evidence(tmp_path):
+    target = _saved_mock_brief(tmp_path)
+    data = json.loads(target.read_text(encoding="utf-8"))
+    data["incomplete"] = True
+    data["failed_markets"] = [{
+        "market": "GB", "component": "growth", "code": "timeout",
+        "retryable": True, "message": "provider timeout",
+    }]
+    target.write_text(json.dumps(data), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, ["brief-review", "--evidence", str(target)])
+    assert result.exit_code == 2
+    assert "GB: 2/2" in result.output and "growth unavailable" in result.output
+    assert "NEEDS HUMAN REVIEW" in result.output
+
+
+@pytest.mark.parametrize("corruption", ["version", "missing", "boolean", "nan", "duplicate"])
+def test_brief_review_rejects_malformed_saved_evidence_without_provider_calls(tmp_path, corruption):
+    target = _saved_mock_brief(tmp_path)
+    data = json.loads(target.read_text(encoding="utf-8"))
+    if corruption == "version":
+        data["schema_version"] = 2
+    elif corruption == "missing":
+        del data["markets"][0]["keywords"][0]["latest_index"]
+    elif corruption == "boolean":
+        data["markets"][0]["keywords"][0]["latest_index"] = True
+    if corruption == "duplicate":
+        raw = target.read_text(encoding="utf-8").replace('"schema_version": 1', '"schema_version": 1, "schema_version": 1')
+    elif corruption == "nan":
+        raw = target.read_text(encoding="utf-8").replace('"schema_version": 1', '"schema_version": NaN')
+    else:
+        raw = json.dumps(data)
+    target.write_text(raw, encoding="utf-8")
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("unexpected provider call")):
+        result = CliRunner().invoke(cli_module.cli, ["brief-review", "--evidence", str(target)])
+    assert result.exit_code != 0
+    assert "review failed" in result.output.lower()
+
+
+def test_brief_review_rejects_oversized_file_without_loading_entire_input(tmp_path):
+    from mcp_trendpulse.brief_review import MAX_EVIDENCE_BYTES
+
+    target = tmp_path / "too-big.json"
+    target.write_bytes(b" " * (MAX_EVIDENCE_BYTES + 5))
+    result = CliRunner().invoke(cli_module.cli, ["brief-review", "--evidence", str(target)])
+    assert result.exit_code != 0
+    assert "exceeds 1 MiB" in result.output
