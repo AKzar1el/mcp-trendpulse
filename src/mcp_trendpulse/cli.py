@@ -1,6 +1,8 @@
 import asyncio
+import csv
 import hashlib
 import html
+import io
 import json
 import re
 import sys
@@ -354,7 +356,7 @@ def site(site, period, max_results, no_nlp, headlines_only, save_json_dir):
 @click.option("--keyword", "keywords", multiple=True, required=True, help="Keyword or phrase; repeat up to five times.")
 @click.option("--market", "markets", multiple=True, required=True, help="Country or subregion code such as US or US-CA; repeat up to twice.")
 @click.option("--timeframe", type=str, default="today 12-m", show_default=True, help="Shared Google Trends timeframe.")
-@click.option("--format", "output_format", type=click.Choice(["markdown", "json", "watch-json"]), default="markdown", show_default=True, help="Human-readable, structured brief, or manual Trend Watch evidence.")
+@click.option("--format", "output_format", type=click.Choice(["markdown", "json", "csv", "watch-json"]), default="markdown", show_default=True, help="Human-readable brief, structured JSON, spreadsheet CSV, or manual Trend Watch evidence.")
 @click.option("--watch-evidence-file", type=click.Path(dir_okay=False, path_type=Path), default=None, help="Write UTF-8 watch-json to a new file, never overwriting existing evidence.")
 @click.option("--allow-partial", is_flag=True, help="Keep usable markets when a provider fails; incomplete output still exits nonzero.")
 def brief_pack(keywords, markets, timeframe, output_format, watch_evidence_file, allow_partial):
@@ -531,7 +533,7 @@ def brief_pack(keywords, markets, timeframe, output_format, watch_evidence_file,
                 keyword for keyword in cleaned_keywords if not validated_series[keyword]
             ]
 
-            if output_format == "json":
+            if output_format in ("json", "csv"):
                 warnings = []
                 if invalid_points_container:
                     warnings.append("Google Trends returned an invalid observation container; no series observations were usable.")
@@ -680,6 +682,57 @@ def brief_pack(keywords, markets, timeframe, output_format, watch_evidence_file,
                 payload["incomplete"] = True
                 payload["failed_markets"] = failed_markets
             click.echo(json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2))
+        elif output_format == "csv":
+            stream = io.StringIO(newline="")
+            columns = (
+                "source", "source_url", "property", "timeframe", "comparability_note",
+                "market", "keyword", "latest_market_observation", "latest_observation",
+                "latest_index", "growth_3m_pct", "growth_1y_pct", "growth_basis",
+                "status", "incomplete", "error_component", "error_code", "retryable",
+                "error_message", "warnings",
+            )
+            writer = csv.DictWriter(stream, fieldnames=columns, lineterminator="\n")
+            writer.writeheader()
+            evidence_by_market = {item["market"]: item for item in markets_output}
+            failure_by_market = {item["market"]: item for item in failed_markets}
+            for market in cleaned_markets:
+                evidence = evidence_by_market.get(market, {})
+                failure = failure_by_market.get(market, {})
+                by_keyword = {item["keyword"]: item for item in evidence.get("keywords", [])}
+                for keyword in cleaned_keywords:
+                    item = by_keyword.get(keyword, {})
+                    if failure.get("code") == "not_attempted_due_to_rate_limit":
+                        status = "not_attempted"
+                    elif not evidence:
+                        status = "unavailable"
+                    elif item.get("latest_index") is None:
+                        status = "no_valid_observation"
+                    else:
+                        status = "observed"
+                    values = {
+                        "source": "Google Trends",
+                        "source_url": "https://trends.google.com/trends/",
+                        "property": "Google Search",
+                        "timeframe": " ".join(timeframe.split()),
+                        "comparability_note": "Relative-interest index, not absolute search volume; compare only within a market request.",
+                        "market": market,
+                        "keyword": keyword,
+                        "latest_market_observation": evidence.get("latest_complete_trends_point"),
+                        "latest_observation": item.get("latest_observation"),
+                        "latest_index": item.get("latest_index"),
+                        "growth_3m_pct": item.get("growth_3m_pct"),
+                        "growth_1y_pct": item.get("growth_1y_pct"),
+                        "growth_basis": evidence.get("growth_basis"),
+                        "status": status,
+                        "incomplete": str(bool(failed_markets)).lower(),
+                        "error_component": failure.get("component"),
+                        "error_code": failure.get("code"),
+                        "retryable": str(failure["retryable"]).lower() if failure else "",
+                        "error_message": failure.get("message"),
+                        "warnings": "; ".join(evidence.get("warnings", [])),
+                    }
+                    writer.writerow({column: _brief_csv_cell(values[column]) for column in columns})
+            click.echo(stream.getvalue(), nl=False)
         elif failed_markets:
             click.echo()
             click.echo(
@@ -767,6 +820,15 @@ def _brief_table_cell(value):
     for marker in ("\\", "|", "*", "_", "`", "[", "]", "~"):
         text = text.replace(marker, "\\" + marker)
     return text
+
+
+def _brief_csv_cell(value):
+    """Keep untrusted text inert in spreadsheet applications, even when CSV-quoted."""
+    if value is None:
+        return ""
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
+        return "'" + value
+    return value
 
 
 def _brief_number(value, *, interest=False):

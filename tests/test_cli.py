@@ -1,3 +1,4 @@
+import csv
 import io
 import json
 import sys
@@ -404,6 +405,111 @@ def test_brief_pack_json_exports_typed_attributed_two_market_evidence():
     }
     assert evidence["markets"][1]["keywords"][0]["latest_index"] == 60.0
     providers.trends.get_growth.assert_not_awaited()
+
+
+def test_brief_pack_csv_exports_attributed_two_market_rows():
+    providers = FakeBriefProviders()
+    providers.trends.get_growth = AsyncMock(side_effect=AssertionError("CSV must reuse current Trends points"))
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--keyword", "Claude",
+            "--market", "US", "--market", "GB", "--format", "csv",
+        ])
+
+    assert result.exit_code == 0, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert len(rows) == 4
+    assert [(r["market"], r["keyword"]) for r in rows] == [
+        ("US", "ChatGPT"), ("US", "Claude"), ("GB", "ChatGPT"), ("GB", "Claude"),
+    ]
+    assert rows[0]["source"] == "Google Trends"
+    assert rows[0]["property"] == "Google Search"
+    assert rows[0]["timeframe"] == "today 12-m"
+    assert rows[0]["growth_basis"] == "selected_timeframe"
+    assert "not absolute search volume" in rows[0]["comparability_note"]
+    assert rows[0]["latest_index"] == "80.0"
+    assert rows[0]["latest_observation"] == "2026-09-13"
+    assert rows[0]["growth_3m_pct"] == "100.0"
+    assert rows[0]["status"] == "observed"
+    assert rows[0]["incomplete"] == "false"
+    assert rows[2]["latest_index"] == "60.0"
+    providers.trends.get_growth.assert_not_awaited()
+
+
+def test_brief_pack_csv_partial_rate_limit_keeps_error_and_nonzero_exit():
+    providers = FakeBriefProviders()
+    original = providers.trends.get_trends
+
+    async def get_trends(**kwargs):
+        if kwargs["geo"] == "GB":
+            raise ProviderRateLimitError("google_trends", "get_trends")
+        return await original(**kwargs)
+
+    providers.trends.get_trends = AsyncMock(side_effect=get_trends)
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--format", "csv", "--allow-partial",
+        ])
+
+    assert result.exit_code == 1, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert len(rows) == 2
+    assert rows[0]["market"] == "US" and rows[0]["status"] == "observed"
+    assert rows[0]["incomplete"] == "true"
+    assert rows[1]["market"] == "GB" and rows[1]["status"] == "unavailable"
+    assert rows[1]["latest_index"] == ""
+    assert rows[1]["error_code"] == "provider_rate_limited"
+    assert rows[1]["retryable"] == "true"
+    assert rows[1]["incomplete"] == "true"
+    assert providers.trends.get_trends.await_count == 2
+
+
+def test_brief_pack_csv_secondary_rate_limit_preserves_primary_and_stops():
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(side_effect=providers.trends.get_trends)
+    providers.trends.get_growth = AsyncMock(
+        side_effect=ProviderRateLimitError("google_trends", "get_growth")
+    )
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--timeframe", "today 5-y", "--format", "csv", "--allow-partial",
+        ])
+
+    assert result.exit_code == 1, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert len(rows) == 2
+    assert rows[0]["status"] == "observed"
+    assert rows[0]["latest_index"] == "80.0"
+    assert rows[0]["growth_3m_pct"] == ""
+    assert rows[0]["growth_basis"] == "separate_lookback_requests"
+    assert rows[0]["error_component"] == "growth"
+    assert rows[0]["error_code"] == "provider_rate_limited"
+    assert rows[1]["market"] == "GB" and rows[1]["status"] == "not_attempted"
+    assert rows[1]["error_code"] == "not_attempted_due_to_rate_limit"
+    providers.trends.get_trends.assert_awaited_once()
+    providers.trends.get_growth.assert_awaited_once()
+
+
+def test_brief_pack_csv_quotes_and_neutralizes_formula_like_keyword():
+    keyword = '=HYPERLINK("https://example.com","open")'
+    provider = SimpleNamespace(trends=SimpleNamespace(
+        get_trends=AsyncMock(return_value=[
+            {"date": "2026-09-06", "keyword": keyword, "value": 35},
+            {"date": "2026-09-13", "keyword": keyword, "value": 70},
+        ]),
+    ))
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=provider):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", keyword, "--market", "US", "--format", "csv",
+        ])
+
+    assert result.exit_code == 0, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert len(rows) == 1
+    assert rows[0]["keyword"] == "'" + keyword
+    assert rows[0]["latest_index"] == "70.0"
 
 
 @pytest.mark.parametrize("output_format", ["json", "markdown"])
