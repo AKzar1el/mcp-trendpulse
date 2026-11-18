@@ -52,10 +52,11 @@ Do not expose the standalone MCP as an unauthenticated public HTTP server.
 |---|---|---|---|
 | 1 | gdelt, eurostat, ted, cellar, github_issues, worldbank | Bounded adapters | Attention, demographics, procurement, laws, issues, indicators |
 | 2 | greenhouse, lever, ashby, smartrecruiters | Bounded public-board adapters | Employer work and inferred workflow friction |
-| 2 | sec_companyfacts | Bounded, requires SEC descriptive contact User-Agent | Company-reported financial facts |
+| 2 | sec_companyfacts, sec_companyconcept | SEC descriptive contact User-Agent required; concept endpoint is smaller | Reported financial facts and a specific US-GAAP concept |
 | 2 | openalex | Bounded, no paid fallback and 5 calls/day local cap | Scientific momentum |
 | 2 | companies_house | Requires a free Companies House API key | UK business filings |
-| 2 | cfpb, cordis, usaspending | Catalog only; deliberately not auto-fetch-enabled | Complaints, research funding, U.S. awards |
+| 2 | usaspending | Bounded public POST adapter | U.S. contract awards and real procurement spending |
+| 2 | cfpb, cordis | Catalog only; deliberately not auto-fetch-enabled | Complaints and EU research funding |
 | 3 | gleif, ecb | Bounded public adapters | Legal entities and official financial time series |
 | 3 | entsoe | Requires approved **free** ENTSO-E token | Electricity load by EIC |
 | 3 | rsshub_local | Local RSSHub on 127.0.0.1:1200 | Public website feeds |

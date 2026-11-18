@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import re
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote, urlencode
 
 from mcp_trendpulse.intelligence_core import IntelligenceError, Plan, _required
@@ -45,6 +46,12 @@ SOURCES = {
         "docs": "https://help.openalex.org/api/",
         "notes": "Bibliographic activity is not market adoption; hard local cap prevents exhaustion."
     },
+    "sec_companyconcept": {
+        "wave": 2, "access": "public/no-key; SEC descriptive User-Agent required",
+        "signal": "specific US-GAAP concept for a public company",
+        "docs": "https://www.sec.gov/search-filings/edgar-application-programming-interfaces",
+        "notes": "Only a named XBRL concept for one CIK; financial data are not market demand.",
+    },
     "companies_house": {
         "wave": 2, "access": "free registration key", "signal": "UK company registrations and filings",
         "docs": "https://developer.company-information.service.gov.uk/",
@@ -75,12 +82,36 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
     limit, keyword = p["limit"], p["keyword"]
     meta = SOURCES[source]
     common = {"source": source, "wave": 2, "docs": meta["docs"], "caution": meta["notes"]}
-    if source in {"cfpb", "cordis", "usaspending"}:
+    if source in {"cfpb", "cordis"}:
         # Public access alone does not justify guessing a changed API contract.
         raise IntelligenceError(
             f"{source}: catalogued but not fetch-enabled pending schema/size verification; "
             "use the official free data source directly"
         )
+    if source == "usaspending":
+        term = _required(keyword, "public procurement keyword")
+        today = datetime.now(timezone.utc).date()
+        beginning = today - timedelta(days=365)
+        body = {
+            "filters": {
+                "keywords": [term],
+                "award_type_codes": ["A", "B", "C", "D"],
+                "time_period": [{
+                    "start_date": beginning.isoformat(),
+                    "end_date": today.isoformat(),
+                }],
+            },
+            "fields": [
+                "Award ID", "Recipient Name", "Awarding Agency",
+                "Award Amount", "Description", "Last Modified Date",
+            ],
+            "page": 1, "limit": limit,
+            "order": "desc", "sort": "Award Amount",
+            "subawards": False,
+        }
+        return Plan(method="POST",
+                    url="https://api.usaspending.gov/api/v2/search/spending_by_award/",
+                    body=body, budget_per_day=10, **common)
     if source in {"greenhouse", "lever", "ashby", "smartrecruiters"}:
         board = _required(p["company"], "company board slug")
         if source == "greenhouse":
@@ -93,15 +124,23 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
             url = (f"https://api.smartrecruiters.com/v1/companies/{quote(board, safe='')}/postings?"
                    + urlencode({"limit": limit, "offset": 0}))
         return Plan(method="GET", url=url, budget_per_day=20, **common)
-    if source == "sec_companyfacts":
+    if source in {"sec_companyfacts", "sec_companyconcept"}:
         cik = _required(p["identifier"], "numeric SEC CIK")
         if not re.fullmatch(r"\d{1,10}", cik):
             raise IntelligenceError("SEC CIK must contain 1-10 digits")
         agent = env.get("TRENDPULSE_INTEL_SEC_USER_AGENT", "").strip()
         if not agent or "@" not in agent or len(agent) > 180:
             raise IntelligenceError("Configure TRENDPULSE_INTEL_SEC_USER_AGENT with a descriptive contact")
-        url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{int(cik):010d}.json"
-        return Plan(method="GET", url=url, headers={"User-Agent": agent}, budget_per_day=8, **common)
+        if source == "sec_companyconcept":
+            concept = _required(keyword, "US-GAAP concept")
+            if re.fullmatch(r"[A-Z][A-Za-z0-9]{1,79}", concept) is None:
+                raise IntelligenceError("Use a valid US-GAAP concept such as Assets")
+            url = (f"https://data.sec.gov/api/xbrl/companyconcept/"
+                   f"CIK{int(cik):010d}/us-gaap/{concept}.json")
+        else:
+            url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{int(cik):010d}.json"
+        return Plan(method="GET", url=url, headers={"User-Agent": agent},
+                    budget_per_day=8, **common)
     if source == "openalex":
         term = _required(keyword, "keyword")
         url = "https://api.openalex.org/works?" + urlencode({

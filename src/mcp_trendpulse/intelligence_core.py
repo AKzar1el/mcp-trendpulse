@@ -78,7 +78,7 @@ def source_catalog() -> list[dict[str, Any]]:
     for module in _modules():
         for name, meta in module.SOURCES.items():
             catalogue_only = {
-                "cfpb", "cordis", "usaspending", "copernicus", "epo",
+                "cfpb", "cordis", "copernicus", "epo",
                 "opsi_slovenia", "changedetection_local",
             }
             sources.append({"id": name, **meta, "fetch_enabled": name not in catalogue_only})
@@ -143,6 +143,7 @@ def _required(value: str, name: str) -> str:
 
 _HOSTS = frozenset({
     "api.gdeltproject.org", "ec.europa.eu", "api.ted.europa.eu",
+    "api.usaspending.gov",
     "publications.europa.eu", "api.github.com", "api.worldbank.org",
     "boards-api.greenhouse.io", "api.lever.co", "api.ashbyhq.com",
     "api.smartrecruiters.com", "data.sec.gov", "api.openalex.org",

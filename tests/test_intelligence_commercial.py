@@ -60,3 +60,21 @@ def test_no_fabricated_posting_pains():
 def test_changed_cfpb_contract_is_fail_closed():
     with pytest.raises(IntelligenceError, match="not fetch-enabled"):
         plan_source("cfpb", keyword="credit")
+
+
+def test_live_usaspending_request_is_bounded_and_contract_shaped():
+    p = plan_source("usaspending", keyword="battery manufacturing", limit=4)
+    assert p.method == "POST"
+    assert p.url == "https://api.usaspending.gov/api/v2/search/spending_by_award/"
+    assert p.body["filters"]["keywords"] == ["battery manufacturing"]
+    assert p.body["filters"]["award_type_codes"] == ["A", "B", "C", "D"]
+    assert p.body["limit"] == 4
+    assert p.body["sort"] in p.body["fields"]
+
+
+def test_sec_companyconcept_is_scoped():
+    env = {"TRENDPULSE_INTEL_SEC_USER_AGENT": "Research Contact research@example.org"}
+    p = plan_source("sec_companyconcept", identifier="320193", keyword="Assets", env=env)
+    assert p.url.endswith("/CIK0000320193/us-gaap/Assets.json")
+    with pytest.raises(IntelligenceError):
+        plan_source("sec_companyconcept", identifier="320193", keyword="../../bad", env=env)
