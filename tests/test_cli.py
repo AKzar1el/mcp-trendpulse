@@ -2025,3 +2025,62 @@ def test_brief_review_rejects_oversized_file_without_loading_entire_input(tmp_pa
     result = CliRunner().invoke(cli_module.cli, ["brief-review", "--evidence", str(target)])
     assert result.exit_code != 0
     assert "exceeds 1 MiB" in result.output
+
+
+def test_brief_review_json_reports_structured_complete_coverage_offline(tmp_path):
+    target = _saved_mock_brief(tmp_path)
+    before = target.read_bytes()
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("unexpected provider call")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-review", "--evidence", str(target), "--format", "json",
+        ])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["schema_version"] == 1
+    assert data["assessment"] == "structurally_complete"
+    assert data["needs_human_review"] is False
+    assert data["source_authenticated"] is False
+    assert data["failed_markets"] == []
+    assert [(m["market"], m["observed_keywords"], m["total_keywords"]) for m in data["markets"]] == [
+        ("US", 2, 2), ("GB", 2, 2),
+    ]
+    assert all(m["status"] == "observed" and m["growth_unavailable"] is False for m in data["markets"])
+    assert any("not search volume" in caution for caution in data["caveats"])
+    assert target.read_bytes() == before
+
+
+def test_brief_review_json_incomplete_primary_evidence_preserves_exit_two(tmp_path):
+    target = _saved_mock_brief(tmp_path)
+    data = json.loads(target.read_text(encoding="utf-8"))
+    data["markets"][0]["keywords"][1]["latest_index"] = None
+    data["markets"][0]["keywords"][1]["latest_observation"] = None
+    target.write_text(json.dumps(data), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-review", "--evidence", str(target), "--format", "json",
+    ])
+    assert result.exit_code == 2
+    report = json.loads(result.output)
+    assert report["assessment"] == "needs_human_review"
+    assert report["needs_human_review"] is True
+    assert report["markets"][0]["observed_keywords"] == 1
+    assert report["markets"][0]["status"] == "missing_primary_evidence"
+
+
+def test_brief_review_json_keeps_growth_failure_separate_from_primary_evidence(tmp_path):
+    target = _saved_mock_brief(tmp_path)
+    data = json.loads(target.read_text(encoding="utf-8"))
+    data["incomplete"] = True
+    data["failed_markets"] = [{
+        "market": "GB", "component": "growth", "code": "timeout",
+        "retryable": True, "message": "provider timeout",
+    }]
+    target.write_text(json.dumps(data), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-review", "--evidence", str(target), "--format", "json",
+    ])
+    assert result.exit_code == 2
+    report = json.loads(result.output)
+    assert report["markets"][1]["status"] == "observed"
+    assert report["markets"][1]["growth_unavailable"] is True
+    assert report["failed_markets"] == [{"market": "GB", "component": "growth", "code": "timeout"}]
+    assert "provider timeout" not in result.output

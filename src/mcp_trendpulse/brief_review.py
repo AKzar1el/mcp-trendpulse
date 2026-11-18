@@ -44,8 +44,10 @@ def _is_number(value, *, interest=False):
     return True
 
 
-def review_saved_brief(raw):
-    """Return (review text, needs_attention), without network or file mutations."""
+def review_saved_brief(raw, *, output_format="text"):
+    """Return (formatted review, needs_attention), without network or file mutations."""
+    if output_format not in ("text", "json"):
+        raise ValueError("Unsupported Demand Brief review format")
     if len(raw) > MAX_EVIDENCE_BYTES:
         raise ValueError("Demand Brief evidence exceeds 1 MiB")
     try:
@@ -91,6 +93,7 @@ def review_saved_brief(raw):
         "Source: Google Trends / Google Search (declared by file, not authenticated)",
     ]
     seen = set()
+    market_reviews = []
     expected_keywords = None
     needs_attention = incomplete
     for market in markets:
@@ -142,6 +145,15 @@ def review_saved_brief(raw):
             status += "; growth unavailable"
         if observed < len(keywords):
             needs_attention = True
+        market_reviews.append({
+            "market": name,
+            "observed_keywords": observed,
+            "total_keywords": len(keywords),
+            "latest_market_observation": None if latest == "n/a" else latest,
+            "status": "observed" if observed == len(keywords) else "missing_primary_evidence",
+            "growth_unavailable": bool(failure),
+            "warning_count": len(warnings),
+        })
         lines.append(
             f"{name}: {observed}/{len(keywords)} keywords with primary evidence; "
             f"latest market observation {latest}; {status}; {len(warnings)} warning(s)"
@@ -151,9 +163,27 @@ def review_saved_brief(raw):
             lines.append(f"{name}: no market evidence; failure {failure['code']} (not ready)")
     if len(seen | set(errors)) > 2:
         raise ValueError("Demand Brief exceeds two-market scope")
-    lines += [
-        "Assessment: NEEDS HUMAN REVIEW" if needs_attention else "Assessment: structurally complete; review warnings",
+    caveats = [
         "Normalized interest is not search volume; do not rank indices across markets.",
         "This checks saved fields only, not whether the provider supplied the data.",
+    ]
+    if output_format == "json":
+        report = {
+            "schema_version": 1,
+            "assessment": "needs_human_review" if needs_attention else "structurally_complete",
+            "needs_human_review": needs_attention,
+            "source_authenticated": False,
+            "timeframe": timeframe.strip(),
+            "markets": market_reviews,
+            "failed_markets": [
+                {"market": name, "component": failure.get("component"), "code": failure["code"]}
+                for name, failure in errors.items()
+            ],
+            "caveats": caveats,
+        }
+        return json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True) + "\n", needs_attention
+    lines += [
+        "Assessment: NEEDS HUMAN REVIEW" if needs_attention else "Assessment: structurally complete; review warnings",
+        *caveats,
     ]
     return "\n".join(lines) + "\n", needs_attention

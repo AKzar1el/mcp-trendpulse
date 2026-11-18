@@ -354,14 +354,16 @@ def site(site, period, max_results, no_nlp, headlines_only, save_json_dir):
 
 @cli.command("brief-review", help="Review saved Demand Brief JSON offline without provider calls.")
 @click.option("--evidence", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
-def brief_review(evidence):
+@click.option("--format", "review_format", type=click.Choice(["text", "json"]), default="text", show_default=True,
+              help="Human-readable review or structured JSON for offline workflows.")
+def brief_review(evidence, review_format):
     """Review primary evidence coverage and incomplete markets from a saved JSON file."""
     from mcp_trendpulse.brief_review import MAX_EVIDENCE_BYTES, review_saved_brief
 
     try:
         with evidence.open("rb") as handle:
             raw = handle.read(MAX_EVIDENCE_BYTES + 1)
-        report, needs_attention = review_saved_brief(raw)
+        report, needs_attention = review_saved_brief(raw, output_format=review_format)
     except (OSError, ValueError) as exc:
         raise click.ClickException(f"Demand Brief review failed: {exc}") from exc
     click.echo(report, nl=False)
