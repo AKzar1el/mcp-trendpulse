@@ -8,12 +8,13 @@ purchases from mere topic matches. No LLM synthesis is used.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import math
 import re
 from collections import Counter, defaultdict
 from datetime import date, timedelta
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 from typing import Any
 
 # Provider classes describe what an adapter can actually establish, not what a
@@ -115,9 +116,23 @@ def _safe_url(value: Any) -> str:
     url = _string(value, "source_url", 700)
     parsed = urlsplit(url)
     if (parsed.scheme != "https" or not parsed.hostname or parsed.username
-            or parsed.password or parsed.fragment or parsed.port not in (None, 443)
-            or parsed.hostname.endswith((".local", ".internal"))):
+            or parsed.password or parsed.fragment or parsed.port not in (None, 443)):
         raise ValueError("source_url must be a public HTTPS evidence reference")
+    host = parsed.hostname.lower()
+    if (host == "localhost" or host.endswith((".localhost", ".local", ".internal"))
+            or "." not in host):
+        raise ValueError("source_url must be a public HTTPS evidence reference")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        pass  # Public DNS names are only stored as references, never fetched.
+    else:
+        if not address.is_global:
+            raise ValueError("source_url must not address private or loopback IP space")
+    if any(any(word in key.lower() for word in
+               ("secret", "token", "apikey", "api_key", "password", "auth"))
+           for key, _ in parse_qsl(parsed.query, keep_blank_values=True)):
+        raise ValueError("source_url must not contain credential-looking query keys")
     return url
 
 

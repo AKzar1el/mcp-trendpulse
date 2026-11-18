@@ -135,4 +135,4 @@ def test_future_claimed_sales_label_is_rejected():
     rows[0]["outcome_at"] = "2030-01-01"
     result = walk_forward_evaluation(rows)
     assert result["rejected_count"] == 1
-    assert result["status"] == "insufficient_verified_outcomes"
+    assert result["status"] == "invalid_historical_labels"

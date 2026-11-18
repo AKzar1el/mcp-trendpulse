@@ -416,6 +416,11 @@ python -m mcp_trendpulse.intelligence_mcp
 
 See [source verification and free-tier rules](docs/intelligence-free-sources.md)
 and [safe provider settings and self-hosted RSSHub](docs/intelligence-provider-settings.md).
+The separate MCP also provides 12 opportunity investigation lanes, deterministic
+buyer/evidence triage, bounded trend checks, and a time-aware outcome backtest.
+These rank research priorities, **not** startup success probabilities. See
+[opportunity evaluation and chaos test matrix](docs/intelligence-opportunity-evaluation.md).
+
 ChatGPT web needs a separately authenticated remote MCP connection or secure
 tunnel; the local stdio process is **not** a public plugin endpoint.
 No API secret should be provided in chat or committed into the repository.
