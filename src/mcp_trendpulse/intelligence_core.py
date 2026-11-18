@@ -199,6 +199,7 @@ class BudgetCache:
         with self._connect() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS cache (id TEXT PRIMARY KEY, until REAL NOT NULL, body TEXT NOT NULL)")
             conn.execute("CREATE TABLE IF NOT EXISTS budget (source TEXT NOT NULL, day TEXT NOT NULL, used INTEGER NOT NULL, PRIMARY KEY(source, day))")
+            conn.execute("CREATE TABLE IF NOT EXISTS cooldown (source TEXT PRIMARY KEY, until REAL NOT NULL)")
 
     def _connect(self):
         return sqlite3.connect(str(self.db), timeout=5, isolation_level=None)
@@ -207,6 +208,21 @@ class BudgetCache:
         with self._connect() as conn:
             row = conn.execute("SELECT body FROM cache WHERE id=? AND until>?", (key, time.time())).fetchone()
         return json.loads(row[0]) if row else None
+
+    def blocked(self, source: str) -> bool:
+        with self._connect() as conn:
+            row = conn.execute("SELECT until FROM cooldown WHERE source=?", (source,)).fetchone()
+        return bool(row and row[0] > time.time())
+
+    def cool_down(self, source: str, seconds: int = 90) -> None:
+        """Treat provider 429/503 as a short shared circuit breaker."""
+        until = time.time() + max(30, min(seconds, 300))
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO cooldown(source, until) VALUES (?, ?) "
+                "ON CONFLICT(source) DO UPDATE SET until=MAX(until, excluded.until)",
+                (source, until),
+            )
 
     def reserve(self, source: str, cap: int) -> None:
         day = datetime.now(timezone.utc).date().isoformat()
@@ -236,7 +252,8 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
         raise IntelligenceError("timeout must be between 2 and 30 seconds")
     store = cache if cache is not None else BudgetCache()
     identity = hashlib.sha256(json.dumps(
-        [plan.source, plan.method, plan.url, plan.body], sort_keys=True).encode()).hexdigest()
+        [plan.source, plan.method, plan.url, plan.body, plan.headers],
+        sort_keys=True).encode()).hexdigest()
     # Fast path: repeated requests avoid filesystem lock overhead entirely.
     previously = store.cached(identity)
     if previously is not None:
@@ -266,6 +283,10 @@ def _collect_under_lock(
     previously = store.cached(identity)
     if previously is not None:
         return {**previously, "cache_hit": True}
+    if store.blocked(plan.source):
+        return {"source": plan.source, "status": "unavailable",
+                "reason": "provider_cooldown", "retry_automatically": False,
+                "cache_hit": False}
     store.reserve(plan.source, plan.budget_per_day)
     accepted = {
         "json": "application/json",
@@ -318,25 +339,33 @@ def _collect_under_lock(
             else:
                 raise IntelligenceError("Unknown content type")
     except HTTPError as exc:
-        return {"source": plan.source, "status": "unavailable", "reason": "HTTPError",
-                "http_status": exc.code, "retry_automatically": False, "cache_hit": False}
+        failure = {"source": plan.source, "status": "unavailable", "reason": "HTTPError",
+                   "http_status": exc.code, "retry_automatically": False, "cache_hit": False}
+        if exc.code in (429, 503):
+            retry_header = exc.headers.get("Retry-After", "") if exc.headers else ""
+            delay = int(retry_header) if retry_header.isdigit() and len(retry_header) <= 6 else 90
+            store.cool_down(plan.source, delay)
+        store.save(identity, failure, 60)
+        return failure
     except (URLError, TimeoutError, OSError, UnicodeError, json.JSONDecodeError,
             ElementTree.ParseError, csv.Error) as exc:
-        return {"source": plan.source, "status": "unavailable", "reason": type(exc).__name__,
-                "retry_automatically": False, "cache_hit": False}
+        failure = {"source": plan.source, "status": "unavailable",
+                   "reason": type(exc).__name__, "retry_automatically": False,
+                   "cache_hit": False}
+        store.save(identity, failure, 45)
+        return failure
     from mcp_trendpulse.intelligence_evidence import (
         UnexpectedSourceShape, evidence_projection,
     )
     try:
         observations = evidence_projection(plan.source, payload)
     except UnexpectedSourceShape as exc:
-        return {
-            "source": plan.source,
-            "status": "invalid_source_shape",
-            "reason": str(exc),
-            "retry_automatically": False,
-            "cache_hit": False,
+        failure = {
+            "source": plan.source, "status": "invalid_source_shape",
+            "reason": str(exc), "retry_automatically": False, "cache_hit": False,
         }
+        store.save(identity, failure, 120)
+        return failure
     reduced = _bound_payload(payload)
     output = {
         "observations": _bound_payload(observations),
