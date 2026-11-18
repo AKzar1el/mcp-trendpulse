@@ -41,7 +41,7 @@ def main() -> int:
         try:
             plan = plan_source(source, **params)
             out = collect(plan, cache=cache, fetch=True,
-                          timeout=25 if source in {"worldbank", "ecb"} else 10)
+                          timeout=25 if source in {"worldbank", "ecb", "lever"} else 10)
             item = {
                 "source": source,
                 "status": out.get("status"),
