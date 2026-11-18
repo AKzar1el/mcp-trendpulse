@@ -27,6 +27,9 @@ TOOLS = {
     "intelligence_analyze_job_postings",
     "intelligence_provider_settings",
     "intelligence_provider_setup",
+    "intelligence_opportunity_lanes",
+    "intelligence_evaluate_opportunities",
+    "intelligence_walk_forward_backtest",
 }
 FAKE_TOKEN = "SYNTHETIC_OFFLINE_E2E_TOKEN_NOT_A_PROVIDER_KEY"
 
@@ -101,7 +104,7 @@ async def exercise(mode: str, result_path: Path) -> int:
                     schema = json.dumps(tool.inputSchema).lower()
                     if '"api_key"' in schema or '"secret"' in schema or '"token"' in schema:
                         raise AssertionError("Secret-bearing MCP argument schema exposed")
-                checked.append({"case": "initialize_discover_six_read_only_tools", "ok": True})
+                checked.append({"case": "initialize_discover_nine_read_only_tools", "ok": True})
 
                 catalogue = await _call(session, "intelligence_source_catalog", {})
                 if not isinstance(catalogue, list) or len(catalogue) != 25:
@@ -162,6 +165,52 @@ async def exercise(mode: str, result_path: Path) -> int:
                            for x in pain["pain_hypotheses"]):
                     raise AssertionError("Job pain lost its source URLs")
                 checked.append({"case": "job_pain_extraction_with_provenance", "ok": True})
+
+                lanes = await _call(session, "intelligence_opportunity_lanes", {})
+                if len(lanes) != 12:
+                    raise AssertionError("Not all 12 opportunity combinations were exposed")
+                case = {
+                    "id": "incident-workflow",
+                    "title": "Sourced reliability problem",
+                    "lane": "developer_reliability",
+                    "geography": "US",
+                    "buyer": "Public agencies",
+                    "workflow": "incident_triage",
+                }
+                items = []
+                for i, source in enumerate(("github_issues", "greenhouse_job", "usaspending")):
+                    items.append({
+                        "id": f"incident-example-{i}", "candidate": case["id"],
+                        "source": source, "origin_id": f"origin-example-{i}",
+                        "publisher": f"publisher-example-{i}",
+                        "geography": "US", "workflow": "incident_triage",
+                        "url": f"https://example.org/real-reference-format/{i}",
+                        "published_at": "2026-11-10", "observed_at": "2026-11-12",
+                        "claim": "Offline synthetic evidence fixture",
+                    })
+                assessed = await _call(session, "intelligence_evaluate_opportunities", {
+                    "candidates": [case], "evidence": items, "as_of": "2026-11-18",
+                })
+                if assessed["results"][0]["status"] != "buyer_interview_priority":
+                    raise AssertionError("Buyer gate did not evaluate consistent evidence")
+                if assessed["results"][0]["success_probability"] is not None:
+                    raise AssertionError("Untrained success probability was invented")
+                fail = await _call(session, "intelligence_evaluate_opportunities", {
+                    "candidates": [case], "evidence": items, "as_of": "2026-11-18",
+                    "source_health": {"github_issues": "timeout"},
+                })
+                if fail["results"][0]["status"] != "partial_provider_coverage":
+                    raise AssertionError("Provider failure did not degrade prioritization")
+                labels = await _call(session, "intelligence_walk_forward_backtest", {
+                    "examples": [{
+                        "candidate": case, "evidence": items, "as_of": "2026-11-18",
+                        "outcome_at": "2027-01-15", "outcome": "no_purchase",
+                        "outcome_verified": True, "outcome_url": "https://example.org/label",
+                    }]
+                })
+                if labels["status"] != "insufficient_verified_outcomes":
+                    raise AssertionError("One synthetic label was treated as prediction accuracy")
+                checked.append({"case": "opportunity_lanes_buyer_gate_failure_and_backtest", "ok": True})
 
                 plan = await _call(
                     session, "intelligence_collect",

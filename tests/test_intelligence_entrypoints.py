@@ -41,11 +41,13 @@ def test_intel_cli_offline_ats_file(tmp_path):
 async def test_intel_mcp_is_separate_and_readonly():
     async with Client(intel_mcp) as client:
         tools = {tool.name: tool for tool in await client.list_tools()}
-        assert len(tools) == 6
+        assert len(tools) == 9
         assert set(tools) == {
             "intelligence_source_catalog", "intelligence_plan",
             "intelligence_collect", "intelligence_analyze_job_postings",
-            "intelligence_provider_settings", "intelligence_provider_setup"
+            "intelligence_provider_settings", "intelligence_provider_setup",
+            "intelligence_opportunity_lanes", "intelligence_evaluate_opportunities",
+            "intelligence_walk_forward_backtest"
         }
         for tool in tools.values():
             assert tool.annotations.readOnlyHint is True
@@ -93,3 +95,37 @@ def test_secret_entry_cli_keeps_values_out_of_echo(monkeypatch):
     assert result.exit_code == 0, result.output
     assert received["TRENDPULSE_INTEL_OPENALEX_KEY"] == secret
     assert secret not in result.output
+
+
+
+def test_new_offline_opportunity_cli_and_backtest(tmp_path):
+    runner = CliRunner()
+    lanes = runner.invoke(cli, ["intelligence", "opportunities", "lanes"])
+    assert lanes.exit_code == 0, lanes.output
+    assert len(json.loads(lanes.output)) == 12
+
+    payload = {
+        "as_of": "2026-11-18",
+        "candidates": [{
+            "id": "repair-bottleneck", "title": "Reliability incident triage",
+            "lane": "developer_reliability", "geography": "US",
+            "workflow": "incident_triage", "buyer": "IT teams",
+        }],
+        "evidence": [],
+    }
+    path = tmp_path / "intelligence.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    result = runner.invoke(cli, [
+        "intelligence", "opportunities", "evaluate", "--input-json", str(path),
+    ])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["results"][0]["status"] == "insufficient"
+    assert data["not_a_winning_business_forecast"]
+
+    labels = tmp_path / "labels.json"
+    labels.write_text("[]", encoding="utf-8")
+    result = runner.invoke(cli, [
+        "intelligence", "opportunities", "backtest", "--input-json", str(labels),
+    ])
+    assert result.exit_code != 0

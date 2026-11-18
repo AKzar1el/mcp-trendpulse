@@ -96,7 +96,7 @@ arguments. Register **free plans only**, with no payment instrument.
 }
 ```
 
-The optional server exposes six read-only tools. Two are intended for
+The optional server exposes nine read-only tools. Two are intended for
 ChatGPT-like clients to show setup instructions and key-readiness in a
 settings-like experience: `intelligence_provider_settings` and
 `intelligence_provider_setup`. They **cannot** retrieve, accept, modify,
@@ -163,3 +163,41 @@ browser automation, or bypassing anti-scraping controls.
   tested against their real providers and the PR review passes.
 - If a provider changes quotas, fails authentication or introduces fees,
   disable it rather than silently purchasing credits or selecting a paid tier.
+
+
+## Twelve source-aware opportunity combinations (offline)
+
+The 12 investigation lanes are accessible through:
+- `mcp-trendpulse-cli intelligence opportunities lanes`
+- optional MCP `intelligence_opportunity_lanes`
+
+Submit bounded JSON evidence using `intelligence opportunities evaluate --input-json opportunity.json`
+or the equivalent read-only `intelligence_evaluate_opportunities` MCP tool.
+Each candidate requires its narrow buyer, workflow, geographic scope and lane.
+Each evidence record requires an identified publisher, original record ID,
+publication and observation dates, source URL, and source ID. The evaluator
+rejects stale and future material, cross-geography/workflow mixing, repeated
+publisher and origin claims, and incomplete input. Missing API coverage
+produces partial status; negative evidence blocks priority escalation.
+Full source URLs remain source references; no network is contacted by these
+offline evaluation tools.
+
+Supported combinations include autonomous safety, agent commerce, SME
+profitability, compliance demand, fraud/identity, household finances, care
+automation, energy software, developer reliability, research-to-product,
+regulation-driven procurement, and corporate identity.
+
+**A result can at most be flagged for buyer interview.** The engine never
+returns success probability, validated commercial demand, investment advice
+or a market-size forecast from these proxy signals. It provides a next buyer
+experiment and an audit trail instead. Optional trend checks require 28
+complete comparable daily observations; isolated spikes and missing days
+must not be interpreted as growth.
+
+`mcp-trendpulse-cli intelligence opportunities backtest --input-json history.json`
+and MCP `intelligence_walk_forward_backtest` use prior-day evidence
+and only later, *externally attested* paid-pilot/no-purchase outcomes. Synthetic
+fixtures test temporal leakage, NOT real predictive accuracy. Descriptive
+metrics are suppressed below 8 labeled examples across 2 independent cutoff
+dates. Real buyer outcomes still need to be collected and audited before
+any genuine historical benchmark is available.

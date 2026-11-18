@@ -862,6 +862,65 @@ def intelligence_sources(wave):
     click.echo(json.dumps(sources, ensure_ascii=False, sort_keys=True))
 
 
+
+@intelligence.group("opportunities")
+def intelligence_opportunities_group():
+    """Offline, source-attributed opportunity triage and dated backtesting."""
+
+
+@intelligence_opportunities_group.command("lanes")
+def intelligence_opportunities_lanes():
+    """List valid source combinations without requesting remote data."""
+    from mcp_trendpulse.intelligence_opportunities import lane_catalog
+
+    click.echo(json.dumps(lane_catalog(), ensure_ascii=False, sort_keys=True))
+
+
+@intelligence_opportunities_group.command("evaluate")
+@click.option("--input-json", "input_path", required=True,
+              type=click.Path(exists=True, dir_okay=False, path_type=Path))
+def intelligence_opportunities_evaluate(input_path):
+    """Rank investigation priorities from bounded, attributable JSON records."""
+    from mcp_trendpulse.intelligence_opportunities import evaluate_opportunities
+
+    try:
+        if input_path.stat().st_size > 180_000:
+            raise ValueError("Opportunity file exceeds 180 KB")
+        request = json.loads(input_path.read_text(encoding="utf-8"))
+        if not isinstance(request, dict):
+            raise ValueError("Opportunity file must contain a JSON object")
+        response = evaluate_opportunities(
+            request["candidates"], request["evidence"],
+            as_of=request.get("as_of"),
+            source_health=request.get("source_health"),
+            daily_trends=request.get("daily_trends"),
+        )
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(response, ensure_ascii=False, sort_keys=True))
+
+
+@intelligence_opportunities_group.command("backtest")
+@click.option("--input-json", "input_path", required=True,
+              type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--k", type=click.IntRange(1, 10), default=3, show_default=True)
+def intelligence_opportunities_backtest(input_path, k):
+    """Review dated past decisions against externally attested future outcomes."""
+    from mcp_trendpulse.intelligence_backtest import walk_forward_evaluation
+
+    try:
+        if input_path.stat().st_size > 180_000:
+            raise ValueError("Backtest file exceeds 180 KB")
+        samples = json.loads(input_path.read_text(encoding="utf-8"))
+        if not isinstance(samples, list):
+            raise ValueError("Backtest requires a list of historical examples")
+        result = walk_forward_evaluation(samples, k=k)
+    except (OSError, UnicodeError, ValueError, TypeError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(result, ensure_ascii=False, sort_keys=True))
+
+
+
 @intelligence.command("query")
 @click.option("--source", required=True, help="Exact source ID from intelligence sources.")
 @click.option("--keyword", default="", help="Public search phrase or TED expert query.")
