@@ -2246,3 +2246,92 @@ def test_brief_compare_csv_preserves_partial_exit_and_unknown_delta(tmp_path):
     assert gb["after_failure_code"] == "rate_limited"
     assert gb["needs_human_review"] == "true"
     assert "private error data" not in result.output
+
+
+@pytest.mark.parametrize("output_format", ["text", "json", "csv"])
+def test_brief_compare_can_save_exact_utf8_output_without_provider_calls(tmp_path, output_format):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    after.write_bytes(before.read_bytes())
+    target = tmp_path / f"comparison-{output_format}.txt"
+    args = ["brief-compare", "--before", str(before), "--after", str(after),
+            "--format", output_format]
+    baseline = CliRunner().invoke(cli_module.cli, args)
+    originals = before.read_bytes(), after.read_bytes()
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("provider called")):
+        result = CliRunner().invoke(cli_module.cli, [*args, "--output-file", str(target)])
+    assert baseline.exit_code == result.exit_code == 0, result.output
+    assert target.read_bytes() == baseline.output.encode("utf-8")
+    assert (before.read_bytes(), after.read_bytes()) == originals
+    assert "Wrote Demand Brief comparison" in result.output
+
+
+def test_brief_compare_saves_incomplete_report_but_retains_exit_two(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    document = json.loads(before.read_text(encoding="utf-8"))
+    document["markets"][0]["keywords"][0]["latest_index"] = None
+    document["markets"][0]["keywords"][0]["latest_observation"] = None
+    after.write_text(json.dumps(document), encoding="utf-8")
+    target = tmp_path / "review.csv"
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after),
+        "--format", "csv", "--output-file", str(target),
+    ])
+    assert result.exit_code == 2, result.output
+    rows = list(csv.DictReader(io.StringIO(target.read_text(encoding="utf-8"))))
+    assert next(row for row in rows if row["market"] == "US")["needs_human_review"] == "true"
+
+
+def test_brief_compare_output_file_refuses_overwrite_and_invalid_input(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    after.write_bytes(before.read_bytes())
+    target = tmp_path / "comparison.csv"
+    target.write_bytes(b"OWNER DATA")
+    args = ["brief-compare", "--before", str(before), "--after", str(after),
+            "--format", "csv", "--output-file", str(target)]
+    result = CliRunner().invoke(cli_module.cli, args)
+    assert result.exit_code == 1
+    assert target.read_bytes() == b"OWNER DATA"
+    missing = tmp_path / "not-created.csv"
+    evidence = json.loads(after.read_text(encoding="utf-8"))
+    evidence["timeframe"] = "today 3-m"
+    after.write_text(json.dumps(evidence), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [*args[:-1], str(missing)])
+    assert result.exit_code == 1
+    assert not missing.exists()
+
+
+def test_brief_compare_output_file_removes_its_partial_file_on_write_error(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    after.write_bytes(before.read_bytes())
+    target = tmp_path / "interrupted.csv"
+    original_open = Path.open
+
+    class PartialWriter:
+        def __enter__(self):
+            self.handle = original_open(target, "x", encoding="utf-8", newline="\n")
+            return self
+
+        def write(self, content):
+            self.handle.write(content[:12])
+            raise OSError(errno.ENOSPC, "simulated disk full")
+
+        def __exit__(self, *_):
+            self.handle.close()
+
+    def faulting_open(path, mode="r", *args, **kwargs):
+        if path == target and mode == "x":
+            return PartialWriter()
+        return original_open(path, mode, *args, **kwargs)
+
+    with patch.object(Path, "open", new=faulting_open):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-compare", "--before", str(before), "--after", str(after),
+            "--format", "csv", "--output-file", str(target),
+        ])
+    assert result.exit_code == 1
+    assert "not saved" in result.output.lower()
+    assert not target.exists()

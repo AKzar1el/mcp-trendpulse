@@ -375,10 +375,14 @@ def brief_review(evidence, review_format):
 @click.option("--before", "before_path", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
 @click.option("--after", "after_path", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
 @click.option("--format", "compare_format", type=click.Choice(["text", "json", "csv"]), default="text", show_default=True)
-def brief_compare(before_path, after_path, compare_format):
+@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
+              help="Save the comparison to a new UTF-8 file; never overwrite existing files.")
+def brief_compare(before_path, after_path, compare_format, output_file):
     """Compare two compatible saved evidence files without querying providers."""
     from mcp_trendpulse.brief_review import MAX_EVIDENCE_BYTES, compare_saved_briefs
 
+    if output_file is not None and (output_file.exists() or not output_file.parent.is_dir()):
+        raise click.ClickException("Comparison destination must be a new file in an existing directory.")
     try:
         with before_path.open("rb") as handle:
             before_raw = handle.read(MAX_EVIDENCE_BYTES + 1)
@@ -387,7 +391,24 @@ def brief_compare(before_path, after_path, compare_format):
         report, needs_attention = compare_saved_briefs(before_raw, after_raw, output_format=compare_format)
     except (OSError, ValueError) as exc:
         raise click.ClickException(f"Demand Brief comparison failed: {exc}") from exc
-    click.echo(report, nl=False)
+    if output_file is None:
+        click.echo(report, nl=False)
+    else:
+        created = False
+        try:
+            with output_file.open("x", encoding="utf-8", newline="\n") as handle:
+                created = True
+                handle.write(report)
+        except OSError as exc:
+            if created:
+                try:
+                    output_file.unlink()
+                except OSError:
+                    raise click.ClickException(
+                        f"Comparison write failed; partial file may remain at {output_file}: {exc}"
+                    ) from exc
+            raise click.ClickException(f"Comparison file was not saved: {exc}") from exc
+        click.echo(f"Wrote Demand Brief comparison to {output_file}", err=True)
     if needs_attention:
         raise click.exceptions.Exit(2)
 
