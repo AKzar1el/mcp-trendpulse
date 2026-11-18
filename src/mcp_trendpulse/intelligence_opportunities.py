@@ -318,7 +318,7 @@ def evaluate_opportunities(
     for candidate in parsed:
         rows = accepted[candidate["id"]]
         by_origin: dict[str, dict[str, Any]] = {}
-        counts = Counter()
+        seen_urls: set[str] = set()
         ignored = Counter()
         for rec in sorted(rows, key=lambda r: (r["published"], r["id"]), reverse=True):
             if not rec["visible_at_asof"]:
@@ -340,10 +340,11 @@ def evaluate_opportunities(
                 ignored["unhealthy_provider"] += 1
                 continue
             # Do not count syndicated records under multiple API wrappers.
-            if rec["origin_id"] in by_origin:
+            if rec["origin_id"] in by_origin or rec["url"] in seen_urls:
                 ignored["duplicate_origin"] += 1
                 continue
             by_origin[rec["origin_id"]] = rec
+            seen_urls.add(rec["url"])
         valid = list(by_origin.values())
         supportive = [x for x in valid if x["polarity"] == "support"]
         against = [x for x in valid if x["polarity"] == "against"]
@@ -442,7 +443,6 @@ def evaluate_opportunities(
             ],
         }
         results.append(result)
-        counts[stage] += 1
     results.sort(key=lambda x: (-x["priority_order"], -x["independent_publishers"],
                                 -x["distinct_classes"], x["id"]))
     return {
