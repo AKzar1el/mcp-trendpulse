@@ -167,8 +167,8 @@ async def exercise(mode: str, result_path: Path) -> int:
                 checked.append({"case": "job_pain_extraction_with_provenance", "ok": True})
 
                 lanes = await _call(session, "intelligence_opportunity_lanes", {})
-                if len(lanes) != 12:
-                    raise AssertionError("Not all 12 opportunity combinations were exposed")
+                if len(lanes) != 18:
+                    raise AssertionError("Not all 18 opportunity combinations were exposed")
                 case = {
                     "id": "incident-workflow",
                     "title": "Sourced reliability problem",

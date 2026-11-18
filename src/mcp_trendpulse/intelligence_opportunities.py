@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import ipaddress
 import json
-import math
 import re
 from collections import Counter, defaultdict
 from datetime import date, timedelta
@@ -74,6 +73,18 @@ LANES: dict[str, dict[str, Any]] = {
                                "question": "Can binding obligations be linked to procurement?"},
     "corporate_identity": {"sources": ("gleif", "companies_house", "cellar", "ted"),
                            "question": "Can an identified organization justify paid identity checks?"},
+    "privacy_operations": {"sources": ("cellar", "ted", "github_issues", "greenhouse_job"),
+                           "question": "Which EU privacy operations have funded implementation pain rather than headlines?"},
+    "vendor_due_diligence": {"sources": ("gleif", "companies_house", "ted", "greenhouse", "cellar"),
+                             "question": "Are named buyers paying to validate counterparties and suppliers?"},
+    "public_cloud_finops": {"sources": ("usaspending", "github_issues", "greenhouse", "greenhouse_job", "sec_companyconcept"),
+                            "question": "Which US public buyers face repeat cloud-cost work not solved internally?"},
+    "customer_dispute_ops": {"sources": ("cfpb", "greenhouse", "github_issues", "usaspending"),
+                             "question": "Are regulated US firms budgeting to reduce documented dispute handling?"},
+    "industrial_maintenance": {"sources": ("ted", "greenhouse", "cordis", "epo", "entsoe"),
+                               "question": "Are EU operators buying maintenance software rather than physical equipment?"},
+    "research_procurement": {"sources": ("cordis", "openalex", "epo", "ted", "greenhouse_job"),
+                             "question": "Is a funded research result creating paid deployment procurement?"},
 }
 
 MATERIAL = {"hiring", "reported_problem", "procurement_notice", "public_award"}
@@ -89,11 +100,22 @@ TREND_SOURCES = {
     "github_issues", "cfpb", "ted", "usaspending", "cordis",
     "greenhouse", "greenhouse_job", "lever", "ashby", "smartrecruiters",
     "openalex", "epo", "rsshub_local", "changedetection_local",
+} 
+# Different ATS connectors do not automatically mean independent underlying
+# employers. Monitoring wrappers likewise may report the same original event.
+TREND_FAMILIES = {
+    "greenhouse": "hiring_ats", "greenhouse_job": "hiring_ats",
+    "lever": "hiring_ats", "ashby": "hiring_ats",
+    "smartrecruiters": "hiring_ats",
+    "rsshub_local": "monitoring_transport",
+    "changedetection_local": "monitoring_transport",
 }
+UNHEALTHY = {"unavailable", "rate_limited", "timeout", "stale",
+             "not_configured", "invalid_source_shape"}
 
 SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{1,79}$")
 REGION = re.compile(r"^(?:[A-Z]{2}|GLOBAL)$")
-HEALTH = {"ok", "unavailable", "rate_limited", "timeout", "stale", "not_configured"}
+HEALTH = {"ok", *UNHEALTHY}
 MAX_BYTES = 180_000
 
 
@@ -143,6 +165,17 @@ def _safe_url(value: Any) -> str:
            for key, _ in parse_qsl(parsed.query, keep_blank_values=True)):
         raise ValueError("source_url must not contain credential-looking query keys")
     return url
+
+def _canonical_evidence_url(url: str) -> tuple[str, str, tuple[tuple[str, str], ...]]:
+    """Deduplicate tracking variants; retain original URL for audit references."""
+    parsed = urlsplit(url)
+    query = tuple(sorted(
+        (key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if not key.lower().startswith("utm_") and key.lower() not in {
+            "fbclid", "gclid", "mc_cid", "mc_eid", "igshid", "ref",
+        }
+    ))
+    return (parsed.hostname.lower(), parsed.path.rstrip("/") or "/", query)
 
 
 def _coverage(data: Any) -> dict[str, str]:
@@ -227,7 +260,8 @@ def _evidence(raw: Any, asof: date) -> dict[str, Any]:
     }
 
 
-def _trend(trends: Any, candidate: dict[str, str], asof: date) -> dict[str, Any]:
+def _trend(trends: Any, candidate: dict[str, str], asof: date,
+           health: dict[str, str]) -> dict[str, Any]:
     if trends is None:
         return {"status": "unknown", "reason": "No comparable dated daily measurements"}
     if not isinstance(trends, list) or len(trends) > 900:
@@ -236,6 +270,7 @@ def _trend(trends: Any, candidate: dict[str, str], asof: date) -> dict[str, Any]
         raise ValueError("Trend observations exceed 180 KB")
     selected: dict[str, dict[date, float]] = defaultdict(dict)
     invalid = False
+    provider_unavailable = False
     for row in trends:
         if not isinstance(row, dict):
             raise ValueError("Trend observation must be object")
@@ -244,8 +279,11 @@ def _trend(trends: Any, candidate: dict[str, str], asof: date) -> dict[str, Any]
         src = row.get("source")
         if src not in SOURCE_KIND:
             raise ValueError("Unknown trend source")
-        if src not in TREND_SOURCES:
+        if src not in TREND_SOURCES or src not in LANES[candidate["lane"]]["sources"]:
             invalid = True
+            continue
+        if health.get(src) in UNHEALTHY:
+            provider_unavailable = True
             continue
         day = _day(row.get("day"), "trend.day")
         if day > asof:
@@ -257,8 +295,8 @@ def _trend(trends: Any, candidate: dict[str, str], asof: date) -> dict[str, Any]
             invalid = True
             continue
         value = row.get("value")
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
-            raise ValueError("Daily trend value must be finite and nonnegative")
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 1_000_000_000:
+            raise ValueError("Daily event count must be an integer from 0 to 1 billion")
         if day in selected[src]:
             invalid = True
             continue
@@ -283,26 +321,34 @@ def _trend(trends: Any, candidate: dict[str, str], asof: date) -> dict[str, Any]
         else:
             movement = "stable"
         movements.append({
-            "source": src, "direction": movement,
+            "source": src, "signal_family": TREND_FAMILIES.get(src, src),
+            "direction": movement,
             "previous_14_days": round(baseline, 3),
             "latest_14_days": round(recent, 3),
             "unit": "complete daily events", "not_success_probability": True,
         })
-    usable = [x["direction"] for x in movements if x["direction"] != "unknown"]
+    if provider_unavailable:
+        return {"status": "coverage_degraded",
+                "reason": "A submitted trend provider has unhealthy collection coverage",
+                "per_source": movements, "not_revenue_forecast": True}
+    usable_rows = [x for x in movements if x["direction"] != "unknown"]
+    usable = [x["direction"] for x in usable_rows]
+    independent_families = len({x["signal_family"] for x in usable_rows})
     if not usable:
         return {"status": "unknown", "reason": "Incomplete/sparse 28-day comparable samples",
                 "per_source": movements}
     if "rising" in usable and "falling" in usable:
         direction = "conflicted"
-    elif len(usable) >= 2 and all(x == "rising" for x in usable):
+    elif independent_families >= 2 and all(x == "rising" for x in usable):
         direction = "rising_multi_source"
-    elif len(usable) >= 2 and all(x == "falling" for x in usable):
+    elif independent_families >= 2 and all(x == "falling" for x in usable):
         direction = "falling_multi_source"
     elif all(x == "stable" for x in usable):
         direction = "stable"
     else:
         direction = "mixed_or_single_source"
     return {"status": direction, "per_source": movements,
+            "independent_signal_families": independent_families,
             "not_revenue_forecast": True}
 
 
@@ -345,7 +391,7 @@ def evaluate_opportunities(
     for candidate in parsed:
         rows = accepted[candidate["id"]]
         by_origin: dict[str, dict[str, Any]] = {}
-        seen_urls: set[str] = set()
+        seen_urls: set[tuple[str, str, tuple[tuple[str, str], ...]]] = set()
         ignored = Counter()
         for rec in sorted(rows, key=lambda r: (r["published"], r["id"]), reverse=True):
             if not rec["visible_at_asof"]:
@@ -363,15 +409,16 @@ def evaluate_opportunities(
             if rec["source"] not in LANES[candidate["lane"]]["sources"]:
                 ignored["not_in_selected_lane"] += 1
                 continue
-            if health.get(rec["source"]) in {"unavailable", "rate_limited", "timeout", "stale"}:
+            if health.get(rec["source"]) in UNHEALTHY:
                 ignored["unhealthy_provider"] += 1
                 continue
             # Do not count syndicated records under multiple API wrappers.
-            if rec["origin_id"] in by_origin or rec["url"] in seen_urls:
+            canonical_url = _canonical_evidence_url(rec["url"])
+            if rec["origin_id"] in by_origin or canonical_url in seen_urls:
                 ignored["duplicate_origin"] += 1
                 continue
             by_origin[rec["origin_id"]] = rec
-            seen_urls.add(rec["url"])
+            seen_urls.add(canonical_url)
         valid = list(by_origin.values())
         supportive = [x for x in valid if x["polarity"] == "support"]
         against = [x for x in valid if x["polarity"] == "against"]
@@ -392,8 +439,7 @@ def evaluate_opportunities(
             )
         )
         degraded = any(
-            health.get(src) in {"unavailable", "rate_limited", "timeout",
-                                "stale", "not_configured"}
+            health.get(src) in UNHEALTHY
             for src in LANES[candidate["lane"]]["sources"]
         )
         if len({x["publisher"] for x in against}) >= 2:
@@ -455,7 +501,7 @@ def evaluate_opportunities(
             },
             "ignored_reasons": dict(ignored),
             "caveats": reasons,
-            "trend": _trend(daily_trends, candidate, asof),
+            "trend": _trend(daily_trends, candidate, asof, health),
             "buying_intent_confirmed": False,
             "success_probability": None,
             "next_test": (

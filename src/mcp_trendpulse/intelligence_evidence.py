@@ -17,7 +17,11 @@ class UnexpectedSourceShape(ValueError):
 def _objects(rows: Any) -> list[dict[str, Any]]:
     if not isinstance(rows, list):
         raise UnexpectedSourceShape("Expected a list of records")
-    return [row for row in rows[:20] if isinstance(row, dict)]
+    if not isinstance(rows, list):
+        raise UnexpectedSourceShape("Expected provider record array, not an error or changed schema")
+    if any(not isinstance(row, dict) for row in rows[:20]):
+        raise UnexpectedSourceShape("Provider record array contains a malformed entry")
+    return rows[:20]
 
 
 def evidence_projection(source: str, payload: Any) -> dict[str, Any]:

@@ -1,4 +1,4 @@
-"""Deterministic adversarial tests for the optional 12-lane opportunity evaluator.
+"""Deterministic adversarial tests for the optional 18-lane opportunity evaluator.
 
 All identifiers, amounts, and organizations in this file are illustrative
 fixtures. They are NOT actual market findings or trained outcome labels.
@@ -58,10 +58,10 @@ def evaluation(evidence=None, **kwargs):
                                   as_of=ASOF, **kwargs)
 
 
-def test_all_twelve_combinations_only_use_existing_source_registry():
+def test_all_eighteen_combinations_only_use_existing_source_registry():
     catalog = {x["id"] for x in source_catalog()}
     assert catalog == set(SOURCE_KIND)
-    assert len(lane_catalog()) == 12
+    assert len(lane_catalog()) == 18
     assert set(LANES) == {x["id"] for x in lane_catalog()}
     for lane in LANES.values():
         assert len(lane["sources"]) >= 3

@@ -1,6 +1,6 @@
 # Opportunity triage and temporal evaluation (optional, free-only)
 
-The intelligence extension supports **12 evidence-combination recipes**. It is
+The intelligence extension supports **18 evidence-combination recipes**. It is
 an *investigation triage tool*, not a probability that a startup will succeed
 and not a source of verified paying customers. The original 16 community MCP
 tools and all scheduled agents remain unchanged.
@@ -24,7 +24,7 @@ Default source queries remain plan-only. The evaluator never accesses a
 network, visits an arbitrary website, contacts buyers, sends mail, uses an LLM
 or writes to external systems.
 
-### Twelve combinations
+### Eighteen combinations
 
 | Lane | Free-source recipe | Test the alternative explanation |
 |---|---|---|
@@ -40,9 +40,19 @@ or writes to external systems.
 | research_to_product | CORDIS + OpenAlex + EPO + hiring | Is research activity becoming actual customer demand? |
 | procurement_regulation | CELLAR + TED + USAspending | Are contracts actually awarded to address the rule? |
 | corporate_identity | GLEIF + Companies House + CELLAR + TED | Can a real budget-owner justify vendor onboarding spend? |
+| privacy_operations | CELLAR + TED + GitHub issues + hiring | Does an actual EU buyer fund the required workflow? |
+| vendor_due_diligence | GLEIF + Companies House + TED + hiring + CELLAR | Is counterpart verification being purchased rather than merely required? |
+| public_cloud_finops | USAspending + GitHub issues + hiring + SEC company concepts | Is US cloud operations spending addressable by a separate vendor? |
+| customer_dispute_ops | CFPB + hiring + GitHub issues + USAspending | Does observed consumer friction translate into a buyer budget? |
+| industrial_maintenance | TED + hiring + CORDIS + EPO + ENTSO-E | Does a contract cover software rather than physical equipment? |
+| research_procurement | CORDIS + OpenAlex + EPO + TED + hiring | Is commercial procurement distinct from research funding? |
 
-The combination recipes are **supported source types**, not verified
-relationships among individual records. Eurostat macro statistics, EPO
+The recipes are **investigation hypotheses**, not automatically validated
+multi-source joins. **Geographic compatibility is mandatory**: US-only
+spending/complaints cannot corroborate EU awards simply because titles match.
+Sources from different jurisdictions may be useful contextual evidence but
+must not be scored as if they prove one local buyer's budget. The combinations
+are **supported source types**, not verified relationships among individual records. Eurostat macro statistics, EPO
 patents, Copernicus satellite catalogue metadata and GDELT batch manifests
 cannot independently prove commercial demand.
 
@@ -142,8 +152,12 @@ each supported dated-event provider. Static company registries, GDP indexes,
 Copernicus catalogue metadata and GDELT batch manifests **cannot** provide
 topical momentum from this source adapter. Each row must identify source, geography, day, unit
 `daily_events`, value and confirmed coverage. Sparse series, missing
-days, differing units/geographies, future samples or contradictory signals
-return unknown/conflicted rather than manufactured momentum. The evaluator
+days, differing units/geographies, non-integer event counts, future samples,
+sources outside the selected lane, or contradictory signals return
+unknown/conflicted rather than manufactured momentum. Two related applicant
+tracking system endpoints count as **one** signal family, not two independent
+corroborations. If a submitted trend source is unhealthy, momentum is
+`coverage_degraded` rather than "rising". The evaluator
 does not add counts across providers with different collection populations.
 `rising_multi_source` indicates two comparable provider series
 rising independently, not a CAGR, revenue growth or payment forecast.
@@ -175,6 +189,11 @@ https://www.ycombinator.com/library/6g-how-to-talk-to-users
 |---|---|
 | HTTP 429/503 | Short shared per-source cooldown (bounded 30–300 s), no automatic retries |
 | Malformed schema/transport error | Short negative cache, never fake an observed signal |
+| HTTP 200 containing malformed record arrays | Invalid source shape, not fabricated zero observed demand |
+| Related hiring feeds both rising | One signal family, no false multi-source corroboration |
+| Trend from outside the selected lane | Unknown, no unrelated-source ranking |
+| Unhealthy trend provider | Coverage degraded, not a rising momentum claim |
+| Marketing-query variants of a source URL | Canonicalized for deduplication, original URL retained for audit |
 | Rotated free API key | Different request cache identity; cannot reuse prior key's cached data |
 | Ten identical agent requests | Per-query single-flight lock: one provider call on success |
 | Concurrent different queries | Retain independent requests, within provider daily budgets |
@@ -195,6 +214,10 @@ hardware, OS, provider, security or market failure. Google SRE recommends
 controlled failure injection and finite retry budgets precisely because
 untested outages can cascade:
 https://sre.google/sre-book/addressing-cascading-failures/
+
+The trend series still require independently checked collection completeness:
+`coverage_complete` is a caller assertion, not a remotely verified certificate.
+Historical outcomes are still externally asserted, not trained or audited.
 
 ## Limitations and next gate
 
