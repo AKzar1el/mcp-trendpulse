@@ -442,10 +442,17 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
                     if watch_evidence_file is None:
                         click.echo(payload, nl=False)
                     else:
+                        created = False
                         try:
                             with watch_evidence_file.open("x", encoding="utf-8", newline="\n") as handle:
+                                created = True
                                 handle.write(payload)
                         except OSError as exc:
+                            if created:
+                                try:
+                                    watch_evidence_file.unlink()
+                                except OSError:
+                                    pass
                             raise click.ClickException(f"Watch evidence file was not saved: {exc}") from exc
                         click.echo(f"Wrote Watch evidence to {watch_evidence_file}")
                     return

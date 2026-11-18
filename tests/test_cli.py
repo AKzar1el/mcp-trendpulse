@@ -1,4 +1,5 @@
 import csv
+import errno
 import io
 import json
 import sys
@@ -305,6 +306,50 @@ def test_brief_pack_watch_json_never_overwrites_existing_file_before_fetch(tmp_p
     assert result.exit_code != 0
     assert target.read_text(encoding="utf-8") == "owner data"
     get_providers.assert_not_called()
+
+
+def test_brief_pack_watch_json_removes_partial_evidence_after_write_failure(tmp_path):
+    target = tmp_path / "watch.json"
+    original_open = Path.open
+    providers = FakeBriefProviders()
+    providers.trends.get_trends = AsyncMock(return_value=[
+        {"date": f"2026-09-{day:02d}", "keyword": "ChatGPT", "value": day * 4}
+        for day in range(1, 9)
+    ])
+
+    class InterruptedWrite:
+        def __init__(self, handle):
+            self.handle = handle
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            self.handle.close()
+
+        def write(self, payload):
+            self.handle.write(payload[:8])
+            self.handle.flush()
+            raise OSError(errno.ENOSPC, "simulated disk full")
+
+    def fail_mid_write(path, mode="r", *args, **kwargs):
+        handle = original_open(path, mode, *args, **kwargs)
+        if path == target and mode == "x":
+            return InterruptedWrite(handle)
+        return handle
+
+    with (
+        patch.object(Path, "open", fail_mid_write),
+        patch("mcp_trendpulse.cli.get_provider_set", return_value=providers),
+    ):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US",
+            "--format", "watch-json", "--watch-evidence-file", str(target),
+        ])
+
+    assert result.exit_code != 0
+    assert "not saved" in result.output.lower()
+    assert not target.exists(), "A truncated file must not masquerade as valid Watch evidence"
 
 
 def test_brief_pack_watch_json_stdout_retains_partial_marker():
