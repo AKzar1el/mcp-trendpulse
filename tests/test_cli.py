@@ -2190,3 +2190,59 @@ def test_brief_compare_primary_provider_failure_does_not_fabricate_delta(tmp_pat
     assert gb["after"]["failure_code"] == "rate_limited"
     assert gb["primary_coverage_change"] is None
     assert "private provider error message" not in result.output
+
+
+def test_brief_compare_csv_exports_safe_market_coverage_without_provider_calls(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    evidence = json.loads(before.read_text(encoding="utf-8"))
+    evidence["timeframe"] = "  =HYPERLINK(\"https://unsafe.example\")"
+    evidence["markets"][0]["keywords"][1]["latest_index"] = None
+    evidence["markets"][0]["keywords"][1]["latest_observation"] = None
+    before.write_text(json.dumps(evidence), encoding="utf-8")
+    evidence["markets"][0]["keywords"][1]["latest_index"] = 42
+    evidence["markets"][0]["keywords"][1]["latest_observation"] = "2026-11-18"
+    after.write_text(json.dumps(evidence), encoding="utf-8")
+    originals = before.read_bytes(), after.read_bytes()
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("provider called")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-compare", "--before", str(before), "--after", str(after), "--format", "csv",
+        ])
+    assert result.exit_code == 0, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert [row["market"] for row in rows] == ["GB", "US"]
+    us = rows[1]
+    assert us["before_observed_keywords"] == "1"
+    assert us["after_observed_keywords"] == "2"
+    assert us["primary_coverage_change"] == "1"
+    assert us["timeframe"].lstrip().startswith("'=")
+    assert us["source_authenticated"] == "false"
+    assert us["needs_human_review"] == "false"
+    assert "normalized" in us["caveats"].lower()
+    assert "42" not in result.output
+    assert (before.read_bytes(), after.read_bytes()) == originals
+
+
+def test_brief_compare_csv_preserves_partial_exit_and_unknown_delta(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    evidence = json.loads(before.read_text(encoding="utf-8"))
+    evidence["markets"] = [m for m in evidence["markets"] if m["market"] != "GB"]
+    evidence["failed_markets"] = [{
+        "market": "GB", "component": None, "code": "rate_limited",
+        "retryable": True, "message": "private error data",
+    }]
+    evidence["incomplete"] = True
+    after.write_text(json.dumps(evidence), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after), "--format", "csv",
+    ])
+    assert result.exit_code == 2
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    gb = next(row for row in rows if row["market"] == "GB")
+    assert gb["before_observed_keywords"] == "2"
+    assert gb["after_observed_keywords"] == ""
+    assert gb["primary_coverage_change"] == ""
+    assert gb["after_failure_code"] == "rate_limited"
+    assert gb["needs_human_review"] == "true"
+    assert "private error data" not in result.output
