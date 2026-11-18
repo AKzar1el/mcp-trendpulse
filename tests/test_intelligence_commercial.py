@@ -14,8 +14,11 @@ def test_public_board_plans_fixed_hosts():
 
 
 def test_free_but_not_unbounded_sources():
-    plan = plan_source("openalex", keyword="care coordination", limit=5)
-    assert plan.budget_per_day == 30
+    with pytest.raises(IntelligenceError, match="Free OpenAlex account key"):
+        plan_source("openalex", keyword="care coordination", limit=5, env={})
+    plan = plan_source("openalex", keyword="care coordination", limit=5,
+                       env={"TRENDPULSE_INTEL_OPENALEX_KEY": "OFFLINE_ONLY"})
+    assert plan.budget_per_day == 300
     assert "api.openalex.org" in plan.url
     with pytest.raises(IntelligenceError):
         plan_source("companies_house", keyword="example", env={})

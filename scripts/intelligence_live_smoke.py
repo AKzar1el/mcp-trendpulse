@@ -12,7 +12,7 @@ from pathlib import Path
 from mcp_trendpulse.intelligence_core import BudgetCache, collect, plan_source
 
 CASES = (
-    ("gdelt", {"keyword": "battery passport", "limit": 2}),
+    ("gdelt_latest", {"limit": 2}),
     ("eurostat", {"dataset": "nama_10_gdp", "country": "SI", "limit": 2}),
     ("ted", {"keyword": "PD = (20261001 <> 20261031)", "limit": 2}),
     ("cellar", {"keyword": "battery", "limit": 2}),
@@ -23,7 +23,6 @@ CASES = (
     ("cfpb", {"keyword": "credit card", "limit": 2}),
     ("cordis", {"keyword": "battery", "limit": 2}),
     ("usaspending", {"keyword": "solar", "limit": 2}),
-    ("openalex", {"keyword": "battery recycling", "limit": 2}),
     ("sec_companyconcept", {"identifier": "320193", "keyword": "Assets", "limit": 2}),
     ("gleif", {"keyword": "Siemens", "limit": 2}),
     ("ecb", {"identifier": "EXR/D.USD.EUR.SP00.A", "limit": 2}),
