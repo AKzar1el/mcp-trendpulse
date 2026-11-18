@@ -348,7 +348,7 @@ uv run mcp-trendpulse-cli brief-pack --keyword "ChatGPT" --keyword "Claude" --ma
 uv run mcp-trendpulse-cli brief-pack --keyword "ChatGPT" --keyword "Claude" --market US --format markdown --output-file brief-evidence.md
 ```
 
-The Markdown file matches the normal terminal report, including its source and comparability cautions. `--allow-partial` saves an explicitly incomplete Markdown report with a nonzero exit status; a strict provider failure does not create a file. This is reviewable evidence for a human-produced brief, not an automatically completed customer report.
+The Markdown file matches the normal terminal report, including its source and comparability cautions. For two-market requests, a final **cross-market evidence coverage** table shows the count of keywords with valid primary observations, each market's latest validated date, and whether a market was unavailable, skipped after a rate limit, or had missing growth. It compares evidence availability and freshness, **not** the normalized index values across markets or a keyword ranking. `--allow-partial` saves an explicitly incomplete Markdown report with a nonzero exit status; a strict provider failure does not create a file. This is reviewable evidence for a human-produced brief, not an automatically completed customer report.
 
 **Source checkout only:** For review in spreadsheets, use `--format csv` instead of JSON. The output has one row per requested keyword and market, includes source/timeframe/comparability metadata, latest observation dates, growth basis, missing-value status, and warnings. Text beginning with spreadsheet formula characters is prefixed with an apostrophe to prevent formula execution. For example:
 
