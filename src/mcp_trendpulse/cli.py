@@ -566,12 +566,16 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
             ]
             if output_format == "markdown":
                 validated_count = len(cleaned_keywords) - len(missing_primary_keywords)
+                if not validated_count:
+                    coverage_status = "no primary evidence"
+                    if growth_failure:
+                        coverage_status += "; growth unavailable"
+                else:
+                    coverage_status = "growth unavailable" if growth_failure else "observed"
                 markdown_coverage[market] = (
                     validated_count,
                     latest_trends_date or "n/a",
-                    "growth unavailable" if growth_failure else (
-                        "observed" if validated_count else "no primary evidence"
-                    ),
+                    coverage_status,
                 )
 
             if output_format in ("json", "csv"):
