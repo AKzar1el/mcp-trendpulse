@@ -99,7 +99,7 @@ def test_invalid_labels_are_not_counted(key, value):
     rows[0][key] = value
     result = walk_forward_evaluation(rows)
     assert result["rejected_count"] == 1
-    assert result["status"] == "insufficient_verified_outcomes"
+    assert result["status"] == "invalid_historical_labels"
 
 
 def test_duplicate_candidate_at_cutoff_fails_closed():
@@ -127,7 +127,7 @@ def test_duplicate_historical_outcome_is_not_counted_twice():
     rows[1]["outcome_url"] = rows[0]["outcome_url"]
     result = walk_forward_evaluation(rows)
     assert result["rejected_count"] == 1
-    assert result["status"] == "insufficient_verified_outcomes"
+    assert result["status"] == "invalid_historical_labels"
 
 
 def test_future_claimed_sales_label_is_rejected():

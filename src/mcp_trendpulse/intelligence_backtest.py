@@ -67,6 +67,14 @@ def walk_forward_evaluation(
             })
         except (ValueError, TypeError, KeyError) as exc:
             invalid.append({"index": index, "reason": str(exc)[:125]})
+    if invalid and by_cutoff:
+        return {
+            "status": "invalid_historical_labels",
+            "evaluated": sum(len(rows) for rows in by_cutoff.values()),
+            "rejected_count": len(invalid), "rejected": invalid[:30],
+            "no_metrics_due_to_selection_risk": True,
+            "not_a_success_probability": True,
+        }
     if not by_cutoff:
         return {"status": "insufficient_verified_outcomes", "evaluated": 0,
                 "rejected_count": len(invalid), "rejected": invalid[:30],
