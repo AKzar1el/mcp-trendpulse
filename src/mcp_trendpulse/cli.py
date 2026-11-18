@@ -841,5 +841,70 @@ def print_articles(articles, *, export_dir=None):
                 raise click.ClickException(f"Article JSON was not saved to {path}: {exc}") from exc
 
 
+
+@cli.group(
+    "intelligence",
+    help="Opt-in free-only public intelligence. No paid providers or background polling.",
+)
+def intelligence():
+    """Bounded public-source discovery and offline opportunity research."""
+
+
+@intelligence.command("sources")
+@click.option("--wave", type=click.IntRange(1, 3), default=None)
+def intelligence_sources(wave):
+    """List supported sources, access conditions and evidence limitations."""
+    from mcp_trendpulse.intelligence_core import source_catalog
+
+    sources = source_catalog()
+    if wave is not None:
+        sources = [item for item in sources if item["wave"] == wave]
+    click.echo(json.dumps(sources, ensure_ascii=False, sort_keys=True))
+
+
+@intelligence.command("query")
+@click.option("--source", required=True, help="Exact source ID from intelligence sources.")
+@click.option("--keyword", default="", help="Public search phrase or TED expert query.")
+@click.option("--company", default="", help="Known public hiring-board slug.")
+@click.option("--dataset", default="", help="Eurostat dataset code.")
+@click.option("--country", default="", help="ISO two-letter country code.")
+@click.option("--identifier", default="", help="Source-specific public series/CIK/EIC/route ID.")
+@click.option("--limit", type=click.IntRange(1, 20), default=10, show_default=True)
+@click.option("--execute", is_flag=True, help="Explicitly perform one bounded read-only request.")
+def intelligence_query(source, keyword, company, dataset, country, identifier, limit, execute):
+    """Print a safe query plan by default, or fetch once with --execute."""
+    from mcp_trendpulse.intelligence_core import IntelligenceError, collect, plan_source
+
+    try:
+        plan = plan_source(
+            source, keyword=keyword, company=company,
+            dataset=dataset, country=country, identifier=identifier, limit=limit,
+        )
+        result = collect(plan, fetch=execute)
+    except (IntelligenceError, OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(result, ensure_ascii=False, sort_keys=True))
+
+
+@intelligence.command("jobs-analyze")
+@click.option("--source", type=click.Choice(
+    ["greenhouse", "lever", "ashby", "smartrecruiters"]), required=True)
+@click.option("--company", required=True, help="Public employer/board slug.")
+@click.option("--input-json", "input_path", type=click.Path(
+    exists=True, dir_okay=False, path_type=Path), required=True)
+def intelligence_jobs_analyze(source, company, input_path):
+    """Extract sourced pain hypotheses from a local public job-board JSON export."""
+    from mcp_trendpulse.intelligence_jobs import extract_job_pains, normalize_jobs
+
+    try:
+        if input_path.stat().st_size > 512 * 1024:
+            raise ValueError("Input exceeds 512 KiB; split into bounded batches")
+        response = json.loads(input_path.read_text(encoding="utf-8"))
+        jobs = normalize_jobs(source, company, response)
+        result = extract_job_pains(jobs)
+    except (UnicodeError, json.JSONDecodeError, OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(result, ensure_ascii=False, sort_keys=True))
+
 if __name__ == "__main__":
     cli()
