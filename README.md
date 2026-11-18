@@ -337,10 +337,31 @@ trending
 For a source-checkout workflow that consumes evidence programmatically, choose JSON instead of the default Markdown:
 
 ```bash
-uv run mcp-trendpulse-cli brief-pack --keyword "ChatGPT" --keyword "Claude" --market US --format json > evidence.json
+uv run mcp-trendpulse-cli brief-pack --keyword "ChatGPT" --keyword "Claude" --market US --format json --output-file evidence.json
 ```
 
-The JSON includes source attribution, the shared timeframe, per-market latest observation dates, numeric indices/growth percentages (or `null` when unavailable), and warnings about stale or malformed evidence. Indices are normalized **within each market request**; they are not search volume and should not be directly compared across markets. The command fetches Google Trends data but does not generate recommendations or send a Demand Brief.
+`--output-file` writes a **new UTF-8 file** without shell redirection and refuses to overwrite existing evidence. It is available only for JSON and CSV; Markdown continues to stream to stdout and Watch JSON retains its dedicated `--watch-evidence-file` option. The JSON includes source attribution, the shared timeframe, per-market latest observation dates, numeric indices/growth percentages (or `null` when unavailable), and warnings about stale or malformed evidence. Indices are normalized **within each market request**; they are not search volume and should not be directly compared across markets. The command fetches Google Trends data but does not generate recommendations or send a Demand Brief.
+
+**Source checkout only:** For review in spreadsheets, use `--format csv` instead of JSON. The output has one row per requested keyword and market, includes source/timeframe/comparability metadata, latest observation dates, growth basis, missing-value status, and warnings. Text beginning with spreadsheet formula characters is prefixed with an apostrophe to prevent formula execution. For example:
+
+```bash
+uv run mcp-trendpulse-cli brief-pack --keyword "ChatGPT" --keyword "Claude" --market US --format csv --output-file evidence.csv
+```
+
+With `--allow-partial`, failed and rate-limit-skipped markets remain explicit CSV rows and the process exits nonzero; the `incomplete`, `error_code`, and `error_component` columns must be checked before using the evidence. The `observation_alignment` column distinguishes a keyword whose latest valid observation matches the market's latest (`market_latest`) from one with an older valid observation (`older_than_market_latest`); it is blank when no valid keyword observation exists. This is relative alignment within one market request, not an absolute freshness guarantee. The incomplete file is still saved for review, with a warning on stderr. In strict mode, a provider failure creates no evidence file. PowerShell 5.1's native `>` redirection writes UTF-16LE rather than UTF-8; use `--output-file` for a guaranteed UTF-8 capture. This export is an attributed normalized index table, **not** search volume, autonomous research, or a completed customer brief.
+
+**Source checkout only (not yet a published package feature):** Add `--allow-partial` to retain successfully fetched markets if a provider timeout, rate limit, or outage interrupts a two-market evidence pack. A partial JSON result remains one valid document with `incomplete: true`, usable records in `markets`, and explicit `failed_markets` error codes; Markdown ends with an **INCOMPLETE EVIDENCE** warning. For nondefault timeframes, a failed secondary growth request leaves successful primary Trends observations in `markets` with null growth, a warning, and a `failed_markets` entry marked `component: "growth"`. The command still exits nonzero, so consumers must check the exit status and must not present this as a complete brief. If rate-limited, remaining markets are **not queried**. Without the flag, the original strict behavior and full-success JSON schema remain unchanged. No automatic retries, extra polling, or recommendations are added.
+
+**Windows PowerShell 5.1 evidence capture:** the native `--output-file` option above is the simplest cross-shell choice. The earlier source-checkout Python capture example is still available when a separate schema-v1 validation step is desired:
+
+```powershell
+uv run python examples/capture_brief_pack_json.py --output evidence.json --keyword "ChatGPT" --keyword "Claude" --market US
+if ($LASTEXITCODE -ne 0) { Write-Warning "Evidence generation failed or is incomplete; inspect before use." }
+```
+
+The example executes one local CLI request, validates schema-v1 JSON, writes the original UTF-8 bytes to a **new** file without overwriting existing evidence, and preserves a nonzero CLI exit status. With `--allow-partial`, valid but incomplete JSON is saved for review and returns nonzero; it is **not** considered a complete brief. It performs no retries or provider calls beyond that single requested CLI invocation.
+
+For an explicitly requested one-keyword, one-market Trend Watch series instead of a brief summary, use `brief-pack --format watch-json --watch-evidence-file ./trend-series.json`. The new UTF-8 file can be passed to the offline `watch evaluate --evidence` command without hand-editing; existing files and invalid/hourly evidence are rejected. This is a manual Google Trends fetch, not automatic monitoring. See `docs/trend-watch.md`.
 
 The CLI and MCP surfaces are intentionally documented separately because they do not expose the same command set.
 
