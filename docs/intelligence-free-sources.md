@@ -135,24 +135,12 @@ Strategyzer's evidence scale distinguishes statements, low-stakes action,
 and meaningful commitments:
 https://www.strategyzer.com/library/business-project-succcess
 
-## Eight independent lenses
+## Twelve source-aware investigation lenses
 
-| Lane | Source combination | Most important falsification |
-|---|---|---|
-| 01 Autonomous authority | GitHub incident reports + hiring + regulation | Do buyers pay for independent safeguards beyond their platform? |
-| 02 Machine-to-machine commerce | SEC filings + hiring + merchant news | Are ordinary merchants changing budgets because agents purchase? |
-| 03 SME profitability | Eurostat + hiring + TED + competitors | Which specific sector has accessible budgets and measurable pain? |
-| 04 Regulation-created demand | CELLAR + official regulator updates + TED | Are deadlines firm and is existing compliance supply inadequate? |
-| 05 Fraud and identity | CFPB + incidents + NVD + procurement | Is the underserved buyer reachable without regulated incumbency? |
-| 06 Household finances | Eurostat + ECB + complaints | Can savings be verified, and who pays for the service? |
-| 07 Longevity and care | Eurostat + CORDIS + hiring | Are solutions reimbursed or directly purchased? |
-| 08 Climate and energy | ENTSO-E + Copernicus + TED | Is there a software-addressable problem, not a capital project? |
-
-These are discovery directions. Agents doing the eventual work should get
-specific, verifiable *deliverables* (experiments, apps, sales validation,
-reports or implementation), not an indefinite research-only schedule.
-Two available slots may be used for independent opportunity falsification
-and bounded commercial experiments when the evidence warrants them.
+Twelve explicit source combinations, provider-classifications, buyer and
+temporal validity gates, reliability failure tests, and historical ranking
+criteria are documented in [opportunity evaluation](intelligence-opportunity-evaluation.md).
+They are **investigation templates**, not automatically verified winners.
 
 ## The research and decision discipline
 
