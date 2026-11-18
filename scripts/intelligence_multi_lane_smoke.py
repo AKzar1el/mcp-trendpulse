@@ -103,7 +103,12 @@ def validate_recipes() -> dict[str, Any]:
             if params.get("limit", 0) > 2:
                 raise AssertionError("Live probe unexpectedly exceeds 2 records")
             plan = plan_source(source, **params, env={})
-            if plan.headers or plan.allow_loopback:
+            # Some public SPARQL services require an Accept content-type
+            # header; disallow *credential* headers, not harmless negotiation.
+            if plan.allow_loopback or any(
+                name.lower() not in {"accept", "user-agent"}
+                for name in plan.headers
+            ):
                 raise AssertionError("Live probe must be keyless and remote-public")
             if any(term in plan.url.lower() for term in ("apikey=", "api_key=", "token=")):
                 raise AssertionError("Credential-looking query parameter")
