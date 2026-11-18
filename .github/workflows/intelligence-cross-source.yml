@@ -1,0 +1,42 @@
+name: Optional intelligence cross-source compatibility
+
+on:
+  pull_request:
+    paths:
+      - "src/mcp_trendpulse/intelligence_*.py"
+      - "scripts/intelligence_cross_source_smoke.py"
+      - ".github/workflows/intelligence-cross-source.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cross-source:
+    name: Independent MCP source-combination and cache compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          version: "0.12.5"
+      - run: uv python install 3.12
+      - run: uv sync --locked --dev
+      - name: Check offline deduplication, false-positive and confidence guardrails
+        run: uv run --locked python scripts/intelligence_cross_source_smoke.py --mode offline
+      - name: Verify real multi-provider topic through an independent MCP client
+        run: uv run --locked python scripts/intelligence_cross_source_smoke.py --mode live --report intelligence-cross-source.json
+      - name: Upload bounded source-level diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cross-source-mcp-${{ github.run_id }}
+          path: intelligence-cross-source.json
+          if-no-files-found: warn
+          retention-days: 7
