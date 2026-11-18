@@ -3,7 +3,7 @@
 import pytest
 
 from mcp_trendpulse import intelligence_settings as settings
-from mcp_trendpulse.intelligence_core import IntelligenceError, plan_source
+from mcp_trendpulse.intelligence_core import plan_source
 
 
 def test_settings_are_read_only_and_redact_key_material():

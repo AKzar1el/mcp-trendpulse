@@ -199,6 +199,14 @@ or scheduler behavior changed. Only then consider promoting this optional
 module into an agreed long-term architecture.
 
 
+## Keyless multi-lane compatibility smoke
+
+The opt-in `intelligence-multi-lane.yml` workflow probes six combinations
+using only fixed public endpoints and small 2-record requests. It reports
+technical observation/coverage, not joined buyer budgets or market winners.
+It is not scheduled and cannot mutate production. A keyless OpenAlex query
+is included to exercise its anonymous API allowance.
+
 ## Free credentials (configure only after provider validation)
 
 Use local environment variables, not chat, GitHub issues, PR descriptions,

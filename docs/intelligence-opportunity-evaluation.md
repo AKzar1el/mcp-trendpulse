@@ -234,3 +234,24 @@ titles/dates must be normalized and verified before ranking real cases.
 A data ingestion/exporter that automatically and reliably constructs these
 attributed evidence objects is not yet provided. No new standing worker,
 paid API, hosted MCP endpoint or production deployment is part of this PR.
+
+
+## One-time keyless multi-lane compatibility matrix
+
+Run `python scripts/intelligence_multi_lane_smoke.py --mode offline` to validate
+allowlisted source recipes without a network, or opt into the **one-time**
+GitHub Actions workflow `Optional intelligence keyless multi-lane matrix`.
+Its six bounded live scenarios exercise research commercialization, procurement
+regulation, customer disputes, cloud FinOps, supplier due diligence and SME
+margin context. Sources include keyless OpenAlex, CORDIS, CELLAR, TED,
+USAspending, CFPB, GitHub issues, GLEIF, Eurostat, World Bank and public
+hiring boards. Requests use existing provider budgets, no credentials or
+new scheduler. The artifact deliberately contains only status, record count,
+source class and non-sensitive diagnostic metadata, **never raw API payloads**.
+
+A real response does NOT mean that the data are safely joinable: different
+buyers, jurisdictions, or time windows cannot be combined to claim an
+opportunity. The matrix explicitly reports buyer/period/jurisdiction matching
+as *unverified* and never generates commercial confidence, TAM, success
+probability, or product-market-fit scores. Independently validated paid-buyer
+outcomes are required before evaluating commercial predictive accuracy.
