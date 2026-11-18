@@ -1,8 +1,5 @@
 """Offline integration tests of free source overrides, JSON/CSV/XML content and EPO OAuth."""
 
-import io
-import json
-
 from mcp_trendpulse import intelligence_core as intel
 from mcp_trendpulse.intelligence_core import BudgetCache, collect, plan_source, source_catalog
 

@@ -11,7 +11,7 @@ import base64
 import json
 import re
 from datetime import date, timedelta
-from urllib.parse import urlencode, quote
+from urllib.parse import urlencode
 from urllib.request import Request
 
 from mcp_trendpulse.intelligence_core import IntelligenceError, Plan, _required
