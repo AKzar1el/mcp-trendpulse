@@ -46,27 +46,56 @@ explicit collection and job-posting-analysis tools. The existing 16-tool
 TrendPulse community surface and hosted surface are intentionally unchanged.
 Do not expose the standalone MCP as an unauthenticated public HTTP server.
 
-## Status: catalog vs. actual request adapters
+## Source status and measured reality
 
-| Wave | Source IDs | Status | Signal |
-|---|---|---|---|
-| 1 | gdelt, eurostat, ted, cellar, github_issues, worldbank | Bounded adapters | Attention, demographics, procurement, laws, issues, indicators |
-| 2 | greenhouse, lever, ashby, smartrecruiters | Bounded public-board adapters | Employer work and inferred workflow friction |
-| 2 | sec_companyfacts, sec_companyconcept | SEC descriptive contact User-Agent required; concept endpoint is smaller | Reported financial facts and a specific US-GAAP concept |
-| 2 | openalex | Keyless up to 30 local calls/day; free-account key up to 300 local calls/day (provider $1/day free) | Scientific momentum |
-| 2 | companies_house | Requires a free Companies House API key | UK business filings |
-| 2 | usaspending | Bounded public POST adapter | U.S. contract awards and real procurement spending |
-| 2 | cfpb, cordis | Public bounded search adapters; CORDIS path is undocumented | Complaint categories and EU-funded project titles |
-| 3 | gleif, ecb | Bounded public adapters | Legal entities and official financial time series |
-| 3 | entsoe | Requires approved **free** ENTSO-E token | Electricity load by EIC |
-| 3 | rsshub_local | Local RSSHub on 127.0.0.1:1200 | Public website feeds |
-| 3 | copernicus, epo, opsi_slovenia, changedetection_local | Copernicus satellite-catalogue and OPSI metadata public; EPO free OAuth; local change monitor requires self-hosted API | Satellite catalogues (not climate reanalysis), patents, Slovenian datasets, page diffs |
+There are 26 distinct source families, including a dedicated one-job detail
+adapter. A request builder alone is **not** proof of live provider support.
+Only the current GitHub Actions "Free intelligence live contract smoke" run
+can establish which representative public requests returned valid data.
 
-All source IDs now have read-only request builders, but live-provider
-compatibility is tracked separately by the dedicated smoke workflow. Access
-and data licenses may differ from public documentation, and free registration
-credentials must be configured locally. Large bulk downloads are deliberately
-out of scope: the collector refuses responses over 256 KiB.
+| Wave | Source IDs | Free access and behavior |
+|---|---|---|
+| 1 | gdelt_latest | Keyless GDELT raw 15-minute event manifest; **not** DOC keyword search or news article data |
+| 1 | eurostat, ted, cellar, github_issues, worldbank | Keyless official indicators, notices, laws, public issues |
+| 2 | greenhouse, greenhouse_job, lever, ashby, smartrecruiters | Public job indices; `greenhouse_job` fetches one detailed description by ID |
+| 2 | sec_companyfacts, sec_companyconcept | Public, requires an attributable descriptive SEC User-Agent |
+| 2 | openalex | **Requires registered free API key** ($1/day allowance); 300 local searches/day maximum, no paid fallback |
+| 2 | companies_house | **Requires free UK Companies House key** (600 requests per 5 minutes upstream) |
+| 2 | usaspending, cfpb, cordis | Keyless public contract awards, structured complaint records, EU project titles |
+| 3 | gleif, ecb | Keyless legal entities and official economic time series |
+| 3 | entsoe | Requires freely approved transparency API token (upstream policy applies) |
+| 3 | rsshub_local, changedetection_local | Your **own self-hosted** services only; no hosted subscriptions |
+| 3 | copernicus | Keyless **satellite collection metadata**; not climate projections or ERA5 reanalysis |
+| 3 | epo | Registered free EPO OPS OAuth key/secret; 4 GB/week free data allowance |
+| 3 | opsi_slovenia | Keyless CKAN metadata; full-text queries can return HTTP 500, so an explicit unfiltered browse mode is supported |
+
+No data source requires a credit-card trial or a paid vendor contract. The
+public research key sources only become available after **you** configure
+the free credentials locally. Sensitive environment variables are described
+below; do not paste them into chat or commit them to GitHub.
+
+The historical 17-source smoke first verified 10 sources. A subsequent
+16-source keyless check passed 15 of 16: the outstanding OPSI API returned
+HTTP 500 for a text search, so its no-query catalogue browse path is being
+checked separately. EU CELLAR originally returned zero records with a wrong
+title predicate; its legal-expression query has been corrected and requires
+a useful nonzero live sample to count as an information source, not merely
+an HTTP 200 response.
+
+Responses exceeding 256 KiB fail rather than silently download or truncate.
+A job-index listing may omit descriptions; fetch one individual job with
+`greenhouse_job` and then use the offline analysis tool.
+
+### Real provider smoke workflow
+
+The repository includes
+.github/workflows/intelligence-live-smoke.yml and
+scripts/intelligence_live_smoke.py. On changes to this feature,
+GitHub Actions invokes bounded, read-only public source requests without
+secrets and uploads a JSON diagnostic report. One failure fails the smoke
+check; "200 OK but empty" is not treated as verified market demand.
+Credential-only sources are covered by offline contract tests until real
+free keys are provided. Check the *latest* PR run, not an older passing run.
 
 ## Why reverse-engineer job openings?
 
