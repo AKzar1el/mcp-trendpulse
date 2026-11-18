@@ -31,15 +31,15 @@ jobs:
       - run: uv sync --locked --dev
       - name: Launch isolated free changedetection container
         run: |
-          docker pull ghcr.io/dgtlmoon/changedetection.io:latest
+          docker pull ghcr.io/dgtlmoon/changedetection.io@sha256:47b1e9cc3eff820e6022b655e3fcc948625f60c1770ae8b9c30aa3bf104dc255
           mkdir -p "$RUNNER_TEMP/trendpulse-disposable-change"
           docker run -d --name trendpulse-change-ci --init \
             --memory 1g --pids-limit 256 --security-opt no-new-privileges \
             --publish 127.0.0.1:5000:5000 \
             -v "$RUNNER_TEMP/trendpulse-disposable-change:/datastore" \
             -e LOGGER_LEVEL=WARNING -e LISTEN_HOST=0.0.0.0 \
-            ghcr.io/dgtlmoon/changedetection.io:latest
-          docker image inspect ghcr.io/dgtlmoon/changedetection.io:latest --format '{{json .RepoDigests}}'
+            ghcr.io/dgtlmoon/changedetection.io@sha256:47b1e9cc3eff820e6022b655e3fcc948625f60c1770ae8b9c30aa3bf104dc255
+          docker image inspect ghcr.io/dgtlmoon/changedetection.io@sha256:47b1e9cc3eff820e6022b655e3fcc948625f60c1770ae8b9c30aa3bf104dc255 --format '{{json .RepoDigests}}'
           for attempt in $(seq 1 60); do
             if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:5000/ >/dev/null 2>&1; then
               exit 0
