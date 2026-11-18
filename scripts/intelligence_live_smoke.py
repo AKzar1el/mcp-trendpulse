@@ -45,7 +45,26 @@ def main() -> int:
         try:
             plan = plan_source(source, **params)
             out = collect(plan, cache=cache, fetch=True,
-                          timeout=25 if source in {"worldbank", "ecb", "lever"} else 10)
+                          timeout=25 if source in {"worldbank", "ecb", "lever", "eurostat"} else 10)
+            if out.get("status") == "unavailable" and out.get("reason") in {
+                "URLError", "TimeoutError"
+            }:
+                # One diagnostic re-probe in CI only; production collection has
+                # no automatic retry and all attempts are locally budgeted.
+                # Do not retry 429/403 or unexpected response schemas.
+                import time
+
+                time.sleep(1)
+                out = collect(
+                    plan, cache=cache, fetch=True,
+                    timeout=25 if source in {"worldbank", "ecb", "eurostat"} else 10,
+                )
+                print(json.dumps({
+                    "source": source,
+                    "diagnostic_reprobe": True,
+                    "status": out.get("status"),
+                    "reason": out.get("reason"),
+                }), flush=True)
             item = {
                 "source": source,
                 "status": out.get("status"),
