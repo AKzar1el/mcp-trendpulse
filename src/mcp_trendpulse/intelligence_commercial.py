@@ -146,7 +146,12 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
         url = "https://api.openalex.org/works?" + urlencode({
             "search": term, "per_page": limit, "select": "id,display_name,publication_year,cited_by_count,doi,primary_location"
         })
-        return Plan(method="GET", url=url, budget_per_day=5, **common)
+        key = env.get("TRENDPULSE_INTEL_OPENALEX_KEY", "").strip()
+        headers = {"Authorization": f"Bearer {key}"} if key else {}
+        # Free account: ~1,000 standard searches/day. Anonymous: ~100.
+        # No prepaid or paid fallback. Local caps remain well below either.
+        budget = 300 if key else 30
+        return Plan(method="GET", url=url, headers=headers, budget_per_day=budget, **common)
     if source == "companies_house":
         term = _required(keyword, "keyword")
         key = env.get("TRENDPULSE_INTEL_COMPANIES_HOUSE_KEY", "").strip()

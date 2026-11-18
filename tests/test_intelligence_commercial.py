@@ -15,7 +15,7 @@ def test_public_board_plans_fixed_hosts():
 
 def test_free_but_not_unbounded_sources():
     plan = plan_source("openalex", keyword="care coordination", limit=5)
-    assert plan.budget_per_day == 5
+    assert plan.budget_per_day == 30
     assert "api.openalex.org" in plan.url
     with pytest.raises(IntelligenceError):
         plan_source("companies_house", keyword="example", env={})
@@ -57,9 +57,10 @@ def test_no_fabricated_posting_pains():
     assert report["postings_received"] == 1
 
 
-def test_changed_cfpb_contract_is_fail_closed():
-    with pytest.raises(IntelligenceError, match="not fetch-enabled"):
-        plan_source("cfpb", keyword="credit")
+def test_cfpb_uses_search_api_without_removed_narratives():
+    plan = plan_source("cfpb", keyword="credit")
+    assert "search/api/v1/" in plan.url
+    assert "format=" not in plan.url
 
 
 def test_live_usaspending_request_is_bounded_and_contract_shaped():

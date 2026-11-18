@@ -53,19 +53,20 @@ Do not expose the standalone MCP as an unauthenticated public HTTP server.
 | 1 | gdelt, eurostat, ted, cellar, github_issues, worldbank | Bounded adapters | Attention, demographics, procurement, laws, issues, indicators |
 | 2 | greenhouse, lever, ashby, smartrecruiters | Bounded public-board adapters | Employer work and inferred workflow friction |
 | 2 | sec_companyfacts, sec_companyconcept | SEC descriptive contact User-Agent required; concept endpoint is smaller | Reported financial facts and a specific US-GAAP concept |
-| 2 | openalex | Bounded, no paid fallback and 5 calls/day local cap | Scientific momentum |
+| 2 | openalex | Keyless up to 30 local calls/day; free-account key up to 300 local calls/day (provider $1/day free) | Scientific momentum |
 | 2 | companies_house | Requires a free Companies House API key | UK business filings |
 | 2 | usaspending | Bounded public POST adapter | U.S. contract awards and real procurement spending |
-| 2 | cfpb, cordis | Catalog only; deliberately not auto-fetch-enabled | Complaints and EU research funding |
+| 2 | cfpb, cordis | Public bounded search adapters; CORDIS path is undocumented | Complaint categories and EU-funded project titles |
 | 3 | gleif, ecb | Bounded public adapters | Legal entities and official financial time series |
 | 3 | entsoe | Requires approved **free** ENTSO-E token | Electricity load by EIC |
 | 3 | rsshub_local | Local RSSHub on 127.0.0.1:1200 | Public website feeds |
-| 3 | copernicus, epo, opsi_slovenia, changedetection_local | Catalog only; deliberately not auto-fetch-enabled | Climate, patents, Slovenia, official-site diffs |
+| 3 | copernicus, epo, opsi_slovenia, changedetection_local | Copernicus satellite-catalogue and OPSI metadata public; EPO free OAuth; local change monitor requires self-hosted API | Satellite catalogues (not climate reanalysis), patents, Slovenian datasets, page diffs |
 
-Catalog-only means *not implemented as a live fetcher*. Free availability,
-data licenses, endpoint version, response size and auth must be validated
-before claiming a source operational. Some adapters can also fail on large
-public datasets because the collector refuses responses over 256 KiB.
+All source IDs now have read-only request builders, but live-provider
+compatibility is tracked separately by the dedicated smoke workflow. Access
+and data licenses may differ from public documentation, and free registration
+credentials must be configured locally. Large bulk downloads are deliberately
+out of scope: the collector refuses responses over 256 KiB.
 
 ## Why reverse-engineer job openings?
 
@@ -178,3 +179,19 @@ test provider-specific error and pagination variants, check jurisdictional
 data licenses, benchmark memory/network demand, and verify no live worker
 or scheduler behavior changed. Only then consider promoting this optional
 module into an agreed long-term architecture.
+
+
+## Free credentials (configure only after provider validation)
+
+Use local environment variables, not chat, GitHub issues, PR descriptions,
+source files or command-line arguments:
+
+- `TRENDPULSE_INTEL_COMPANIES_HOUSE_KEY`: free Companies House key, 600 requests per five minutes upstream.
+- `TRENDPULSE_INTEL_OPENALEX_KEY`: free account key. Keyless research remains possible at a smaller budget. Authorization uses a header, not a query-string key.
+- `TRENDPULSE_INTEL_EPO_CONSUMER_KEY` and `TRENDPULSE_INTEL_EPO_CONSUMER_SECRET`: registered EPO OPS OAuth credentials, automatically exchanged for short-lived Bearer token when a read-only search executes.
+- `TRENDPULSE_INTEL_ENTSOE_TOKEN`: free approved ENTSO-E transparency token.
+- `TRENDPULSE_INTEL_CHANGEDETECTION_KEY`: API key of your **self-hosted, local** change monitor only.
+
+No paid trial credentials, payment information or premium plans are needed.
+The EPO free threshold is 4 GB per calendar week, but far lower request
+budgets are enforced by this module. You must not provision a paid OPS tier.

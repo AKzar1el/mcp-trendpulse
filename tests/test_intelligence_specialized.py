@@ -47,7 +47,9 @@ def test_local_rsshub_only_known_local_origin():
         plan_source("rsshub_local", identifier="http://evil.example/x")
 
 
-def test_catalog_only_sources_do_not_claim_live_integrations():
-    for source in ("copernicus", "epo", "opsi_slovenia", "changedetection_local"):
-        with pytest.raises(IntelligenceError, match="not fetch-enabled"):
-            plan_source(source)
+def test_extended_sources_are_planned_without_credentials_for_public_ones():
+    assert plan_source("copernicus").method == "GET"
+    assert plan_source("epo", keyword="pa=siemens").method == "GET"
+    assert plan_source("opsi_slovenia", keyword="energy").method == "GET"
+    with pytest.raises(IntelligenceError, match="API key"):
+        plan_source("changedetection_local", env={})
