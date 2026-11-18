@@ -22,6 +22,10 @@ def test_settings_are_read_only_and_redact_key_material():
     guidance = settings.setup_instructions("openalex")
     assert "set-key openalex" in guidance["windows_command"]
     assert key not in repr(guidance)
+    assert guidance["credential_optional_for_basic_queries"] is True
+    assert next(row for row in rows if row["provider"] == "openalex")[
+        "keyless_basic_queries_available"
+    ] is True
 
 
 def test_explicit_env_disables_native_key_lookup(monkeypatch):
@@ -30,8 +34,9 @@ def test_explicit_env_disables_native_key_lookup(monkeypatch):
         raise AssertionError("Explicit env override must not read native secrets")
     monkeypatch.setattr(settings, "_read_secret", forbidden)
     assert settings.resolved_environment({}) == {}
-    with pytest.raises(IntelligenceError, match="Free OpenAlex account key"):
-        plan_source("openalex", keyword="aeronautics", env={})
+    no_key = plan_source("openalex", keyword="aeronautics", env={})
+    assert no_key.headers == {}
+    assert no_key.budget_per_day == 20
 
 
 def test_native_credentials_are_a_fallback_to_env(monkeypatch):

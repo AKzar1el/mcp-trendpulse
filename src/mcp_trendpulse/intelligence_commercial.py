@@ -141,10 +141,11 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
             "search": term, "per_page": limit, "select": "id,display_name,publication_year,cited_by_count,doi,primary_location"
         })
         key = env.get("TRENDPULSE_INTEL_OPENALEX_KEY", "").strip()
-        if not key:
-            raise IntelligenceError("Free OpenAlex account key required; no paid fallback permitted")
-        headers = {"Authorization": f"Bearer {key}"}
-        return Plan(method="GET", url=url, headers=headers, budget_per_day=300, **common)
+        # OpenAlex permits keyless basic queries; registered free keys are
+        # optional for larger budgets and deeper pagination. Never pay/upgrade.
+        headers = {"Authorization": f"Bearer {key}"} if key else {}
+        budget = 300 if key else 20  # local free-only ceilings
+        return Plan(method="GET", url=url, headers=headers, budget_per_day=budget, **common)
     if source == "companies_house":
         term = _required(keyword, "keyword")
         key = env.get("TRENDPULSE_INTEL_COMPANIES_HOUSE_KEY", "").strip()

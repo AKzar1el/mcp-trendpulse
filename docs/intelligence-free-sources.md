@@ -67,7 +67,7 @@ can establish which representative public requests returned valid data.
 | 1 | eurostat, ted, cellar, github_issues, worldbank | Keyless official indicators, notices, laws, public issues |
 | 2 | greenhouse, greenhouse_job, lever, ashby, smartrecruiters | Public job indices; `greenhouse_job` fetches one detailed description by ID |
 | 2 | sec_companyfacts, sec_companyconcept | Public, requires an attributable descriptive SEC User-Agent |
-| 2 | openalex | **Requires registered free API key** ($1/day allowance); 300 local searches/day maximum, no paid fallback |
+| 2 | openalex | **Keyless basic queries supported**, 20 local queries/day; optional registered free key ($1/day allowance), 300 local searches/day; no paid fallback |
 | 2 | companies_house | **Requires free UK Companies House key** (600 requests per 5 minutes upstream) |
 | 2 | usaspending, cfpb, cordis | Keyless public contract awards, structured complaint records, EU project titles |
 | 3 | gleif, ecb | Keyless legal entities and official economic time series |
@@ -135,9 +135,9 @@ Strategyzer's evidence scale distinguishes statements, low-stakes action,
 and meaningful commitments:
 https://www.strategyzer.com/library/business-project-succcess
 
-## Twelve source-aware investigation lenses
+## Eighteen source-aware investigation lenses
 
-Twelve explicit source combinations, provider-classifications, buyer and
+Eighteen explicit source combinations, provider-classifications, buyer and
 temporal validity gates, reliability failure tests, and historical ranking
 criteria are documented in [opportunity evaluation](intelligence-opportunity-evaluation.md).
 They are **investigation templates**, not automatically verified winners.
@@ -205,7 +205,7 @@ Use local environment variables, not chat, GitHub issues, PR descriptions,
 source files or command-line arguments:
 
 - `TRENDPULSE_INTEL_COMPANIES_HOUSE_KEY`: free Companies House key, 600 requests per five minutes upstream.
-- `TRENDPULSE_INTEL_OPENALEX_KEY`: free account key. Keyless research remains possible at a smaller budget. Authorization uses a header, not a query-string key.
+- `TRENDPULSE_INTEL_OPENALEX_KEY`: **optional** free account key. Basic queries work keylessly under a smaller local budget. Authenticated queries use a header, never a URL query-string key.
 - `TRENDPULSE_INTEL_EPO_CONSUMER_KEY` and `TRENDPULSE_INTEL_EPO_CONSUMER_SECRET`: registered EPO OPS OAuth credentials, automatically exchanged for short-lived Bearer token when a read-only search executes.
 - `TRENDPULSE_INTEL_ENTSOE_TOKEN`: free approved ENTSO-E transparency token.
 - `TRENDPULSE_INTEL_CHANGEDETECTION_KEY`: API key of your **self-hosted, local** change monitor only.

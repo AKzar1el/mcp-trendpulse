@@ -21,7 +21,8 @@ PROVIDERS: dict[str, dict[str, Any]] = {
     "openalex": {
         "fields": ("TRENDPULSE_INTEL_OPENALEX_KEY",),
         "docs": "https://help.openalex.org/api/",
-        "free": "Registered free account, $1/day API budget; local cap 300 searches/day",
+        "free": "Keyless basic queries available; optional registered free key with $1/day allowance",
+        "keyless_basic_queries_available": True,
     },
     "companies_house": {
         "fields": ("TRENDPULSE_INTEL_COMPANIES_HOUSE_KEY",),
@@ -188,6 +189,9 @@ def provider_status(provider: str | None = None,
             "provider": name,
             "fields": fields,
             "ready_for_live_auth_test": all(entry["configured"] for entry in fields),
+            "keyless_basic_queries_available": bool(
+                metadata.get("keyless_basic_queries_available", False)
+            ),
             "free_allowance": metadata["free"],
             "documentation": metadata["docs"],
             "secret_storage": "Windows Credential Manager or environment variables",
@@ -205,6 +209,9 @@ def setup_instructions(provider: str) -> dict[str, Any]:
         "documentation": meta["docs"],
         "free_allowance": meta["free"],
         "field_names": list(meta["fields"]),
+        "credential_optional_for_basic_queries": bool(
+            meta.get("keyless_basic_queries_available", False)
+        ),
         "windows_command": f"mcp-trendpulse-cli intelligence settings set-key {provider}",
         "all_platforms": "Use your MCP client's secure environment-variable injection.",
         "safety": (

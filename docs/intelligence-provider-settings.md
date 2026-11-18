@@ -31,7 +31,7 @@ mcp-trendpulse-cli intelligence sources
 ```
 
 `settings status` returns entries with required environment-variable names,
-whether each is configured, documentation, and the free allowance. It **never**
+whether each is configured, documentation, keyless capability (if supported), and the free allowance. It **never**
 prints the value, authentication headers, or secret material. A configured field
 means **ready to test**, not "upstream authentication verified".
 
@@ -67,11 +67,15 @@ Explicit `env={}` arguments in tests bypass all ambient credentials.
 
 | Provider | Required fields | Verified free access policy |
 |---|---|---|
-| OpenAlex | `TRENDPULSE_INTEL_OPENALEX_KEY` | Registered free research budget approximately $1/day; locally limited to 300 searches/day |
+| OpenAlex | `TRENDPULSE_INTEL_OPENALEX_KEY` **optional** | Basic API queries work without a key (local 20/day); free registered key gives a larger allowance (local 300/day), no paid fallback |
 | Companies House | `TRENDPULSE_INTEL_COMPANIES_HOUSE_KEY` | Registered free account with 600 calls per 5 minutes upstream |
 | EPO OPS | `TRENDPULSE_INTEL_EPO_CONSUMER_KEY` and `TRENDPULSE_INTEL_EPO_CONSUMER_SECRET` | Registered free OPS up to 4 GB per week; no paid-overage support |
 | ENTSO-E | `TRENDPULSE_INTEL_ENTSOE_TOKEN` | Freely approved transparency token, subject to provider approval and fair use |
 | Local changedetection.io | `TRENDPULSE_INTEL_CHANGEDETECTION_KEY` | Your own self-hosted local instance only |
+
+Current OpenAlex guidance: https://help.openalex.org/api/authentication/ .
+The status screen distinguishes *keyless basic queries available* from
+*authenticated free-key testing ready*. No key is written by a query.
 
 SEC company data use the non-secret descriptive
 `TRENDPULSE_INTEL_SEC_USER_AGENT` (include a real technical contact).
