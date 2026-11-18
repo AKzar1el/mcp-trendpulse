@@ -512,6 +512,109 @@ def test_brief_pack_csv_quotes_and_neutralizes_formula_like_keyword():
     assert rows[0]["latest_index"] == "70.0"
 
 
+@pytest.mark.parametrize("output_format", ["json", "csv"])
+def test_brief_pack_writes_new_utf8_evidence_file_without_shell_redirect(tmp_path, output_format):
+    keyword = "café trends"
+    target = tmp_path / f"evidence.{output_format}"
+    provider = SimpleNamespace(trends=SimpleNamespace(get_trends=AsyncMock(return_value=[
+        {"date": "2026-09-06", "keyword": keyword, "value": 15},
+        {"date": "2026-09-13", "keyword": keyword, "value": 30},
+    ])))
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=provider):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", keyword, "--market", "US", "--format", output_format,
+            "--output-file", str(target),
+        ])
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout == ""
+    assert "Wrote Demand Brief evidence" in result.stderr
+    raw = target.read_bytes()
+    assert b"\xef\xbb\xbf" not in raw[:3]
+    assert keyword.encode("utf-8") in raw
+    if output_format == "json":
+        assert json.loads(raw)["markets"][0]["keywords"][0]["keyword"] == keyword
+    else:
+        assert list(csv.DictReader(io.StringIO(raw.decode("utf-8"))))[0]["keyword"] == keyword
+    provider.trends.get_trends.assert_awaited_once()
+
+
+@pytest.mark.parametrize("output_format", ["json", "csv"])
+def test_brief_pack_file_export_refuses_to_overwrite_before_provider_call(tmp_path, output_format):
+    target = tmp_path / "existing.txt"
+    target.write_bytes(b"precious existing evidence")
+    provider = SimpleNamespace(trends=SimpleNamespace(get_trends=AsyncMock()))
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=provider):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "AI", "--market", "US", "--format", output_format,
+            "--output-file", str(target),
+        ])
+
+    assert result.exit_code != 0
+    assert "new file" in result.output
+    assert target.read_bytes() == b"precious existing evidence"
+    provider.trends.get_trends.assert_not_awaited()
+
+
+@pytest.mark.parametrize("output_format", ["markdown", "watch-json"])
+def test_brief_pack_file_export_rejects_unsupported_formats_before_query(tmp_path, output_format):
+    provider = SimpleNamespace(trends=SimpleNamespace(get_trends=AsyncMock()))
+    target = tmp_path / "evidence.txt"
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=provider):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "AI", "--market", "US", "--format", output_format,
+            "--output-file", str(target),
+        ])
+
+    assert result.exit_code != 0
+    assert "--output-file requires --format json or csv" in result.output
+    assert not target.exists()
+    provider.trends.get_trends.assert_not_awaited()
+
+
+def test_brief_pack_file_export_keeps_partial_csv_and_nonzero_status(tmp_path):
+    target = tmp_path / "partial.csv"
+    providers = FakeBriefProviders()
+    original = providers.trends.get_trends
+
+    async def limited(**kwargs):
+        if kwargs["geo"] == "GB":
+            raise ProviderRateLimitError("google_trends", "get_trends")
+        return await original(**kwargs)
+
+    providers.trends.get_trends = AsyncMock(side_effect=limited)
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=providers):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "ChatGPT", "--market", "US", "--market", "GB",
+            "--format", "csv", "--allow-partial", "--output-file", str(target),
+        ])
+
+    assert result.exit_code == 1, result.output
+    assert result.stdout == ""
+    assert "incomplete Demand Brief evidence" in result.stderr
+    rows = list(csv.DictReader(io.StringIO(target.read_text(encoding="utf-8"))))
+    assert [(row["status"], row["incomplete"]) for row in rows] == [
+        ("observed", "true"), ("unavailable", "true"),
+    ]
+    assert rows[1]["error_code"] == "provider_rate_limited"
+    assert providers.trends.get_trends.await_count == 2
+
+
+def test_brief_pack_file_export_strict_provider_error_creates_no_file(tmp_path):
+    target = tmp_path / "never-created.json"
+    provider = SimpleNamespace(trends=SimpleNamespace(get_trends=AsyncMock(
+        side_effect=ProviderRateLimitError("google_trends", "get_trends")
+    )))
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=provider):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "AI", "--market", "US", "--format", "json",
+            "--output-file", str(target),
+        ])
+
+    assert result.exit_code != 0
+    assert not target.exists()
+
+
 @pytest.mark.parametrize("output_format", ["json", "markdown"])
 @pytest.mark.parametrize(
     ("error", "code", "advice"),
