@@ -149,7 +149,8 @@ def _delete_secret(name: str) -> None:
             raise OSError("Windows Credential Manager delete failed")
 
 
-def resolved_environment(env: dict[str, str] | None = None) -> dict[str, str]:
+def resolved_environment(env: dict[str, str] | None = None,
+                         provider: str | None = None) -> dict[str, str]:
     """Environment wins; native OS keychain is a local-user fallback only.
 
     Explicit env={} bypasses the OS store so tests and servers are hermetic.
@@ -158,7 +159,11 @@ def resolved_environment(env: dict[str, str] | None = None) -> dict[str, str]:
     result = dict(os.environ if env is None else env)
     if env is not None or not _supports_native_store():
         return result
-    for config in PROVIDERS.values():
+    # Avoid unnecessarily loading unrelated provider keys into the process.
+    profiles = (PROVIDERS[provider],) if provider in PROVIDERS else (
+        PROVIDERS.values() if provider is None else ()
+    )
+    for config in profiles:
         for name in config["fields"]:
             if not result.get(name):
                 value = _read_secret(name)

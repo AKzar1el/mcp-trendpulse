@@ -105,7 +105,7 @@ def plan_source(source: str, *, keyword: str = "", company: str = "",
     }
     from mcp_trendpulse.intelligence_settings import resolved_environment
 
-    environment = resolved_environment(env)
+    environment = resolved_environment(env, provider=source)
     for module in _modules():
         if source in module.SOURCES:
             plan = module.build(source, params, environment)
@@ -265,7 +265,7 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
             from mcp_trendpulse.intelligence_settings import resolved_environment
 
             headers["Authorization"] = "Bearer " + epo_oauth_token(
-                resolved_environment(env), opener, timeout
+                resolved_environment(env, provider="epo"), opener, timeout
             )
         req = Request(plan.url, data=body, headers=headers, method=plan.method)
         with opener.open(req, timeout=timeout) as res:
