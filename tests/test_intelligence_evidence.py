@@ -52,3 +52,19 @@ def test_gdelt_manifest_preserves_file_size_and_name_only():
     ]})
     assert result["record_count"] == 1
     assert result["sample"][0]["compressed_bytes"] == 12345
+
+
+
+def test_rsshub_rejects_html_like_error_xml_and_accepts_feed():
+    with pytest.raises(UnexpectedSourceShape, match="RSS/Atom"):
+        evidence_projection("rsshub_local", {
+            "root": "error",
+            "observations": [{"element": "title", "text": "Route failed"}],
+        })
+    assert evidence_projection("rsshub_local", {
+        "root": "rss",
+        "observations": [
+            {"element": "title", "text": "Test 1"},
+            {"element": "title", "text": "Title1"},
+        ],
+    })["record_count"] == 2

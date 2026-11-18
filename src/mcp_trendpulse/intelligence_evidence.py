@@ -110,7 +110,17 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
         return {"record_count": len(payload["value"]) if isinstance(payload["value"], dict) else 0,
                 "sample": [{"dataset_dimensions": payload["id"], "size": payload["size"]}],
                 "unit": "JSON-stat observations; dimension indexes must be decoded"}
-    if source in {"ecb", "epo", "entsoe", "rsshub_local"}:
+    if source == "rsshub_local":
+        if not isinstance(payload, dict) or payload.get("root") not in {"rss", "feed", "RDF"}:
+            raise UnexpectedSourceShape("RSSHub did not return RSS/Atom feed XML")
+        items = payload.get("observations")
+        if not isinstance(items, list) or not any(
+            isinstance(x, dict) and x.get("element") == "title" for x in items
+        ):
+            raise UnexpectedSourceShape("RSSHub feed has no validated title")
+        return {"record_count": len(items), "sample": items[:10],
+                "unit": "self-hosted RSS/Atom text observations; not demand evidence"}
+    if source in {"ecb", "epo", "entsoe"}:
         if not isinstance(payload, dict) or not (
             ("columns" in payload and "rows" in payload)
             or ("root" in payload and "observations" in payload)

@@ -76,3 +76,20 @@ def test_settings_cli_safe_and_separate(monkeypatch):
     assert guidance.exit_code == 0, guidance.output
     assert "SECRET_NEVER_OUTPUT_123" not in guidance.output
     assert "settings set-key openalex" in guidance.output
+
+
+
+def test_secret_entry_cli_keeps_values_out_of_echo(monkeypatch):
+    from mcp_trendpulse import intelligence_settings as settings
+
+    received = {}
+    monkeypatch.setattr(settings, "_supports_native_store", lambda: True)
+    monkeypatch.setattr(settings, "save_provider_credentials",
+                        lambda provider, values: received.update(values))
+    secret = "CLI_HIDDEN_TEST_KEY_999"
+    result = CliRunner().invoke(cli, [
+        "intelligence", "settings", "set-key", "openalex"
+    ], input=secret + "\n")
+    assert result.exit_code == 0, result.output
+    assert received["TRENDPULSE_INTEL_OPENALEX_KEY"] == secret
+    assert secret not in result.output
