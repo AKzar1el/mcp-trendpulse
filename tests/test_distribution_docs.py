@@ -28,6 +28,17 @@ def test_cli_docs_include_brief_pack_fulfillment_command():
     assert "human-produced brief" in cli_section
 
 
+def test_windows_brief_pack_capture_instructions_are_source_only_and_safe():
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    cli_section = readme.split("## CLI", 1)[1].split("## Development", 1)[0]
+
+    assert "Windows PowerShell 5.1" in cli_section
+    assert "uv run python examples/capture_brief_pack_json.py --output evidence.json" in cli_section
+    assert "original UTF-8 bytes" in cli_section
+    assert "nonzero CLI exit status" in cli_section
+    assert (PROJECT_ROOT / "examples/capture_brief_pack_json.py").is_file()
+
+
 def test_vscode_mcp_json_uses_current_top_level_servers_shape():
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     vscode_section = readme.split("### VS Code", 1)[1].split("### Cursor", 1)[0]
