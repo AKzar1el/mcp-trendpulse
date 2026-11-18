@@ -43,7 +43,7 @@ or writes to external systems.
 | privacy_operations | CELLAR + TED + GitHub issues + hiring | Does an actual EU buyer fund the required workflow? |
 | vendor_due_diligence | GLEIF + Companies House + TED + hiring + CELLAR | Is counterpart verification being purchased rather than merely required? |
 | public_cloud_finops | USAspending + GitHub issues + hiring + SEC company concepts | Is US cloud operations spending addressable by a separate vendor? |
-| customer_dispute_ops | CFPB + hiring + GitHub issues + USAspending | Does observed consumer friction translate into a buyer budget? |
+| customer_dispute_ops | CFPB + hiring + GitHub issues + USAspending + SEC company concepts | Does observed consumer friction translate into a buyer budget? |
 | industrial_maintenance | TED + hiring + CORDIS + EPO + ENTSO-E | Does a contract cover software rather than physical equipment? |
 | research_procurement | CORDIS + OpenAlex + EPO + TED + hiring | Is commercial procurement distinct from research funding? |
 

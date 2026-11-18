@@ -102,7 +102,7 @@ def test_new_offline_opportunity_cli_and_backtest(tmp_path):
     runner = CliRunner()
     lanes = runner.invoke(cli, ["intelligence", "opportunities", "lanes"])
     assert lanes.exit_code == 0, lanes.output
-    assert len(json.loads(lanes.output)) == 12
+    assert len(json.loads(lanes.output)) == 18
 
     payload = {
         "as_of": "2026-11-18",

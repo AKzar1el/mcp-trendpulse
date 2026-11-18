@@ -79,7 +79,7 @@ LANES: dict[str, dict[str, Any]] = {
                              "question": "Are named buyers paying to validate counterparties and suppliers?"},
     "public_cloud_finops": {"sources": ("usaspending", "github_issues", "greenhouse", "greenhouse_job", "sec_companyconcept"),
                             "question": "Which US public buyers face repeat cloud-cost work not solved internally?"},
-    "customer_dispute_ops": {"sources": ("cfpb", "greenhouse", "github_issues", "usaspending"),
+    "customer_dispute_ops": {"sources": ("cfpb", "greenhouse", "github_issues", "usaspending", "sec_companyconcept"),
                              "question": "Are regulated US firms budgeting to reduce documented dispute handling?"},
     "industrial_maintenance": {"sources": ("ted", "greenhouse", "cordis", "epo", "entsoe"),
                                "question": "Are EU operators buying maintenance software rather than physical equipment?"},
@@ -100,7 +100,7 @@ TREND_SOURCES = {
     "github_issues", "cfpb", "ted", "usaspending", "cordis",
     "greenhouse", "greenhouse_job", "lever", "ashby", "smartrecruiters",
     "openalex", "epo", "rsshub_local", "changedetection_local",
-} 
+}
 # Different ATS connectors do not automatically mean independent underlying
 # employers. Monitoring wrappers likewise may report the same original event.
 TREND_FAMILIES = {
