@@ -272,8 +272,8 @@ def main() -> int:
         def own_assertions(error):
             if isinstance(error, BaseExceptionGroup):
                 return [name for inner in error.exceptions for name in own_assertions(inner)]
-            if isinstance(error, AssertionError):
-                return [str(error)[:140]]
+            if isinstance(error, (AssertionError, AttributeError)):
+                return [str(error).replace(FAKE_TOKEN, "<redacted>")[:140]]
             return []
 
         print(json.dumps({
