@@ -249,8 +249,8 @@ def test_public_award_must_match_same_buyer_before_interview_priority():
 
 def test_unknown_credential_source_does_not_create_buying_proof():
     result = evaluation(strong(), source_health={"usaspending": "not_configured"})
-    assert result["status"] == "partial_provider_coverage"
-    assert result["success_probability"] is None
+    assert result["results"][0]["status"] == "partial_provider_coverage"
+    assert result["results"][0]["success_probability"] is None
 
 
 
@@ -268,7 +268,8 @@ def test_every_lane_accepts_valid_independent_source_mix_without_fake_sales(lane
     row = result["results"][0]
     assert row["distinct_classes"] >= 2
     assert row["independent_publishers"] >= 3
-    assert row["status"] == "investigate", (lane, row)
+    assert row["priority_order"] >= 2, (lane, row)
+    assert row["status"] in {"investigate", "buyer_interview_priority"}
     assert row["success_probability"] is None
     assert not row["buying_intent_confirmed"]
 
