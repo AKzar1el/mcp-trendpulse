@@ -340,7 +340,15 @@ For a source-checkout workflow that consumes evidence programmatically, choose J
 uv run mcp-trendpulse-cli brief-pack --keyword "ChatGPT" --keyword "Claude" --market US --format json --output-file evidence.json
 ```
 
-`--output-file` writes a **new UTF-8 file** without shell redirection and refuses to overwrite existing evidence. It is available only for JSON and CSV; Markdown continues to stream to stdout and Watch JSON retains its dedicated `--watch-evidence-file` option. The JSON includes source attribution, the shared timeframe, per-market latest observation dates, numeric indices/growth percentages (or `null` when unavailable), and warnings about stale or malformed evidence. Indices are normalized **within each market request**; they are not search volume and should not be directly compared across markets. The command fetches Google Trends data but does not generate recommendations or send a Demand Brief.
+`--output-file` writes a **new UTF-8 file** without shell redirection and refuses to overwrite existing evidence. It supports JSON, CSV and Markdown; Watch JSON retains its dedicated `--watch-evidence-file` option. The JSON includes source attribution, the shared timeframe, per-market latest observation dates, numeric indices/growth percentages (or `null` when unavailable), and warnings about stale or malformed evidence. Indices are normalized **within each market request**; they are not search volume and should not be directly compared across markets. The command fetches Google Trends data but does not generate recommendations or send a Demand Brief.
+
+**Source checkout only:** To review or share the human-readable evidence table as a Markdown file without PowerShell redirection or character-encoding surprises, use:
+
+```bash
+uv run mcp-trendpulse-cli brief-pack --keyword "ChatGPT" --keyword "Claude" --market US --format markdown --output-file brief-evidence.md
+```
+
+The Markdown file matches the normal terminal report, including its source and comparability cautions. `--allow-partial` saves an explicitly incomplete Markdown report with a nonzero exit status; a strict provider failure does not create a file. This is reviewable evidence for a human-produced brief, not an automatically completed customer report.
 
 **Source checkout only:** For review in spreadsheets, use `--format csv` instead of JSON. The output has one row per requested keyword and market, includes source/timeframe/comparability metadata, latest observation dates, growth basis, missing-value status, and warnings. Text beginning with spreadsheet formula characters is prefixed with an apostrophe to prevent formula execution. For example:
 

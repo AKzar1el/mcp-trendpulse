@@ -357,7 +357,7 @@ def site(site, period, max_results, no_nlp, headlines_only, save_json_dir):
 @click.option("--market", "markets", multiple=True, required=True, help="Country or subregion code such as US or US-CA; repeat up to twice.")
 @click.option("--timeframe", type=str, default="today 12-m", show_default=True, help="Shared Google Trends timeframe.")
 @click.option("--format", "output_format", type=click.Choice(["markdown", "json", "csv", "watch-json"]), default="markdown", show_default=True, help="Human-readable brief, structured JSON, spreadsheet CSV, or manual Trend Watch evidence.")
-@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None, help="Write JSON or CSV as a new UTF-8 evidence file without overwriting existing files.")
+@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None, help="Write JSON, CSV or Markdown as a new UTF-8 evidence file without overwriting existing files.")
 @click.option("--watch-evidence-file", type=click.Path(dir_okay=False, path_type=Path), default=None, help="Write UTF-8 watch-json to a new file, never overwriting existing evidence.")
 @click.option("--allow-partial", is_flag=True, help="Keep usable markets when a provider fails; incomplete output still exits nonzero.")
 def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_evidence_file, allow_partial):
@@ -375,8 +375,8 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
     if len(set(cleaned_markets)) != len(cleaned_markets):
         raise click.UsageError("Markets must be unique.")
     if output_file is not None:
-        if output_format not in ("json", "csv"):
-            raise click.UsageError("--output-file requires --format json or csv; use --watch-evidence-file for watch-json.")
+        if output_format not in ("json", "csv", "markdown"):
+            raise click.UsageError("--output-file requires --format json, csv or markdown; use --watch-evidence-file for watch-json.")
         if output_file.exists() or not output_file.parent.is_dir():
             raise click.ClickException("Evidence destination must be a new file in an existing directory.")
     if output_format == "watch-json" and allow_partial:
@@ -408,18 +408,24 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
         label = "incomplete Demand Brief evidence" if incomplete else "Demand Brief evidence"
         click.echo(f"Wrote {label} to {output_file}", err=True)
 
+    # Keep Markdown buffering local to this invocation; never redirect process stdout.
+    markdown_buffer = io.StringIO() if output_file is not None and output_format == "markdown" else None
+
+    def echo_markdown(message=None):
+        click.echo(message, file=markdown_buffer)
+
     async def _build():
         providers = get_provider_set()
         display_timeframe = _brief_table_cell(" ".join(timeframe.split()))
         markets_output = []
         failed_markets = []
         if output_format == "markdown":
-            click.echo("# TrendPulse Demand Brief evidence pack")
-            click.echo()
-            click.echo(f"Timeframe: **{display_timeframe}** | Google Trends property: **Google Search**")
-            click.echo("Data source: **Google Trends** (https://trends.google.com/trends/)")
-            click.echo()
-            click.echo("> Google Trends values are normalized relative-interest indices, not absolute search volume. Compare terms within the same market request; do not compare index values directly across markets.")
+            echo_markdown("# TrendPulse Demand Brief evidence pack")
+            echo_markdown()
+            echo_markdown(f"Timeframe: **{display_timeframe}** | Google Trends property: **Google Search**")
+            echo_markdown("Data source: **Google Trends** (https://trends.google.com/trends/)")
+            echo_markdown()
+            echo_markdown("> Google Trends values are normalized relative-interest indices, not absolute search volume. Compare terms within the same market request; do not compare index values directly across markets.")
 
         for index, market in enumerate(cleaned_markets):
             growth_failure = None
@@ -481,7 +487,7 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
                     "message": public_error["message"],
                 })
                 if output_format == "markdown":
-                    click.echo(f"\n## {market}\n\n> **UNAVAILABLE ({exc.code.value})**: {public_error['message']} No observations are reported for this market.")
+                    echo_markdown(f"\n## {market}\n\n> **UNAVAILABLE ({exc.code.value})**: {public_error['message']} No observations are reported for this market.")
                 if exc.code == ProviderErrorCode.RATE_LIMITED:
                     # A rate limit is a stop signal, not permission to try another market.
                     for skipped in cleaned_markets[index + 1:]:
@@ -493,7 +499,7 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
                             "message": skipped_message,
                         })
                         if output_format == "markdown":
-                            click.echo(f"\n## {skipped}\n\n> **NOT ATTEMPTED**: {skipped_message}")
+                            echo_markdown(f"\n## {skipped}\n\n> **NOT ATTEMPTED**: {skipped_message}")
                     break
                 continue
             stop_after_market = bool(
@@ -612,52 +618,52 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
                     break
                 continue
 
-            click.echo()
-            click.echo(f"## {market}")
+            echo_markdown()
+            echo_markdown(f"## {market}")
             if invalid_points_container:
-                click.echo()
-                click.echo("> Google Trends returned an invalid observation container; no series observations were usable.")
+                echo_markdown()
+                echo_markdown("> Google Trends returned an invalid observation container; no series observations were usable.")
             elif malformed_points:
-                click.echo()
-                click.echo(f"> Excluded {malformed_points} malformed Trends rows from this evidence table.")
+                echo_markdown()
+                echo_markdown(f"> Excluded {malformed_points} malformed Trends rows from this evidence table.")
             skipped_dates = len(points) - len(dated_points)
             if skipped_dates:
-                click.echo()
+                echo_markdown()
                 noun = "observation" if skipped_dates == 1 else "observations"
-                click.echo(f"> Excluded {skipped_dates} Trends {noun} with invalid dates from this evidence table.")
+                echo_markdown(f"> Excluded {skipped_dates} Trends {noun} with invalid dates from this evidence table.")
             for keyword in missing_primary_keywords:
-                click.echo()
-                click.echo(
+                echo_markdown()
+                echo_markdown(
                     f"> {_brief_table_cell(keyword)}: no validated primary Google Trends "
                     f"interest observations in {market}; separate growth values do not "
                     "replace primary evidence."
                 )
             skipped_indices = len(dated_points) - len(valid_interest_points)
             if skipped_indices:
-                click.echo()
+                echo_markdown()
                 noun = "observation" if skipped_indices == 1 else "observations"
-                click.echo(f"> Excluded {skipped_indices} Trends {noun} with invalid relative-interest indices from this evidence table.")
+                echo_markdown(f"> Excluded {skipped_indices} Trends {noun} with invalid relative-interest indices from this evidence table.")
             if timeframe.strip().lower() != "today 12-m":
-                click.echo()
-                click.echo(
+                echo_markdown()
+                echo_markdown(
                     f"> 3M and 1Y growth use separate Google Trends lookback requests; "
                     f"they are not calculated from the selected {display_timeframe} time series."
                 )
             if invalid_growth_container:
-                click.echo()
-                click.echo("> Google Trends returned an invalid growth response; growth values are unavailable.")
+                echo_markdown()
+                echo_markdown("> Google Trends returned an invalid growth response; growth values are unavailable.")
             elif malformed_growth_rows:
-                click.echo()
-                click.echo(f"> Excluded {malformed_growth_rows} malformed growth entries from this evidence table.")
+                echo_markdown()
+                echo_markdown(f"> Excluded {malformed_growth_rows} malformed growth entries from this evidence table.")
             if growth_warning:
-                click.echo()
-                click.echo(f"> {growth_warning}")
+                echo_markdown()
+                echo_markdown(f"> {growth_warning}")
             if latest_trends_date:
-                click.echo()
-                click.echo(f"Latest complete Trends point: **{latest_trends_date}**")
-            click.echo()
-            click.echo("| Keyword | Latest index | 3M growth | 1Y growth |")
-            click.echo("| --- | ---: | ---: | ---: |")
+                echo_markdown()
+                echo_markdown(f"Latest complete Trends point: **{latest_trends_date}**")
+            echo_markdown()
+            echo_markdown("| Keyword | Latest index | 3M growth | 1Y growth |")
+            echo_markdown("| --- | ---: | ---: | ---: |")
             older_observations = []
             for keyword in cleaned_keywords:
                 keyword_points = series.get(keyword, [])
@@ -674,20 +680,20 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
                 ):
                     older_observations.append((keyword, last_date))
                 keyword_growth = growth.get(keyword, {})
-                click.echo(
+                echo_markdown(
                     f"| {_brief_table_cell(keyword)} | {_brief_value(latest)} | {_brief_percent(keyword_growth.get('3M'))} | {_brief_percent(keyword_growth.get('1Y'))} |"
                 )
             if older_observations:
-                click.echo()
-                click.echo("> Some latest keyword indices are older than the newest market observation:")
+                echo_markdown()
+                echo_markdown("> Some latest keyword indices are older than the newest market observation:")
                 for keyword, last_date in older_observations:
-                    click.echo(
+                    echo_markdown(
                         f"> {_brief_table_cell(keyword)}: last observation **{last_date}** "
                         f"(market latest **{latest_trends_date}**)"
                     )
             if stop_after_market:
                 for skipped in cleaned_markets[index + 1:]:
-                    click.echo(
+                    echo_markdown(
                         f"\n## {skipped}\n\n> **NOT ATTEMPTED**: "
                         "Not queried after the provider rate limit; no observations are available."
                     )
@@ -769,12 +775,14 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
                     writer.writerow({column: _brief_csv_cell(values[column]) for column in columns})
             emit_document(stream.getvalue(), bool(failed_markets))
         elif failed_markets:
-            click.echo()
-            click.echo(
+            echo_markdown()
+            echo_markdown(
                 f"> **INCOMPLETE EVIDENCE:** {len(failed_markets)} failed or unattempted "
                 f"market components across {len(cleaned_markets)} requested markets. "
                 "Do not use as a complete Demand Brief."
             )
+        if markdown_buffer is not None:
+            emit_document(markdown_buffer.getvalue(), bool(failed_markets))
         if failed_markets:
             raise click.exceptions.Exit(1)
 
