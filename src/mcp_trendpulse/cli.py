@@ -357,9 +357,10 @@ def site(site, period, max_results, no_nlp, headlines_only, save_json_dir):
 @click.option("--market", "markets", multiple=True, required=True, help="Country or subregion code such as US or US-CA; repeat up to twice.")
 @click.option("--timeframe", type=str, default="today 12-m", show_default=True, help="Shared Google Trends timeframe.")
 @click.option("--format", "output_format", type=click.Choice(["markdown", "json", "csv", "watch-json"]), default="markdown", show_default=True, help="Human-readable brief, structured JSON, spreadsheet CSV, or manual Trend Watch evidence.")
+@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None, help="Write JSON or CSV as a new UTF-8 evidence file without overwriting existing files.")
 @click.option("--watch-evidence-file", type=click.Path(dir_okay=False, path_type=Path), default=None, help="Write UTF-8 watch-json to a new file, never overwriting existing evidence.")
 @click.option("--allow-partial", is_flag=True, help="Keep usable markets when a provider fails; incomplete output still exits nonzero.")
-def brief_pack(keywords, markets, timeframe, output_format, watch_evidence_file, allow_partial):
+def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_evidence_file, allow_partial):
     """Emit an attributed evidence pack for human Demand Brief fulfillment."""
     cleaned_keywords = [value.strip() for value in keywords if value.strip()]
     cleaned_markets = [value.strip().upper() for value in markets if value.strip()]
@@ -373,6 +374,11 @@ def brief_pack(keywords, markets, timeframe, output_format, watch_evidence_file,
         raise click.UsageError("Invalid --market: use a two-letter country code, optionally with region suffixes.")
     if len(set(cleaned_markets)) != len(cleaned_markets):
         raise click.UsageError("Markets must be unique.")
+    if output_file is not None:
+        if output_format not in ("json", "csv"):
+            raise click.UsageError("--output-file requires --format json or csv; use --watch-evidence-file for watch-json.")
+        if output_file.exists() or not output_file.parent.is_dir():
+            raise click.ClickException("Evidence destination must be a new file in an existing directory.")
     if output_format == "watch-json" and allow_partial:
         raise click.UsageError("--allow-partial cannot be used with --format watch-json.")
     if output_format == "watch-json" and (len(cleaned_keywords) != 1 or len(cleaned_markets) != 1):
@@ -382,6 +388,25 @@ def brief_pack(keywords, markets, timeframe, output_format, watch_evidence_file,
             raise click.UsageError("--watch-evidence-file requires --format watch-json.")
         if watch_evidence_file.exists() or not watch_evidence_file.parent.is_dir():
             raise click.ClickException("Watch evidence destination must be a new file in an existing directory.")
+
+    def emit_document(document, incomplete):
+        if output_file is None:
+            click.echo(document, nl=False)
+            return
+        created = False
+        try:
+            with output_file.open("x", encoding="utf-8", newline="\n") as handle:
+                created = True
+                handle.write(document)
+        except OSError as exc:
+            if created:
+                try:
+                    output_file.unlink()
+                except OSError:
+                    pass
+            raise click.ClickException(f"Demand Brief evidence file was not saved: {exc}") from exc
+        label = "incomplete Demand Brief evidence" if incomplete else "Demand Brief evidence"
+        click.echo(f"Wrote {label} to {output_file}", err=True)
 
     async def _build():
         providers = get_provider_set()
@@ -681,7 +706,7 @@ def brief_pack(keywords, markets, timeframe, output_format, watch_evidence_file,
             if failed_markets:
                 payload["incomplete"] = True
                 payload["failed_markets"] = failed_markets
-            click.echo(json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2))
+            emit_document(json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2) + "\n", bool(failed_markets))
         elif output_format == "csv":
             stream = io.StringIO(newline="")
             columns = (
@@ -732,7 +757,7 @@ def brief_pack(keywords, markets, timeframe, output_format, watch_evidence_file,
                         "warnings": "; ".join(evidence.get("warnings", [])),
                     }
                     writer.writerow({column: _brief_csv_cell(values[column]) for column in columns})
-            click.echo(stream.getvalue(), nl=False)
+            emit_document(stream.getvalue(), bool(failed_markets))
         elif failed_markets:
             click.echo()
             click.echo(
