@@ -40,17 +40,20 @@ def main() -> int:
     for source, params in CASES:
         try:
             plan = plan_source(source, **params)
-            out = collect(plan, cache=cache, fetch=True, timeout=10)
+            out = collect(plan, cache=cache, fetch=True,
+                          timeout=25 if source == "worldbank" else 10)
             item = {
                 "source": source,
                 "status": out.get("status"),
                 "reason": out.get("reason"),
+                "http_status": out.get("http_status"),
                 "records_observed": (out.get("observations") or {}).get("record_count"),
                 "source_url": plan.url,
                 "source_documentation": plan.docs,
             }
         except (ValueError, OSError) as exc:
-            item = {"source": source, "status": "exception", "reason": type(exc).__name__}
+            item = {"source": source, "status": "exception", "reason": type(exc).__name__,
+                    "detail": str(exc)[:150]}
         checks.append(item)
         print(json.dumps(item, sort_keys=True, ensure_ascii=False), flush=True)
     report = {

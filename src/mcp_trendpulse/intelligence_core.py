@@ -152,6 +152,7 @@ _HOSTS = frozenset({
     "api.company-information.service.gov.uk", "www.consumerfinance.gov",
     "api.gleif.org", "data-api.ecb.europa.eu", "web-api.tp.entsoe.eu",
     "ops.epo.org", "cordis.europa.eu", "podatki.gov.si",
+    "data.gdeltproject.org",
     "stac.opensearch.dataspace.copernicus.eu",
 })
 
@@ -233,6 +234,7 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
         "json": "application/json",
         "csv": "text/csv",
         "xml": "application/xml, application/rss+xml, application/atom+xml",
+        "text": "text/plain",
     }
     headers = {
         "User-Agent": "mcp-trendpulse-intelligence/0.1 (research; read-only)",
@@ -270,11 +272,15 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
                 if not any(marker in kind for marker in ("xml", "rss", "atom")):
                     raise IntelligenceError("Expected XML response")
                 payload = _parse_xml(raw)
+            elif plan.content_type == "text":
+                payload = {"lines": raw.decode("utf-8", "strict").splitlines()[:20]}
             else:
                 raise IntelligenceError("Unknown content type")
-    except (HTTPError, URLError, TimeoutError, OSError, UnicodeError, json.JSONDecodeError,
+    except HTTPError as exc:
+        return {"source": plan.source, "status": "unavailable", "reason": "HTTPError",
+                "http_status": exc.code, "retry_automatically": False, "cache_hit": False}
+    except (URLError, TimeoutError, OSError, UnicodeError, json.JSONDecodeError,
             ElementTree.ParseError, csv.Error) as exc:
-        # Avoid recording tokenized URLs, headers or response bodies in errors.
         return {"source": plan.source, "status": "unavailable", "reason": type(exc).__name__,
                 "retry_automatically": False, "cache_hit": False}
     from mcp_trendpulse.intelligence_evidence import (
