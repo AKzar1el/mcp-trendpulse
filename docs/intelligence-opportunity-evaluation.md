@@ -133,8 +133,10 @@ automatically recommended product, or success probability.
   geography contributes. "GLOBAL" does not silently mean "any country."
 - **Contradictions**: dissenting publishers force contested/conflict-review
   status; they are not hidden by a positive majority.
-- **Provider failures**: rate-limited, stale, unavailable or unconfigured
+- **Provider failures**: rate-limited, stale, unavailable, invalid-schema or unconfigured
   sources make the lane partial. Unavailable is not interpreted as zero demand.
+  Missing source-health reports are flagged separately; a caller-supplied
+  `ok` flag is not an independent provider audit.
 - **Buyer gate**: public awards are purchasing proxies, not payment to
   your proposed future software; exact claimed buyer identifier is required
   for buyer-interview priority.
@@ -190,6 +192,8 @@ https://www.ycombinator.com/library/6g-how-to-talk-to-users
 | HTTP 429/503 | Short shared per-source cooldown (bounded 30–300 s), no automatic retries |
 | Malformed schema/transport error | Short negative cache, never fake an observed signal |
 | HTTP 200 containing malformed record arrays | Invalid source shape, not fabricated zero observed demand |
+| HTTP 200 with an error envelope and empty results | Reject as provider error, not zero demand |
+| Provider health omitted or incomplete | Explicit unverified-health caveat even for archived evidence |
 | Related hiring feeds both rising | One signal family, no false multi-source corroboration |
 | Trend from outside the selected lane | Unknown, no unrelated-source ranking |
 | Unhealthy trend provider | Coverage degraded, not a rising momentum claim |

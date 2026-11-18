@@ -16,8 +16,6 @@ class UnexpectedSourceShape(ValueError):
 
 def _objects(rows: Any) -> list[dict[str, Any]]:
     if not isinstance(rows, list):
-        raise UnexpectedSourceShape("Expected a list of records")
-    if not isinstance(rows, list):
         raise UnexpectedSourceShape("Expected provider record array, not an error or changed schema")
     if any(not isinstance(row, dict) for row in rows[:20]):
         raise UnexpectedSourceShape("Provider record array contains a malformed entry")
@@ -26,6 +24,15 @@ def _objects(rows: Any) -> list[dict[str, Any]]:
 
 def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
     """Validate distinctive source envelopes, then extract a small source sample."""
+    if isinstance(payload, dict):
+        # Some upstreams reply 200 with both an empty collection and an error
+        # envelope. Such a response must NEVER imply that demand is zero.
+        status = payload.get("status")
+        failed_status = isinstance(status, str) and status.lower() in {
+            "error", "failed", "failure",
+        }
+        if failed_status or any(payload.get(key) for key in ("error", "errors", "fault")):
+            raise UnexpectedSourceShape("Provider returned an error envelope")
     if source in {"cordis", "cellar"}:
         if not isinstance(payload, dict) or not isinstance(payload.get("results"), dict):
             raise UnexpectedSourceShape("Expected SPARQL results object")

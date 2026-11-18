@@ -149,3 +149,23 @@ def test_http_200_schema_drift_is_not_zero_demand(source, payload):
 ])
 def test_legitimate_empty_record_arrays_are_valid(source, payload):
     assert evidence_projection(source, payload)["record_count"] == 0
+
+
+
+@pytest.mark.parametrize(("source", "payload"), [
+    ("openalex", {"results": [], "error": "rate limit"}),
+    ("ted", {"notices": [], "errors": ["backend unavailable"]}),
+    ("github_issues", {"items": [], "status": "failed"}),
+])
+def test_error_envelope_with_empty_collection_is_not_zero_demand(source, payload):
+    with pytest.raises(UnexpectedSourceShape, match="error envelope"):
+        evidence_projection(source, payload)
+
+
+def test_unreported_provider_health_is_explicitly_not_green():
+    row = evaluate(items=[item("github_issues", 1), item("greenhouse_job", 2)])
+    assert not row["provider_health_reported_ok"]
+    assert "Provider health was not reported" in " ".join(row["caveats"])
+    healthy = {source: "ok" for source in LANES["public_cloud_finops"]["sources"]}
+    row = evaluate(health=healthy)
+    assert row["provider_health_reported_ok"]
