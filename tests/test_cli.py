@@ -512,6 +512,32 @@ def test_brief_pack_csv_quotes_and_neutralizes_formula_like_keyword():
     assert rows[0]["latest_index"] == "70.0"
 
 
+@pytest.mark.parametrize("older_date,latest_date", [
+    ("2026-11-14", "2026-11-15"),
+    ("2026-11-15T12:00:00Z", "2026-11-15T15:00:00Z"),
+])
+def test_brief_pack_csv_exposes_per_keyword_market_temporal_alignment(older_date, latest_date):
+    provider = SimpleNamespace(trends=SimpleNamespace(get_trends=AsyncMock(return_value=[
+        {"date": older_date, "keyword": "Alpha", "value": 40},
+        {"date": latest_date, "keyword": "Beta", "value": 70},
+    ])))
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=provider):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-pack", "--keyword", "Alpha", "--keyword", "Beta",
+            "--keyword", "Missing", "--market", "US", "--format", "csv",
+        ])
+
+    assert result.exit_code == 0, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert [row["status"] for row in rows] == [
+        "observed", "observed", "no_valid_observation",
+    ]
+    assert [row["observation_alignment"] for row in rows] == [
+        "older_than_market_latest", "market_latest", "",
+    ]
+    assert "older than market latest" in rows[0]["warnings"]
+
+
 @pytest.mark.parametrize("output_format", ["json", "csv"])
 def test_brief_pack_writes_new_utf8_evidence_file_without_shell_redirect(tmp_path, output_format):
     keyword = "café trends"

@@ -712,7 +712,7 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
             columns = (
                 "source", "source_url", "property", "timeframe", "comparability_note",
                 "market", "keyword", "latest_market_observation", "latest_observation",
-                "latest_index", "growth_3m_pct", "growth_1y_pct", "growth_basis",
+                "observation_alignment", "latest_index", "growth_3m_pct", "growth_1y_pct", "growth_basis",
                 "status", "incomplete", "error_component", "error_code", "retryable",
                 "error_message", "warnings",
             )
@@ -734,6 +734,15 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
                         status = "no_valid_observation"
                     else:
                         status = "observed"
+                    alignment = ""
+                    if status == "observed":
+                        observed_at = _brief_observation_time(item.get("latest_observation"))
+                        market_at = _brief_observation_time(evidence.get("latest_complete_trends_point"))
+                        if observed_at and market_at:
+                            alignment = (
+                                "older_than_market_latest" if observed_at[0] < market_at[0]
+                                else "market_latest"
+                            )
                     values = {
                         "source": "Google Trends",
                         "source_url": "https://trends.google.com/trends/",
@@ -744,6 +753,7 @@ def brief_pack(keywords, markets, timeframe, output_format, output_file, watch_e
                         "keyword": keyword,
                         "latest_market_observation": evidence.get("latest_complete_trends_point"),
                         "latest_observation": item.get("latest_observation"),
+                        "observation_alignment": alignment,
                         "latest_index": item.get("latest_index"),
                         "growth_3m_pct": item.get("growth_3m_pct"),
                         "growth_1y_pct": item.get("growth_1y_pct"),
