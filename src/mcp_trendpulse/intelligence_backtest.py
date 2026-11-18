@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from mcp_trendpulse.intelligence_opportunities import (
@@ -31,6 +31,7 @@ def walk_forward_evaluation(
         raise ValueError("Historical examples must be bounded JSON") from exc
     by_cutoff: dict[str, list[dict[str, Any]]] = defaultdict(list)
     invalid = []
+    outcome_references = set()
     for index, row in enumerate(examples):
         try:
             if not isinstance(row, dict):
@@ -39,11 +40,15 @@ def walk_forward_evaluation(
             outcome_at = _day(row.get("outcome_at"), "outcome_at")
             if outcome_at <= asof + timedelta(days=29):
                 raise ValueError("Outcome must follow a 30-day forward observation window")
+            if outcome_at > date.today():
+                raise ValueError("Outcome may not be a future event")
             if row.get("outcome") not in {"paid_pilot", "no_purchase"}:
                 raise ValueError("Outcome must be paid_pilot or no_purchase")
             if row.get("outcome_verified") is not True:
                 raise ValueError("Outcome must be explicitly attested by data owner")
-            _safe_url(row.get("outcome_url"))
+            outcome_reference = _safe_url(row.get("outcome_url"))
+            if outcome_reference in outcome_references:
+                raise ValueError("Duplicate outcome URL across historical examples")
             candidate = row.get("candidate")
             evidence = row.get("evidence")
             evaluated = evaluate_opportunities([candidate], evidence, as_of=asof.isoformat())
@@ -51,6 +56,7 @@ def walk_forward_evaluation(
             if evaluated["rejected_count"]:
                 raise ValueError("Historical input contains invalid evidence")
             # Future evidence is discarded, never retrospectively considered.
+            outcome_references.add(outcome_reference)
             by_cutoff[asof.isoformat()].append({
                 "id": decision["id"],
                 "status": decision["status"],

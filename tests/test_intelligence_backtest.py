@@ -119,3 +119,20 @@ def test_unsupported_k_and_oversize_are_rejected():
         walk_forward_evaluation(eight(), k=True)
     with pytest.raises(ValueError):
         walk_forward_evaluation(eight() * 30)
+
+
+
+def test_duplicate_historical_outcome_is_not_counted_twice():
+    rows = eight()
+    rows[1]["outcome_url"] = rows[0]["outcome_url"]
+    result = walk_forward_evaluation(rows)
+    assert result["rejected_count"] == 1
+    assert result["status"] == "insufficient_verified_outcomes"
+
+
+def test_future_claimed_sales_label_is_rejected():
+    rows = eight()
+    rows[0]["outcome_at"] = "2030-01-01"
+    result = walk_forward_evaluation(rows)
+    assert result["rejected_count"] == 1
+    assert result["status"] == "insufficient_verified_outcomes"
