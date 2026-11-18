@@ -16,7 +16,7 @@ CASES = (
     ("eurostat", {"dataset": "nama_10_gdp", "country": "DE", "limit": 2}),
     ("ted", {"keyword": "PD = (20261001 <> 20261031)", "limit": 2}),
     ("cellar", {"keyword": "battery", "limit": 2}),
-    ("github_issues", {"keyword": "webhook", "limit": 2}),
+    ("github_issues", {"keyword": "mcp", "identifier": "modelcontextprotocol/servers", "limit": 1}),
     ("worldbank", {"country": "US", "identifier": "NY.GDP.MKTP.CD", "limit": 2}),
     ("greenhouse", {"company": "mozilla", "limit": 2}),
     ("smartrecruiters", {"company": "BoschGroup", "limit": 2}),

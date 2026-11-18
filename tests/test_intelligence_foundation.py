@@ -96,3 +96,13 @@ def test_collect_preserves_provenance_and_source_accept_header(tmp_path, monkeyp
     assert headers_seen["url"] == plan.url
     again = collect(plan, cache=BudgetCache(tmp_path), fetch=True)
     assert again["cache_hit"] is True
+
+
+
+def test_github_issues_bounded_repo_selector():
+    p = plan_source("github_issues", keyword="timeout",
+                    identifier="microsoft/playwright", limit=1)
+    assert "repo%3Amicrosoft%2Fplaywright" in p.url
+    assert "per_page=1" in p.url
+    with pytest.raises(IntelligenceError, match="owner/repo"):
+        plan_source("github_issues", keyword="timeout", identifier="../private")

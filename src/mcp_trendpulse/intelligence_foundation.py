@@ -95,6 +95,13 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
     if source == "github_issues":
         terms = _required(keyword, "keyword")
         query = f'"{terms}" is:issue is:open'
+        owner_repo = p["identifier"]
+        if owner_repo:
+            # Narrow extremely large issue-search responses to one named public
+            # repository. Free-text phrases cannot inject GitHub search operators.
+            if re.fullmatch(r"[A-Za-z0-9_.-]{1,39}/[A-Za-z0-9_.-]{1,100}", owner_repo) is None:
+                raise IntelligenceError("GitHub repo selector must be owner/repo")
+            query += f" repo:{owner_repo}"
         url = "https://api.github.com/search/issues?" + urlencode(
             {"q": query, "per_page": limit, "sort": "updated", "order": "desc"})
         return Plan(method="GET", url=url, budget_per_day=12, **common)
