@@ -82,6 +82,15 @@ CONTEXT_ONLY = {
     "financial_context", "corporate_registry", "energy_activity",
     "satellite_catalogue", "patent_publication", "monitoring", "manifest_only",
 }
+# Event streams may support daily counts after verifying complete collection.
+# Static catalogues, macroeconomic indexes, batch manifests and entity registries
+# cannot legitimately produce daily topical event momentum.
+TREND_SOURCES = {
+    "github_issues", "cfpb", "ted", "usaspending", "cordis",
+    "greenhouse", "greenhouse_job", "lever", "ashby", "smartrecruiters",
+    "openalex", "epo", "rsshub_local", "changedetection_local",
+}
+
 SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{1,79}$")
 REGION = re.compile(r"^(?:[A-Z]{2}|GLOBAL)$")
 HEALTH = {"ok", "unavailable", "rate_limited", "timeout", "stale", "not_configured"}
@@ -235,6 +244,9 @@ def _trend(trends: Any, candidate: dict[str, str], asof: date) -> dict[str, Any]
         src = row.get("source")
         if src not in SOURCE_KIND:
             raise ValueError("Unknown trend source")
+        if src not in TREND_SOURCES:
+            invalid = True
+            continue
         day = _day(row.get("day"), "trend.day")
         if day > asof:
             continue

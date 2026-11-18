@@ -138,7 +138,9 @@ automatically recommended product, or success probability.
 
 Trend detection requires a complete 28-day collection (14 prior + 14
 recent days) of daily event counts, **including zero-event days**, for
-each provider. Each row must identify source, geography, day, unit
+each supported dated-event provider. Static company registries, GDP indexes,
+Copernicus catalogue metadata and GDELT batch manifests **cannot** provide
+topical momentum from this source adapter. Each row must identify source, geography, day, unit
 `daily_events`, value and confirmed coverage. Sparse series, missing
 days, differing units/geographies, future samples or contradictory signals
 return unknown/conflicted rather than manufactured momentum. The evaluator

@@ -305,3 +305,10 @@ def test_invalid_aggregate_health_metadata_cannot_silently_rank():
         evaluation(source_health={"github_issues": ["timeout"]})
     with pytest.raises(ValueError, match="source_health"):
         evaluation(source_health={"ghost-provider": "ok"})
+
+
+
+def test_batch_manifest_or_static_catalogue_cannot_claim_topical_growth():
+    for source in ("gdelt_latest", "copernicus", "gleif", "eurostat"):
+        result = evaluation(daily_trends=_series(source))
+        assert result["results"][0]["trend"]["status"] == "unknown"
