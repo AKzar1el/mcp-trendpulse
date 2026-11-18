@@ -187,3 +187,100 @@ def review_saved_brief(raw, *, output_format="text"):
         *caveats,
     ]
     return "\n".join(lines) + "\n", needs_attention
+
+
+def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
+    """Compare saved evidence *coverage*, never normalized interest indices."""
+    if output_format not in ("text", "json"):
+        raise ValueError("Unsupported Demand Brief comparison format")
+    before_text, _ = review_saved_brief(before_raw, output_format="json")
+    after_text, needs_review = review_saved_brief(after_raw, output_format="json")
+    before_report, after_report = json.loads(before_text), json.loads(after_text)
+    if before_report["timeframe"] != after_report["timeframe"]:
+        raise ValueError("Snapshots not comparable: timeframe differs")
+
+    # Both inputs are already fully validated by review_saved_brief above.
+    before_data = json.loads(before_raw.decode("utf-8-sig"))
+    after_data = json.loads(after_raw.decode("utf-8-sig"))
+    before_markets = {m["market"]: m for m in before_report["markets"]}
+    after_markets = {m["market"]: m for m in after_report["markets"]}
+    before_failures = {m["market"]: m["code"] for m in before_report["failed_markets"]}
+    after_failures = {m["market"]: m["code"] for m in after_report["failed_markets"]}
+    before_scope = set(before_markets) | set(before_failures)
+    after_scope = set(after_markets) | set(after_failures)
+    if before_scope != after_scope:
+        raise ValueError("Snapshots not comparable: market scope differs")
+
+    def keywords_by_market(document):
+        return {
+            market["market"]: {word["keyword"].strip().casefold() for word in market["keywords"]}
+            for market in document["markets"]
+        }
+
+    before_keywords = keywords_by_market(before_data)
+    after_keywords = keywords_by_market(after_data)
+    for market in before_scope:
+        if market in before_keywords and market in after_keywords:
+            if before_keywords[market] != after_keywords[market]:
+                raise ValueError(f"Snapshots not comparable: keyword scope differs in {market}")
+
+    def snapshot(market, records, failures):
+        item = records.get(market)
+        return {
+            "observed_keywords": item["observed_keywords"] if item else None,
+            "total_keywords": item["total_keywords"] if item else None,
+            "latest_market_observation": item["latest_market_observation"] if item else None,
+            "warning_count": item["warning_count"] if item else None,
+            "growth_unavailable": item["growth_unavailable"] if item else None,
+            "failure_code": failures.get(market),
+        }
+
+    comparisons = []
+    for market in sorted(before_scope):
+        earlier = snapshot(market, before_markets, before_failures)
+        later = snapshot(market, after_markets, after_failures)
+        delta = None
+        if earlier["observed_keywords"] is not None and later["observed_keywords"] is not None:
+            delta = later["observed_keywords"] - earlier["observed_keywords"]
+        comparisons.append({
+            "market": market,
+            "before": earlier,
+            "after": later,
+            "primary_coverage_change": delta,
+        })
+
+    caveats = [
+        "Do not compare normalized relative-interest indices across captures or markets.",
+        "File order is user-declared; capture chronology and provider provenance are not authenticated.",
+        "Missing market records do not establish an identical keyword scope; coverage delta is unknown.",
+    ]
+    report = {
+        "schema_version": 1,
+        "comparison": "coverage_only",
+        "source_authenticated": False,
+        "timeframe": before_report["timeframe"],
+        "needs_human_review": needs_review,
+        "markets": comparisons,
+        "caveats": caveats,
+    }
+    if output_format == "json":
+        return json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True) + "\n", needs_review
+
+    lines = [
+        "TrendPulse saved Demand Brief evidence coverage comparison (offline)",
+        f"Timeframe: {report['timeframe']}",
+    ]
+    for item in comparisons:
+        def count(data):
+            observed, total = data["observed_keywords"], data["total_keywords"]
+            return "unavailable" if observed is None else f"{observed}/{total}"
+
+        lines.append(f"{item['market']}: {count(item['before'])} -> {count(item['after'])} "
+                     f"(primary coverage delta: {item['primary_coverage_change']})")
+        lines.append(f"  Latest observations: {item['before']['latest_market_observation'] or 'n/a'} "
+                     f"-> {item['after']['latest_market_observation'] or 'n/a'}; "
+                     f"failure codes: {item['before']['failure_code'] or 'none'} "
+                     f"-> {item['after']['failure_code'] or 'none'}")
+    lines.append("Assessment: current snapshot needs human review" if needs_review else
+                 "Assessment: current snapshot structurally complete; review warnings")
+    return "\n".join([*lines, *caveats]) + "\n", needs_review

@@ -2084,3 +2084,109 @@ def test_brief_review_json_keeps_growth_failure_separate_from_primary_evidence(t
     assert report["markets"][1]["growth_unavailable"] is True
     assert report["failed_markets"] == [{"market": "GB", "component": "growth", "code": "timeout"}]
     assert "provider timeout" not in result.output
+
+
+def test_brief_compare_offline_json_tracks_primary_coverage_without_indices(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    evidence = json.loads(before.read_text(encoding="utf-8"))
+    evidence["markets"][0]["keywords"][1]["latest_index"] = None
+    evidence["markets"][0]["keywords"][1]["latest_observation"] = None
+    before.write_text(json.dumps(evidence), encoding="utf-8")
+    evidence["markets"][0]["keywords"][1]["latest_index"] = 42
+    evidence["markets"][0]["keywords"][1]["latest_observation"] = "2026-11-18"
+    after.write_text(json.dumps(evidence), encoding="utf-8")
+    original = before.read_bytes(), after.read_bytes()
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("provider called")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-compare", "--before", str(before), "--after", str(after), "--format", "json",
+        ])
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report["comparison"] == "coverage_only"
+    assert report["source_authenticated"] is False
+    us = next(m for m in report["markets"] if m["market"] == "US")
+    assert us["before"]["observed_keywords"] == 1
+    assert us["after"]["observed_keywords"] == 2
+    assert us["primary_coverage_change"] == 1
+    assert "42" not in result.output  # No relative-interest index comparison
+    assert any("not compare" in caveat for caveat in report["caveats"])
+    assert (before.read_bytes(), after.read_bytes()) == original
+
+
+def test_brief_compare_current_missing_evidence_preserves_exit_two(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    evidence = json.loads(before.read_text(encoding="utf-8"))
+    evidence["markets"][1]["keywords"][0]["latest_index"] = None
+    evidence["markets"][1]["keywords"][0]["latest_observation"] = None
+    after.write_text(json.dumps(evidence), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after),
+    ])
+    assert result.exit_code == 2
+    assert "GB: 2/2 -> 1/2" in result.output
+    assert "current snapshot needs human review" in result.output.lower()
+
+
+@pytest.mark.parametrize("mismatch", ["timeframe", "keywords", "market"])
+def test_brief_compare_rejects_incompatible_snapshot_scopes(tmp_path, mismatch):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    evidence = json.loads(before.read_text(encoding="utf-8"))
+    if mismatch == "timeframe":
+        evidence["timeframe"] = "today 3-m"
+    elif mismatch == "keywords":
+        for market in evidence["markets"]:
+            market["keywords"][0]["keyword"] = "Different phrase"
+    else:
+        evidence["markets"][0]["market"] = "CA"
+    after.write_text(json.dumps(evidence), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after),
+    ])
+    assert result.exit_code == 1
+    assert "not comparable" in result.output.lower()
+
+
+def test_brief_compare_rejects_oversized_snapshot_and_invalid_duplicate_json(tmp_path):
+    from mcp_trendpulse.brief_review import MAX_EVIDENCE_BYTES
+
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    after.write_bytes(b" " * (MAX_EVIDENCE_BYTES + 1))
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after),
+    ])
+    assert result.exit_code == 1 and "exceeds 1 MiB" in result.output
+    after.write_text(before.read_text(encoding="utf-8").replace(
+        '"schema_version": 1', '"schema_version": 1, "schema_version": 1'
+    ), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after),
+    ])
+    assert result.exit_code == 1 and "Duplicate JSON key" in result.output
+
+
+def test_brief_compare_primary_provider_failure_does_not_fabricate_delta(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    evidence = json.loads(before.read_text(encoding="utf-8"))
+    evidence["markets"] = [market for market in evidence["markets"] if market["market"] != "GB"]
+    evidence["failed_markets"] = [{
+        "market": "GB", "component": None, "code": "rate_limited",
+        "retryable": True, "message": "private provider error message",
+    }]
+    evidence["incomplete"] = True
+    after.write_text(json.dumps(evidence), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after), "--format", "json",
+    ])
+    assert result.exit_code == 2
+    report = json.loads(result.output)
+    gb = next(m for m in report["markets"] if m["market"] == "GB")
+    assert gb["before"]["observed_keywords"] == 2
+    assert gb["after"]["observed_keywords"] is None
+    assert gb["after"]["failure_code"] == "rate_limited"
+    assert gb["primary_coverage_change"] is None
+    assert "private provider error message" not in result.output
