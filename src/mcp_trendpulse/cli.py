@@ -374,7 +374,7 @@ def brief_review(evidence, review_format):
 @cli.command("brief-compare", help="Compare saved Demand Brief evidence coverage offline.")
 @click.option("--before", "before_path", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
 @click.option("--after", "after_path", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
-@click.option("--format", "compare_format", type=click.Choice(["text", "json", "csv"]), default="text", show_default=True)
+@click.option("--format", "compare_format", type=click.Choice(["text", "json", "csv", "keyword-csv"]), default="text", show_default=True)
 @click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
               help="Save the comparison to a new UTF-8 file; never overwrite existing files.")
 def brief_compare(before_path, after_path, compare_format, output_file):
