@@ -160,6 +160,10 @@ def _candidate(raw: Any) -> dict[str, str]:
         "title": _string(raw.get("title"), "candidate.title", 140),
         "workflow": _ident(raw.get("workflow"), "candidate.workflow"),
         "buyer": _string(raw.get("buyer", ""), "candidate.buyer", 100, required=False),
+        "buyer_entity": (
+            _ident(raw["buyer_entity"], "buyer_entity")
+            if raw.get("buyer_entity") else ""
+        ),
     }
 
 
@@ -190,6 +194,10 @@ def _evidence(raw: Any, asof: date) -> dict[str, Any]:
         "url": _safe_url(raw.get("url")),
         "published": pub, "observed": observed,
         "polarity": sentiment,
+        "buyer_entity": (
+            _ident(raw["buyer_entity"], "evidence.buyer_entity")
+            if raw.get("buyer_entity") else ""
+        ),
         "claim": _string(raw.get("claim"), "evidence.claim", 320),
         "visible_at_asof": pub <= asof and observed <= asof,
     }
@@ -200,6 +208,8 @@ def _trend(trends: Any, candidate: dict[str, str], asof: date) -> dict[str, Any]
         return {"status": "unknown", "reason": "No comparable dated daily measurements"}
     if not isinstance(trends, list) or len(trends) > 900:
         raise ValueError("At most 900 daily trend observations")
+    if len(json.dumps(trends, ensure_ascii=False).encode("utf-8")) > 180_000:
+        raise ValueError("Trend observations exceed 180 KB")
     selected: dict[str, dict[date, float]] = defaultdict(dict)
     invalid = False
     for row in trends:
@@ -347,6 +357,12 @@ def evaluate_opportunities(
         buyer_proxy = "public_award" in kinds
         pain_proxy = bool(kinds & {"reported_problem", "hiring"})
         known_buyer = bool(candidate["buyer"])
+        buyer_linked_award = bool(
+            candidate["buyer_entity"] and any(
+                x["kind"] == "public_award"
+                and x["buyer_entity"] == candidate["buyer_entity"] for x in supportive
+            )
+        )
         degraded = any(
             health.get(src) in {"unavailable", "rate_limited", "timeout",
                                 "stale", "not_configured"}
@@ -358,7 +374,7 @@ def evaluate_opportunities(
         elif against:
             stage = "contested"
             priority = 0
-        elif class_count >= 3 and independent >= 3 and substantive and buyer_proxy and pain_proxy and known_buyer:
+        elif class_count >= 3 and independent >= 3 and substantive and buyer_proxy and pain_proxy and known_buyer and buyer_linked_award:
             stage = "buyer_interview_priority"
             priority = 3
         elif class_count >= 2 and independent >= 2 and substantive:
@@ -392,6 +408,8 @@ def evaluate_opportunities(
             reasons.append("No public contract award was observed (not required for investigation)")
         if buyer_proxy:
             reasons.append("Public award is a buying proxy, NOT proof of product-market fit")
+        if buyer_proxy and not buyer_linked_award:
+            reasons.append("Awarding buyer identity has not been matched to the candidate")
         if not reasons:
             reasons = ["No buyer payment, purchase intent, or market-size forecast has been verified"]
         result = {
