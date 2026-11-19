@@ -355,7 +355,7 @@ def format_broad_topic_scan(scan: dict[str, Any]) -> list[str]:
     lines.append(
         "  This is a bounded source-count scan, not all 4,516 topics "
         "or a survey of emerging product niches; source indexing/classifier "
-        "changes can revise historical counts. No Google keyword demand, "
-        "product adoption, buyers or market growth is verified."
+        "changes can revise historical counts. Google keyword demand, "
+        "product adoption, buyers and market growth are NOT verified."
     )
     return lines
