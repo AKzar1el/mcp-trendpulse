@@ -439,10 +439,18 @@ def _bounded_openalex_topic_groups(payload: Any) -> dict[str, Any]:
         if not isinstance(row, dict):
             compact.append({})
             continue
+        key = row.get("key")
+        label = row.get("key_display_name")
+        count = row.get("count")
         compact.append({
-            "key": _bound_payload(row.get("key")),
-            "key_display_name": _bound_payload(row.get("key_display_name")),
-            "count": _bound_payload(row.get("count")),
+            "key": key[:90] if isinstance(key, str) else None,
+            "key_display_name": (
+                label[:150] if isinstance(label, str) else None
+            ),
+            "count": (
+                count if isinstance(count, int) and not isinstance(count, bool)
+                else None
+            ),
         })
     return {"meta": {"count": corpus_count}, "group_by": compact}
 

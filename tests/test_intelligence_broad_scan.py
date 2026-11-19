@@ -153,7 +153,7 @@ def test_broad_scan_measures_shared_top100_not_missing_groups_as_zero(monkeypatc
     assert calls == [0, 1, 2]
     assert result["status"] == "observed_bounded_top100_overlap"
     assert result["source_requests"] == 3
-    assert result["max_source_requests"] == 3
+    assert result["max_source_requests"] == 9
     assert result["topic_groups_observed_per_period"] == [2, 2, 3]
     assert result["compared_topic_ids_present_in_all_three_pages"] == 2
     assert result["not_comparable_groups_due_to_ranking_truncation"] == 1
@@ -273,9 +273,10 @@ def test_ranking_gap_is_measured_with_three_actual_source_counts(monkeypatch):
     assert row["historical_cells_verified_by_direct_count"] is True
     assert row["market_growth_verified"] is False
     assert result["buyer_or_market_growth_verified"] is False
-    assert "three additional source-count checks" in "\n".join(
-        broad.format_broad_topic_scan(result)
-    )
+    rendered = "\n".join(broad.format_broad_topic_scan(result))
+    assert "three additional source-count checks" in rendered
+    assert "undefined (measured zero first-period baseline)" in rendered
+    assert "+inf" not in rendered
 
 
 def test_missing_top100_ranking_can_hide_stable_topic_not_false_emergence(

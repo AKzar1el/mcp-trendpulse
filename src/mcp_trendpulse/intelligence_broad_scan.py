@@ -326,6 +326,12 @@ def format_broad_topic_scan(scan: dict[str, Any]) -> list[str]:
         )
     for i, row in enumerate(signals, 1):
         change = row["oldest_to_recent_share_change_percent"]
+        if isinstance(change, (int, float)) and not isinstance(change, bool):
+            change_label = f"{change:+.1f}%"
+        else:
+            # A source-confirmed zero baseline makes percentage growth
+            # mathematically undefined. Do not fabricate infinity/100%.
+            change_label = "undefined (measured zero first-period baseline)"
         mode = (
             "three additional source-count checks"
             if row["historical_cells_verified_by_direct_count"]
@@ -334,7 +340,7 @@ def format_broad_topic_scan(scan: dict[str, Any]) -> list[str]:
         lines.append(
             f"  {i}. {row['label']} [{row['topic_id']}] "
             f"— {row['direction'].replace('_', ' ')} | "
-            f"source-normalized research share {change:+.1f}%"
+            f"source-normalized research share change {change_label}"
         )
         lines.append("     Evidence: " + mode)
         lines.append(
