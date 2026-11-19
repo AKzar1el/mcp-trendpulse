@@ -112,6 +112,9 @@ TREND_FAMILIES = {
 }
 UNHEALTHY = {"unavailable", "rate_limited", "timeout", "stale",
              "not_configured", "invalid_source_shape"}
+# Patents are contextual enrichment, not a buying-signal requirement.
+# EPO may require invasive registration and is never needed to use a lane.
+OPTIONAL_ENRICHMENT_SOURCES = {"epo"}
 
 SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{1,79}$")
 REGION = re.compile(r"^(?:[A-Z]{2}|GLOBAL)$")
@@ -438,15 +441,24 @@ def evaluate_opportunities(
                 and x["buyer_entity"] == candidate["buyer_entity"] for x in supportive
             )
         )
+        # Absence of optional patent-enrichment credentials is NOT a
+        # failed buyer/workflow investigation. An actual missing core source is.
         degraded = any(
             health.get(src) in UNHEALTHY
             for src in LANES[candidate["lane"]]["sources"]
+            if src not in OPTIONAL_ENRICHMENT_SOURCES
         )
         # Caller-supplied archived evidence may still be useful, but missing
         # provider status is not equivalent to a verified healthy source.
         provider_health_reported_ok = all(
             health.get(src) == "ok" for src in LANES[candidate["lane"]]["sources"]
+            if src not in OPTIONAL_ENRICHMENT_SOURCES
         )
+        optional_sources_unavailable = [
+            src for src in LANES[candidate["lane"]]["sources"]
+            if src in OPTIONAL_ENRICHMENT_SOURCES
+            and health.get(src) != "ok"
+        ]
         if len({x["publisher"] for x in against}) >= 2:
             stage = "conflict_review"
             priority = 0
@@ -483,6 +495,8 @@ def evaluate_opportunities(
             reasons.append("One or more relevant provider signals are unavailable")
         elif not provider_health_reported_ok:
             reasons.append("Provider health was not reported for every lane source")
+        if optional_sources_unavailable:
+            reasons.append("Optional patent enrichment not verified; this is not negative demand")
         if rejected:
             reasons.append("Some evidence input records were rejected; inspect reasons")
         if not buyer_proxy:
@@ -499,6 +513,7 @@ def evaluate_opportunities(
             "workflow": candidate["workflow"], "geography": candidate["geography"],
             "status": stage, "priority_order": priority,
             "provider_health_reported_ok": provider_health_reported_ok,
+            "optional_enrichment_unavailable": optional_sources_unavailable,
             "independent_publishers": independent,
             "evidence_classes": sorted(kinds),
             "distinct_classes": class_count,

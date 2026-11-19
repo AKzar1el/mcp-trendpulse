@@ -169,3 +169,53 @@ def test_unreported_provider_health_is_explicitly_not_green():
     healthy = {source: "ok" for source in LANES["public_cloud_finops"]["sources"]}
     row = evaluate(health=healthy)
     assert row["provider_health_reported_ok"]
+
+
+@pytest.mark.parametrize("lane", [
+    "research_to_product", "research_procurement", "industrial_maintenance",
+])
+def test_unconfigured_optional_epo_does_not_degrade_other_free_sources(lane):
+    c = {
+        "id": "research-watch", "title": "Research workflow research",
+        "lane": lane, "geography": "US", "workflow": "research_review",
+        "buyer": "Procurement team",
+    }
+    sources = LANES[lane]["sources"]
+    from mcp_trendpulse.intelligence_opportunities import evaluate_opportunities
+
+    healthy = {source: "ok" for source in sources}
+    missing_patent = dict(healthy)
+    missing_patent["epo"] = "not_configured"
+    row = {
+        "id": "report-one", "candidate": c["id"],
+        "source": sources[0], "origin_id": "record-one",
+        "publisher": "publisher-one", "geography": "US",
+        "workflow": "research_review",
+        "url": "https://example.org/public/report-one",
+        "published_at": "2026-11-11", "observed_at": "2026-11-12",
+        "claim": "Synthetic corroborated research",
+    }
+    before = evaluate_opportunities([c], [row], as_of="2026-11-18",
+                                    source_health=healthy)["results"][0]
+    after = evaluate_opportunities([c], [row], as_of="2026-11-18",
+                                   source_health=missing_patent)["results"][0]
+    assert after["priority_order"] == before["priority_order"]
+    assert after["provider_health_reported_ok"] is True
+    assert after["optional_enrichment_unavailable"] == ["epo"]
+    assert after["source_health"]["epo"] == "not_configured"
+
+
+def test_missing_core_provider_still_degrades_when_epo_is_optional():
+    from mcp_trendpulse.intelligence_opportunities import evaluate_opportunities
+    c = {
+        "id": "research-watch", "title": "Research workflow research",
+        "lane": "research_to_product", "geography": "US",
+        "workflow": "research_review", "buyer": "Procurement team",
+    }
+    health = {src: "ok" for src in LANES["research_to_product"]["sources"]}
+    health["epo"] = "not_configured"
+    health["cordis"] = "timeout"
+    r = evaluate_opportunities([c], [], as_of="2026-11-18",
+                               source_health=health)["results"][0]
+    assert r["provider_health_reported_ok"] is False
+    assert any("provider signals are unavailable" in x for x in r["caveats"])

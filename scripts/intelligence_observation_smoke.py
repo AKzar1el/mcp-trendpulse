@@ -39,7 +39,15 @@ def main() -> int:
                     "error_type": type(exc).__name__,
                 })
             else:
-                diagnostics.append({"source": source, "status": status})
+                diagnostics.append({
+                    "source": source, "status": status,
+                    "reason": response.get("reason") if response.get("reason") in {
+                        "HTTPError", "TimeoutError", "URLError", "provider_cooldown",
+                        "invalid_source_shape", "not_configured",
+                    } else None,
+                    "http_status": response.get("http_status")
+                    if isinstance(response.get("http_status"), int) else None,
+                })
             if status not in {"observed", "unavailable", "invalid_source_shape", "rate_limited"}:
                 raise AssertionError("Unexpected provider status")
             snapshots.append(response)

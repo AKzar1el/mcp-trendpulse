@@ -328,3 +328,15 @@ unavailability is explicitly marked inconclusive and blocks a claimed
 successful integration; no API keys, company records or raw public responses
 are uploaded. Results are **compatibility and provenance tests**, not
 validated trend forecasts or winning companies.
+
+
+### No EPO credential required
+
+Patent publication data are **optional context**, not mandatory buying evidence.
+`research_to_product`, `research_procurement` and
+`industrial_maintenance` continue to triage based on their other free
+sources if EPO OPS is unconfigured. The provider status remains visible and
+the report labels missing optional enrichment explicitly, but does not
+artificially downgrade the primary buyer/workflow investigation. An actual
+failure of a required source still degrades the lane. There is no EPO
+registration requirement, paywall, or paid substitute for TrendPulse.
