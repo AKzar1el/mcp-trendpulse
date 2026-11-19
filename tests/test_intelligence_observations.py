@@ -259,3 +259,16 @@ def test_unrelated_topic_never_treated_as_credible_cross_source_overlap():
     row = next(r for r in x["eighteen_lane_coverage"] if r["lane"] == "research_to_product")
     assert row["distinct_topic_evidence_classes"] == 1
     assert row["decision"] == "insufficient_topical_cross_source_evidence"
+
+
+def test_cfpb_public_product_and_issue_are_observable_without_narratives():
+    response = review([observed("cfpb", [{
+        "public_complaint_id": "987654",
+        "product": "Credit card", "issue": "Incorrect fees",
+        "narrative": "CONFIDENTIAL_NOT_FOR_HUNTER",
+        "date_received": "2026-11-18",
+    }])])
+    item = response["sample_records"][0]
+    assert item["title"] == "Credit card - Incorrect fees"
+    assert item["consumer_product"] == "Credit card"
+    assert "CONFIDENTIAL_NOT_FOR_HUNTER" not in repr(response)

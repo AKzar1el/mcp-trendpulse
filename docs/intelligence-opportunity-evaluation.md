@@ -412,3 +412,8 @@ Current official API references:
 https://help.openalex.org/api/filtering/
 https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests
 https://cfpb.github.io/ccdb5-api/
+
+
+### Human-readable watchlists
+
+Pass `--format text` together with `--execute` for a compact numbered list of ranked current activity, dates, source references, coverage warnings and next steps. Agents retain the default JSON format. Source titles have terminal control characters stripped. CFPB observations combine public product and issue categories, without personal complaint narratives. Topic matching now normalizes simple plurals, but never claims semantic equivalence or verified growth.

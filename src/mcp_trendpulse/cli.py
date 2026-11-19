@@ -874,9 +874,14 @@ def intelligence_sources(wave):
               help="Explicitly perform bounded, free, read-only source requests.")
 @click.option("--record-history", is_flag=True,
               help="Opt in to local metadata-only SQLite history (requires --execute).")
-def intelligence_hunt(topics, sources, lookback_days, execute, record_history):
+@click.option("--format", "output_format", type=click.Choice(["json", "text"]),
+              default="json", show_default=True)
+def intelligence_hunt(topics, sources, lookback_days, execute, record_history,
+                      output_format):
     """Rank fresh public-source observations without requiring a historical baseline."""
-    from mcp_trendpulse.intelligence_hunter import hunt_current, record_hunt_history
+    from mcp_trendpulse.intelligence_hunter import (
+        format_hunt_report, hunt_current, record_hunt_history,
+    )
 
     try:
         if record_history and not execute:
@@ -891,7 +896,10 @@ def intelligence_hunt(topics, sources, lookback_days, execute, record_history):
             result["history"] = record_hunt_history(result)
     except (OSError, ValueError, TypeError) as exc:
         raise click.ClickException(str(exc)) from exc
-    click.echo(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    if output_format == "text" and execute:
+        click.echo(format_hunt_report(result))
+    else:
+        click.echo(json.dumps(result, ensure_ascii=False, sort_keys=True))
 
 
 @intelligence.command("observe")

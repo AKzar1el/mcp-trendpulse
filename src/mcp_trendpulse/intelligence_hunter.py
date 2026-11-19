@@ -84,7 +84,17 @@ def _sources(sources: list[str] | None) -> list[str]:
 
 
 def _words(value: str) -> list[str]:
-    return [x for x in WORD.findall(value.lower()) if x not in NOISE and len(x) >= 3]
+    tokens = []
+    for word in WORD.findall(value.lower()):
+        # Limited plural normalization for cost/costs and study/studies.
+        # This is lexical matching, never semantic proof of the same demand.
+        if word.endswith("ies") and len(word) >= 6:
+            word = word[:-3] + "y"
+        elif word.endswith("s") and not word.endswith("ss") and len(word) >= 5:
+            word = word[:-1]
+        if word not in NOISE and len(word) >= 3:
+            tokens.append(word)
+    return tokens
 
 
 def _relevant(topic: str, title: str) -> bool:
@@ -351,3 +361,42 @@ def record_hunt_history(
         "no_raw_records_or_keys_saved": True,
         "growth_or_purchase_validated": False,
     }
+
+
+def format_hunt_report(result: dict[str, Any]) -> str:
+    """Compact human-facing watchlist; never display auth headers."""
+    if result.get("mode") != "fresh_source_activity_hunt_not_market_growth_forecast":
+        raise ValueError("Text presentation requires a completed current hunt")
+    lines = [
+        f"CURRENT ACTIVITY WATCHLIST | {result['as_of']} | last {result['lookback_days']} days",
+        "Investigation leads only: not verified market growth or buyers.",
+        "",
+    ]
+    for index, row in enumerate(result["topics"], start=1):
+        lines.append(
+            f"{index}. {row['topic'].upper()} | priority {row['investigation_priority']}/3 "
+            f"| {row['status']}"
+        )
+        lines.append(
+            f"   Dated samples: {row['recent_dated_records_in_sample']} "
+            f"({row['recent_7_day_records_in_sample']} from last seven days); "
+            f"evidence classes: {row['distinct_recent_source_classes']}"
+        )
+        if row["provider_coverage_degraded"]:
+            lines.append("   Coverage incomplete: one or more providers unavailable")
+        for item in row["evidence"][:3]:
+            # Publisher titles are untrusted. Strip terminal control codes.
+            raw = str(item.get("title") or "")
+            title = "".join(ch if ch.isprintable() else " " for ch in raw)
+            title = " ".join(title.split())[:75]
+            lines.append(f"   - {item['source']} {item['event_date']}: {title}")
+            lines.append(f"     {item['reference']}")
+        lines.append(f"   Next: {row['follow_up']}")
+        lines.append("")
+    lines.append(
+        "Growth direction unknown without comparable, coverage-verified baseline measurements."
+    )
+    lines.append(
+        "Use --record-history to preserve minimal metadata for later comparison."
+    )
+    return "\n".join(lines)

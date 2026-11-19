@@ -296,3 +296,22 @@ def test_history_rejects_planned_or_fake_reports(tmp_path):
 def test_hunter_input_snapshot_boundary_errors_visible():
     with pytest.raises(ValueError):
         report(batch("battery recycling", {"source": "nonsense", "status": "observed"}))
+
+
+def test_current_hunt_human_readable_summary_is_safe():
+    r = report(batch("battery recycling",
+                     observed("github_issues", [issue()]),
+                     observed("openalex", [article()])))
+    output = hunter.format_hunt_report(r)
+    assert "CURRENT ACTIVITY WATCHLIST" in output
+    assert "BATTERY RECYCLING" in output
+    assert "https://openalex.org/W2741809807" in output
+    assert "Growth direction unknown" in output
+    assert "Bearer" not in output
+
+
+def test_simple_plurals_count_as_lexical_overlap_not_semantic_similarity():
+    r = report(batch("cloud cost management", observed("github_issues", [
+        issue("Cloud costs management budget problem"),
+    ])))
+    assert r["topics"][0]["status"] == "current_single_source_activity"

@@ -171,8 +171,13 @@ def _entry(source: str, raw: dict[str, Any], asof: date) -> dict[str, Any] | Non
         ident = _key(raw.get("public_complaint_id"))
         if not ident:
             return None
+        product = _text(raw.get("product"), 70)
+        issue = _text(raw.get("issue"), 140)
+        # Product + issue are public categories; never project narratives.
         result.update({
-            "id": ident, "title": _text(raw.get("issue"), 160),
+            "id": ident,
+            "title": " - ".join(part for part in (product, issue) if part),
+            "consumer_product": product, "reported_issue": issue,
             "company_name": _text(raw.get("company")),
             "reference": "https://www.consumerfinance.gov/data-research/consumer-complaints/",
             "event_date": _date(raw.get("date_received"), asof),
