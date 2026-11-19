@@ -226,3 +226,22 @@ as **invalid source shape**, never interpreted as successful electricity-load
 data. Keep tokens in local OS credentials; no URL token parameters or remote
 GitHub Actions secrets. Use fresh read-only queries at most sparingly (local
 quota for this adapter: six per day).
+
+
+### ENTSO-E timeout diagnostics (single bounded request)
+
+The standard `intelligence query --execute` timeout is 12 seconds. Approved
+ENTSO-E API queries may take longer during provider load; an elapsed timeout
+**does not prove token rejection**. Use `--timeout 30` for one explicit
+request, without automatic retries or quota bypass:
+
+```powershell
+mcp-trendpulse-cli intelligence query --source entsoe --identifier "10YSI-ELES-----O" --limit 2 --execute --timeout 30
+```
+
+This option is limited to 2–30 seconds and does not change any worker's
+schedule, provider budgets, or the 45-second temporary transport-failure cache.
+On repeated timeouts, inspect HTTPS connectivity and the provider's own
+known-issues page instead of regenerating a valid token. Do not paste tokens
+in chat or logs; rotate any token accidentally disclosed to others.
+Official status: https://transparencyplatform.zendesk.com/hc/en-us/articles/51106751516945

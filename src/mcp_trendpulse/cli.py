@@ -990,7 +990,10 @@ def intelligence_opportunities_backtest(input_path, k):
 @click.option("--identifier", default="", help="Source-specific public series/CIK/EIC/route ID.")
 @click.option("--limit", type=click.IntRange(1, 20), default=10, show_default=True)
 @click.option("--execute", is_flag=True, help="Explicitly perform one bounded read-only request.")
-def intelligence_query(source, keyword, company, dataset, country, identifier, limit, execute):
+@click.option("--timeout", type=click.IntRange(2, 30), default=12, show_default=True,
+              help="Per-request connection/read timeout in seconds; no retries.")
+def intelligence_query(source, keyword, company, dataset, country, identifier,
+                       limit, execute, timeout):
     """Print a safe query plan by default, or fetch once with --execute."""
     from mcp_trendpulse.intelligence_core import IntelligenceError, collect, plan_source
 
@@ -999,7 +1002,7 @@ def intelligence_query(source, keyword, company, dataset, country, identifier, l
             source, keyword=keyword, company=company,
             dataset=dataset, country=country, identifier=identifier, limit=limit,
         )
-        result = collect(plan, fetch=execute)
+        result = collect(plan, fetch=execute, timeout=timeout)
     except (IntelligenceError, OSError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(json.dumps(result, ensure_ascii=False, sort_keys=True))

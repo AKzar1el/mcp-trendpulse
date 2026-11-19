@@ -189,3 +189,31 @@ def test_current_hunter_history_requires_live_opt_in():
     ])
     assert result.exit_code != 0
     assert "--record-history requires --execute" in result.output
+
+
+def test_intelligence_query_supports_explicit_bounded_timeout_without_retry(monkeypatch):
+    from mcp_trendpulse import intelligence_core as core
+
+    calls = []
+    def fake_collect(plan, *, fetch, timeout):
+        calls.append((plan.source, fetch, timeout))
+        return {"source": plan.source, "status": "unavailable",
+                "reason": "TimeoutError", "retry_automatically": False}
+
+    monkeypatch.setattr(core, "collect", fake_collect)
+    result = CliRunner().invoke(cli, [
+        "intelligence", "query", "--source", "gdelt_latest",
+        "--execute", "--timeout", "30",
+    ])
+    assert result.exit_code == 0, result.output
+    response = json.loads(result.output)
+    assert response["status"] == "unavailable"
+    assert response["reason"] == "TimeoutError"
+    assert calls == [("gdelt_latest", True, 30)]
+
+    invalid = CliRunner().invoke(cli, [
+        "intelligence", "query", "--source", "gdelt_latest",
+        "--execute", "--timeout", "31",
+    ])
+    assert invalid.exit_code != 0
+    assert calls == [("gdelt_latest", True, 30)]
