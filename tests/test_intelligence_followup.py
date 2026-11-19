@@ -70,7 +70,7 @@ def test_real_field_inconclusive_source_counts_still_eligible_for_exploration():
     assert selected["commercial_demand_verified"] is False
     report = "\n".join(format_source_followups(out))
     assert "exploratory only" in report
-    assert "does not upgrade" in report
+    assert "do not upgrade" in report
 
 
 def test_volatility_and_rebound_preserved_as_source_audit_not_auto_probes():
