@@ -736,6 +736,47 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Current-first TED quality audit: broad CPV and time-window bias (November 19)
+
+The owner's subsequent local field run used 20 OpenAlex, 20 CFPB and
+20 TED notices. Eighteen TED notices had a published buyer, a primary CPV,
+and an on/after-as-of lot date, but **none in that sample had a 48/72
+software/IT primary CPV**. The headline topic `TED CPV 45000000` referred
+to one flood-protection build in Poland and a distinct fibre-infrastructure
+construction project in Sweden. Their common CPV is **Construction work,
+division 45**, not an independently corroborated narrow buyer workflow.
+
+Per the official TED CPV tree, the first two significant digits are a
+division; three are a group, four a class, and five or more a category or
+finer. The recurrence candidate gate now requires a *shared exact
+primary CPV of category-or-finer specificity* across different published
+buyer labels. It retains broad-code repeats in
+`coarse_cpv_repeats_not_candidates` with their exact code, hierarchy
+level and counts so these legitimate observations remain inspectable,
+but cannot masquerade as product demand. Even a category-or-finer
+match remains an **unverified single-source investigation lead**, not
+proof of a shared workflow, distinct legal buyers, spending or growth.
+
+The report also provides a `ted_sampling_audit`: observed publication
+date span, number of distinct publication dates, broad CPV division counts,
+the 20-row first-page-cap flag, and number of observed primary CPV 48/72
+notices. These are **sample diagnostics only**, never population shares,
+market sizes or growth rates. In particular, 20 newest notices on a
+single date in a requested 30-day window do not cover older dates
+and cannot support an inference of zero software demand. Data absence
+and provider unavailability remain explicitly distinct.
+
+This refinement does not add a TED request, broaden source budgets,
+select any new industries, change user credentials, enable polling,
+alter production, or merge the opt-in PR. Synthetic fixtures check
+division/group/class versus category specificity, distinct buyer
+labels, contextual preservation, one-day window saturation, partial
+provider availability and false market-coverage assertions.
+
+Official source:
+https://ted.europa.eu/en/simap/cpv
+https://ted.europa.eu/en/help/search-browse
+
 ### TED buyer-side repeat signals, CPV and deadline integrity (2026-11-19)
 
 The first real `intelligence discover --limit 20` run showed three repeated
@@ -756,8 +797,10 @@ or guessed CPV labels are generated. Invalid codes, prices, currencies and
 dates are omitted.
 
 An optional recurring buyer-side candidate exists only when **at least two
-recent contract-notice records** in the same *published primary eight-digit
-CPV* have **different published buyer-name labels**. This excludes award
+recent contract-notice records** have the same exact *published primary
+category-or-finer CPV* (five or more significant digits) and
+**different published buyer-name labels**. Broad division/group/class CPV
+repeats are shown as context only. This excludes award
 notices, prior-information notices, mismatched CPV codes and multiple notices
 from a buyer with the same normalized label. Two name labels are NOT two
 independently verified registered legal entities. Such clusters carry a

@@ -36,6 +36,17 @@ def main() -> int:
         for row in result["candidates"]
     ):
         raise AssertionError("Unverified records promoted to buyer proof")
+    audit = result["ted_sampling_audit"]
+    if (audit["sector_share_or_growth_estimable"]
+            or any(x["hierarchy_level"] == "category_or_finer"
+                   for x in result["coarse_cpv_repeats_not_candidates"])):
+        raise AssertionError("Procurement grain or sample representativeness fabricated")
+    if any(
+        c["cpv_hierarchy_level"] != "category_or_finer"
+        for c in result["candidates"]
+        if c["basis"] == "ted_distinct_published_buyer_labels_shared_primary_cpv"
+    ):
+        raise AssertionError("Broad primary CPV counted as narrow workflow demand")
     review = result["procurement_review"]
     if (review["open_bid_status_verified"]
             or review["same_buyer_legal_entity_verified"]
@@ -88,6 +99,12 @@ def main() -> int:
         "procurement_with_lot_date": sum(
             bool(x["latest_lot_deadline_date"]) for x in result["procurement_observations"]
         ),
+        "ted_pub_days_in_sample": audit["publication_days_represented"],
+        "ted_first_page_hit_cap": audit["first_page_hit_record_cap"],
+        "ted_primary_48_72_in_sample": audit["main_cpv_48_or_72_observed"],
+        "ted_coarse_cpv_repeats_suppressed": len(result[
+            "coarse_cpv_repeats_not_candidates"
+        ]),
         "procurement_cpv_buyer_repeat_candidates": sum(
             x["basis"] == "ted_distinct_published_buyer_labels_shared_primary_cpv"
             for x in result["candidates"]

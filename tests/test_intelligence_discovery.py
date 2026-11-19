@@ -619,16 +619,17 @@ def test_buyer_review_is_not_exclusive_to_software_or_estimated_contracts():
 
 def test_two_distinct_published_buyers_same_primary_cpv_are_research_candidate():
     x = report(observed("ted", [
-        _rich_ted("805001-2026", "Municipality East", "72000000"),
-        _rich_ted("805002-2026", "Municipality West", "72000000"),
-        _rich_ted("805003-2026", "Municipality East", "72000000"),
+        _rich_ted("805001-2026", "Municipality East", "72222300"),
+        _rich_ted("805002-2026", "Municipality West", "72222300"),
+        _rich_ted("805003-2026", "Municipality East", "72222300"),
     ]))
     clusters = [c for c in x["candidates"]
                 if c["basis"] ==
                 "ted_distinct_published_buyer_labels_shared_primary_cpv"]
     assert len(clusters) == 1
     c = clusters[0]
-    assert c["label"] == "TED CPV 72000000"
+    assert c["label"] == "TED CPV 72222300"
+    assert c["cpv_hierarchy_level"] == "category_or_finer"
     assert c["unique_recent_records_in_sample"] == 3
     assert c["distinct_source_classes"] == 1
     assert c["distinct_published_buyer_labels_in_sample"] == 2
@@ -637,7 +638,83 @@ def test_two_distinct_published_buyers_same_primary_cpv_are_research_candidate()
     assert c["commercial_budget_verified"] is False
     output = discovery.format_discovery_report(x)
     assert "Buyer-side repeat: 2 distinct published buyer labels" in output
-    assert "legal-entity identities, awards" in output
+    assert "shared workflows, legal-entity identities, awards" in output
+
+
+def test_broad_cpv_division_repeats_do_not_fake_same_workflow():
+    # Real field failure: flood-protection works and fibre expansion both
+    # declare division-level 45000000, but are not the same buyer workflow.
+    one = _rich_ted("805715-2026", "Polish Water Agency", "45000000")
+    one["notice-title"] = {"eng": ["Flood protection civil works"]}
+    two = _rich_ted("805721-2026", "Swedish Energy Buyer", "45000000")
+    two["notice-title"] = {"eng": ["Fibre network expansion"]}
+    x = report(observed("ted", [one, two]))
+    assert not any(c["basis"] ==
+        "ted_distinct_published_buyer_labels_shared_primary_cpv"
+        for c in x["candidates"])
+    assert x["candidate_count"] == 0
+    assert len(x["procurement_observations"]) == 2
+    assert all(n["buyer_side_review_qualified"] for n in x["procurement_observations"])
+    coarse = x["coarse_cpv_repeats_not_candidates"]
+    assert len(coarse) == 1
+    assert coarse[0]["main_cpv_code"] == "45000000"
+    assert coarse[0]["hierarchy_level"] == "division"
+    assert coarse[0]["notice_count_in_sample"] == 2
+    assert coarse[0]["shared_workflow_verified"] is False
+    output = discovery.format_discovery_report(x)
+    assert "BROAD CPV REPEATS" in output
+    assert "CPV 45000000 (division)" in output
+    assert "shared workflow NOT verified" in output
+
+
+@pytest.mark.parametrize("cpv,level", [
+    ("45000000", "division"),
+    ("72000000", "division"),
+    ("45100000", "group"),
+    ("45210000", "class"),
+    ("72222300", "category_or_finer"),
+    ("80500112", "category_or_finer"),
+    ("garbage", "invalid"),
+    ("00000000", "invalid"),
+])
+def test_cpv_granularity_matches_official_hierarchy(cpv, level):
+    assert discovery._cpv_granularity(cpv) == level
+
+
+def test_one_publication_day_cannot_impersonate_thirty_day_sector_sample():
+    day = "2026-11-19"
+    records = [
+        _rich_ted(f"{805100 + i}-2026", f"Buyer {i}", "45000000")
+        for i in range(20)
+    ]
+    result = report(observed("ted", records))
+    audit = result["ted_sampling_audit"]
+    assert audit["status"] == "observed"
+    assert audit["observed_notice_count"] == 20
+    assert audit["publication_days_represented"] == 1
+    assert audit["earliest_sampled_publication"] == day
+    assert audit["latest_sampled_publication"] == day
+    assert audit["requested_lookback_days"] == 30
+    assert audit["first_page_hit_record_cap"] is True
+    assert audit["main_cpv_48_or_72_observed"] == 0
+    assert audit["main_cpv_divisions_in_sample"] == {"45": 20}
+    assert audit["sector_share_or_growth_estimable"] is False
+    output = discovery.format_discovery_report(result)
+    assert "TED SAMPLING AUDIT" in output
+    assert "1 publication date(s)" in output
+    assert "20-record first-page cap" in output
+    assert "not a market-wide frequency" in output
+
+
+def test_unavailable_ted_is_not_misreported_as_zero_market():
+    result = report({
+        "source": "ted", "status": "unavailable", "http_status": 429
+    })
+    audit = result["ted_sampling_audit"]
+    assert audit["status"] == "unavailable"
+    assert audit["main_cpv_48_or_72_observed"] == 0
+    assert audit["sector_share_or_growth_estimable"] is False
+    assert "TED SAMPLING AUDIT" not in discovery.format_discovery_report(result)
 
 
 def test_repeat_notices_from_same_buyer_cannot_fake_cross_buyer_demand():

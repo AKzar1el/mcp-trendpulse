@@ -11,7 +11,7 @@ import hashlib
 import json
 import re
 import sqlite3
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -65,6 +65,22 @@ def _ngrams(text: str) -> set[str]:
             if 8 <= len(phrase) <= 55:
                 found.add(phrase)
     return found
+
+
+def _cpv_granularity(code: str) -> str:
+    """Official TED main CPV hierarchy: 2/3/4/5 significant digits.
+
+    Division-, group- and class-level labels are too general to infer that
+    multiple buyers have a matching narrow procurement workflow.
+    """
+    if not isinstance(code, str) or re.fullmatch(r"[0-9]{8}", code) is None:
+        return "invalid"
+    significant = len(code.rstrip("0"))
+    return ("division" if significant == 2 else
+            "group" if significant == 3 else
+            "class" if significant == 4 else
+            "category_or_finer" if significant >= 5 else
+            "invalid")
 
 
 def _record(
@@ -277,6 +293,7 @@ def summarize_discovery(
                 and record.get("procurement_stage") == "contract_notice_not_award"
                 and record.get("main_cpv_code") and record.get("buyer_name")):
             ted_by_cpv[record["main_cpv_code"]].append(record)
+    coarse_cpv_repeats = []
     for cpv, group in ted_by_cpv.items():
         buyer_labels = {
             " ".join(r["buyer_name"].casefold().split())
@@ -284,10 +301,24 @@ def summarize_discovery(
         }
         if len(group) < 2 or len(buyer_labels) < 2:
             continue
+        grain = _cpv_granularity(cpv)
+        if grain != "category_or_finer":
+            # The published code identifies a broad sector, NOT a shared
+            # workflow: e.g., flood works and fibre expansion both 45000000.
+            # Keep the factual repeat visible without promoting it to a lead.
+            coarse_cpv_repeats.append({
+                "main_cpv_code": cpv, "hierarchy_level": grain,
+                "notice_count_in_sample": len(group),
+                "distinct_published_buyer_labels_in_sample": len(buyer_labels),
+                "candidate_suppressed": True,
+                "shared_workflow_verified": False,
+            })
+            continue
         candidates.append({
             "label": f"TED CPV {cpv}",
             "group_basis": "ted_distinct_published_buyer_labels_shared_primary_cpv",
             "records": group, "source_count": 1,
+            "cpv_hierarchy_level": grain,
             "published_buyer_label_count": len(buyer_labels),
         })
     ranking = {
@@ -327,6 +358,7 @@ def summarize_discovery(
                 "published_buyer_label_count", 0,
             ),
             "buyer_labels_not_verified_entity_identities": True,
+            "cpv_hierarchy_level": row.get("cpv_hierarchy_level", ""),
             "latest_event_date": max(r["date"] for r in group),
             "examples": [{
                 "source": r["source"], "title": r["title"],
@@ -428,6 +460,35 @@ def summarize_discovery(
         "software_only_estimate_verified": False,
         "buying_intent_verified": False, "contract_value_verified": False,
     } for r in display_notices]
+    # A recent-first page may contain just one publication date from an
+    # entire 30-day search. Report observed coverage rather than inventing
+    # population-level sector shares or growth from this sampling scheme.
+    ted_dates = [r["date"] for r in ted_records]
+    ted_divisions = Counter(
+        r["main_cpv_code"][:2]
+        for r in ted_records if _cpv_granularity(r.get("main_cpv_code", "")) != "invalid"
+    )
+    ted_cover = next((c for c in coverage if c["source"] == "ted"), None)
+    ted_sample = {
+        "status": ted_cover["status"] if ted_cover else "unavailable",
+        "observed_notice_count": len(ted_records),
+        "publication_days_represented": len(set(ted_dates)),
+        "earliest_sampled_publication": min(ted_dates) if ted_dates else "",
+        "latest_sampled_publication": max(ted_dates) if ted_dates else "",
+        "requested_lookback_days": lookback_days,
+        "first_page_hit_record_cap": bool(
+            ted_cover and ted_cover["sampled_rows"] == MAX_RECORDS
+        ),
+        "main_cpv_divisions_in_sample": dict(
+            sorted(ted_divisions.items(), key=lambda item: (-item[1], item[0]))
+        ),
+        "main_cpv_48_or_72_observed": sum(
+            r.get("main_cpv_code", "")[:2] in {"48", "72"}
+            for r in ted_records
+        ),
+        "sector_share_or_growth_estimable": False,
+        "excludes_sampled_unknown_categories_from_demand_inference": True,
+    }
     procurement_review = {
         "basis": "published_contract_notice_with_buyer_primary_cpv_and_future_lot_date",
         "qualified_notices_in_bounded_sample": len(buyer_review),
@@ -464,6 +525,12 @@ def summarize_discovery(
         "candidate_count": len(selected), "candidates": selected,
         "procurement_observations": procurement_observations,
         "procurement_review": procurement_review,
+        "ted_sampling_audit": ted_sample,
+        "coarse_cpv_repeats_not_candidates": sorted(
+            coarse_cpv_repeats, key=lambda row: (
+                -row["notice_count_in_sample"], row["main_cpv_code"],
+            )
+        )[:6],
         "research_observations": research_observations,
         "source_balanced_examples_not_additional_trend_candidates": True,
         "sample_examples_by_source": recent_examples,
@@ -560,6 +627,44 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             tag += " (cached)"
         lines.append("Source: " + tag)
     lines.append("")
+    sample_audit = result.get("ted_sampling_audit", {})
+    if sample_audit and sample_audit["status"] == "observed":
+        span = (
+            sample_audit["earliest_sampled_publication"]
+            if sample_audit["earliest_sampled_publication"]
+            == sample_audit["latest_sampled_publication"] else
+            sample_audit["earliest_sampled_publication"] + " to "
+            + sample_audit["latest_sampled_publication"]
+        )
+        lines.append(
+            "TED SAMPLING AUDIT: "
+            f"{sample_audit['observed_notice_count']} notices span "
+            f"{sample_audit['publication_days_represented']} publication date(s) "
+            f"({span or 'none'}) in the requested "
+            f"{sample_audit['requested_lookback_days']}-day window."
+        )
+        if sample_audit["first_page_hit_record_cap"]:
+            lines.append(
+                "Sample hit the 20-record first-page cap; earlier dates and "
+                "other CPV divisions may be absent."
+            )
+        lines.append(
+            "Primary CPV 48/72 software/IT in sampled notices: "
+            f"{sample_audit['main_cpv_48_or_72_observed']} "
+            "(not a market-wide frequency or proof of zero demand)."
+        )
+        lines.append("")
+    coarse = result.get("coarse_cpv_repeats_not_candidates", [])
+    if coarse:
+        lines.append("BROAD CPV REPEATS — excluded from the candidate ranking:")
+        for item in coarse:
+            lines.append(
+                f"  CPV {item['main_cpv_code']} ({item['hierarchy_level']}): "
+                f"{item['notice_count_in_sample']} notices, "
+                f"{item['distinct_published_buyer_labels_in_sample']} "
+                "published buyer labels; shared workflow NOT verified"
+            )
+        lines.append("")
     buyer_review = result.get("procurement_review", {})
     if buyer_review:
         lines.append(
@@ -599,7 +704,8 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             lines.append(
                 "   Buyer-side repeat: "
                 f"{item['distinct_published_buyer_labels_in_sample']} distinct "
-                "published buyer labels; legal-entity identities, awards and "
+                "published buyer labels; CPV category-or-finer only; "
+                "shared workflows, legal-entity identities, awards and "
                 "market growth NOT verified"
             )
         lines.append("   Next: " + item["next_check"])
