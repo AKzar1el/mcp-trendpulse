@@ -86,3 +86,49 @@ def test_rss_review_empty_is_review_required_and_saved_output_is_inert(tmp_path)
     report = json.loads(destination.read_text(encoding="utf-8"))
     assert report["summary"]["unique_urls"] == 0
     assert report["source_authenticated"] is False
+
+
+def test_rss_review_contains_filters_titles_offline_without_changing_source_counts(tmp_path):
+    entries = [_headline(title="AI agents release", url="https://news.google.com/rss/articles/a"),
+               _headline(title="Energy transition", url="https://news.google.com/rss/articles/b"),
+               _headline(title="Agentic systems", url="https://news.google.com/rss/articles/c")]
+    result = _run(tmp_path, _capture(entries), "--format", "json", "--contains", "AGENT")
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report["filter"] == {"contains": "AGENT", "method": "casefold_literal_substring",
+                                "matched_headlines": 2}
+    assert report["summary"]["headlines"] == 3
+    assert report["summary"]["unique_urls"] == 3
+    assert [entry["title"] for entry in report["headlines"]] == ["AI agents release", "Agentic systems"]
+    assert report["source_authenticated"] is False
+
+
+def test_rss_review_contains_no_match_requires_review_not_a_market_claim(tmp_path):
+    result = _run(tmp_path, _capture([_headline()]), "--contains", "unseen", "--format", "json")
+    assert result.exit_code == 2, result.output
+    report = json.loads(result.output)
+    assert report["filter"]["matched_headlines"] == 0
+    assert report["summary"]["headlines"] == 1
+    assert "not evidence of" in " ".join(report["caveats"]).lower()
+
+
+@pytest.mark.parametrize("query", ["", "   ", "bad\nvalue", "x" * 121])
+def test_rss_review_rejects_invalid_contains_before_output(tmp_path, query):
+    result = _run(tmp_path, _capture([_headline()]), "--contains", query, "--format", "json")
+    assert result.exit_code == 1
+    assert "review failed" in result.output.lower()
+    assert '"summary"' not in result.output
+
+
+def test_rss_review_contains_markdown_escapes_untrusted_filter(tmp_path):
+    result = _run(tmp_path, _capture([_headline(title="A [topic](bad) | item")]),
+                  "--contains", "[topic](bad) |")
+    assert result.exit_code == 0, result.output
+    assert "\\[topic\\]" in result.output
+    assert "\\|" in result.output
+
+
+def test_rss_review_without_contains_keeps_existing_shape(tmp_path):
+    result = _run(tmp_path, _capture([_headline()]), "--format", "json")
+    assert result.exit_code == 0, result.output
+    assert "filter" not in json.loads(result.output)
