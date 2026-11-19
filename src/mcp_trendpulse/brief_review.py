@@ -74,7 +74,7 @@ def _observation_date_change(earlier, later):
 
 def review_saved_brief(raw, *, output_format="text", as_of=None, max_age_days=None):
     """Return (formatted review, needs_attention), without network or file mutations."""
-    if output_format not in ("text", "json", "csv", "markdown"):
+    if output_format not in ("text", "json", "csv", "markdown", "checklist"):
         raise ValueError("Unsupported Demand Brief review format")
     freshness_enabled = as_of is not None or max_age_days is not None
     if freshness_enabled:
@@ -134,6 +134,7 @@ def review_saved_brief(raw, *, output_format="text", as_of=None, max_age_days=No
     ]
     seen = set()
     market_reviews = []
+    missing_by_market = {}
     expected_keywords = None
     needs_attention = incomplete
     for market in markets:
@@ -171,6 +172,8 @@ def review_saved_brief(raw, *, output_format="text", as_of=None, max_age_days=No
             _is_number(item.get("growth_3m_pct"))
             _is_number(item.get("growth_1y_pct"))
             observed += int(valid)
+            if not valid:
+                missing_by_market.setdefault(name, []).append(keyword)
             if freshness_enabled and valid:
                 observed_date = datetime.fromisoformat(last.replace("Z", "+00:00")).date()
                 age_days = (reference_date - observed_date).days
@@ -234,6 +237,67 @@ def review_saved_brief(raw, *, output_format="text", as_of=None, max_age_days=No
     ]
     if freshness_enabled:
         caveats.append("Freshness uses file-declared observation dates and a user-declared as-of date; neither is authenticated.")
+    if output_format == "checklist":
+        # Only render validated file metadata and safe keyword labels; provider
+        # errors and warning bodies may contain sensitive, untrusted text.
+        rows = [
+            "# Demand Brief evidence-gap checklist",
+            "",
+            f"**Timeframe:** {_markdown_safe(timeframe.strip())}",
+            "**Source:** Google Trends / Google Search (declared by file, not authenticated)",
+            "**Assessment:** NEEDS HUMAN REVIEW" if needs_attention else
+            "**Assessment:** structurally complete; still requires human review",
+            "",
+        ]
+        primary_gaps = False
+        for item in market_reviews:
+            name = item["market"]
+            for keyword in missing_by_market.get(name, []):
+                primary_gaps = True
+                rows.append(
+                    f"- [ ] {name} / {_markdown_safe(keyword)}: Missing primary observation; "
+                    "inspect the saved source and collect new evidence only through an authorized, bounded request."
+                )
+            if item["growth_unavailable"]:
+                code = errors[name]["code"]
+                rows.append(
+                    f"- [ ] {name}: Growth unavailable ({code}); review the saved failure "
+                    "and leave growth conclusions undetermined."
+                )
+            if freshness_enabled:
+                for issue in item["freshness_exceptions"]:
+                    rows.append(
+                        f"- [ ] {name} / {_markdown_safe(issue['keyword'])}: "
+                        f"{issue['status']} primary observation {_markdown_safe(issue['latest_observation'])} "
+                        f"(age {issue['age_days']} day(s) as of {as_of}); review before using the brief."
+                    )
+            if item["warning_count"]:
+                rows.append(
+                    f"- [ ] {name}: Review {item['warning_count']} saved warning(s); "
+                    "the checklist does not validate or reproduce their text."
+                )
+        for name, failure in errors.items():
+            if name not in seen:
+                primary_gaps = True
+                direction = (
+                    "Do not bypass provider rate limits; wait for an authorized refresh."
+                    if failure["code"] == "rate_limited"
+                    else "Investigate the saved failure before any authorized refresh."
+                )
+                rows.append(
+                    f"- [ ] {name}: no primary market evidence ({failure['code']}); "
+                    f"coverage unknown, not zero. {direction}"
+                )
+        if not primary_gaps:
+            rows.append("- [ ] No primary-evidence gaps detected; confirm relevance and comparability manually.")
+        rows.extend([
+            "- [ ] Independently verify provider provenance, market scope, "
+            "timeframe, and relevant warnings before a buyer-facing interpretation.",
+            "",
+            "## Evidence limitations",
+            *[f"- {caveat}" for caveat in caveats],
+        ])
+        return "\n".join(rows) + "\n", needs_attention
     if output_format == "markdown":
         rows = [
             "# Saved Demand Brief readiness review",

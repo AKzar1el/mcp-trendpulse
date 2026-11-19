@@ -2403,6 +2403,78 @@ def test_brief_review_missing_primary_observation_exits_with_review_required(tmp
     assert "US: 1/2" in result.output and "NEEDS HUMAN REVIEW" in result.output
 
 
+def test_brief_review_checklist_names_missing_primary_keywords_offline(tmp_path):
+    target = _saved_mock_brief(tmp_path)
+    saved = json.loads(target.read_text(encoding="utf-8"))
+    saved["markets"][0]["keywords"][1]["latest_index"] = None
+    saved["markets"][0]["keywords"][1]["latest_observation"] = None
+    target.write_text(json.dumps(saved), encoding="utf-8")
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("no provider calls")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-review", "--evidence", str(target), "--format", "checklist",
+        ])
+    assert result.exit_code == 2, result.output
+    assert "# Demand Brief evidence-gap checklist" in result.output
+    assert "US / Claude" in result.output
+    assert "Missing primary observation" in result.output
+    assert "GB / Claude" not in result.output
+    assert "not authenticated" in result.output
+    assert "search volume" in result.output
+
+
+def test_brief_review_checklist_failed_market_and_rate_limit_are_not_zeros(tmp_path):
+    target = _saved_mock_brief(tmp_path)
+    saved = json.loads(target.read_text(encoding="utf-8"))
+    saved["markets"] = [m for m in saved["markets"] if m["market"] == "US"]
+    saved["failed_markets"] = [{
+        "market": "GB", "component": None, "code": "rate_limited",
+        "retryable": True, "message": "private provider failure message",
+    }]
+    saved["incomplete"] = True
+    target.write_text(json.dumps(saved), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-review", "--evidence", str(target), "--format", "checklist",
+    ])
+    assert result.exit_code == 2, result.output
+    assert "GB: no primary market evidence" in result.output
+    assert "rate_limited" in result.output
+    assert "Do not bypass provider rate limits" in result.output
+    assert "0/2" not in result.output
+    assert "private provider failure message" not in result.output
+
+
+def test_brief_review_checklist_freshness_and_escaped_keyword(tmp_path):
+    target = _saved_mock_brief(tmp_path)
+    saved = json.loads(target.read_text(encoding="utf-8"))
+    for market in saved["markets"]:
+        market["keywords"][0]["keyword"] = "**Risk** | query"
+    target.write_text(json.dumps(saved), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-review", "--evidence", str(target), "--format", "checklist",
+        "--as-of", "2026-09-30", "--max-age-days", "7",
+    ])
+    assert result.exit_code == 2, result.output
+    assert r"\*\*Risk\*\* \| query" in result.output
+    assert "stale primary observation" in result.output
+    assert "2026-09-30" in result.output
+
+
+def test_brief_review_checklist_complete_saves_utf8_without_overwrite(tmp_path):
+    target = _saved_mock_brief(tmp_path)
+    output = tmp_path / "checklist.md"
+    original = target.read_bytes()
+    args = ["brief-review", "--evidence", str(target), "--format", "checklist"]
+    baseline = CliRunner().invoke(cli_module.cli, args)
+    assert baseline.exit_code == 0, baseline.output
+    assert "No primary-evidence gaps detected" in baseline.output
+    saved = CliRunner().invoke(cli_module.cli, [*args, "--output-file", str(output)])
+    assert saved.exit_code == 0
+    assert output.read_bytes() == baseline.output.encode("utf-8")
+    assert target.read_bytes() == original
+    again = CliRunner().invoke(cli_module.cli, [*args, "--output-file", str(output)])
+    assert again.exit_code == 1 and output.read_bytes() == baseline.output.encode("utf-8")
+
+
 def test_brief_review_partial_growth_failure_does_not_hide_primary_evidence(tmp_path):
     target = _saved_mock_brief(tmp_path)
     data = json.loads(target.read_text(encoding="utf-8"))
