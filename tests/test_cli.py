@@ -1957,6 +1957,75 @@ def _saved_mock_brief(tmp_path):
     return target
 
 
+def test_brief_review_markdown_handoff_escapes_declared_markup_and_stays_offline(tmp_path):
+    evidence = _saved_mock_brief(tmp_path)
+    data = json.loads(evidence.read_text(encoding="utf-8"))
+    data["timeframe"] = 'today | <script>alert("x")</script> **bold**'
+    evidence.write_text(json.dumps(data), encoding="utf-8")
+    original = evidence.read_bytes()
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("provider called")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-review", "--evidence", str(evidence), "--format", "markdown",
+        ])
+    assert result.exit_code == 0, result.output
+    assert result.output.startswith("# Saved Demand Brief readiness review")
+    assert "| US | 2/2 |" in result.output and "| GB | 2/2 |" in result.output
+    assert "not authenticated" in result.output and "not search volume" in result.output
+    assert "&lt;script&gt;" in result.output and "<script>" not in result.output
+    assert r"\|" in result.output and r"\*\*bold\*\*" in result.output
+    assert evidence.read_bytes() == original
+
+
+def test_brief_review_markdown_failed_market_is_unknown_and_exit_two(tmp_path):
+    evidence = _saved_mock_brief(tmp_path)
+    data = json.loads(evidence.read_text(encoding="utf-8"))
+    data["markets"] = [m for m in data["markets"] if m["market"] != "GB"]
+    data["failed_markets"] = [{
+        "market": "GB", "component": None, "code": "rate_limited",
+        "retryable": True, "message": "private provider details",
+    }]
+    data["incomplete"] = True
+    evidence.write_text(json.dumps(data), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-review", "--evidence", str(evidence), "--format", "markdown",
+    ])
+    assert result.exit_code == 2, result.output
+    assert "| GB | unknown |" in result.output
+    assert "rate_limited" in result.output and "private provider details" not in result.output
+    assert "NEEDS HUMAN REVIEW" in result.output
+
+
+def test_brief_compare_markdown_exposes_older_after_and_unknown_without_indices(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    earlier = json.loads(before.read_text(encoding="utf-8"))
+    for market in earlier["markets"]:
+        market["keywords"][0]["keyword"] = "**ChatGPT** | risky"
+    before.write_text(json.dumps(earlier), encoding="utf-8")
+    later = json.loads(json.dumps(earlier))
+    later["markets"][0]["keywords"][0]["latest_observation"] = "2021-01-01"
+    later["markets"] = [m for m in later["markets"] if m["market"] != "GB"]
+    later["failed_markets"] = [{
+        "market": "GB", "component": None, "code": "timeout",
+        "retryable": True, "message": "secret error details",
+    }]
+    later["incomplete"] = True
+    after = tmp_path / "after.json"
+    after.write_text(json.dumps(later), encoding="utf-8")
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("provider called")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-compare", "--before", str(before), "--after", str(after),
+            "--format", "markdown",
+        ])
+    assert result.exit_code == 2, result.output
+    assert result.output.startswith("# Saved Demand Brief evidence comparison")
+    assert "| GB | 2/2 | unknown | unknown |" in result.output
+    assert "older in declared after-file" in result.output
+    assert r"\*\*ChatGPT\*\* \| risky" in result.output
+    assert "NEEDS HUMAN REVIEW" in result.output
+    assert "not authenticated" in result.output and "normalized" in result.output
+    assert "secret error details" not in result.output
+
+
 def test_brief_review_valid_saved_two_market_evidence_is_offline(tmp_path):
     target = _saved_mock_brief(tmp_path)
     with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("unexpected provider call")):
@@ -2128,7 +2197,7 @@ def test_brief_review_csv_failed_only_market_preserves_unknown_not_zero(tmp_path
     assert "private provider message" not in result.output
 
 
-@pytest.mark.parametrize("output_format", ["text", "json", "csv"])
+@pytest.mark.parametrize("output_format", ["text", "json", "csv", "markdown"])
 def test_brief_review_can_save_exact_utf8_output_without_provider_calls(tmp_path, output_format):
     evidence = _saved_mock_brief(tmp_path)
     destination = tmp_path / f"review-{output_format}.txt"
@@ -2510,7 +2579,7 @@ def test_brief_compare_keyword_csv_preserves_unknown_and_escapes_formula_labels(
     assert "private provider message" not in result.output
 
 
-@pytest.mark.parametrize("output_format", ["text", "json", "csv", "keyword-csv"])
+@pytest.mark.parametrize("output_format", ["text", "json", "csv", "keyword-csv", "markdown"])
 def test_brief_compare_can_save_exact_utf8_output_without_provider_calls(tmp_path, output_format):
     before = _saved_mock_brief(tmp_path)
     after = tmp_path / "after.json"
