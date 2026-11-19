@@ -530,7 +530,7 @@ def test_buyer_side_review_separates_inspectable_procurement_from_theme_count():
                   deadline="2027-01-11", estimated="567000"),
         _rich_ted("804817-2026", "French Fuel Buyer", "09134000",
                   deadline="2026-12-18", estimated="25000"),
-        _rich_ted("804901-2026", "Old Date Buyer", "72000000",
+        _rich_ted("804901-2026", "Old Date Buyer", "41000000",
                   deadline="2026-11-01"),
         _rich_ted("804902-2026", "Already Awarded", "72000000",
                   kind="can-standard"),
