@@ -230,6 +230,19 @@ The DigestSEO-hosted endpoint and public ChatGPT app are still **not released**.
 
 TrendPulse loads environment variables from the process environment and from a local `.env` file when present.
 
+**Offline configuration check (source checkout):** Run `uv run mcp-trendpulse-cli doctor`
+to inspect effective news edition, Trends request pacing, shared-state opt-in,
+proxy presence, and hosted authentication/HTTP configuration without contacting
+Google, opening a browser, creating shared state, or printing private proxy URLs,
+credentials, audience IDs, or local directory paths. Add `--format json` for a
+machine-readable, versioned report or `--strict` to exit with code 2 on static
+configuration errors. The command intentionally does **not** verify network
+reachability, current provider quotas, permissions, OAuth/JWKS availability, or
+whether the public hosted endpoint is secure. Local-only authentication is
+expected for the Community stdio MCP; never expose an unauthenticated remote
+endpoint. This command is on repository HEAD, not necessarily the latest public
+PyPI package.
+
 Useful variables include:
 
 ```env
