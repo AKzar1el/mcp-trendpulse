@@ -135,7 +135,24 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
             raise UnexpectedSourceShape("RSSHub feed has no validated title")
         return {"record_count": len(items), "sample": items[:10],
                 "unit": "self-hosted RSS/Atom text observations; not demand evidence"}
-    if source in {"ecb", "epo", "entsoe"}:
+    if source == "entsoe":
+        # ENTSO-E can return a well-formed XML acknowledgement for invalid
+        # requests or absent publication. It is NOT electricity-load data.
+        if not isinstance(payload, dict) or payload.get("root") != "GL_MarketDocument":
+            raise UnexpectedSourceShape(
+                "ENTSO-E did not return a generation/load MarketDocument"
+            )
+        items = payload.get("observations")
+        if (not isinstance(items, list)
+                or not any(
+                    isinstance(row, dict) and row.get("element") == "quantity"
+                    and isinstance(row.get("text"), str)
+                    for row in items
+                )):
+            raise UnexpectedSourceShape("ENTSO-E load document has no measured quantities")
+        return {"record_count": len(items), "sample": items[:10],
+                "unit": "actual electricity load XML text; not a business opportunity"}
+    if source in {"ecb", "epo"}:
         if not isinstance(payload, dict) or not (
             ("columns" in payload and "rows" in payload)
             or ("root" in payload and "observations" in payload)

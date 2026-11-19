@@ -68,3 +68,29 @@ def test_rsshub_rejects_html_like_error_xml_and_accepts_feed():
             {"element": "title", "text": "Title1"},
         ],
     })["record_count"] == 2
+
+
+@pytest.mark.parametrize("payload", [
+    {"root": "Acknowledgement_MarketDocument", "observations": [
+        {"element": "Reason", "text": "No matching data"}]},
+    {"root": "Error", "observations": [{"element": "message", "text": "Invalid token"}]},
+    {"root": "GL_MarketDocument", "observations": [
+        {"element": "mRID", "text": "Only document identity; no load measurements"}]},
+    {"root": "GL_MarketDocument", "observations": []},
+])
+def test_entsoe_does_not_treat_acknowledgements_as_actual_load(payload):
+    with pytest.raises(UnexpectedSourceShape):
+        evidence_projection("entsoe", payload)
+
+
+def test_entsoe_requires_generation_load_document_with_quantity_measurement():
+    report = evidence_projection("entsoe", {
+        "root": "GL_MarketDocument",
+        "observations": [
+            {"element": "mRID", "text": "TEST-DOCUMENT"},
+            {"element": "position", "text": "1"},
+            {"element": "quantity", "text": "1100.25"},
+        ],
+    })
+    assert report["record_count"] == 3
+    assert "electricity load" in report["unit"]

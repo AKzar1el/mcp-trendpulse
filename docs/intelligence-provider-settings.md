@@ -205,3 +205,24 @@ fixtures test temporal leakage, NOT real predictive accuracy. Descriptive
 metrics are suppressed below 8 labeled examples across 2 independent cutoff
 dates. Real buyer outcomes still need to be collected and audited before
 any genuine historical benchmark is available.
+
+
+### ENTSO-E live authentication verification
+
+After ENTSO-E approves the registered account, create a one-time Web API
+Security Token under My Account, then run `intelligence settings set-key entsoe`
+from the intended Windows account. A safe one-day actual-total-load query is:
+
+```powershell
+mcp-trendpulse-cli intelligence query --source entsoe --identifier "10YSI-ELES-----O" --limit 2 --execute
+```
+
+The domain code is the published Slovenian bidding-zone EIC, used only as an
+illustrative credential verification target; the overall trend hunter remains
+global. A successful collector result must contain a `GL_MarketDocument`
+with actual measured `quantity` fields. XML acknowledgement documents for
+missing data, invalid query parameters or other provider errors are rejected
+as **invalid source shape**, never interpreted as successful electricity-load
+data. Keep tokens in local OS credentials; no URL token parameters or remote
+GitHub Actions secrets. Use fresh read-only queries at most sparingly (local
+quota for this adapter: six per day).
