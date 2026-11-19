@@ -78,6 +78,10 @@ def _record(
         "notice_publication_not_confirmed_award",
     }:
         return None
+    # A TED record without a usable original or published translation title
+    # cannot be interpreted as a procurement opportunity from its ID alone.
+    if source == "ted" and not base.get("title"):
+        return None
     out = {
         "source": source, "evidence_class": base["kind"],
         "id": base["id"], "title": base.get("title", ""),
@@ -99,10 +103,26 @@ def _record(
             out["theme"] = f"{product} — {issue}"[:110]
             out["theme_basis"] = "cfpb_public_product_issue_categories"
     elif source == "ted":
-        # TED notices are distinct real published notices. Their complete
-        # titles are too arbitrary for a trustworthy single-notice cluster.
-        # Cross-origin exact lexical overlap is handled separately below.
-        pass
+        # A contract notice is buying-process evidence, not a confirmed order.
+        # Contract award notices describe an outcome, not a new open tender.
+        # Other notice types are not classified without source-specific proof.
+        kind = base.get("notice_type", "").lower()
+        if kind.startswith("cn-"):
+            stage = "contract_notice_not_award"
+        elif kind.startswith("can-"):
+            stage = "contract_award_notice_not_open_tender"
+        elif kind.startswith("pin-"):
+            stage = "prior_information_notice"
+        else:
+            stage = "unclassified_procurement_notice"
+        out.update({
+            "buyer_name": base.get("buyer_name", ""),
+            "notice_type": kind,
+            "procurement_stage": stage,
+            "title_language": base.get("title_language", ""),
+        })
+        # TED notices are distinct original records. A single notice cannot
+        # establish a recurring trend; cross-source matching stays separate.
     return out
 
 
@@ -253,6 +273,29 @@ def summarize_discovery(
         if len(selected) >= 12:
             break
 
+    # Source-balanced observations are visible even when one CFPB complaint
+    # category dominates all repeated-theme candidate slots. These are NOT
+    # separately scored trends or counted as additional commercial winners.
+    ted_records = sorted(
+        (r for r in records if r["source"] == "ted" and r["title"]),
+        key=lambda x: (x["date"], x["id"]), reverse=True,
+    )
+    procurement_observations = [{
+        "title": r["title"], "date": r["date"], "reference": r["reference"],
+        "buyer_name": r.get("buyer_name", ""), "notice_type": r.get("notice_type", ""),
+        "procurement_stage": r.get("procurement_stage", ""),
+        "title_language": r.get("title_language", ""),
+        "buying_intent_verified": False, "contract_value_verified": False,
+    } for r in ted_records[:4]]
+    research_records = sorted(
+        (r for r in records if r["source"] == "openalex" and r["title"]),
+        key=lambda x: (x["date"], x["id"]), reverse=True,
+    )
+    research_observations = [{
+        "title": r["title"], "date": r["date"], "reference": r["reference"],
+        "provider_assigned_topic": r["theme"],
+        "business_adoption_verified": False,
+    } for r in research_records[:3]]
     recent_examples = {}
     for source in SOURCES:
         rows = [r for r in records if r["source"] == source]
@@ -266,6 +309,9 @@ def summarize_discovery(
         "discovery_query_mode": "no_seed_topics_or_sector_keywords",
         "source_coverage": coverage, "recent_observations": len(records),
         "candidate_count": len(selected), "candidates": selected,
+        "procurement_observations": procurement_observations,
+        "research_observations": research_observations,
+        "source_balanced_examples_not_additional_trend_candidates": True,
         "sample_examples_by_source": recent_examples,
         "source_health_degraded": any(c["status"] != "observed" for c in coverage),
         "population_coverage_verified": False, "growth_rate_verified": False,
@@ -298,7 +344,9 @@ def discover_current(
         plan_source("openalex", limit=limit, lookback_days=lookback_days,
                     discover=True, env=env),
         plan_source("cfpb", limit=limit, lookback_days=lookback_days, env=env),
-        plan_source("ted", keyword=f"PD = ({period_start} <> {now:%Y%m%d})",
+        plan_source("ted",
+                    keyword=(f"PD = ({period_start} <> {now:%Y%m%d}) "
+                             "SORT BY publication-date DESC"),
                     limit=limit, env=env),
     ]
     if not execute:
@@ -361,7 +409,7 @@ def format_discovery_report(result: dict[str, Any]) -> str:
     for idx, item in enumerate(result["candidates"], start=1):
         lines.append(
             f"{idx}. {item['label']} | investigation {item['investigation_priority']}/2 "
-            f"| {item['unique_recent_records_in_sample']} independent records "
+            f"| {item['unique_recent_records_in_sample']} distinct source records "
             f"| {', '.join(item['sources'])}"
         )
         lines.append("   Basis: " + item["basis"].replace("_", " "))
@@ -371,7 +419,44 @@ def format_discovery_report(result: dict[str, Any]) -> str:
                 f"   - {original['source']} {original['date']}: {' '.join(title.split())[:90]}"
             )
             lines.append(f"     {original['reference']}")
+        if item["basis"] == "cfpb_public_product_issue_categories":
+            lines.append(
+                "   Interpretation: repeat complaints in one source, not "
+                "independent buyers or verified market growth"
+            )
         lines.append("   Next: " + item["next_check"])
+        lines.append("")
+    if result.get("procurement_observations"):
+        lines.append("Recent EU procurement notices (not confirmed new purchases):")
+        for notice in result["procurement_observations"]:
+            title = "".join(c if c.isprintable() else " " for c in notice["title"])
+            lines.append(
+                f"  TED [{notice['date']}] {' '.join(title.split())[:100]}"
+            )
+            details = []
+            if notice["buyer_name"]:
+                buyer = "".join(c if c.isprintable() else " " for c in notice["buyer_name"])
+                details.append("buyer published: " + " ".join(buyer.split())[:85])
+            details.append(notice["procurement_stage"].replace("_", " "))
+            if notice["title_language"]:
+                details.append("title language: " + notice["title_language"])
+            lines.append("    " + " | ".join(details))
+            lines.append(f"    {notice['reference']}")
+        lines.append("")
+    if result.get("research_observations"):
+        lines.append("Recent scholarly work (research activity, not buyer demand):")
+        for work in result["research_observations"]:
+            title = "".join(c if c.isprintable() else " " for c in work["title"])
+            lines.append(f"  OpenAlex [{work['date']}] {' '.join(title.split())[:95]}")
+            if work["provider_assigned_topic"]:
+                topic = "".join(
+                    c if c.isprintable() else " "
+                    for c in work["provider_assigned_topic"]
+                )
+                lines.append(
+                    f"    Provider topic (algorithmic): {' '.join(topic.split())[:85]}"
+                )
+            lines.append(f"    {work['reference']}")
         lines.append("")
     lines.append("Other recent source observations (not validated trends):")
     for source, examples in result["sample_examples_by_source"].items():

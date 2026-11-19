@@ -65,7 +65,8 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
             raise IntelligenceError("Unsafe or oversized TED query")
         body = {
             "query": query, "fields": ["publication-number", "notice-title",
-                                      "buyer-name", "publication-date", "notice-type"],
+                                      "buyer-name", "publication-date",
+                                      "notice-type", "official-language"],
             "limit": limit, "page": 1, "paginationMode": "PAGE_NUMBER",
         }
         return Plan(method="POST", url="https://api.ted.europa.eu/v3/notices/search",

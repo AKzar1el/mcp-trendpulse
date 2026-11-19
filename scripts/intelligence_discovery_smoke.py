@@ -51,6 +51,12 @@ def main() -> int:
         ],
         "sample_recent_records": result["recent_observations"],
         "research_candidates_in_sample": result["candidate_count"],
+        "procurement_titles_available": len(result["procurement_observations"]),
+        "research_titles_available": len(result["research_observations"]),
+        "latest_procurement_date": (
+            result["procurement_observations"][0]["date"]
+            if result["procurement_observations"] else None
+        ),
         "market_growth_verified": False,
         "buyer_budget_verified": False,
         "customer_outcomes_verified": False,

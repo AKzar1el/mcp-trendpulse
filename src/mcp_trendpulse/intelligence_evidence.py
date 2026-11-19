@@ -136,7 +136,11 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
             rows = [{"cik": payload["cik"], "entity_name": payload["entityName"]}]
         else:
             rows = _objects(payload.get(fields[source]))
-        return {"record_count": len(rows), "sample": rows[:10],
+        # Recent-discovery plans request up to 20 rows. The former ten-row
+        # projection silently halved OpenAlex/TED samples even with --limit 20.
+        # Keep the general source cap at 10 where older adapters depend on it.
+        sample_cap = 20 if source in {"openalex", "ted"} else 10
+        return {"record_count": len(rows), "sample": rows[:sample_cap],
                 "unit": "public provider records; no demand validation"}
     if source == "lever":
         rows = _objects(payload)

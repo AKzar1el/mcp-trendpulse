@@ -94,3 +94,26 @@ def test_entsoe_requires_generation_load_document_with_quantity_measurement():
     })
     assert report["record_count"] == 3
     assert "electricity load" in report["unit"]
+
+
+
+def test_openalex_and_ted_projections_honor_public_twenty_record_limit():
+    from mcp_trendpulse.intelligence_evidence import evidence_projection
+
+    openalex_rows = [{
+        "id": f"https://openalex.org/W{1000000000 + i}",
+        "display_name": f"Research work {i}",
+        "publication_date": "2026-11-18",
+    } for i in range(20)]
+    ted_rows = [{
+        "publication-number": f"{100000+i}-2026",
+        "publication-date": "2026-11-19",
+        "notice-title": {"eng": [f"Public procurement {i}"]},
+    } for i in range(20)]
+    oa = evidence_projection("openalex", {"results": openalex_rows})
+    notices = evidence_projection("ted", {"notices": ted_rows})
+    assert oa["record_count"] == 20
+    assert len(oa["sample"]) == 20
+    assert notices["record_count"] == 20
+    assert len(notices["sample"]) == 20
+    assert notices["sample"][0]["notice-title"]["eng"] == ["Public procurement 0"]

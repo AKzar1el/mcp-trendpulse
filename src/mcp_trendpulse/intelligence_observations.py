@@ -55,6 +55,39 @@ def _key(value: Any) -> str:
     return value
 
 
+def _multilingual(value: Any, *, official: Any = None, size: int = 180) -> tuple[str, str]:
+    """Read TED title/buyer maps, preferring English then the original language.
+
+    TED values are often {eng: ["title"], nld: ["titel"]}; never stringify
+    provider dicts or arbitrary nested objects. Report the selected language.
+    """
+    if isinstance(value, str):
+        return _text(value, size), ""
+    if not isinstance(value, dict):
+        return "", ""
+    options: dict[str, str] = {}
+    for key, raw in value.items():
+        if not isinstance(key, str) or re.fullmatch(r"[A-Za-z]{2,3}", key) is None:
+            continue
+        text = ""
+        if isinstance(raw, str):
+            text = _text(raw, size)
+        elif isinstance(raw, list):
+            text = next((_text(x, size) for x in raw[:5]
+                         if isinstance(x, str) and _text(x, size)), "")
+        if text:
+            options[key.lower()] = text
+    language = (official[0].lower() if isinstance(official, list)
+                and official and isinstance(official[0], str) else "")
+    for choice in ("eng", "en", language):
+        if choice in options:
+            return options[choice], choice
+    if options:
+        first = min(options)
+        return options[first], first
+    return "", ""
+
+
 def _entry(source: str, raw: dict[str, Any], asof: date) -> dict[str, Any] | None:
     """Extract only source-published non-personal fields, never raw payloads."""
     result: dict[str, Any] = {"source": source, "kind": SOURCE_KIND[source]}
@@ -131,12 +164,30 @@ def _entry(source: str, raw: dict[str, Any], asof: date) -> dict[str, Any] | Non
         tender_id = _key(raw.get("publication-number") or raw.get("publication_number"))
         if not tender_id:
             return None
+        official = raw.get("official-language")
+        title, title_language = _multilingual(
+            raw.get("notice-title") or raw.get("notice_title"),
+            official=official, size=180,
+        )
+        buyer, buyer_language = _multilingual(
+            raw.get("buyer-name") or raw.get("buyer_name"),
+            official=official, size=130,
+        )
+        # Only publish a specific notice link when the publication number
+        # follows TED's documented NNNNNN-YYYY format.
+        detail_ref = (
+            "https://ted.europa.eu/en/notice/-/detail/" + tender_id
+            if re.fullmatch(r"[0-9]{1,7}-20[0-9]{2}", tender_id)
+            else "https://ted.europa.eu/en/"
+        )
         result.update({
             "id": tender_id,
-            "buyer_name": _text(raw.get("buyer-name") or raw.get("buyer_name")),
-            "title": _text(raw.get("notice-title") or raw.get("notice_title"), 180),
+            "buyer_name": buyer,
+            "buyer_language": buyer_language,
+            "title": title,
+            "title_language": title_language,
             "notice_type": _text(raw.get("notice-type") or raw.get("notice_type"), 50),
-            "reference": "https://ted.europa.eu/en/",
+            "reference": detail_ref,
             "event_date": _date(raw.get("publication-date") or raw.get("publication_date"), asof),
             "date_semantics": "notice_publication_not_confirmed_award",
         })

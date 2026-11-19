@@ -292,3 +292,116 @@ def test_future_publication_date_is_rejected_with_explainable_coverage():
     assert report["source_coverage"][0]["future_dated_records_rejected"] == 1
     assert report["source_coverage"][0]["recent_valid_records"] == 1
     assert "future-dated rejected:1" in discovery.format_discovery_report(report)
+
+
+
+def test_multilingual_ted_notice_becomes_source_attributed_procurement_example():
+    from mcp_trendpulse.intelligence_observations import _entry
+
+    actual_shape = {
+        "publication-number": "683567-2026",
+        "publication-date": "2026-11-18+01:00",
+        "notice-title": {
+            "deu": ["Batterie-Recycling Anlage"],
+            "eng": ["Battery recycling facility services"],
+        },
+        "buyer-name": {"deu": ["Stadt Beispiel"], "eng": ["Example Municipality"]},
+        "official-language": ["DEU"],
+        "notice-type": "cn-standard",
+    }
+    parsed = _entry("ted", actual_shape, date(2026, 11, 19))
+    assert parsed is not None
+    assert parsed["title"] == "Battery recycling facility services"
+    assert parsed["title_language"] == "eng"
+    assert parsed["buyer_name"] == "Example Municipality"
+    assert parsed["buyer_language"] == "eng"
+    assert parsed["reference"] == "https://ted.europa.eu/en/notice/-/detail/683567-2026"
+    assert parsed["event_date"] == "2026-11-18"
+    r = report(observed("ted", [actual_shape]))
+    assert r["recent_observations"] == 1
+    assert r["candidate_count"] == 0
+    notice = r["procurement_observations"][0]
+    assert notice["title"] == "Battery recycling facility services"
+    assert notice["buyer_name"] == "Example Municipality"
+    assert notice["procurement_stage"] == "contract_notice_not_award"
+    assert notice["buying_intent_verified"] is False
+    assert notice["contract_value_verified"] is False
+    output = discovery.format_discovery_report(r)
+    assert "Recent EU procurement notices" in output
+    assert "buyer published: Example Municipality" in output
+    assert "title language: eng" in output
+    assert "683567-2026" in output
+
+
+def test_ted_official_language_fallback_is_not_invented_translation():
+    from mcp_trendpulse.intelligence_observations import _entry
+
+    x = notice("777777-2026", "2026-11-19", "placeholder")
+    x["notice-title"] = {
+        "fra": ["Prestation sanitaire"],
+        "deu": ["Gesundheitssysteme"],
+    }
+    x["buyer-name"] = {"fra": ["Ville Exemple"]}
+    x["official-language"] = ["FRA"]
+    result = _entry("ted", x, date(2026, 11, 19))
+    assert result is not None
+    assert result["title"] == "Prestation sanitaire"
+    assert result["title_language"] == "fra"
+    assert result["buyer_name"] == "Ville Exemple"
+    assert result["buyer_language"] == "fra"
+    assert result["reference"].endswith("777777-2026")
+
+
+def test_unusable_ted_title_does_not_count_as_quality_procurement_observation():
+    x = notice("777777-2026")
+    x["notice-title"] = {"deu": [{"untrusted_text": "DO_NOT_EMIT_THIS"}]}
+    r = report(observed("ted", [x]))
+    assert r["recent_observations"] == 0
+    assert r["procurement_observations"] == []
+    assert r["source_coverage"][0]["recent_valid_records"] == 0
+    assert "DO_NOT_EMIT_THIS" not in repr(r)
+
+
+def test_source_balanced_report_does_not_erase_nonrepeat_procurement_and_research():
+    r = report(
+        observed("cfpb", [
+            complaint("101"), complaint("102"), complaint("103"),
+        ]),
+        observed("ted", [{
+            "publication-number": "572118-2026",
+            "publication-date": "2026-11-18",
+            "notice-title": {"eng": ["Clinical equipment maintenance"]},
+            "buyer-name": {"eng": ["Public hospital"]},
+            "notice-type": "cn-standard",
+        }]),
+        observed("openalex", [work()]),
+    )
+    assert r["candidate_count"] == 1
+    assert r["source_balanced_examples_not_additional_trend_candidates"] is True
+    assert len(r["procurement_observations"]) == 1
+    assert len(r["research_observations"]) == 1
+    out = discovery.format_discovery_report(r)
+    assert "distinct source records" in out
+    assert "not independent buyers or verified market growth" in out
+    assert "Clinical equipment maintenance" in out
+    assert "Recent scholarly work" in out
+    assert "Provider topic (algorithmic)" in out
+    assert "Research activity" not in out or "research activity" in out
+
+
+def test_ted_award_notice_is_not_published_as_new_open_tender():
+    x = notice("683567-2026")
+    x["notice-type"] = "can-standard"
+    result = report(observed("ted", [x]))
+    assert result["procurement_observations"][0]["procurement_stage"] == (
+        "contract_award_notice_not_open_tender"
+    )
+    assert result["candidate_count"] == 0
+
+
+def test_discover_uses_recent_first_published_notice_sort():
+    plan = discovery.discover_current(execute=False, env={})
+    ted = next(p for p in plan["plans"] if p["source"] == "ted")
+    assert "SORT BY publication-date DESC" in ted["body"]["query"]
+    assert "PD = (" in ted["body"]["query"]
+    assert ted["body"]["limit"] == 12

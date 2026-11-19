@@ -578,3 +578,46 @@ CFPB public category documentation:
 https://cfpb.github.io/api/ccdb/fields.html
 TED search documentation:
 https://docs.ted.europa.eu/api/latest/search.html
+
+### Real discovery feedback: financial complaint skew and missing TED titles
+
+On 2026-11-19 the user's seedless `--limit 20` local output showed 20 CFPB
+complaints and three repeated consumer-finance categories, but only 10 TED
+and 10 OpenAlex observations and a **blank** TED notice title. These are
+pipeline defects/selection biases, not an absence of procurement or emerging
+research topics:
+
+- TED's `notice-title` and `buyer-name` fields are multilingual mappings
+  of language codes to strings/arrays. Reading a mapping as a plain string
+  deleted every notice title. The source-safe parser now prefers published
+  English, then official-language text, then a deterministic available
+  language fallback. It records the selected language, extracts published
+  contracting authority names and notice type, and links to the exact
+  published notice **only when** its number matches TED's documented format.
+  A notice with no usable title is not counted as an actionable lead.
+- The evidence projection quietly truncated otherwise valid TED/OpenAlex
+  samples at 10 even for `--limit 20`. These two bounded sources now
+  project up to 20 rows (the network response and JSON normalization
+  limits remain unchanged). Existing provider budgets and credentials
+  remain untouched.
+- Discovery's TED date query now sorts `publication-date DESC` to avoid
+  giving an old, first-published item pride of place in the result window.
+  It still uses only source-published dates, never inferred creation dates.
+- The report preserves all repeated CFPB categories, but explicitly says
+  that a *distinct public complaint ID* is **not a distinct customer/buyer**
+  and a complaint does not demonstrate willingness to purchase SaaS.
+  To counterbalance source skew without fabricating a cross-source trend,
+  the report also lists up to four actual published EU procurement notices
+  (with buyer/notice type/date/link where available) and three recent
+  OpenAlex research works (with provider-classified topic labels).
+  These standalone observations are **not scored as growth trends**.
+
+These rules are covered by synthetic multilingual-map, non-English fallback,
+empty-title, source attribution, notice-type interpretation and 20-row
+projection regressions. The optional live discovery CI smoke reports only
+source status and counts of usable procurement/research examples, no raw
+notice text, personal complaint details or credentials.
+
+Upstream field documentation:
+https://docs.ted.europa.eu/ODS/latest/reuse/search-api.html
+https://ted.europa.eu/en/help/search-browse
