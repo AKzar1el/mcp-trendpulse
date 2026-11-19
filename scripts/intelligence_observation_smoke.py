@@ -15,7 +15,10 @@ from mcp_trendpulse.intelligence_core import BudgetCache, collect, plan_source
 from mcp_trendpulse.intelligence_observations import observe_source_snapshots
 
 CASES = (
-    ("openalex", {"keyword": "battery", "limit": 2}),
+    # OpenAlex is already exercised by the multi-lane workflow. Its
+    # keyless allowance is shared on CI runner IPs and has returned HTTP 429.
+    # Avoid duplicate concurrent queries; use independent public GLEIF here.
+    ("gleif", {"keyword": "Siemens", "limit": 2}),
     ("cordis", {"keyword": "battery", "limit": 2}),
     ("usaspending", {"keyword": "battery", "limit": 2}),
 )

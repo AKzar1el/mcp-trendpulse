@@ -321,7 +321,7 @@ row. This avoids false trending evidence from sampled denominators.
 ### Live acceptance without credentials
 
 The optional GitHub Actions workflow `intelligence-observation-smoke.yml`
-executes three small real public queries (OpenAlex, CORDIS, USAspending),
+executes three small real public queries (GLEIF, CORDIS, USAspending),
 passes their collector observations through the offline normalization pipeline,
 and publishes only source status and bounded count diagnostics. Source
 unavailability is explicitly marked inconclusive and blocks a claimed
@@ -340,3 +340,11 @@ the report labels missing optional enrichment explicitly, but does not
 artificially downgrade the primary buyer/workflow investigation. An actual
 failure of a required source still degrades the lane. There is no EPO
 registration requirement, paywall, or paid substitute for TrendPulse.
+
+
+On shared GitHub Actions runner IPs, keyless OpenAlex queries have returned
+HTTP 429 under concurrent workflows. We **do not retry or bypass free quotas**.
+The separate multi-lane suite continues to test OpenAlex when permitted;
+this observation smoke avoids an unnecessary duplicate concurrent API call
+and instead checks the GLEIF corporate-identity JSON shape. Authenticated
+OpenAlex testing uses locally stored free credentials, never CI secrets.
