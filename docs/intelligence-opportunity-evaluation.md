@@ -316,3 +316,15 @@ the whole searchable source population. Consequently `sample_complete` and
 count equals the sample length. The narrower `projection_sample_complete`
 metadata only checks whether the bounded extractor retained every projected
 row. This avoids false trending evidence from sampled denominators.
+
+
+### Live acceptance without credentials
+
+The optional GitHub Actions workflow `intelligence-observation-smoke.yml`
+executes three small real public queries (OpenAlex, CORDIS, USAspending),
+passes their collector observations through the offline normalization pipeline,
+and publishes only source status and bounded count diagnostics. Source
+unavailability is explicitly marked inconclusive and blocks a claimed
+successful integration; no API keys, company records or raw public responses
+are uploaded. Results are **compatibility and provenance tests**, not
+validated trend forecasts or winning companies.

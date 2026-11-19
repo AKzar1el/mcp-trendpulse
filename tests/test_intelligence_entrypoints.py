@@ -129,3 +129,32 @@ def test_new_offline_opportunity_cli_and_backtest(tmp_path):
         "intelligence", "opportunities", "backtest", "--input-json", str(labels),
     ])
     assert result.exit_code != 0
+
+
+def test_offline_observation_cli_keeps_sources_and_coverage_separate(tmp_path):
+    from click.testing import CliRunner
+    from mcp_trendpulse.cli import cli
+
+    batch = {
+        "topic": "battery", "as_of": "2026-11-19",
+        "snapshots": [{
+            "source": "openalex", "status": "observed",
+            "observations": {
+                "record_count": 1, "sample": [{
+                    "id": "https://openalex.org/W2741809807",
+                    "display_name": "Battery recycling research",
+                    "publication_date": "2026-11-15",
+                }],
+            },
+        }],
+    }
+    file = tmp_path / "observations.json"
+    file.write_text(json.dumps(batch), encoding="utf-8")
+    result = CliRunner().invoke(
+        cli, ["intelligence", "observe", "--input-json", str(file)]
+    )
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report["dated_recent_sample_records"] == 1
+    assert report["source_coverage"][0]["population_coverage_verified"] is False
+    assert report["paid_customer_outcome_verified"] is False

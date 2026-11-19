@@ -107,6 +107,29 @@ async def exercise(mode: str, result_path: Path) -> int:
                         raise AssertionError("Secret-bearing MCP argument schema exposed")
                 checked.append({"case": "initialize_discover_ten_read_only_tools", "ok": True})
 
+                observation = await _call(
+                    session, "intelligence_observe_source_snapshots", {
+                        "topic": "battery",
+                        "as_of": "2026-11-19",
+                        "snapshots": [{
+                            "source": "openalex", "status": "observed",
+                            "observations": {
+                                "record_count": 1,
+                                "sample": [{
+                                    "id": "https://openalex.org/W2741809807",
+                                    "display_name": "Battery recycling research",
+                                    "publication_date": "2026-11-15",
+                                }],
+                            },
+                        }],
+                    },
+                )
+                if (observation.get("dated_recent_sample_records") != 1
+                        or observation.get("buyer_budget_verified") is not False
+                        or len(observation.get("eighteen_lane_coverage", [])) != 18):
+                    raise AssertionError("Offline observation MCP violated attribution gates")
+                checked.append({"case": "offline_company_observation_no_false_demand", "ok": True})
+
                 catalogue = await _call(session, "intelligence_source_catalog", {})
                 if not isinstance(catalogue, list) or len(catalogue) != 25:
                     raise AssertionError("Expected exactly 25 global-source records")
