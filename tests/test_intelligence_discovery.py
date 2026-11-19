@@ -6,6 +6,7 @@ validation, trend growth, population prevalence or proof of buyer budgets.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import date, timedelta
 from urllib.parse import parse_qs, urlsplit
@@ -300,6 +301,134 @@ def test_explicit_execution_produces_clean_summary(monkeypatch):
     assert result["user_credentials_exposed"] is False
     assert "UNTRUSTED_RAW_PROVIDER_FIELDS" not in repr(result)
     assert "NEVER_LEAK_THIS_PRIVATE_STRING" not in repr(result)
+
+
+def test_stratified_ted_plan_is_disjoint_bounded_and_network_free(monkeypatch):
+    def forbid(*_a, **_kw):
+        raise AssertionError("Planning may not fetch source data")
+    monkeypatch.setattr(discovery, "collect", forbid)
+    planned = discovery.discover_current(
+        limit=20, lookback_days=30, execute=False,
+        ted_date_slices=3, env={},
+    )
+    assert planned["request_count"] == 5
+    assert planned["source_count"] == 3
+    assert [p["source"] for p in planned["plans"]] == [
+        "openalex", "cfpb", "ted", "ted", "ted"
+    ]
+    windows = planned["ted_windows"]
+    assert [w["requested_limit"] for w in windows] == [7, 7, 6]
+    assert windows[0]["through"] == date.today().isoformat()
+    assert windows[-1]["from"] == (date.today() - timedelta(days=29)).isoformat()
+    for older, newer in zip(windows[::-1], windows[-2::-1]):
+        assert date.fromisoformat(older["through"]) + timedelta(days=1) == date.fromisoformat(newer["from"])
+    for plan, window in zip(planned["plans"][2:], windows):
+        start = window["from"].replace("-", "")
+        end = window["through"].replace("-", "")
+        assert f"PD = ({start} <> {end})" in plan["body"]["query"]
+        assert plan["body"]["limit"] == window["requested_limit"]
+        assert "notice-type IN (cn-standard cn-social cn-desg)" in plan["body"]["query"]
+        assert "classification-cpv" not in plan["body"]["query"]
+
+
+@pytest.mark.parametrize("bad,limit", [(0, 20), (2, 20), (4, 20),
+                                        (True, 20), ("3", 20), (3, 2)])
+def test_stratification_invalid_modes_and_too_small_limits_rejected(bad, limit):
+    with pytest.raises(ValueError):
+        discovery.discover_current(
+            execute=False, ted_date_slices=bad, limit=limit, env={},
+        )
+
+
+def test_stratified_live_path_bounded_three_ted_windows_and_private_history(
+    monkeypatch, tmp_path,
+):
+    calls = []
+    def fake_collect(plan, **kwargs):
+        assert kwargs["fetch"] is True
+        calls.append(plan.source)
+        if plan.source == "openalex":
+            return observed("openalex", [work(day=date.today().isoformat())])
+        if plan.source == "cfpb":
+            return observed("cfpb", [complaint(day=date.today().isoformat())])
+        match = re.search(r"PD = \((\d{8}) <> (\d{8})\)", plan.body["query"])
+        assert match
+        source_day = date.fromisoformat(
+            f"{match.group(2)[:4]}-{match.group(2)[4:6]}-{match.group(2)[6:]}"
+        ).isoformat()
+        idx = calls.count("ted")
+        rows = []
+        for i in range(plan.body["limit"]):
+            n = 800000 + 25 * idx + i
+            raw = _rich_ted(f"{n}-2026", f"Buyer {n}", "72222300")
+            raw["publication-date"] = source_day
+            raw["unneeded_personal_vendor_metadata"] = "NEVER_LEAK_VENDOR"
+            rows.append(raw)
+        return observed("ted", rows)
+
+    monkeypatch.setattr(discovery, "collect", fake_collect)
+    result = discovery.discover_current(
+        execute=True, limit=20, lookback_days=30,
+        ted_date_slices=3, env={},
+    )
+    assert calls == ["openalex", "cfpb", "ted", "ted", "ted"]
+    assert result["queries_budgeted"] == 5
+    assert len(result["source_coverage"]) == 3
+    assert result["recent_observations"] == 22
+    assert result["source_health_degraded"] is False
+    assert result["ted_sampling_audit"]["observed_notice_count"] == 20
+    assert result["ted_sampling_audit"]["publication_days_represented"] == 3
+    assert result["ted_sampling_audit"]["observed_date_windows"] == 3
+    assert result["ted_sampling_audit"]["failed_date_windows"] == 0
+    assert result["ted_sampling_audit"]["sector_share_or_growth_estimable"] is False
+    assert result["ted_sampling_audit"]["any_date_window_hit_record_cap"] is True
+    assert result["growth_rate_verified"] is False
+    assert "NEVER_LEAK_VENDOR" not in repr(result)
+    text = discovery.format_discovery_report(result)
+    assert "TED OPT-IN TIME-STRATIFIED SAMPLING" in text
+    assert "3/3 date windows observed" in text
+    assert "At least one TED date-window page hit" in text
+    stored = discovery.record_discovery_history(result, tmp_path / "test_history.sqlite")
+    assert stored["raw_records_saved"] is False
+    contents = (tmp_path / "test_history.sqlite").read_bytes().decode("latin1")
+    assert "Buyer" not in contents and "NEVER_LEAK_VENDOR" not in contents
+
+
+def test_stratified_partial_failures_and_out_of_window_records(monkeypatch):
+    calls = 0
+    def fake_collect(plan, **kwargs):
+        nonlocal calls
+        if plan.source == "openalex":
+            return observed("openalex", [])
+        if plan.source == "cfpb":
+            return observed("cfpb", [])
+        calls += 1
+        if calls == 2:
+            return {"source": "ted", "status": "unavailable", "http_status": 429}
+        match = re.search(r"PD = \((\d{8}) <> (\d{8})\)", plan.body["query"])
+        day = date.fromisoformat(
+            f"{match.group(2)[:4]}-{match.group(2)[4:6]}-{match.group(2)[6:]}"
+        ).isoformat()
+        good = _rich_ted(f"{804000+calls}-2026", f"Buyer {calls}", "72222300")
+        good["publication-date"] = day
+        wrong = _rich_ted(f"{805000+calls}-2026", "Wrong Window", "72222300")
+        wrong["publication-date"] = "2020-01-01"
+        return observed("ted", [good, wrong])
+
+    monkeypatch.setattr(discovery, "collect", fake_collect)
+    x = discovery.discover_current(
+        execute=True, limit=12, ted_date_slices=3, env={},
+    )
+    audit = x["ted_sampling_audit"]
+    assert audit["observed_date_windows"] == 2
+    assert audit["failed_date_windows"] == 1
+    assert x["source_health_degraded"] is True
+    assert next(c for c in x["source_coverage"] if c["source"] == "ted")["partial_date_window_coverage"] is True
+    assert audit["observed_notice_count"] == 2
+    assert audit["date_window_results"][0]["dropped_outside_window"] == 1
+    assert audit["date_window_results"][1]["status"] == "unavailable"
+    assert audit["date_window_results"][2]["dropped_outside_window"] == 1
+    assert "PARTIAL COVERAGE" in discovery.format_discovery_report(x)
 
 
 def test_opt_in_hashed_history_never_stores_titles_or_urls(tmp_path):

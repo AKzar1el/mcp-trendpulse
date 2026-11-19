@@ -547,62 +547,220 @@ def summarize_discovery(
     }
 
 
+def _ted_date_windows(today: date, days: int, limit: int) -> list[tuple[date, date, int]]:
+    """Split requested dates into three bounded, non-overlapping ranges."""
+    first = today - timedelta(days=days - 1)
+    ranges = [
+        (first + timedelta(days=(days * i) // 3),
+         first + timedelta(days=(days * (i + 1)) // 3 - 1))
+        for i in range(3)
+    ][::-1]
+    base, leftover = divmod(limit, 3)
+    return [(start, end, base + (i < leftover))
+            for i, (start, end) in enumerate(ranges)]
+
+
+_TED_DISCOVERY_FIELDS = frozenset({
+    "publication-number", "publication-date", "notice-type", "notice-title",
+    "title-proc", "official-language", "buyer-name", "buyer-country",
+    "classification-cpv", "main-classification-proc",
+    "deadline-receipt-tender-date-lot", "estimated-value-proc",
+    "estimated-value-cur-proc",
+})
+
+
+def _compact_ted_discovery(raw: dict[str, Any]) -> dict[str, Any]:
+    """Only allow bounded source-published fields, not arbitrary TED metadata."""
+    def bound(value: Any) -> Any:
+        if isinstance(value, str):
+            return value[:240]
+        if value is None or isinstance(value, (int, float, bool)):
+            return value
+        if isinstance(value, list):
+            return [bound(v) for v in value[:8]
+                    if v is None or isinstance(v, (str, int, float, bool))]
+        if isinstance(value, dict):
+            keys = sorted((k for k in value if isinstance(k, str)
+                           and re.fullmatch(r"[A-Za-z]{2,3}", k)),
+                          key=lambda k: (k.lower() not in {"eng", "en"}, k))
+            return {k: bound(value[k]) for k in keys[:6]
+                    if isinstance(value[k], (str, list))}
+        return None
+
+    return {name: bound(raw[name]) for name in _TED_DISCOVERY_FIELDS
+            if name in raw}
+
+
+def _merge_ted_date_windows(
+    windows: list[tuple[date, date, int]],
+    snapshots: list[dict[str, Any]],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Reduce three TED results to <=20 rows with explicit failed-date status."""
+    if len(windows) != 3 or len(snapshots) != 3:
+        raise ValueError("Three TED windows required")
+    seen: set[str] = set()
+    samples: list[dict[str, Any]] = []
+    diagnostics = []
+    observed = 0
+    for (start, end, cap), snapshot in zip(windows, snapshots):
+        status = snapshot.get("status")
+        observations = snapshot.get("observations")
+        rows = observations.get("sample") if isinstance(observations, dict) else None
+        if status == "observed" and (
+            not isinstance(rows, list) or len(rows) > cap or
+            any(not isinstance(raw, dict) for raw in rows)
+        ):
+            status = "invalid_source_shape"
+        info = {
+            "from": start.isoformat(), "through": end.isoformat(),
+            "requested_limit": cap, "status": status, "sampled_rows": 0,
+            "first_page_at_window_cap": False, "dropped_outside_window": 0,
+            "duplicate_notices_excluded": 0,
+            "cache_hit": snapshot.get("cache_hit") is True,
+        }
+        if status == "observed":
+            observed += 1
+            info["sampled_rows"] = len(rows)
+            info["first_page_at_window_cap"] = len(rows) == cap
+            for raw in rows:
+                published = raw.get("publication-date") or raw.get("publication_date")
+                try:
+                    day = date.fromisoformat(published[:10]) if isinstance(published, str) else None
+                except ValueError:
+                    day = None
+                if day is None or not start <= day <= end:
+                    info["dropped_outside_window"] += 1
+                    continue
+                number = raw.get("publication-number") or raw.get("publication_number")
+                if isinstance(number, str) and number in seen:
+                    info["duplicate_notices_excluded"] += 1
+                    continue
+                if isinstance(number, str):
+                    seen.add(number)
+                samples.append(_compact_ted_discovery(raw))
+        diagnostics.append(info)
+    if len(samples) > MAX_RECORDS:
+        raise ValueError("Time-stratified TED exceeds the 20-record total cap")
+    combined = {
+        "source": "ted", "status": "observed" if observed else "unavailable",
+        "cache_hit": bool(observed == 3 and all(d["cache_hit"] for d in diagnostics)),
+    }
+    if observed:
+        combined["observations"] = {"record_count": len(samples), "sample": samples}
+    return combined, diagnostics
+
+
 def discover_current(
     *, lookback_days: int = 30, limit: int = 12,
     execute: bool = False, cache: BudgetCache | None = None,
-    env: dict[str, str] | None = None,
+    env: dict[str, str] | None = None, ted_date_slices: int = 1,
 ) -> dict[str, Any]:
-    """Execute only when explicitly requested. Three fixed-source, bounded calls."""
+    """Free, read-only discovery: default three requests; opt-in five."""
     if isinstance(lookback_days, bool) or not isinstance(lookback_days, int) or not 7 <= lookback_days <= 90:
         raise ValueError("lookback_days must be 7-90")
     if isinstance(limit, bool) or not isinstance(limit, int) or not 2 <= limit <= MAX_RECORDS:
         raise ValueError("limit must be 2-20")
+    if isinstance(ted_date_slices, bool) or not isinstance(ted_date_slices, int) or ted_date_slices not in (1, 3):
+        raise ValueError("ted_date_slices must be 1 or 3")
+    if ted_date_slices == 3 and limit < 3:
+        raise ValueError("Three TED date slices require limit >= 3")
     if not isinstance(execute, bool):
         raise ValueError("execute must be a boolean")
     now = date.today()
-    period_start = (now - timedelta(days=lookback_days - 1)).strftime("%Y%m%d")
+    first = now - timedelta(days=lookback_days - 1)
     plans = [
         plan_source("openalex", limit=limit, lookback_days=lookback_days,
                     discover=True, env=env),
         plan_source("cfpb", limit=limit, lookback_days=lookback_days, env=env),
-        plan_source("ted",
-                    keyword=(f"PD = ({period_start} <> {now:%Y%m%d}) "
-                             "AND notice-type IN (cn-standard cn-social cn-desg) "
-                             "SORT BY publication-date DESC"),
-                    limit=limit, env=env),
     ]
+    windows = (_ted_date_windows(now, lookback_days, limit)
+               if ted_date_slices == 3 else [(first, now, limit)])
+    for start, end, cap in windows:
+        plans.append(plan_source(
+            "ted", keyword=(
+                f"PD = ({start:%Y%m%d} <> {end:%Y%m%d}) "
+                "AND notice-type IN (cn-standard cn-social cn-desg) "
+                "SORT BY publication-date DESC"
+            ), limit=cap, env=env,
+        ))
     if not execute:
         return {
             "status": "planned", "network_performed": False,
             "execute_required_for_network": True,
-            "source_count": len(plans),
-            "plans": [plan.public() for plan in plans],
+            "source_count": len(SOURCES), "request_count": len(plans),
+            "ted_date_slices": ted_date_slices,
+            "ted_windows": [
+                {"from": begin.isoformat(), "through": end.isoformat(),
+                 "requested_limit": cap} for begin, end, cap in windows
+            ],
+            "plans": [p.public() for p in plans],
             "budget_excludes_paid_api_tiers": True,
         }
-    sources = []
+
+    sources: list[dict[str, Any]] = []
+    ted_snapshots: list[dict[str, Any]] = []
     for plan in plans:
         try:
-            result = collect(plan, fetch=True, cache=cache, env=env, timeout=20)
-            if result.get("status") not in {
+            outcome = collect(plan, fetch=True, cache=cache, env=env, timeout=20)
+            if outcome.get("status") not in {
                 "observed", "unavailable", "invalid_source_shape", "rate_limited",
             }:
                 raise IntelligenceError("Unexpected provider result")
-            # Collectors may retain arbitrary raw provider JSON in data;
-            # only sanitized, bounded projections enter discovery or MCP.
-            sources.append({
-                key: result[key] for key in (
-                    "source", "status", "observations", "cache_hit", "http_status",
-                ) if key in result
-            })
+            # Never return or analyze the provider's unrestricted data blob.
+            snapshot = {key: outcome[key] for key in (
+                "source", "status", "observations", "cache_hit", "http_status"
+            ) if key in outcome}
         except (OSError, ValueError, IntelligenceError) as exc:
-            sources.append({
+            snapshot = {
                 "source": plan.source, "status": "unavailable",
                 "reason_code": type(exc).__name__,
-            })
-    result = summarize_discovery(sources, as_of=now.isoformat(), lookback_days=lookback_days)
+            }
+        if ted_date_slices == 3 and plan.source == "ted":
+            ted_snapshots.append(snapshot)
+        else:
+            sources.append(snapshot)
+    diagnostics: list[dict[str, Any]] = []
+    if ted_date_slices == 3:
+        combined, diagnostics = _merge_ted_date_windows(windows, ted_snapshots)
+        sources.append(combined)
+
+    result = summarize_discovery(
+        sources, as_of=now.isoformat(), lookback_days=lookback_days,
+    )
     result["network_performed"] = True
     result["queries_budgeted"] = len(plans)
+    result["ted_date_slices"] = ted_date_slices
+    result["sample_limit"] = limit
     result["user_credentials_exposed"] = False
+    if ted_date_slices == 3:
+        observed = sum(d["status"] == "observed" for d in diagnostics)
+        result["ted_sampling_audit"].update({
+            "sampling_strategy": "three_nonoverlapping_dates_latest_first_within_each",
+            "requested_date_windows": 3,
+            "observed_date_windows": observed,
+            "failed_date_windows": 3 - observed,
+            "date_window_results": diagnostics,
+            "first_page_hit_record_cap": False,
+            "any_date_window_hit_record_cap": any(
+                d["first_page_at_window_cap"] for d in diagnostics
+            ),
+            "full_population_coverage_verified": False,
+            "per_window_sampling_is_not_uniform_or_exhaustive": True,
+        })
+        for cover in result["source_coverage"]:
+            if cover["source"] == "ted":
+                cover["partial_date_window_coverage"] = observed < 3
+                if observed < 3:
+                    cover["note"] = (
+                        "Some date windows failed; unobserved windows are unknown,"
+                        " not evidence of zero demand"
+                    )
+        if observed < 3:
+            result["source_health_degraded"] = True
+        result["limits"] += (
+            " Three TED windows improve time spread but still return"
+            " bounded newest-first pages, not representative market data."
+        )
     return result
 
 
@@ -625,9 +783,38 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             tag += f" | HTTP {item['http_status']}"
         if item["cache_hit"]:
             tag += " (cached)"
+        if item.get("partial_date_window_coverage"):
+            tag += " | partial date-window coverage"
         lines.append("Source: " + tag)
     lines.append("")
     sample_audit = result.get("ted_sampling_audit", {})
+    if sample_audit and result.get("ted_date_slices") == 3:
+        lines.append(
+            "TED OPT-IN TIME-STRATIFIED SAMPLING: "
+            f"{sample_audit['observed_date_windows']}/3 date windows observed "
+            f"within {result['lookback_days']} days, using "
+            f"{result['queries_budgeted']} planned free requests."
+        )
+        for window in sample_audit["date_window_results"]:
+            line = (
+                f"  {window['from']} to {window['through']}: "
+                f"{window['status']} | {window['sampled_rows']}/"
+                f"{window['requested_limit']} sample records"
+            )
+            if window["first_page_at_window_cap"]:
+                line += " | window page cap reached"
+            if window["dropped_outside_window"]:
+                line += f" | wrong-date excluded: {window['dropped_outside_window']}"
+            lines.append(line)
+        lines.append(
+            "Time windows are not exhaustive or random samples; "
+            "sector prevalence and growth remain unverified."
+        )
+        if sample_audit["failed_date_windows"]:
+            lines.append(
+                "PARTIAL COVERAGE: failed windows are unknown, not zero activity."
+            )
+        lines.append("")
     if sample_audit and sample_audit["status"] == "observed":
         span = (
             sample_audit["earliest_sampled_publication"]
@@ -647,6 +834,11 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             lines.append(
                 "Sample hit the 20-record first-page cap; earlier dates and "
                 "other CPV divisions may be absent."
+            )
+        if sample_audit.get("any_date_window_hit_record_cap"):
+            lines.append(
+                "At least one TED date-window page hit its local cap; "
+                "more notices in that date window may be absent."
             )
         lines.append(
             "Primary CPV 48/72 software/IT in sampled notices: "
@@ -802,13 +994,22 @@ def record_discovery_history(
             )
         """)
         for c in result["candidates"][:12]:
+            # Preserve comparability: existing default history IDs stay
+            # stable, while opt-in date-stratified samples occupy a distinct
+            # hashed namespace for a given window and total cap.
+            candidate_hash = c["candidate_id"]
+            if result.get("ted_date_slices") == 3:
+                candidate_hash = hashlib.sha256((
+                    "ted_3_windows|" + str(result["lookback_days"]) + "|" +
+                    str(result.get("sample_limit", 0)) + "|" + candidate_hash
+                ).encode()).hexdigest()[:14]
             connection.execute("""
                 INSERT INTO discovery_candidates VALUES (?, ?, ?, ?)
                 ON CONFLICT(day, candidate_hash) DO UPDATE SET
                     sample_records=excluded.sample_records,
                     source_classes=excluded.source_classes
             """, (
-                run_date, c["candidate_id"],
+                run_date, candidate_hash,
                 c["unique_recent_records_in_sample"], c["distinct_source_classes"],
             ))
         connection.execute("DELETE FROM discovery_candidates WHERE day < ?", (cutoff,))

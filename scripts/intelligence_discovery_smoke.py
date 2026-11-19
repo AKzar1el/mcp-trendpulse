@@ -23,6 +23,14 @@ def main() -> int:
                 or plan["network_performed"] is not False
                 or plan["source_count"] != 3):
             raise AssertionError("Plan-only mode performed network access")
+        plan3 = discover_current(
+            execute=False, limit=20, lookback_days=30, ted_date_slices=3,
+            cache=cache, env={},
+        )
+        if (plan3["network_performed"] or plan3["request_count"] != 5
+                or plan3["source_count"] != 3
+                or sum(w["requested_limit"] for w in plan3["ted_windows"]) != 20):
+            raise AssertionError("Time-stratified plan is not network-free or bounded")
         result = discover_current(
             execute=True, limit=20, lookback_days=30,
             cache=cache, env={},
@@ -68,6 +76,7 @@ def main() -> int:
         "mode": "seedless_current_topics_keyless_live_smoke",
         "providers_attempted": 3,
         "per_provider_record_limit_requested": 20,
+        "stratified_plan_only_safety_verified": True,
         "providers_observed": covered,
         "source_status": [
             {"source": s["source"], "status": s["status"],

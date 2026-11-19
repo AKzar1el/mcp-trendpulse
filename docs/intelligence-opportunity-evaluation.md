@@ -736,6 +736,47 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Opt-in time-stratified TED notice observation (2026-11-19)
+
+The default keyless discovery samples the **newest 20 TED notices**, which
+in owner tests all came from one publication date despite a 30-day lookback.
+An explicit \`--ted-date-slices 3\` flag now divides 7–90 requested days
+into **three disjoint calendar-date windows**; it never runs by default
+or in background schedules. With \`--limit 20\` it requests at most
+**7+7+6 TED notices**, one first page in each date range, making
+**five requests total** (3 TED, OpenAlex, CFPB) instead of three.
+The normal provider-day limits, response-size gates, request locks,
+SQLite caching, no-redirect policy and anonymous keyless TED access
+remain enforced. \`--execute\` is still required for any fetch;
+\`--ted-date-slices 3\` without it only prints a plan.
+
+The three TED results are deduplicated by publication number, records
+outside their requested date windows are excluded and counted, and only
+a minimal bounded subset of source-published TED fields is preserved
+when combining results into the unchanged **single 20-record TED
+summary snapshot**. The normal two other source families are retained.
+The report includes each date window, result status, sample size,
+cap hits and incomplete coverage. A failed window **never** represents
+zero demand or zero notices; any successful windows remain visible
+with an explicit degraded-health indicator.
+
+This is **deterministic time-stratified convenience sampling**, not a
+representative sample or complete count; each partition is itself
+newest-first and may truncate observations. No market-share, growth,
+buyer eligibility, available tender status or purchasing outcome is
+inferred from the distribution. The optional hashed discovery-history
+keys are namespaced by strategy, lookback and record limit, so they
+cannot silently overwrite the default-mode candidate hashes.
+
+Example (PowerShell, after installing the draft revision):
+
+\`\`\`
+mcp-trendpulse-cli intelligence discover --execute --lookback-days 30 --limit 20 --ted-date-slices 3 --record-history --format text
+\`\`\`
+
+Official TED sources: https://ted.europa.eu/en/help/search-browse
+and https://docs.ted.europa.eu/ODS/latest/reuse/search-api.html .
+
 ### Current-first TED quality audit: broad CPV and time-window bias (November 19)
 
 The owner's subsequent local field run used 20 OpenAlex, 20 CFPB and
