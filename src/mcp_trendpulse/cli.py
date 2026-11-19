@@ -286,8 +286,8 @@ def _watch_backtest_csv(report):
 )
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
-@click.option("--format", "headline_format", type=click.Choice(["text", "json"]), default="text",
-              show_default=True, help="RSS headline output format; JSON requires --headlines-only.")
+@click.option("--format", "headline_format", type=click.Choice(["text", "json", "csv"]), default="text",
+              show_default=True, help="RSS headline output format; JSON/CSV require --headlines-only.")
 @click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
               help="Save extracted article JSON in this existing directory without overwriting files.")
 def keyword(keyword, period, max_results, no_nlp, headlines_only, headline_format, save_json_dir):
@@ -322,8 +322,8 @@ def keyword(keyword, period, max_results, no_nlp, headlines_only, headline_forma
 )
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
-@click.option("--format", "headline_format", type=click.Choice(["text", "json"]), default="text",
-              show_default=True, help="RSS headline output format; JSON requires --headlines-only.")
+@click.option("--format", "headline_format", type=click.Choice(["text", "json", "csv"]), default="text",
+              show_default=True, help="RSS headline output format; JSON/CSV require --headlines-only.")
 @click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
               help="Save extracted article JSON in this existing directory without overwriting files.")
 def location(location, period, max_results, no_nlp, headlines_only, headline_format, save_json_dir):
@@ -358,8 +358,8 @@ def location(location, period, max_results, no_nlp, headlines_only, headline_for
 )
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
-@click.option("--format", "headline_format", type=click.Choice(["text", "json"]), default="text",
-              show_default=True, help="RSS headline output format; JSON requires --headlines-only.")
+@click.option("--format", "headline_format", type=click.Choice(["text", "json", "csv"]), default="text",
+              show_default=True, help="RSS headline output format; JSON/CSV require --headlines-only.")
 @click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
               help="Save extracted article JSON in this existing directory without overwriting files.")
 def topic(topic, period, max_results, no_nlp, headlines_only, headline_format, save_json_dir):
@@ -417,8 +417,8 @@ def trending(geo, full_data):
 )
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
-@click.option("--format", "headline_format", type=click.Choice(["text", "json"]), default="text",
-              show_default=True, help="RSS headline output format; JSON requires --headlines-only.")
+@click.option("--format", "headline_format", type=click.Choice(["text", "json", "csv"]), default="text",
+              show_default=True, help="RSS headline output format; JSON/CSV require --headlines-only.")
 @click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
               help="Save extracted article JSON in this existing directory without overwriting files.")
 def top(period, max_results, no_nlp, headlines_only, headline_format, save_json_dir):
@@ -447,8 +447,8 @@ def top(period, max_results, no_nlp, headlines_only, headline_format, save_json_
 @click.option("--max-results", "max_results", type=click.IntRange(1, GOOGLE_NEWS_MAX_RESULTS), default=10, help="Maximum number of results.")
 @click.option("--no-nlp", is_flag=True, default=False, help="Disable NLP processing for articles.")
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
-@click.option("--format", "headline_format", type=click.Choice(["text", "json"]), default="text",
-              show_default=True, help="RSS headline output format; JSON requires --headlines-only.")
+@click.option("--format", "headline_format", type=click.Choice(["text", "json", "csv"]), default="text",
+              show_default=True, help="RSS headline output format; JSON/CSV require --headlines-only.")
 @click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
               help="Save extracted article JSON in this existing directory without overwriting files.")
 def site(site, period, max_results, no_nlp, headlines_only, headline_format, save_json_dir):
@@ -1152,8 +1152,8 @@ def _brief_percent(value):
 
 
 def _require_rss_headline_mode(output_format, headlines_only):
-    if output_format == "json" and not headlines_only:
-        raise click.UsageError("--format json requires --headlines-only.")
+    if output_format != "text" and not headlines_only:
+        raise click.UsageError(f"--format {output_format} requires --headlines-only.")
 
 
 def print_rss_headlines(items, *, output_format="text"):
@@ -1179,6 +1179,18 @@ def print_rss_headlines(items, *, output_format="text"):
             "content_level": "rss_headline_only", "count": len(headlines),
             "headlines": headlines,
         }, ensure_ascii=False, indent=2))
+        return
+    if output_format == "csv":
+        out = io.StringIO(newline="")
+        fields = ("source", "content_level", "title", "url", "publisher", "publish_date")
+        writer = csv.DictWriter(out, fieldnames=fields, lineterminator="\n")
+        writer.writeheader()
+        for headline in headlines:
+            writer.writerow({
+                "source": "google_news_rss", "content_level": "rss_headline_only",
+                **{key: _brief_csv_cell(headline[key]) for key in fields[2:]},
+            })
+        click.echo(out.getvalue(), nl=False)
         return
     for headline in headlines:
         click.echo(f"Title: {headline['title']}")
