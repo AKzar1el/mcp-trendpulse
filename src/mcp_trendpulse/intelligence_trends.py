@@ -87,8 +87,21 @@ def discovered_topic_ids(
         already_seen.add(work_id)
         row = grouped.setdefault(code, {
             "topic_id": code, "label": label, "sample_work_count": 0,
+            "recent_research_examples": [],
         })
         row["sample_work_count"] += 1
+        # The source-published paper titles are discovery clues, not proof
+        # of customer pain. Keep at most two verified source URLs; never
+        # invent product ideas or include unbounded provider metadata.
+        title = raw.get("display_name")
+        if isinstance(title, str):
+            title = " ".join(ch if ch.isprintable() else " "
+                             for ch in title).strip()
+            title = " ".join(title.split())[:115]
+            if title and len(row["recent_research_examples"]) < 2:
+                row["recent_research_examples"].append({
+                    "title": title, "reference": work_id,
+                })
     return sorted(
         (row for row in grouped.values() if row["sample_work_count"] >= 2),
         key=lambda row: (-row["sample_work_count"], row["topic_id"]),
@@ -144,6 +157,8 @@ def classify_publication_momentum(
         return {
             "direction": "unavailable", "share_per_million": [],
             "period_over_period_share_ratios": [],
+            "oldest_to_recent_share_change_percent": None,
+            "latest_interval_share_change_percent": None,
             "research_share_measured": False,
             "market_growth_verified": False,
         }
@@ -155,6 +170,8 @@ def classify_publication_momentum(
     ]
     first, middle, recent = topic_counts
     a, b = ratios
+    total_change = round(100 * (shares[2] / shares[0] - 1), 1) if shares[0] else None
+    latest_change = round(100 * (shares[2] / shares[1] - 1), 1) if shares[1] else None
     direction = "inconclusive"
     # Do not turn a small denominator or two stray indexed papers into a
     # sensational new trend. These bounds are transparent heuristics,
@@ -172,6 +189,15 @@ def classify_publication_momentum(
               b <= 0.75 and a * b <= 0.65):
             direction = "declining_research_share"
         elif (a is not None and b is not None and
+              a >= 1.03 and b >= 1.08 and a * b >= 1.20):
+            # A moderate *monotonic* increase is worth investigating.
+            # Explicitly a watchlist cue, weaker than our rising label:
+            # it is not a statistically calibrated test or a market trend.
+            direction = "early_rising_research_watchlist"
+        elif (a is not None and b is not None and
+              a <= 0.97 and b <= 0.92 and a * b <= 0.80):
+            direction = "early_declining_research_watchlist"
+        elif (a is not None and b is not None and
               0.85 <= a <= 1.15 and 0.85 <= b <= 1.15):
             direction = "approximately_stable_research_share"
     elif max(first, middle, recent) < 8:
@@ -180,6 +206,8 @@ def classify_publication_momentum(
         "direction": direction,
         "share_per_million": ppm,
         "period_over_period_share_ratios": ratios,
+        "oldest_to_recent_share_change_percent": total_change,
+        "latest_interval_share_change_percent": latest_change,
         "research_share_measured": True,
         "market_growth_verified": False,
     }
@@ -210,6 +238,9 @@ def measure_discovered_research_trends(
         "source_model_or_index_changes_can_revise_history": True,
         "buyer_spending_or_market_growth_verified": False,
         "other_source_topic_direction_unmeasured": ["cfpb", "ted"],
+        "topic_selection_is_small_nonrepresentative_latest_work_sample": True,
+        "idea_watchlist_is_investigation_not_validated_product": True,
+        "idea_watchlist": [],
         "topics": [],
     }
     if not topics:
@@ -234,6 +265,7 @@ def measure_discovered_research_trends(
         out["topics"] = [{
             "topic_id": t["topic_id"], "label": t["label"],
             "sample_work_count": t["sample_work_count"],
+            "recent_research_examples": t["recent_research_examples"],
             "direction": "unavailable", "topic_counts": [None] * PERIOD_COUNT,
             "corpus_counts": corpus,
             "market_growth_verified": False,
@@ -246,10 +278,35 @@ def measure_discovered_research_trends(
             "topic_id": t["topic_id"],
             "label": t["label"],
             "sample_work_count": t["sample_work_count"],
+            "recent_research_examples": t["recent_research_examples"],
             "topic_counts": counts,
             "corpus_counts": corpus,
             **evidence,
         })
+    # Only measured upward-share signals enter the product-idea
+    # investigation watchlist. A declining or stable topic remains
+    # valuable context, but not a fabricated new market opening.
+    for topic in out["topics"]:
+        if topic["direction"] in {
+            "newly_observed_research_activity",
+            "accelerating_research_share",
+            "rising_research_share",
+            "early_rising_research_watchlist",
+        }:
+            out["idea_watchlist"].append({
+                "topic_id": topic["topic_id"],
+                "label": topic["label"],
+                "research_direction": topic["direction"],
+                "oldest_to_recent_share_change_percent": topic.get(
+                    "oldest_to_recent_share_change_percent"
+                ),
+                "recent_research_examples": topic["recent_research_examples"],
+                "why_investigate": "Published research share is rising; "
+                    "inspect the cited practical techniques and whether "
+                    "real users have unsolved recurring workflows.",
+                "product_opportunity_verified": False,
+                "keyword_search_demand_verified": False,
+            })
     out["status"] = (
         "observed" if all(t["research_share_measured"]
                           for t in out["topics"]) else "partial"
@@ -262,12 +319,28 @@ def format_research_trends(evidence: dict[str, Any]) -> list[str]:
         "MEASURED RESEARCH TREND DIRECTIONS (OpenAlex, optional):",
         "  Three equal completed publication periods; latest 14 days excluded "
         "to reduce partial indexing bias. Source counts, NOT a latest-20 sample.",
+        "  DISCOVERY LIMIT: only up to two repeated topics selected from the "
+        "newest 20 OpenAlex work records, NOT a cross-industry trend survey.",
     ]
     if evidence["status"] == "no_repeated_provider_topic_ids":
         lines.append("  No repeated, usable topic IDs in the bounded recent work sample.")
     elif not evidence["topics"]:
         lines.append("  Source-count evidence unavailable; no trend direction inferred.")
-    for topic in evidence["topics"]:
+    priority = {
+        "newly_observed_research_activity": 0,
+        "accelerating_research_share": 1,
+        "rising_research_share": 2,
+        "early_rising_research_watchlist": 3,
+        "approximately_stable_research_share": 4,
+        "inconclusive": 5,
+        "insufficient_volume": 6,
+        "early_declining_research_watchlist": 7,
+        "declining_research_share": 8,
+        "unavailable": 9,
+    }
+    for topic in sorted(evidence["topics"], key=lambda t: (
+        priority.get(t["direction"], 10), t["topic_id"],
+    )):
         label = topic["label"]
         lines.append(
             "  " + label + " [" + topic["topic_id"] + "] — "
@@ -282,15 +355,42 @@ def format_research_trends(evidence: dict[str, Any]) -> list[str]:
                 "    Topic works per million comparable publications: " +
                 " → ".join(str(x) for x in topic["share_per_million"])
             )
+            total = topic.get("oldest_to_recent_share_change_percent")
+            recent = topic.get("latest_interval_share_change_percent")
+            if total is not None:
+                lines.append(
+                    f"    Research-share change, oldest → recent: {total:+.1f}%"
+                    + (f" | middle → recent: {recent:+.1f}%" if recent is not None else "")
+                )
         else:
             lines.append(
                 "    Count comparison unavailable (missing source totals); "
                 "no inferred decrease or zero demand."
             )
+    watchlist = evidence.get("idea_watchlist", [])
+    if watchlist:
+        lines.append("  PRODUCT-IDEA RESEARCH WATCHLIST (hypotheses, not buyers):")
+        for row in watchlist:
+            lines.append(
+                "    " + row["label"] + " — inspect practical workflows "
+                "and unsolved user problems; product demand NOT verified."
+            )
+            for paper in row["recent_research_examples"][:2]:
+                lines.append("      Research clue: " + paper["title"])
+                lines.append("        " + paper["reference"])
+    else:
+        lines.append(
+            "  PRODUCT-IDEA RESEARCH WATCHLIST: no measurable upward "
+            "research-share signal from the sampled topics."
+        )
     lines.append(
-        "  Source taxonomy changed in October 2026; historical classifications "
-        "and indexing can be revised. Momentum labels are transparent "
-        "heuristics, NOT verified market, search, customer or revenue trends."
+        "  Source topic assignments changed in October 2026 and the index "
+        "can be revised. Early-rising/declining labels are explicit "
+        "heuristic watchlist signals, NOT calibrated statistical forecasts."
+    )
+    lines.append(
+        "  Academic topic momentum is NOT verified product adoption, "
+        "market demand, Google search volume, buyer intent or revenue."
     )
     lines.append(
         "  CFPB complaint and TED procurement topic directions remain unmeasured "

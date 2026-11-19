@@ -129,6 +129,9 @@ def test_unsafe_or_guessed_topic_ids_rejected(bad):
     ([1, 2, 18], [100000] * 3, "newly_observed_research_activity"),
     ([1, 3, 4], [100000] * 3, "insufficient_volume"),
     ([10, 20, 15], [100000] * 3, "inconclusive"),
+    ([396, 478, 499], [628356, 711639, 624923],
+     "early_rising_research_watchlist"),
+    ([100, 94, 78], [100000] * 3, "early_declining_research_watchlist"),
     ([None, 20, 30], [100000] * 3, "unavailable"),
     ([10, 20, 30], [100000, None, 100000], "unavailable"),
     ([10, 20, 30], [100000, 0, 100000], "unavailable"),
@@ -144,6 +147,31 @@ def test_directional_trend_heuristics_are_transparent_and_bounded(topic, corpus,
         assert result["research_share_measured"] is True
         assert len(result["share_per_million"]) == 3
         assert len(result["period_over_period_share_ratios"]) == 2
+
+
+def test_real_field_xai_research_watchlist_not_false_market_growth():
+    measured = trends.classify_publication_momentum(
+        [396, 478, 499], [628356, 711639, 624923],
+    )
+    assert measured["direction"] == "early_rising_research_watchlist"
+    assert 26 <= measured["oldest_to_recent_share_change_percent"] <= 28
+    assert 17 <= measured["latest_interval_share_change_percent"] <= 21
+    assert measured["research_share_measured"] is True
+    assert measured["market_growth_verified"] is False
+
+
+def test_source_paper_examples_are_bounded_public_and_no_fake_product_adoption():
+    today = date.today().isoformat()
+    source = _two_topics(today)
+    topics = trends.discovered_topic_ids(
+        source, as_of=date.today(), lookback_days=30,
+    )
+    assert len(topics) == 2
+    assert all(len(t["recent_research_examples"]) == 2 for t in topics)
+    assert all(p["reference"].startswith("https://openalex.org/W")
+               for topic in topics for p in topic["recent_research_examples"])
+    assert all(0 < len(p["title"]) <= 115 for topic in topics
+               for p in topic["recent_research_examples"])
 
 
 def test_full_trend_measurement_uses_nine_bounded_existing_openalex_requests(monkeypatch):
@@ -185,7 +213,14 @@ def test_full_trend_measurement_uses_nine_bounded_existing_openalex_requests(mon
     ]
     assert out["buyer_spending_or_market_growth_verified"] is False
     assert out["other_source_topic_direction_unmeasured"] == ["cfpb", "ted"]
-    assert "Source taxonomy changed" in "\n".join(trends.format_research_trends(out))
+    assert len(out["idea_watchlist"]) == 2
+    assert all(x["product_opportunity_verified"] is False
+               and x["keyword_search_demand_verified"] is False
+               for x in out["idea_watchlist"])
+    formatted = "\n".join(trends.format_research_trends(out))
+    assert "PRODUCT-IDEA RESEARCH WATCHLIST" in formatted
+    assert "Research clue" in formatted
+    assert "Source topic assignments changed" in formatted
 
 
 def test_source_count_contract_failures_never_invent_decline(monkeypatch):

@@ -505,7 +505,8 @@ def summarize_discovery(
                 if len(sources) >= 2 else
                 "Validate the published buyers, precise CPV scope, dates and tender value"
                 if kind == "ted_distinct_published_buyer_labels_shared_primary_cpv" else
-                "Validate independent sources and a buyer with a budget"
+                "Find real-world user workflows and unmet needs; "
+                "validate independent attention, alternatives and adoption"
             ),
         })
         basis_counts[kind] += 1

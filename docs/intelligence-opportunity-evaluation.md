@@ -736,6 +736,60 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Trend-first product-idea research watchlist, live field verification (2026-11-19)
+
+The owner's Windows execution of `1909e0a` confirms the optional
+OpenAlex `--measure-trends` mode works on live count queries. Three
+completed comparable 30-day intervals (14 days of indexing lag)
+measured Explainable AI (topic T12026): 396 → 478 → 499 provider works,
+normalized 630.218 → 671.683 → 798.498 works per million comparable
+publications. This is **approximately +26.7%** research-share movement
+across the two intervals, with consistent directional gains; the
+previous heuristic's `inconclusive` label understated this early
+signal because it demanded unusually large consecutive jumps.
+The new *early-rising research watchlist* classification requires
+at least eight works in **every period**, relative share gain >=3%
+then >=8%, and at least >=20% from first to last. Strong rising or
+accelerating thresholds remain higher. A mirrored modest two-interval
+decline becomes an *early-declining watchlist* direction. Neither is a
+statistical significance claim or a forecast.
+
+Advanced Numerical Methods (T10339) measured 181 → 190 → 187
+provider works, share 288.054 → 266.987 → 299.237 per million:
+approximately stable in comparison. Trend output now prints total and
+latest-period percentage changes, orders rising watchlist signals
+ahead of neutral topics, and marks the discovery limit explicitly:
+**only up to two topics selected from the newest 20 OpenAlex works**
+are being measured. The measurement is real; the candidate pool is
+*not* comprehensive across industries or a broad market survey.
+
+The opt-in report adds a **product-idea research watchlist** for
+measurably rising research shares. It includes up to two
+source-published recent paper titles and verifiable OpenAlex links
+for each signal, plus a prompt to investigate related real-world
+workflows, tools, competition and unmet user needs. These are
+**idea seeds only**, not invented customer demand, competitor gaps,
+paid users, adoption or keyword search volumes. Default research and
+complaint-topic candidate next-steps now emphasize validating
+real-world workflows and adoption, not requiring a buyer's published
+procurement budget before a product idea can be considered.
+
+**CFPB 2026 limitation:** the public CFPB CCDB service removed
+complaint narratives, trend visualizations, and (in API release
+1.19.0) trend/geo server functionality during August–September 2026.
+Do not implement an earlier advertised CFPB Trends API merely because
+historic docs still mention it. A new aggregate/count path would
+require verified 2026 endpoint behavior, consistent definitions,
+safe data use and bounded requests. This is distinct from the
+future SEO-keyword phase, which must seek actual keyword-demand
+sources besides Google Trends.
+
+Authorities:
+https://blog.openalex.org/same-topics-better-assignments/
+https://help.openalex.org/api/grouping/
+https://github.com/cfpb/ccdb5-api/releases
+https://cfpb.github.io/api/ccdb/release-notes.html
+
 ### Real trend direction from OpenAlex source-wide dated counts (2026-11-19)
 
 The owner's latest live `9b48087` test worked at 20/20/20
