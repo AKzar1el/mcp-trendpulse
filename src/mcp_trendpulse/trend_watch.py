@@ -239,6 +239,12 @@ class WatchStore:
         with self._connection() as db:
             return bool(db.execute("DELETE FROM rules WHERE id=?", (rule_id,)).rowcount)
 
+    def preview(self, rule_id: str, evidence: bytes) -> WatchDecision:
+        """Evaluate one saved rule without consuming its alert or cooldown."""
+        rule = self.get(rule_id)
+        rows = parse_evidence(evidence, keyword=rule.keyword, market=rule.market)
+        return evaluate_watch(rule, rows)
+
     def evaluate_and_record(self, rule_id: str, evidence: bytes) -> WatchDecision:
         rule = self.get(rule_id)
         rows = parse_evidence(evidence, keyword=rule.keyword, market=rule.market)
