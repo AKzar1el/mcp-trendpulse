@@ -380,6 +380,14 @@ def test_stratified_live_path_bounded_three_ted_windows_and_private_history(
     assert result["ted_sampling_audit"]["publication_days_represented"] == 3
     assert result["ted_sampling_audit"]["observed_date_windows"] == 3
     assert result["ted_sampling_audit"]["failed_date_windows"] == 0
+    review = result["procurement_review"]
+    assert review["selection_strategy"] == (
+        "round_robin_qualified_notices_across_ted_date_windows"
+    )
+    assert [w["review_selected"] for w in review["per_date_window"]] == [2, 2, 2]
+    assert [w["displayed_notices"] for w in review["per_date_window"]] == [4, 2, 2]
+    assert [w["sampled_notices"] for w in review["per_date_window"]] == [7, 7, 6]
+    assert review["software_it_not_review_qualified"] == 0
     assert result["ted_sampling_audit"]["sector_share_or_growth_estimable"] is False
     assert result["ted_sampling_audit"]["any_date_window_hit_record_cap"] is True
     assert result["growth_rate_verified"] is False
@@ -392,6 +400,81 @@ def test_stratified_live_path_bounded_three_ted_windows_and_private_history(
     assert stored["raw_records_saved"] is False
     contents = (tmp_path / "test_history.sqlite").read_bytes().decode("latin1")
     assert "Buyer" not in contents and "NEVER_LEAK_VENDOR" not in contents
+
+
+def test_date_balanced_review_and_unqualified_software_notice_visible():
+    today = date(2026, 11, 19)
+    windows = discovery._ted_date_windows(today, 30, 20)
+    notices = []
+    for i, (_, end, _) in enumerate(windows):
+        for j in range(4):
+            row = _rich_ted(
+                f"{810000 + i * 10 + j}-2026",
+                f"Window Buyer {i} {j}", "90510000",
+            )
+            row["publication-date"] = end.isoformat()
+            notices.append(row)
+    software = _rich_ted(
+        "812000-2026", "IT Buyer With Missing Projection Date", "72222300",
+    )
+    software["publication-date"] = windows[2][1].isoformat()
+    software.pop("deadline-receipt-tender-date-lot")
+    notices.append(software)
+    result = discovery.summarize_discovery(
+        [observed("ted", notices)], as_of=today.isoformat(),
+        ted_date_windows=windows,
+    )
+    review = result["procurement_review"]
+    assert review["qualified_notices_in_bounded_sample"] == 12
+    assert review["selected_for_review"] == 6
+    assert [x["review_selected"] for x in review["per_date_window"]] == [2, 2, 2]
+    assert review["software_it_not_review_qualified"] == 1
+    assert review["software_it_exclusion_reason_counts"] == {
+        "no_lot_deadline_in_sample_projection": 1,
+    }
+    shown = result["procurement_observations"]
+    assert len(shown) == 8
+    assert sum(x["buyer_side_review_selected"] for x in shown) == 6
+    it_context = [n for n in shown if n["main_cpv_software_it_category"]]
+    assert len(it_context) == 1
+    assert it_context[0]["buyer_side_review_selected"] is False
+    assert it_context[0]["buyer_side_review_qualified"] is False
+    assert it_context[0]["review_exclusion_reasons"] == [
+        "no_lot_deadline_in_sample_projection"
+    ]
+    assert not it_context[0]["still_open_tender_verified"]
+    output = discovery.format_discovery_report(result)
+    assert "Software/IT primary CPV notices not review-qualified: 1" in output
+    assert "lot deadline missing in projection: 1" in output
+    assert "review criteria unmet: no_lot_deadline_in_sample_projection" in output
+
+
+def test_time_window_review_does_not_claim_empty_window_is_zero_market():
+    today = date(2026, 11, 19)
+    windows = discovery._ted_date_windows(today, 30, 20)
+    ted = []
+    for i in (0, 2):
+        for j in range(4):
+            row = _rich_ted(
+                f"{813000 + i * 10 + j}-2026",
+                f"Buyer {i}-{j}", "90510000",
+            )
+            row["publication-date"] = windows[i][1].isoformat()
+            ted.append(row)
+    x = discovery.summarize_discovery(
+        [observed("ted", ted)], as_of=today.isoformat(),
+        ted_date_windows=windows,
+    )
+    assert [d["review_qualified"] for d in x["procurement_review"]["per_date_window"]] == [
+        4, 0, 4
+    ]
+    assert [d["review_selected"] for d in x["procurement_review"]["per_date_window"]] == [
+        3, 0, 3
+    ]
+    assert x["growth_rate_verified"] is False
+    assert x["ted_sampling_audit"]["sector_share_or_growth_estimable"] is False
+    assert all(not n["still_open_tender_verified"]
+               for n in x["procurement_observations"])
 
 
 def test_stratified_partial_failures_and_out_of_window_records(monkeypatch):

@@ -736,6 +736,45 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Window-balanced buyer review and transparent IT notice exclusions (2026-11-19)
+
+**Owner's real three-window field test:** all five fixed public-source
+calls succeeded; TED returned 7/7, 7/7 and 6/6 notices from windows
+2026-11-10–19, 2026-10-31–11-09 and 2026-10-21–30.
+Twenty TED notices covered just three publication dates and all
+window first-page caps were hit. Thirteen had a published buyer,
+procedure primary CPV and a lot deadline on/after the analysis day.
+One sampled primary CPV belonged to IT/software families 48/72,
+but **zero IT records qualified for the buyer review**.
+
+Previously the resulting six featured buyer-side notices were selected
+newest-first, so older-date windows largely vanished from text output
+even when older source records were safely collected and analyzed.
+In the *opt-in* three-window mode only, buyer-review-qualified source
+records are now selected by deterministic round-robin through the
+three dated pools (up to six in total). If each window has at least
+two eligible notices, all contribute two review examples. The
+default single-window discovery presentation remains unchanged.
+The result also reports sampled, qualified, selected and displayed
+counts for every requested date window; incomplete or empty windows
+are reported as unknown or zero **sample observations**, not as
+zero market demand.
+
+For source-backed IT/software primary CPV notices failing the stricter
+buyer-review criteria, the result reports the exact missing evidence
+in the projected public notice fields (e.g., missing lot deadline,
+missing buyer label or expired *published* lot dates). It also prefers
+to show one such unqualified IT notice as **context** within the
+existing eight-examples cap, explicitly not as a verified active bid.
+Missing field data does not prove the tender itself lacks a deadline;
+the original TED notice and amendments must be inspected.
+The review's published primary CPV count now reconciles exactly
+to qualified plus unqualified IT notices. None of this adds calls,
+claiming growth, buyers, awards or software-only budgets.
+
+Official source context: https://docs.ted.europa.eu/api/latest/search.html
+and https://docs.ted.europa.eu/eforms/latest/schema/documents-forms-and-notices.html
+
 ### Opt-in time-stratified TED notice observation (2026-11-19)
 
 The default keyless discovery samples the **newest 20 TED notices**, which

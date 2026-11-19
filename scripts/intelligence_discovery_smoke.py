@@ -56,6 +56,11 @@ def main() -> int:
     ):
         raise AssertionError("Broad primary CPV counted as narrow workflow demand")
     review = result["procurement_review"]
+    if (review["software_it_not_review_qualified"] < 0
+            or review["software_it_not_review_qualified"]
+            + review["qualified_main_cpv_software_it"]
+            != audit["main_cpv_48_or_72_observed"]):
+        raise AssertionError("Published CPV and buyer-review counts disagree")
     if (review["open_bid_status_verified"]
             or review["same_buyer_legal_entity_verified"]
             or review["market_growth_verified"]
@@ -94,6 +99,9 @@ def main() -> int:
             "qualified_main_cpv_software_it"
         ],
         "buyer_side_review_selected": review["selected_for_review"],
+        "buyer_side_review_it_unqualified_in_sample": review[
+            "software_it_not_review_qualified"
+        ],
         "procurement_competition_notices_rendered": sum(
             x["procurement_stage"] == "contract_notice_not_award"
             for x in result["procurement_observations"]

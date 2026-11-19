@@ -165,9 +165,40 @@ def _record(
     return out
 
 
+def _buyer_review_gaps(record: dict[str, Any], today: date) -> list[str]:
+    """Missing *published/projection* evidence, not adjudicated tender status."""
+    gaps = []
+    if record.get("procurement_stage") != "contract_notice_not_award":
+        gaps.append("not_contract_notice")
+    if not record.get("buyer_name"):
+        gaps.append("no_published_buyer_label")
+    if not record.get("main_cpv_code"):
+        gaps.append("no_published_procedure_primary_cpv")
+    last_date = record.get("latest_lot_deadline_date", "")
+    if not last_date:
+        gaps.append("no_lot_deadline_in_sample_projection")
+    elif last_date < today.isoformat():
+        gaps.append("all_published_lot_dates_before_analysis_day")
+    if not record.get("reference", "").startswith(
+        "https://ted.europa.eu/en/notice/-/detail/"
+    ):
+        gaps.append("missing_valid_original_ted_notice_link")
+    return gaps
+
+
+def _window_index(record: dict[str, Any],
+                  windows: list[tuple[date, date, int]]) -> int | None:
+    day = record["date"]
+    for i, (start, end, _) in enumerate(windows):
+        if start.isoformat() <= day <= end.isoformat():
+            return i
+    return None
+
+
 def summarize_discovery(
     snapshots: list[dict[str, Any]], *, as_of: str | None = None,
     lookback_days: int = 30,
+    ted_date_windows: list[tuple[date, date, int]] | None = None,
 ) -> dict[str, Any]:
     """Offline, deterministic, source-backed discovery from <=3 prior results."""
     if isinstance(lookback_days, bool) or not isinstance(lookback_days, int) or not 7 <= lookback_days <= 90:
@@ -182,6 +213,24 @@ def summarize_discovery(
         raise ValueError("Discovery source input exceeds bounded three-provider budget")
     today = _day(as_of, "as_of") if as_of is not None else date.today()
     cutoff = today - timedelta(days=lookback_days - 1)
+    if ted_date_windows is not None:
+        if (not isinstance(ted_date_windows, list)
+                or len(ted_date_windows) != 3
+                or any(
+                    not isinstance(row, tuple) or len(row) != 3
+                    or not isinstance(row[0], date)
+                    or not isinstance(row[1], date)
+                    or isinstance(row[2], bool)
+                    or not isinstance(row[2], int) or row[2] < 1
+                    or row[0] > row[1]
+                    or row[0] < cutoff or row[1] > today
+                    for row in ted_date_windows
+                )
+                or sum(row[2] for row in ted_date_windows) > MAX_RECORDS):
+            raise ValueError("Invalid bounded TED date windows")
+        for left, right in zip(ted_date_windows, ted_date_windows[1:]):
+            if right[1] >= left[0]:
+                raise ValueError("TED date windows overlap or are not newest first")
 
     coverage = []
     records: list[dict[str, Any]] = []
@@ -405,37 +454,74 @@ def summarize_discovery(
     # two main-CPV 48/72 IT/software notices at most, plus up to four
     # other sectors, filling any unused slots in original recency order.
     # Published lot dates may be revised/cancelled: never infer "open now".
-    buyer_review = [
-        r for r in ted_records
-        if r.get("procurement_stage") == "contract_notice_not_award"
-        and r.get("buyer_name")
-        and r.get("main_cpv_code")
-        and r.get("latest_lot_deadline_date", "") >= today.isoformat()
-        and r.get("reference", "").startswith(
-            "https://ted.europa.eu/en/notice/-/detail/"
-        )
-    ]
+    review_gaps = {r["id"]: _buyer_review_gaps(r, today) for r in ted_records}
+    buyer_review = [r for r in ted_records if not review_gaps[r["id"]]]
     software_it = [
         r for r in buyer_review if r["main_cpv_code"][:2] in {"48", "72"}
     ]
     other_sectors = [
         r for r in buyer_review if r["main_cpv_code"][:2] not in {"48", "72"}
     ]
-    review_selected = software_it[:2] + other_sectors[:4]
-    selected_ids = {r["id"] for r in review_selected}
-    for r in buyer_review:
-        if len(review_selected) >= 6:
-            break
-        if r["id"] not in selected_ids:
-            review_selected.append(r)
-            selected_ids.add(r["id"])
-    # Preserve additional recent examples (which may also qualify but were
-    # not selected in the six review slots) when the queue has room.
-    display_notices = review_selected + [
-        r for r in procurement_sorted if r["id"] not in selected_ids
-    ][:max(0, 8 - len(review_selected))]
-    review_ids = {r["id"] for r in review_selected}
+    review_selected = []
+    selected_ids: set[str] = set()
+    if ted_date_windows is None:
+        # Preserve the unchanged single-page default's existing presentation.
+        review_selected = software_it[:2] + other_sectors[:4]
+        selected_ids = {r["id"] for r in review_selected}
+        for r in buyer_review:
+            if len(review_selected) >= 6:
+                break
+            if r["id"] not in selected_ids:
+                review_selected.append(r)
+                selected_ids.add(r["id"])
+    else:
+        # Time-stratified discovery is useful only if its *visible* examples
+        # also represent the dates queried. Prefer round-robin qualified
+        # notices across non-overlapping windows, not just newest-first.
+        pools = [
+            [r for r in buyer_review
+             if start.isoformat() <= r["date"] <= end.isoformat()]
+            for start, end, _ in ted_date_windows
+        ]
+        while len(review_selected) < 6:
+            made_progress = False
+            for pool in pools:
+                if len(review_selected) >= 6:
+                    break
+                next_row = next((r for r in pool if r["id"] not in selected_ids), None)
+                if next_row is not None:
+                    review_selected.append(next_row)
+                    selected_ids.add(next_row["id"])
+                    made_progress = True
+            if not made_progress:
+                break
     qualified_ids = {r["id"] for r in buyer_review}
+    if ted_date_windows is None:
+        context = [r for r in procurement_sorted if r["id"] not in selected_ids]
+        display_notices = review_selected + context[:max(0, 8 - len(review_selected))]
+    else:
+        # Keep two contextual places when available. A software/IT-class
+        # notice that fails buyer-review criteria is especially important to
+        # inspect, but never label it a qualified or open bid.
+        context = [r for r in procurement_sorted if r["id"] not in selected_ids]
+        contextual = []
+        visible = list(review_selected)
+        while context and len(visible) < 8:
+            def context_key(r: dict[str, Any]) -> tuple[bool, int, str, str]:
+                window = _window_index(r, ted_date_windows)
+                shown = sum(_window_index(x, ted_date_windows) == window
+                            for x in visible) if window is not None else len(visible)
+                return (
+                    r.get("main_cpv_code", "")[:2] in {"48", "72"}
+                    and bool(review_gaps[r["id"]]),
+                    -shown, r["date"], r["id"],
+                )
+            best = max(context, key=context_key)
+            context.remove(best)
+            contextual.append(best)
+            visible.append(best)
+        display_notices = review_selected + contextual
+    review_ids = {r["id"] for r in review_selected}
     procurement_observations = [{
         "title": r["title"], "date": r["date"], "reference": r["reference"],
         "buyer_name": r.get("buyer_name", ""),
@@ -452,6 +538,7 @@ def summarize_discovery(
         "estimated_value_not_verified_spending": True,
         "buyer_side_review_qualified": r["id"] in qualified_ids,
         "buyer_side_review_selected": r["id"] in review_ids,
+        "review_exclusion_reasons": review_gaps[r["id"]],
         "main_cpv_software_it_category": (
             r.get("main_cpv_code", "")[:2] in {"48", "72"}
         ),
@@ -489,12 +576,42 @@ def summarize_discovery(
         "sector_share_or_growth_estimable": False,
         "excludes_sampled_unknown_categories_from_demand_inference": True,
     }
+    software_not_qualified = [
+        r for r in ted_records
+        if r.get("main_cpv_code", "")[:2] in {"48", "72"}
+        and review_gaps[r["id"]]
+    ]
+    excluded_software_reasons = Counter(
+        gap for r in software_not_qualified for gap in review_gaps[r["id"]]
+    )
+    window_review = []
+    if ted_date_windows is not None:
+        for start, end, cap in ted_date_windows:
+            def in_window(r: dict[str, Any]) -> bool:
+                return start.isoformat() <= r["date"] <= end.isoformat()
+            window_review.append({
+                "from": start.isoformat(), "through": end.isoformat(),
+                "sampled_notices": sum(in_window(r) for r in ted_records),
+                "review_qualified": sum(in_window(r) for r in buyer_review),
+                "review_selected": sum(in_window(r) for r in review_selected),
+                "displayed_notices": sum(in_window(r) for r in display_notices),
+            })
     procurement_review = {
         "basis": "published_contract_notice_with_buyer_primary_cpv_and_future_lot_date",
         "qualified_notices_in_bounded_sample": len(buyer_review),
         "qualified_main_cpv_software_it": len(software_it),
         "qualified_other_main_cpv_sectors": len(other_sectors),
         "selected_for_review": len(review_selected),
+        "selection_strategy": (
+            "round_robin_qualified_notices_across_ted_date_windows"
+            if ted_date_windows is not None else
+            "main_cpv_48_72_then_other_recent_notices"
+        ),
+        "per_date_window": window_review,
+        "software_it_not_review_qualified": len(software_not_qualified),
+        "software_it_exclusion_reason_counts": dict(sorted(
+            excluded_software_reasons.items()
+        )),
         "not_trend_candidates": True,
         "same_buyer_legal_entity_verified": False,
         "open_bid_status_verified": False,
@@ -726,6 +843,7 @@ def discover_current(
 
     result = summarize_discovery(
         sources, as_of=now.isoformat(), lookback_days=lookback_days,
+        ted_date_windows=windows if ted_date_slices == 3 else None,
     )
     result["network_performed"] = True
     result["queries_budgeted"] = len(plans)
@@ -795,12 +913,21 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             f"within {result['lookback_days']} days, using "
             f"{result['queries_budgeted']} planned free requests."
         )
-        for window in sample_audit["date_window_results"]:
+        review_by_window = result.get("procurement_review", {}).get(
+            "per_date_window", []
+        )
+        for i, window in enumerate(sample_audit["date_window_results"]):
             line = (
                 f"  {window['from']} to {window['through']}: "
                 f"{window['status']} | {window['sampled_rows']}/"
                 f"{window['requested_limit']} sample records"
             )
+            if i < len(review_by_window) and window["status"] == "observed":
+                row = review_by_window[i]
+                line += (
+                    f" | qualified: {row['review_qualified']}"
+                    f" | review examples: {row['review_selected']}"
+                )
             if window["first_page_at_window_cap"]:
                 line += " | window page cap reached"
             if window["dropped_outside_window"]:
@@ -871,6 +998,26 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             "Source-based review only: buyer legal identities, tender amendments, "
             "eligibility, awarded spend, software-only budgets and market growth unverified."
         )
+        excluded_it = buyer_review.get("software_it_not_review_qualified", 0)
+        if excluded_it:
+            labels = {
+                "not_contract_notice": "not a contract notice",
+                "no_published_buyer_label": "buyer label missing in sample",
+                "no_published_procedure_primary_cpv": "procedure CPV missing",
+                "no_lot_deadline_in_sample_projection": "lot deadline missing in projection",
+                "all_published_lot_dates_before_analysis_day": "published lot dates past",
+                "missing_valid_original_ted_notice_link": "validated original link missing",
+            }
+            reasons = buyer_review["software_it_exclusion_reason_counts"]
+            why = "; ".join(
+                f"{labels.get(key, key)}: {count}"
+                for key, count in sorted(reasons.items())
+            )
+            lines.append(
+                f"Software/IT primary CPV notices not review-qualified: "
+                f"{excluded_it}; observed missing criteria: {why}. "
+                "These are projection-level checks, not official tender outcomes."
+            )
         lines.append("")
     if not result["candidates"]:
         lines.append("No recurring current themes passed conservative grouping in this small sample.")
@@ -912,6 +1059,12 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             details = []
             if notice.get("buyer_side_review_selected"):
                 details.append("buyer-side review: inspect original notice")
+            if (notice.get("review_exclusion_reasons")
+                    and notice.get("main_cpv_software_it_category")):
+                details.append(
+                    "review criteria unmet: "
+                    + ", ".join(notice["review_exclusion_reasons"][:3])
+                )
             if notice["buyer_name"]:
                 buyer = "".join(c if c.isprintable() else " " for c in notice["buyer_name"])
                 details.append("buyer published: " + " ".join(buyer.split())[:85])
