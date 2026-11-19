@@ -49,6 +49,51 @@ def test_rule_evaluation_trigger_then_duplicate_and_cooldown(tmp_path):
     assert store.evaluate_and_record(watch.id, json.dumps(expanded).encode()).status == "duplicate"
 
 
+def test_watch_preview_does_not_consume_alert_or_change_existing_status(tmp_path):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2)
+    payload = evidence("AI", "US", [10, 10, 45, 55])
+
+    assert store.preview(rule.id, payload).status == "triggered"
+    assert store.preview(rule.id, payload).status == "triggered"
+    assert store.get(rule.id).last_alert_date is None
+
+    assert store.evaluate_and_record(rule.id, payload).status == "triggered"
+    assert store.preview(rule.id, payload).status == "duplicate"
+    assert store.get(rule.id).last_alert_date == date.today().isoformat()
+
+
+def test_cli_watch_preview_is_opt_in_and_never_records(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2)
+    path = tmp_path / "watch.json"
+    path.write_bytes(evidence("AI", "US", [10, 10, 45, 55]))
+    runner = CliRunner()
+    args = ["watch", "evaluate", "--id", rule.id, "--evidence", str(path)]
+
+    for _ in range(2):
+        preview = runner.invoke(cli, [*args, "--dry-run"])
+        assert preview.exit_code == 0, preview.output
+        result = json.loads(preview.output)
+        assert result["status"] == "triggered" and result["dry_run"] is True
+        assert store.get(rule.id).last_alert_date is None
+
+    recorded = runner.invoke(cli, args)
+    assert recorded.exit_code == 0, recorded.output
+    assert json.loads(recorded.output)["status"] == "triggered"
+    assert "dry_run" not in json.loads(recorded.output)
+    assert store.get(rule.id).last_alert_date == date.today().isoformat()
+
+
+def test_watch_preview_invalid_evidence_preserves_alert_history(tmp_path):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2)
+    with pytest.raises(ValueError, match="does not match"):
+        store.preview(rule.id, evidence("AI", "GB", [10, 10, 50, 60]))
+    assert store.get(rule.id).last_alert_date is None
+
+
 def test_rule_cooldown_prevents_new_alert_on_following_day(tmp_path):
     store = WatchStore(tmp_path)
     rule = store.create(keyword="AI", market="US", window=2, cooldown_days=7)

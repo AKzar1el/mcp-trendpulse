@@ -161,16 +161,22 @@ def watch_remove(rule_id):
 @watch.command("evaluate")
 @click.option("--id", "rule_id", required=True, help="Existing watch rule ID.")
 @click.option("--evidence", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
-def watch_evaluate(rule_id, evidence):
+@click.option("--dry-run", is_flag=True, help="Preview the decision without recording an alert or consuming cooldown.")
+def watch_evaluate(rule_id, evidence, dry_run):
     from mcp_trendpulse.trend_watch import MAX_EVIDENCE_BYTES, WatchStore
 
     try:
         if evidence.stat().st_size > MAX_EVIDENCE_BYTES:
             raise ValueError("Evidence file exceeds 256 KiB")
-        result = WatchStore().evaluate_and_record(rule_id, evidence.read_bytes())
+        store = WatchStore()
+        payload = evidence.read_bytes()
+        result = store.preview(rule_id, payload) if dry_run else store.evaluate_and_record(rule_id, payload)
     except (OSError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc
-    click.echo(result.as_json())
+    if dry_run:
+        click.echo(json.dumps({**asdict(result), "dry_run": True}, sort_keys=True))
+    else:
+        click.echo(result.as_json())
 
 
 @cli.command(help=get_news_by_keyword.__doc__)

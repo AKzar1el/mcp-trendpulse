@@ -79,6 +79,19 @@ uv run mcp-trendpulse-cli watch evaluate --id YOUR_RULE_ID --evidence ./trend-se
 uv run mcp-trendpulse-cli watch remove --id YOUR_RULE_ID
 ```
 
+To test a threshold without recording an alert, run the same evaluation with
+`--dry-run`. The output adds `"dry_run": true`; `"triggered"` then means a
+potential decision, not an issued alert. Preview never advances the saved
+`last_alert_date` or consumes cooldown, and uses no provider requests.
+
+```bash
+uv run mcp-trendpulse-cli watch evaluate --id YOUR_RULE_ID --evidence ./trend-series.json --dry-run
+```
+
+This preview is a read-only snapshot of the saved rule, not an atomic
+reservation; a concurrent real evaluation can change the subsequent decision.
+Without the flag, recording and the original JSON output are unchanged.
+
 The evaluator compares average interest across the latest `window` complete
 points with the preceding `window` points. It only triggers if the relative
 growth and minimum current interest meet your thresholds. An entirely zero
