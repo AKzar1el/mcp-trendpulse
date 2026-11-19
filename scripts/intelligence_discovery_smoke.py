@@ -46,6 +46,15 @@ def main() -> int:
         raise AssertionError("Unverified records promoted to buyer proof")
     audit = result["ted_sampling_audit"]
     if (audit["sector_share_or_growth_estimable"]
+            or audit["registration_identity_independently_verified"]
+            or audit["procedure_identity_independently_verified"]
+            or not 0 <= audit["with_source_published_buyer_registration"]
+                   <= audit["observed_notice_count"]
+            or not 0 <= audit["with_source_published_procedure_identifier"]
+                   <= audit["observed_notice_count"]
+            or any(not x["not_independently_verified_identity"]
+                   or x["same_buying_workflow_verified"]
+                   for x in result["same_published_identity_repeats_not_candidates"])
             or any(x["hierarchy_level"] == "category_or_finer"
                    for x in result["coarse_cpv_repeats_not_candidates"])):
         raise AssertionError("Procurement grain or sample representativeness fabricated")
@@ -146,6 +155,15 @@ def main() -> int:
         "ted_primary_48_72_in_sample": audit["main_cpv_48_or_72_observed"],
         "ted_coarse_cpv_repeats_suppressed": len(result[
             "coarse_cpv_repeats_not_candidates"
+        ]),
+        "ted_with_published_buyer_registration": audit[
+            "with_source_published_buyer_registration"
+        ],
+        "ted_with_published_procedure_identifier": audit[
+            "with_source_published_procedure_identifier"
+        ],
+        "ted_same_published_identity_repeats_suppressed": len(result[
+            "same_published_identity_repeats_not_candidates"
         ]),
         "procurement_cpv_buyer_repeat_candidates": sum(
             x["basis"] == "ted_distinct_published_buyer_labels_shared_primary_cpv"

@@ -67,7 +67,8 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
             "query": query, "fields": [
                 "publication-number", "publication-date", "notice-type",
                 "notice-title", "title-proc", "official-language",
-                "buyer-name", "buyer-country", "classification-cpv",
+                "buyer-name", "buyer-country", "buyer-identifier",
+                "procedure-identifier", "classification-cpv",
                 "main-classification-proc",
                 "deadline-receipt-tender-date-lot",
                 "estimated-value-proc", "estimated-value-cur-proc",

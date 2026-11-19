@@ -933,6 +933,96 @@ def test_two_distinct_published_buyers_same_primary_cpv_are_research_candidate()
     assert "shared workflows, legal-entity identities, awards" in output
 
 
+def test_published_registration_prevents_aliases_faking_independent_buyers():
+    a = _rich_ted("828001-2026", "City Digital Services", "72222300")
+    b = _rich_ted("828002-2026", "Digital Service Office", "72222300")
+    a["buyer-identifier"] = "CZ 123 456 78"
+    b["buyer-identifier"] = ["CZ 123 456 78"]
+    a["procedure-identifier"] = "PROC-A-2026"
+    b["procedure-identifier"] = "PROC-B-2026"
+    result = report(observed("ted", [a, b]))
+    assert not any(
+        c["basis"] == "ted_distinct_published_buyer_labels_shared_primary_cpv"
+        for c in result["candidates"]
+    )
+    assert len(result["procurement_observations"]) == 2
+    summary = result["ted_sampling_audit"]
+    assert summary["with_source_published_buyer_registration"] == 2
+    assert summary["with_source_published_procedure_identifier"] == 2
+    assert summary["registration_identity_independently_verified"] is False
+    suppressions = result["same_published_identity_repeats_not_candidates"]
+    assert len(suppressions) == 1
+    assert suppressions[0]["suppressed_basis"] == (
+        "same_published_buyer_registration_country_key"
+    )
+    assert "CZ 123 456 78" not in repr(result)
+    assert "PROC-A-2026" not in repr(result)
+    report_text = discovery.format_discovery_report(result)
+    assert "DUPLICATE BUYER/PROCEDURE SIGNALS" in report_text
+    assert "buyer-entered" in report_text.lower()
+
+
+def test_same_published_procedure_is_not_two_independent_buying_workflows():
+    a = _rich_ted("828003-2026", "Town One", "72222300")
+    b = _rich_ted("828004-2026", "Town Two", "72222300")
+    a["procedure-identifier"] = "c822c147-e2b0-4118-aad6-73d3cb607ac1"
+    b["procedure-identifier"] = ["c822c147-e2b0-4118-aad6-73d3cb607ac1"]
+    a["buyer-identifier"] = "DIFFERENT-111"
+    b["buyer-identifier"] = "DIFFERENT-222"
+    result = report(observed("ted", [a, b]))
+    assert result["candidate_count"] == 0
+    suppression = result["same_published_identity_repeats_not_candidates"][0]
+    assert suppression["suppressed_basis"] == (
+        "same_published_procedure_country_key"
+    )
+    assert len(result["procurement_observations"]) == 2
+
+
+def test_different_published_registration_preserves_conservative_lead():
+    a = _rich_ted("828005-2026", "Town North", "72222300")
+    b = _rich_ted("828006-2026", "Town South", "72222300")
+    a["buyer-identifier"] = "REG-111-A"
+    b["buyer-identifier"] = "REG-222-B"
+    a["procedure-identifier"] = "p-2026-north"
+    b["procedure-identifier"] = "p-2026-south"
+    result = report(observed("ted", [a, b]))
+    leads = [
+        c for c in result["candidates"]
+        if c["basis"] ==
+        "ted_distinct_published_buyer_labels_shared_primary_cpv"
+    ]
+    assert len(leads) == 1
+    assert leads[0]["buyer_labels_not_verified_entity_identities"] is True
+    assert leads[0]["commercial_budget_verified"] is False
+    assert result["ted_sampling_audit"][
+        "with_source_published_buyer_registration"
+    ] == 2
+    assert not result["same_published_identity_repeats_not_candidates"]
+
+
+def test_uncertain_multi_buyer_identifier_and_malformed_procedure_not_promoted():
+    a = _rich_ted("828007-2026", "Buying Group", "72222300")
+    b = _rich_ted("828008-2026", "Other Buyer", "72222300")
+    a["buyer-identifier"] = ["REG-111-A", "REG-222-B"]
+    b["buyer-identifier"] = {"unexpected": "PRIVATE_CANNOT_LEAK"}
+    a["procedure-identifier"] = {"unexpected": "PRIVATE_PROC"}
+    b["procedure-identifier"] = "NOT PROVIDED"
+    result = report(observed("ted", [a, b]))
+    assert result["ted_sampling_audit"][
+        "with_source_published_buyer_registration"
+    ] == 0
+    assert result["ted_sampling_audit"][
+        "with_source_published_procedure_identifier"
+    ] == 0
+    assert "PRIVATE_CANNOT_LEAK" not in repr(result)
+    assert "PRIVATE_PROC" not in repr(result)
+    assert not result["same_published_identity_repeats_not_candidates"]
+    # With no usable source identifier, the older conservative published
+    # name-label heuristic is preserved and explicitly unverified.
+    assert any(c["buyer_labels_not_verified_entity_identities"]
+               for c in result["candidates"])
+
+
 def test_broad_cpv_division_repeats_do_not_fake_same_workflow():
     # Real field failure: flood-protection works and fibre expansion both
     # declare division-level 45000000, but are not the same buyer workflow.
@@ -1085,6 +1175,7 @@ def test_seedless_ted_field_contract_requests_verified_source_fields():
         "classification-cpv", "main-classification-proc", "title-proc",
         "estimated-value-proc", "estimated-value-cur-proc",
         "deadline-receipt-tender-date-lot", "buyer-country",
+        "buyer-identifier", "procedure-identifier",
     } <= fields
 
 

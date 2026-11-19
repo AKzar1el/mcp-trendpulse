@@ -736,6 +736,59 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Identity-consistency checks for repeated TED procurement leads (2026-11-19)
+
+The owner's latest `16f32fd` field test confirmed 20/20 dated TED
+records across three opt-in date windows, 13 buyer-review-qualified
+notices, **four** with paired source-published procedure estimates and
+**nine** without. These are early-stage procurement signals, not
+independent paying-customer or product demand proof.
+
+A further recurring-CPV data-integrity risk remains: the same public
+buyer can publish separate notices with different translated or
+departmental labels; a procedure can also produce more than one
+publication number. Counting such notices as two independent buying
+workflows can fabricate a commercial lead.
+
+TED's official search-fields list includes source-published
+`buyer-identifier` (BT-501, national registration **free text entered
+by the buyer**) and `procedure-identifier` (BT-04). The existing
+fixed keyless TED request now projects those two optional fields
+**without making another request**. The three-date-window compact
+projection preserves only capped values of these fields, and the
+offline normalizer accepts only *single*, bounded, well-shaped IDs
+alongside a published ISO-3 buyer country. In-memory matching uses
+country-scoped SHA-256 tokens, not raw registration IDs in results or
+the SQLite candidate history. Missing/multiple/placeholder IDs remain
+unknown and **never silently manufacture an entity join**.
+
+Within one exact specific primary CPV group, if **all** dated
+contract notices declare the **same** country-scoped published
+buyer-registration token, or all declare the same country-scoped
+procedure token, the group is moved to the limited
+`same_published_identity_repeats_not_candidates` evidence diagnostic
+instead of being counted as multiple independent buyers. Original
+TED notices and other buyer-review fields remain visible. Distinct
+published registration values only support a conservative
+investigation lead; they do not independently verify legal identities,
+different workflows, awards, spending or current bid status.
+
+The new TED identity provenance report counts notices with a single
+usable published buyer registration and procedure identifier. A
+zero count on older cached responses means the optional fields were
+not present in those projections, **not** that buyers lack legally
+registered identifiers. Tests cover language/dept aliases, repeated
+procedure IDs, truly distinct source-published IDs, multi-buyer
+ambiguity, invalid or unexpected provider shapes, and no raw ID
+leakage. Default discovery still uses one TED request; opt-in
+date-stratification still uses three TED calls, capped at 20 total TED
+rows; the scheduled worker and production main remain unchanged.
+
+Official TED Search Field List:
+https://docs.ted.europa.eu/ODS/latest/reuse/field-list.html
+Official advanced search buyer identifier note:
+https://ted.europa.eu/en/help/search-browse
+
 ### Procedure-estimate evidence separated from market opportunity (2026-11-19)
 
 The owner's latest 20/20/20 source-backed field test confirms three

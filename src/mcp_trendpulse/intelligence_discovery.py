@@ -83,6 +83,36 @@ def _cpv_granularity(code: str) -> str:
             "invalid")
 
 
+def _source_published_ted_match_token(
+    value: Any, country: str, namespace: str,
+) -> str:
+    """One source-declared buyer/procedure ID; hash rather than echo free text.
+
+    TED buyer identifiers are entered by the buyer. They are useful for
+    spotting duplicate labels, NOT independently validated entity IDs.
+    Multi-buyer lists and unknown shapes must remain unresolved.
+    """
+    if not isinstance(country, str) or re.fullmatch(r"[A-Z]{3}", country) is None:
+        return ""
+    if isinstance(value, list):
+        if len(value) != 1:
+            return ""
+        value = value[0]
+    if not isinstance(value, str):
+        return ""
+    normalized = " ".join(value.upper().split())
+    if (
+        not 4 <= len(normalized) <= 96
+        or re.fullmatch(r"[A-Z0-9][A-Z0-9 .:/_-]{3,95}", normalized) is None
+        or normalized in {"UNKNOWN", "NOT AVAILABLE", "NOT APPLICABLE",
+                          "N/A", "NONE", "NULL", "NOT PROVIDED"}
+    ):
+        return ""
+    return hashlib.sha256(
+        f"ted-published-{namespace}|{country}|{normalized}".encode("utf-8")
+    ).hexdigest()[:24]
+
+
 def _record(
     source: str, raw: dict[str, Any], today: date, cutoff: date,
 ) -> dict[str, Any] | None:
@@ -145,9 +175,20 @@ def _record(
                 deadline_assessment = "mixed_past_and_future_published_lot_dates"
         else:
             deadline_assessment = "no_published_lot_deadline"
+        source_country = base.get("buyer_country_code", "")
+        buyer_token = _source_published_ted_match_token(
+            raw.get("buyer-identifier"), source_country, "buyer-registration",
+        )
+        procedure_token = _source_published_ted_match_token(
+            raw.get("procedure-identifier"), source_country, "procedure",
+        )
         out.update({
             "buyer_name": base.get("buyer_name", ""),
-            "buyer_country_code": base.get("buyer_country_code", ""),
+            "buyer_country_code": source_country,
+            "published_buyer_registration_observed": bool(buyer_token),
+            "published_procedure_identifier_observed": bool(procedure_token),
+            "buyer_registration_token": buyer_token,
+            "procedure_identifier_token": procedure_token,
             "notice_type": kind,
             "procurement_stage": stage,
             "title_language": base.get("title_language", ""),
@@ -355,12 +396,43 @@ def summarize_discovery(
                 and record.get("main_cpv_code") and record.get("buyer_name")):
             ted_by_cpv[record["main_cpv_code"]].append(record)
     coarse_cpv_repeats = []
+    same_published_identity_repeats = []
     for cpv, group in ted_by_cpv.items():
         buyer_labels = {
             " ".join(r["buyer_name"].casefold().split())
             for r in group if r["buyer_name"].strip()
         }
         if len(group) < 2 or len(buyer_labels) < 2:
+            continue
+        # Distinct publication numbers alone do not mean distinct buyers
+        # or procurement procedures. If ALL records give the SAME published
+        # registration or procedure token, don't promote a false repeat.
+        # Missing identifiers never get guessed or joined by name.
+        registration_tokens = [
+            r.get("buyer_registration_token", "") for r in group
+        ]
+        procedure_tokens = [
+            r.get("procedure_identifier_token", "") for r in group
+        ]
+        same_registration = (
+            all(registration_tokens) and
+            len(set(registration_tokens)) == 1
+        )
+        same_procedure = (
+            all(procedure_tokens) and len(set(procedure_tokens)) == 1
+        )
+        if same_registration or same_procedure:
+            same_published_identity_repeats.append({
+                "main_cpv_code": cpv, "notices_in_sample": len(group),
+                "distinct_buyer_name_labels": len(buyer_labels),
+                "suppressed_basis": (
+                    "same_published_buyer_registration_country_key"
+                    if same_registration else
+                    "same_published_procedure_country_key"
+                ),
+                "not_independently_verified_identity": True,
+                "same_buying_workflow_verified": False,
+            })
             continue
         grain = _cpv_granularity(cpv)
         if grain != "category_or_finer":
@@ -609,9 +681,21 @@ def summarize_discovery(
         for r in ted_records if _cpv_granularity(r.get("main_cpv_code", "")) != "invalid"
     )
     ted_cover = next((c for c in coverage if c["source"] == "ted"), None)
+    registration_seen = sum(
+        r.get("published_buyer_registration_observed", False)
+        for r in ted_records
+    )
+    procedure_seen = sum(
+        r.get("published_procedure_identifier_observed", False)
+        for r in ted_records
+    )
     ted_sample = {
         "status": ted_cover["status"] if ted_cover else "unavailable",
         "observed_notice_count": len(ted_records),
+        "with_source_published_buyer_registration": registration_seen,
+        "with_source_published_procedure_identifier": procedure_seen,
+        "registration_identity_independently_verified": False,
+        "procedure_identity_independently_verified": False,
         "publication_days_represented": len(set(ted_dates)),
         "earliest_sampled_publication": min(ted_dates) if ted_dates else "",
         "latest_sampled_publication": max(ted_dates) if ted_dates else "",
@@ -708,6 +792,10 @@ def summarize_discovery(
                 -row["notice_count_in_sample"], row["main_cpv_code"],
             )
         )[:6],
+        "same_published_identity_repeats_not_candidates": sorted(
+            same_published_identity_repeats,
+            key=lambda row: (-row["notices_in_sample"], row["main_cpv_code"]),
+        )[:6],
         "research_observations": research_observations,
         "source_balanced_examples_not_additional_trend_candidates": True,
         "sample_examples_by_source": recent_examples,
@@ -740,6 +828,7 @@ def _ted_date_windows(today: date, days: int, limit: int) -> list[tuple[date, da
 _TED_DISCOVERY_FIELDS = frozenset({
     "publication-number", "publication-date", "notice-type", "notice-title",
     "title-proc", "official-language", "buyer-name", "buyer-country",
+    "buyer-identifier", "procedure-identifier",
     "classification-cpv", "main-classification-proc",
     "deadline-receipt-tender-date-lot", "estimated-value-proc",
     "estimated-value-cur-proc",
@@ -1032,6 +1121,35 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             f"{sample_audit['main_cpv_48_or_72_observed']} "
             "(not a market-wide frequency or proof of zero demand)."
         )
+        lines.append(
+            "TED IDENTITY PROVENANCE: "
+            f"{sample_audit['with_source_published_buyer_registration']}/"
+            f"{sample_audit['observed_notice_count']} notices provide a "
+            "single usable published buyer registration; "
+            f"{sample_audit['with_source_published_procedure_identifier']}/"
+            f"{sample_audit['observed_notice_count']} provide a single "
+            "usable procedure identifier. Buyer-entered IDs are NOT "
+            "independently verified legal-entity identities."
+        )
+        lines.append("")
+    identity_suppressed = result.get(
+        "same_published_identity_repeats_not_candidates", []
+    )
+    if identity_suppressed:
+        lines.append("DUPLICATE BUYER/PROCEDURE SIGNALS — not new buyer demand:")
+        for item in identity_suppressed:
+            reason = (
+                "same published buyer registration in the same country"
+                if item["suppressed_basis"] ==
+                "same_published_buyer_registration_country_key" else
+                "same published procedure identifier in the same country"
+            )
+            lines.append(
+                f"  CPV {item['main_cpv_code']}: "
+                f"{item['notices_in_sample']} notices, "
+                f"{item['distinct_buyer_name_labels']} buyer labels; "
+                f"{reason}; independently verified identity: NO"
+            )
         lines.append("")
     coarse = result.get("coarse_cpv_repeats_not_candidates", [])
     if coarse:
