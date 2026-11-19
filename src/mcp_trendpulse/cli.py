@@ -81,6 +81,23 @@ def cli():
     load_environment()
 
 
+@cli.command("doctor", help="Inspect local settings offline without network calls or revealing secrets.")
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text",
+              show_default=True, help="Human-readable or structured redacted diagnostic report.")
+@click.option("--strict", is_flag=True, help="Exit 2 if any static configuration issue is detected.")
+def doctor(output_format, strict):
+    """Inspect local Community and hosted settings; do not test provider reachability."""
+    from mcp_trendpulse.diagnostics import format_doctor_text, inspect_local_configuration
+
+    report = inspect_local_configuration()
+    if output_format == "json":
+        click.echo(json.dumps(report, indent=2, ensure_ascii=True))
+    else:
+        click.echo(format_doctor_text(report))
+    if strict and report["issues"]:
+        raise click.exceptions.Exit(2)
+
+
 @cli.command("bigquery-sql", help="Print Google public Trends Top 25 SQL without starting a query or spending credits.")
 @click.option("--country", required=True, help="Two-letter ISO country code, e.g. US or GB.")
 @click.option("--kind", type=click.Choice(["top", "rising"]), default="top", show_default=True)
