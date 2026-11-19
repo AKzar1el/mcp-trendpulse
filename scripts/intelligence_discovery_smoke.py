@@ -43,6 +43,13 @@ def main() -> int:
             or review["qualified_notices_in_bounded_sample"] <
             review["selected_for_review"]):
         raise AssertionError("Buyer-side review fabricated verification or coverage")
+    if sum(x["buyer_side_review_selected"]
+           for x in result["procurement_observations"]) != review["selected_for_review"]:
+        raise AssertionError("Buyer-side review selection count misreported")
+    if (sum(x["buyer_side_review_qualified"]
+            for x in result["procurement_observations"]) <
+            review["selected_for_review"]):
+        raise AssertionError("Buyer-side qualification labels are inconsistent")
     covered = sum(s["status"] == "observed" for s in result["source_coverage"])
     diagnostic = {
         "status": "source_contracts_observed" if covered == 3

@@ -583,6 +583,25 @@ def test_buyer_review_requires_original_reference_named_buyer_primary_cpv_and_lo
     assert selected[0]["reference"].endswith("804742-2026")
 
 
+def test_review_qualification_distinct_from_six_review_slots():
+    notices = [
+        _rich_ted(f"{805101 + i}-2026", f"Published Buyer {i}",
+                  "90510000", deadline="2026-12-15")
+        for i in range(8)
+    ]
+    x = report(observed("ted", notices))
+    review = x["procurement_review"]
+    assert review["qualified_notices_in_bounded_sample"] == 8
+    assert review["selected_for_review"] == 6
+    assert len(x["procurement_observations"]) == 8
+    assert sum(n["buyer_side_review_qualified"]
+               for n in x["procurement_observations"]) == 8
+    assert sum(n["buyer_side_review_selected"]
+               for n in x["procurement_observations"]) == 6
+    assert all(not n["still_open_tender_verified"]
+               for n in x["procurement_observations"])
+
+
 def test_buyer_review_is_not_exclusive_to_software_or_estimated_contracts():
     tenders = [
         _rich_ted("804800-2026", "Town One", "90510000",

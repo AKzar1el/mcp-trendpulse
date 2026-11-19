@@ -397,12 +397,13 @@ def summarize_discovery(
         if r["id"] not in selected_ids:
             review_selected.append(r)
             selected_ids.add(r["id"])
-    # Preserve the prior contextual examples (including awards and notices
-    # without published buyer/deadline) when the review queue has room.
+    # Preserve additional recent examples (which may also qualify but were
+    # not selected in the six review slots) when the queue has room.
     display_notices = review_selected + [
         r for r in procurement_sorted if r["id"] not in selected_ids
     ][:max(0, 8 - len(review_selected))]
     review_ids = {r["id"] for r in review_selected}
+    qualified_ids = {r["id"] for r in buyer_review}
     procurement_observations = [{
         "title": r["title"], "date": r["date"], "reference": r["reference"],
         "buyer_name": r.get("buyer_name", ""),
@@ -417,7 +418,8 @@ def summarize_discovery(
         "estimated_value_as_published": r.get("estimated_value_as_published", ""),
         "estimated_value_currency": r.get("estimated_value_currency", ""),
         "estimated_value_not_verified_spending": True,
-        "buyer_side_review_qualified": r["id"] in review_ids,
+        "buyer_side_review_qualified": r["id"] in qualified_ids,
+        "buyer_side_review_selected": r["id"] in review_ids,
         "main_cpv_software_it_category": (
             r.get("main_cpv_code", "")[:2] in {"48", "72"}
         ),
@@ -610,7 +612,7 @@ def format_discovery_report(result: dict[str, Any]) -> str:
                 f"  TED [{notice['date']}] {' '.join(title.split())[:100]}"
             )
             details = []
-            if notice.get("buyer_side_review_qualified"):
+            if notice.get("buyer_side_review_selected"):
                 details.append("buyer-side review: inspect original notice")
             if notice["buyer_name"]:
                 buyer = "".join(c if c.isprintable() else " " for c in notice["buyer_name"])

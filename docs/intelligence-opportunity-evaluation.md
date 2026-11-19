@@ -717,10 +717,14 @@ software/IT-class notices** and **four notices from other CPV families**,
 filling unused review slots by publication recency. This is an explicit
 **review visibility mix**, not an estimate of market attractiveness,
 software-related spending share or bidder probability. Up to two more
-context-only notice examples remain visible. Unverified estimated values
+additional recent notice examples remain visible. Unverified estimated values
 are never used to rank between currencies or infer a single software
 budget. Other published CPVs are listed to expose possible mixed scope.
-The ordinary `candidate_count` and all existing research qualification
+The `buyer_side_review_qualified` field says whether a displayed notice
+meets the source-completeness criteria; `buyer_side_review_selected`
+says whether it occupies one of the six prioritized review slots.
+Qualified notices shown as additional context are not mislabeled as
+unqualified. The ordinary `candidate_count` and all existing research qualification
 logic remain unchanged; review notices are **not counted as market
 trends**. An offline fixture with 20 TED observations and the official
 notice stages tests this independently of live provider availability.
