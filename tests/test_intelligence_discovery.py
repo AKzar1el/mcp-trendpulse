@@ -166,6 +166,60 @@ def test_source_projected_record_shape_errors_are_inconclusive():
         {"source": "unknown", "status": "observed"}],
     [{"source": "cfpb", "status": "observed"}] * 2,
 ])
+def test_twenty_record_bulky_provider_snapshots_keep_all_bounded_evidence(monkeypatch):
+    # Reproduces the exact --limit 20 failure without live APIs, credentials,
+    # or reliance on current wall-clock date. Unused provider metadata is
+    # deliberately large, but the normalized 60 public records are small.
+    day = date.today().isoformat()
+    bulky = "PRIVATE_UNUSED_PROVIDER_CONTENT_" + ("X" * 2900)
+    snapshots = [
+        observed("openalex", [
+            {**work(f"W{2741809807 + i}", day), "authorships": bulky}
+            for i in range(20)
+        ]),
+        observed("cfpb", [
+            {**complaint(str(100 + i), day), "unused_provider_metadata": bulky}
+            for i in range(20)
+        ]),
+        observed("ted", [
+            {**notice(f"{805001 + i}-2026", day),
+             "unused_provider_metadata": bulky}
+            for i in range(20)
+        ]),
+    ]
+    raw_bytes = len(json.dumps(snapshots, ensure_ascii=False).encode("utf-8"))
+    assert discovery.MAX_SNAPSHOT_BYTES < raw_bytes < discovery.MAX_SOURCE_INPUT_BYTES
+    direct = discovery.summarize_discovery(snapshots, as_of=day)
+    assert direct["recent_observations"] == 60
+    assert [x["recent_valid_records"] for x in direct["source_coverage"]] == [20, 20, 20]
+    assert "PRIVATE_UNUSED_PROVIDER_CONTENT_" not in repr(direct)
+    assert "NEVER_LEAK_THIS_PRIVATE_STRING" not in repr(direct)
+
+    calls = []
+    by_source = {x["source"]: x for x in snapshots}
+
+    def fake_collect(plan, **kwargs):
+        assert kwargs.get("fetch") is True
+        calls.append(plan.source)
+        return by_source[plan.source]
+
+    monkeypatch.setattr(discovery, "collect", fake_collect)
+    executed = discovery.discover_current(execute=True, limit=20, env={})
+    assert calls == ["openalex", "cfpb", "ted"]  # No additional requests.
+    assert executed["recent_observations"] == 60
+    assert executed["queries_budgeted"] == 3
+    assert "PRIVATE_UNUSED_PROVIDER_CONTENT_" not in repr(executed)
+
+
+def test_oversized_untrusted_discovery_input_still_refused():
+    huge = observed("cfpb", [
+        {**complaint(), "unused_provider_metadata":
+         "X" * (discovery.MAX_SOURCE_INPUT_BYTES + 1)}
+    ])
+    with pytest.raises(ValueError, match="bounded three-provider budget"):
+        report(huge)
+
+
 def test_untrusted_snapshot_input_is_bounded_and_validated(invalid):
     with pytest.raises(ValueError):
         report(*invalid)

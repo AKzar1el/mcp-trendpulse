@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from mcp_trendpulse.intelligence_core import (
-    BudgetCache, IntelligenceError, collect, plan_source,
+    MAX_RESPONSE_BYTES, BudgetCache, IntelligenceError, collect, plan_source,
 )
 from mcp_trendpulse.intelligence_hunter import _words
 from mcp_trendpulse.intelligence_observations import _entry
@@ -30,6 +30,10 @@ SOURCE_LABELS = {
     "ted": "EU published contract/design competition notices",
 }
 MAX_RECORDS = 20
+# The provider's 256-KiB HTTP limit applies per request, not to the sum of
+# three separate source snapshots. Allow only those bounded responses plus
+# small collector envelopes, then enforce 180 KB on normalized evidence.
+MAX_SOURCE_INPUT_BYTES = 3 * MAX_RESPONSE_BYTES + 32_768
 MAX_SNAPSHOT_BYTES = 180_000
 NAME = re.compile(r"[^\w .,&/()'-]+", re.UNICODE)
 _CUTOFF_WORDS = frozenset({
@@ -158,8 +162,8 @@ def summarize_discovery(
         bytes_used = len(json.dumps(snapshots, ensure_ascii=False, allow_nan=False).encode("utf-8"))
     except (TypeError, ValueError) as exc:
         raise ValueError("Snapshots must be JSON-serializable finite data") from exc
-    if bytes_used > MAX_SNAPSHOT_BYTES:
-        raise ValueError("Discovery snapshots exceed 180 KB")
+    if bytes_used > MAX_SOURCE_INPUT_BYTES:
+        raise ValueError("Discovery source input exceeds bounded three-provider budget")
     today = _day(as_of, "as_of") if as_of is not None else date.today()
     cutoff = today - timedelta(days=lookback_days - 1)
 
@@ -224,6 +228,14 @@ def summarize_discovery(
             records.append(item)
             row["recent_valid_records"] += 1
         coverage.append(row)
+
+    # A 20-row TED/OpenAlex projection can contain large multilingual maps
+    # and unrelated provider metadata. Never reject that bounded raw input
+    # solely for exceeding the normalized-evidence limit. _record() keeps
+    # only validated non-personal fields with capped strings and code lists.
+    # Preserve the original 180-KB safety gate on what analysis actually uses.
+    if len(json.dumps(records, ensure_ascii=False, allow_nan=False).encode("utf-8")) > MAX_SNAPSHOT_BYTES:
+        raise ValueError("Normalized discovery evidence exceeds 180 KB")
 
     # A source-declared public category is more grounded than arbitrary
     # token splitting. A candidate needs >=2 DISTINCT source IDs.

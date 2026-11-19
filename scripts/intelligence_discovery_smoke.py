@@ -24,7 +24,7 @@ def main() -> int:
                 or plan["source_count"] != 3):
             raise AssertionError("Plan-only mode performed network access")
         result = discover_current(
-            execute=True, limit=10, lookback_days=30,
+            execute=True, limit=20, lookback_days=30,
             cache=cache, env={},
         )
     if (result["growth_rate_verified"]
@@ -42,6 +42,7 @@ def main() -> int:
                   else "partial_source_availability_inconclusive",
         "mode": "seedless_current_topics_keyless_live_smoke",
         "providers_attempted": 3,
+        "per_provider_record_limit_requested": 20,
         "providers_observed": covered,
         "source_status": [
             {"source": s["source"], "status": s["status"],

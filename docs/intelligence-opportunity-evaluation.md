@@ -662,6 +662,33 @@ Expert query and official notice type definitions:
 https://ted.europa.eu/en/help/search-browse
 https://docs.ted.europa.eu/eforms/latest/reference/code-lists/notice-type.html
 
+### Discovery size-contract repair for 20 records per source (2026-11-19)
+
+The collector enforces a **256-KiB maximum HTTP response per provider** and
+at most 20 observations. The downstream seedless summarizer previously
+serialized and checked all three verbose, provider-shaped sample envelopes
+against one 180-KB total cap *before* normalization. With `--limit 20`,
+unused OpenAlex/TED metadata could trip `Discovery snapshots exceed 180 KB`
+even when every provider was otherwise healthy.
+
+Discovery now separates two strict safeguards: (1) raw input must remain
+within **three bounded provider responses plus 32 KiB of envelope overhead**
+(`3 * 256 KiB + 32 KiB`), and (2) **normalized evidence alone** must fit
+the unchanged **180-KB** cap. Only validated IDs, dates, source-backed
+titles, topical categories and narrowly scoped buyer/CPV metadata reach the
+candidate output. No raw consumer narratives, author lists, upstream
+provider extras, free keys or raw URLs are saved in discovery history.
+There is no additional network request, per-provider quota increase or
+production configuration change.
+
+A deterministic 20+20+20-record regression has deliberately bulky
+irrelevant source metadata (over 180 KB in total), verifies all 60
+eligible records remain attributable, and tests that the sensitive filler
+is excluded. A separate oversized-input test still enforces rejection.
+The live discovery workflow now exercises `--limit 20` and remains
+explicitly inconclusive when an external provider is unavailable. Its
+source-status counters distinguish provider failures from analysis defects.
+
 ### TED buyer-side repeat signals, CPV and deadline integrity (2026-11-19)
 
 The first real `intelligence discover --limit 20` run showed three repeated
