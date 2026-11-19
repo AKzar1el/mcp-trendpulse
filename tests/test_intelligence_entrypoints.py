@@ -58,6 +58,37 @@ async def test_intel_mcp_is_separate_and_readonly():
         assert response.structured_content["network_performed"] is False
 
 
+async def test_optional_discovery_mcp_propagates_bounded_source_flags_without_network():
+    # New optional inputs extend the existing tool schema, not the community MCP
+    # or the number of tools in the separate intelligence service.
+    async with Client(intel_mcp) as client:
+        found = {tool.name: tool for tool in await client.list_tools()}
+        tool = found["intelligence_discover_current"]
+        for prop in (
+            "measure_trends", "broad_topic_scan", "corroborate_issues",
+            "cross_source_hunt",
+        ):
+            assert prop in tool.inputSchema["properties"]
+        response = await client.call_tool("intelligence_discover_current", {
+            "lookback_days": 30, "limit": 20, "execute": False,
+            "measure_trends": True, "broad_topic_scan": True,
+            "corroborate_issues": True, "cross_source_hunt": True,
+        })
+    payload = response.structured_content
+    assert payload["network_performed"] is False
+    assert payload["source_count"] == 3
+    assert payload["request_count"] == 3
+    assert payload["max_requests_with_trend_measurement"] == 29
+    evidence = payload["trend_evidence"]
+    assert evidence["cross_source_hunt_opted_in"] is True
+    assert evidence["corroborate_issues_opted_in"] is True
+    assert evidence["broad_topic_scan_opted_in"] is True
+    assert evidence["max_additional_source_requests"] == 26
+    assert evidence["cross_source_hunt_source_ids"] == [
+        "cordis", "usaspending",
+    ]
+
+
 async def test_existing_community_surface_is_not_expanded():
     async with Client(community_mcp) as client:
         names = {tool.name for tool in await client.list_tools()}

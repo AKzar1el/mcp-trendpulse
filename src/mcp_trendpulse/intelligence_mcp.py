@@ -155,8 +155,10 @@ def intelligence_observe_source_snapshots(
         "recently published OpenAlex works, CFPB public complaint categories and "
         "EU TED procurement notices. NO predefined industries or keyword seeds. "
         "Plan-only by default; execute=True makes three bounded fixed-origin "
-        "read-only API calls, using free locally stored OpenAlex credentials. "
-        "Never infers growth, paying customers or market-size probabilities."
+        "baseline source requests. Explicit optional flags can compare OpenAlex "
+        "research-share history, scan more topics, check public GitHub issue "
+        "counts and reuse the existing CORDIS/USAspending hunter on derived "
+        "topics. Never implies market growth, paying buyers or adoption."
     ),
     annotations=READ_ONLY,
 )
@@ -164,11 +166,18 @@ def intelligence_discover_current(
     lookback_days: int = 30,
     limit: int = 12,
     execute: bool = False,
+    measure_trends: bool = False,
+    broad_topic_scan: bool = False,
+    corroborate_issues: bool = False,
+    cross_source_hunt: bool = False,
 ) -> dict[str, Any]:
     from mcp_trendpulse.intelligence_discovery import discover_current
 
     return discover_current(
         lookback_days=lookback_days, limit=limit, execute=execute,
+        measure_trends=measure_trends, broad_topic_scan=broad_topic_scan,
+        corroborate_issues=corroborate_issues,
+        cross_source_hunt=cross_source_hunt,
     )
 
 

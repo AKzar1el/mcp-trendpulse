@@ -736,6 +736,23 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Separate intelligence MCP now exposes the same opt-in discovery modes
+
+The original twelve-tool read-only intelligence MCP previously allowed
+`intelligence_discover_current(lookback_days, limit, execute)` only:
+none of the more recent CLI research flags were reachable through the
+MCP client. The **existing tool** now additionally accepts optional
+`measure_trends`, `broad_topic_scan`, `corroborate_issues`
+and `cross_source_hunt` booleans, defaulting to `False`.
+This allows agents to explicitly use the already verified OpenAlex
+research measurements, bounded topic scan, GitHub public issue
+counts and re-used CORDIS/USAspending hunter without adding any
+new MCP tool or altering the original sixteen-tool community
+MCP. Each flag remains opt-in and requires `execute=True`
+to access the network. Test coverage verifies the complete
+FastMCP JSON schema and plan-only zero-network 29-request
+upper bound for all four flags with a single TED window.
+
 ### Source inventory audit and optional cross-source research follow-up
 
 There are **25 source adapters** across the existing intelligence
