@@ -117,6 +117,23 @@ backtest output is unchanged. Neither form modifies the saved thresholds or
 alert history. Compare candidate reports yourself; this is not automatic
 parameter tuning, optimization, or evidence of predictive accuracy.
 
+For a side-by-side explanation of a proposed policy against the **saved rule**,
+add `--compare-baseline` together with at least one override:
+
+```bash
+uv run mcp-trendpulse-cli watch backtest --id YOUR_RULE_ID --evidence ./trend-series.json --growth-pct 45 --cooldown-days 14 --compare-baseline
+```
+
+The opt-in `comparison` JSON includes saved and proposed threshold settings,
+each policy's evaluated-window and status counts, hypothetical alert dates,
+dates added or removed by the proposed policy, and the change in hypothetical
+alert count. Missing `--growth-pct`/other override with this flag is rejected.
+The unflagged backtest output is unchanged. Different comparison-window sizes
+can create **different numbers of eligible historical evaluations**, so a
+count difference is not a fair accuracy score, evidence of an earlier original
+publication date, or a recommendation to adopt the proposed rule. Both
+simulations are offline and leave the real rule and alert history untouched.
+
 The JSON result is explicitly marked `simulated: true`. Historical observations
 are evaluated as of each observation date, so old data may produce historical
 *hypothetical* alerts even though live evaluation correctly returns

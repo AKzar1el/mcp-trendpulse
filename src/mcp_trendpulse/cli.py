@@ -186,7 +186,8 @@ def watch_evaluate(rule_id, evidence, dry_run):
 @click.option("--minimum-interest", type=click.FloatRange(0, 100), default=None, help="Hypothetical minimum interest.")
 @click.option("--window", type=click.IntRange(2, 12), default=None, help="Hypothetical comparison window.")
 @click.option("--cooldown-days", type=click.IntRange(1, 90), default=None, help="Hypothetical alert cooldown.")
-def watch_backtest(rule_id, evidence, growth_pct, minimum_interest, window, cooldown_days):
+@click.option("--compare-baseline", is_flag=True, help="Show saved-policy and scenario alert-date differences.")
+def watch_backtest(rule_id, evidence, growth_pct, minimum_interest, window, cooldown_days, compare_baseline):
     """Simulate historic threshold decisions offline without updating cooldown."""
     from mcp_trendpulse.trend_watch import MAX_EVIDENCE_BYTES, WatchStore
 
@@ -196,6 +197,7 @@ def watch_backtest(rule_id, evidence, growth_pct, minimum_interest, window, cool
         result = WatchStore().backtest(
             rule_id, evidence.read_bytes(), growth_pct=growth_pct,
             minimum_interest=minimum_interest, window=window, cooldown_days=cooldown_days,
+            compare_baseline=compare_baseline,
         )
     except (OSError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc

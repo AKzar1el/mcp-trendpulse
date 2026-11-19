@@ -234,6 +234,75 @@ def test_cli_watch_backtest_scenario_is_opt_in_and_read_only(tmp_path, monkeypat
     assert store.get(rule.id) == rule
 
 
+def test_watch_backtest_compares_saved_policy_with_unsaved_thresholds(tmp_path):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2, growth_pct=600, minimum_interest=60)
+    payload = evidence("AI", "US", [10, 10, 40, 50])
+    unchanged = store.backtest(rule.id, payload, growth_pct=100, minimum_interest=40)
+
+    result = store.backtest(rule.id, payload, growth_pct=100, minimum_interest=40, compare_baseline=True)
+    assert {key: result[key] for key in unchanged} == unchanged
+    comparison = result["comparison"]
+    assert comparison["baseline"]["policy"]["growth_pct"] == 600
+    assert comparison["baseline"]["status_counts"] == {"below_threshold": 1}
+    assert comparison["baseline"]["evaluated_windows"] == 1
+    assert comparison["baseline"]["simulated_alert_dates"] == []
+    assert comparison["scenario"]["status_counts"] == {"triggered": 1}
+    assert comparison["added_alert_dates"] == [result["simulated_alerts"][0]["evidence_date"]]
+    assert comparison["removed_alert_dates"] == []
+    assert comparison["alert_count_delta"] == 1
+    assert store.get(rule.id) == rule
+
+
+def test_watch_backtest_comparison_discloses_cooldown_and_window_differences(tmp_path):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2, cooldown_days=3)
+    payload = evidence("AI", "US", [10, 10, 30, 50, 40, 50, 90, 100])
+    result = store.backtest(rule.id, payload, cooldown_days=7, window=3, compare_baseline=True)
+    baseline = result["comparison"]["baseline"]
+    scenario = result["comparison"]["scenario"]
+    assert baseline["evaluated_windows"] == 5
+    assert scenario["evaluated_windows"] == 3
+    assert baseline["policy"]["window"] == 2
+    assert scenario["policy"]["window"] == 3
+    assert sorted(result["comparison"]["removed_alert_dates"]) == sorted(
+        set(baseline["simulated_alert_dates"]) - set(scenario["simulated_alert_dates"])
+    )
+    assert result["comparison"]["alert_count_delta"] == (
+        len(scenario["simulated_alert_dates"]) - len(baseline["simulated_alert_dates"])
+    )
+    assert "historical" in result["comparison"]["note"].lower()
+    assert store.get(rule.id) == rule
+
+
+def test_watch_backtest_comparison_requires_real_override(tmp_path):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2)
+    with pytest.raises(ValueError, match="requires.*override"):
+        store.backtest(rule.id, evidence("AI", "US", [10, 10, 40, 60]), compare_baseline=True)
+
+
+def test_cli_watch_backtest_compare_baseline_is_opt_in_and_nonrecording(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2, growth_pct=600)
+    path = tmp_path / "evidence.json"
+    path.write_bytes(evidence("AI", "US", [10, 10, 40, 60]))
+    args = ["watch", "backtest", "--id", rule.id, "--evidence", str(path)]
+    runner = CliRunner()
+
+    old = runner.invoke(cli, [*args, "--growth-pct", "100"])
+    assert old.exit_code == 0, old.output
+    assert "comparison" not in json.loads(old.output)
+    compared = runner.invoke(cli, [*args, "--growth-pct", "100", "--compare-baseline"])
+    assert compared.exit_code == 0, compared.output
+    assert json.loads(compared.output)["comparison"]["alert_count_delta"] == 1
+    invalid = runner.invoke(cli, [*args, "--compare-baseline"])
+    assert invalid.exit_code != 0
+    assert "requires" in invalid.output.lower()
+    assert store.get(rule.id) == rule
+
+
 def test_rule_cooldown_prevents_new_alert_on_following_day(tmp_path):
     store = WatchStore(tmp_path)
     rule = store.create(keyword="AI", market="US", window=2, cooldown_days=7)

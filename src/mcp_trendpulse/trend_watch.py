@@ -247,35 +247,8 @@ class WatchStore:
         rows = parse_evidence(evidence, keyword=rule.keyword, market=rule.market)
         return evaluate_watch(rule, rows)
 
-    def backtest(
-        self,
-        rule_id: str,
-        evidence: bytes,
-        *,
-        growth_pct: float | None = None,
-        minimum_interest: float | None = None,
-        window: int | None = None,
-        cooldown_days: int | None = None,
-    ) -> dict[str, Any]:
-        """Simulate historical decisions, optionally testing unsaved thresholds."""
-        rule = self.get(rule_id)
-        overrides = {
-            key: value
-            for key, value in {
-                "growth_pct": growth_pct,
-                "minimum_interest": minimum_interest,
-                "window": window,
-                "cooldown_days": cooldown_days,
-            }.items()
-            if value is not None
-        }
-        if overrides:
-            rule = replace(rule, **overrides)
-            validate_rule(
-                rule.keyword, rule.market, rule.growth_pct,
-                rule.minimum_interest, rule.window, rule.cooldown_days,
-            )
-        rows = parse_evidence(evidence, keyword=rule.keyword, market=rule.market)
+    @staticmethod
+    def _historical_report(rule: WatchRule, rows: list[tuple[date, float]]) -> dict[str, Any]:
         hypothetical = replace(rule, last_alert_date=None)
         status_counts: dict[str, int] = {}
         simulated_alerts: list[dict[str, Any]] = []
@@ -286,7 +259,7 @@ class WatchStore:
             if decision.status == "triggered":
                 simulated_alerts.append(asdict(decision))
                 hypothetical = replace(hypothetical, last_alert_date=decision.evidence_date)
-        report = {
+        return {
             "rule_id": rule.id,
             "keyword": rule.keyword,
             "market": rule.market,
@@ -302,6 +275,41 @@ class WatchStore:
                 "or an issued alert. Saved cooldown is neither read nor changed."
             ),
         }
+
+    def backtest(
+        self,
+        rule_id: str,
+        evidence: bytes,
+        *,
+        growth_pct: float | None = None,
+        minimum_interest: float | None = None,
+        window: int | None = None,
+        cooldown_days: int | None = None,
+        compare_baseline: bool = False,
+    ) -> dict[str, Any]:
+        """Simulate offline alerts with optional saved-policy versus scenario comparison."""
+        saved_rule = self.get(rule_id)
+        overrides = {
+            key: value
+            for key, value in {
+                "growth_pct": growth_pct,
+                "minimum_interest": minimum_interest,
+                "window": window,
+                "cooldown_days": cooldown_days,
+            }.items()
+            if value is not None
+        }
+        if compare_baseline and not overrides:
+            raise ValueError("Baseline comparison requires at least one scenario override")
+        rule = saved_rule
+        if overrides:
+            rule = replace(rule, **overrides)
+            validate_rule(
+                rule.keyword, rule.market, rule.growth_pct,
+                rule.minimum_interest, rule.window, rule.cooldown_days,
+            )
+        rows = parse_evidence(evidence, keyword=rule.keyword, market=rule.market)
+        report = self._historical_report(rule, rows)
         if overrides:
             report["scenario"] = {
                 "growth_pct": rule.growth_pct,
@@ -309,6 +317,36 @@ class WatchStore:
                 "window": rule.window,
                 "cooldown_days": rule.cooldown_days,
                 "overrides": sorted(overrides),
+            }
+        if compare_baseline:
+            baseline = self._historical_report(saved_rule, rows)
+
+            def brief(candidate: WatchRule, result: dict[str, Any]) -> dict[str, Any]:
+                return {
+                    "policy": {
+                        "growth_pct": candidate.growth_pct,
+                        "minimum_interest": candidate.minimum_interest,
+                        "window": candidate.window,
+                        "cooldown_days": candidate.cooldown_days,
+                    },
+                    "evaluated_windows": result["evaluated_windows"],
+                    "status_counts": result["status_counts"],
+                    "simulated_alert_dates": [a["evidence_date"] for a in result["simulated_alerts"]],
+                }
+
+            baseline_dates = set(a["evidence_date"] for a in baseline["simulated_alerts"])
+            scenario_dates = set(a["evidence_date"] for a in report["simulated_alerts"])
+            report["comparison"] = {
+                "baseline": brief(saved_rule, baseline),
+                "scenario": brief(rule, report),
+                "added_alert_dates": sorted(scenario_dates - baseline_dates),
+                "removed_alert_dates": sorted(baseline_dates - scenario_dates),
+                "alert_count_delta": len(scenario_dates) - len(baseline_dates),
+                "note": (
+                    "Hypothetical historical alerts on one supplied series, not predictive performance "
+                    "or verified demand. Different windows may have different evaluation counts; "
+                    "added/removed dates do not establish improved alert quality."
+                ),
             }
         return report
 
