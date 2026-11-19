@@ -341,13 +341,16 @@ def review_saved_brief(raw, *, output_format="text", as_of=None, max_age_days=No
     return "\n".join(lines) + "\n", needs_attention
 
 
-def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
+def compare_saved_briefs(before_raw, after_raw, *, output_format="text", as_of=None, max_age_days=None):
     """Compare saved evidence *coverage*, never normalized interest indices."""
     if output_format not in ("text", "json", "csv", "keyword-csv", "markdown"):
         raise ValueError("Unsupported Demand Brief comparison format")
     before_text, _ = review_saved_brief(before_raw, output_format="json")
-    after_text, needs_review = review_saved_brief(after_raw, output_format="json")
+    after_text, needs_review = review_saved_brief(
+        after_raw, output_format="json", as_of=as_of, max_age_days=max_age_days
+    )
     before_report, after_report = json.loads(before_text), json.loads(after_text)
+    freshness_enabled = "freshness_policy" in after_report
     if before_report["timeframe"] != after_report["timeframe"]:
         raise ValueError("Snapshots not comparable: timeframe differs")
 
@@ -358,6 +361,10 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
     after_markets = {m["market"]: m for m in after_report["markets"]}
     before_failures = {m["market"]: m["code"] for m in before_report["failed_markets"]}
     after_failures = {m["market"]: m["code"] for m in after_report["failed_markets"]}
+    after_freshness = {
+        m["market"]: m["freshness_exceptions"]
+        for m in after_report["markets"]
+    } if freshness_enabled else {}
     before_scope = set(before_markets) | set(before_failures)
     after_scope = set(after_markets) | set(after_failures)
     if before_scope != after_scope:
@@ -422,13 +429,16 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
             if older:
                 date_regression = True
                 needs_review = True
-        comparisons.append({
+        comparison = {
             "market": market,
             "before": earlier,
             "after": later,
             "primary_coverage_change": delta,
             "older_observations": older,
-        })
+        }
+        if freshness_enabled:
+            comparison["after_freshness_exceptions"] = after_freshness.get(market, [])
+        comparisons.append(comparison)
 
     caveats = [
         "Do not compare normalized relative-interest indices across captures or markets.",
@@ -436,6 +446,11 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
         "Missing market records do not establish an identical keyword scope; coverage delta is unknown.",
         "Only date-only primary observations are compared for earlier after-file dates; timestamps are unclassified.",
     ]
+    if freshness_enabled:
+        caveats.append(
+            "After-file freshness checks use file-declared observation dates and user-declared as-of; "
+            "neither provenance nor capture date is authenticated."
+        )
     report = {
         "schema_version": 1,
         "comparison": "coverage_only",
@@ -445,6 +460,8 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
         "markets": comparisons,
         "caveats": caveats,
     }
+    if freshness_enabled:
+        report["freshness_policy"] = after_report["freshness_policy"]
     if output_format == "json":
         return json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True) + "\n", needs_review
     if output_format == "markdown":
@@ -453,6 +470,8 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
             "",
             f"**Timeframe:** {_markdown_safe(report['timeframe'])}",
             "**Source:** Saved Google Trends / Google Search labels (not authenticated)",
+            *([f"**After-file freshness policy:** as of {as_of}, maximum age {max_age_days} day(s)"]
+              if freshness_enabled else []),
             "",
             "| Market | Before primary coverage | After primary coverage | Coverage delta |",
             "| --- | ---: | ---: | ---: |",
@@ -487,6 +506,13 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
                     f"({_markdown_safe(older['before_date'])} -> {_markdown_safe(older['after_date'])}); "
                     "human review required"
                 )
+            if freshness_enabled:
+                for issue in item["after_freshness_exceptions"]:
+                    rows.append(
+                        f"- After-file freshness exception: {_markdown_safe(issue['keyword'])}: "
+                        f"{issue['status']} observation {_markdown_safe(issue['latest_observation'])} "
+                        f"(age {issue['age_days']} day(s)); human review required"
+                    )
         rows.extend([
             "",
             "**Assessment:** NEEDS HUMAN REVIEW" if needs_review else
@@ -499,14 +525,17 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
     if output_format == "keyword-csv":
         buffer = io.StringIO(newline="")
         writer = csv.writer(buffer, lineterminator="\n")
-        writer.writerow([
+        header = [
             "market", "keyword", "timeframe", "before_primary_available",
             "after_primary_available", "primary_availability_change",
             "before_latest_observation", "after_latest_observation",
             "observation_date_change",
             "before_failure_code", "after_failure_code", "source_authenticated",
             "needs_human_review", "caveats",
-        ])
+        ]
+        if freshness_enabled:
+            header.extend(["freshness_as_of", "freshness_max_age_days", "after_freshness_status"])
+        writer.writerow(header)
         timeframe = report["timeframe"]
         if timeframe.lstrip().startswith(("=", "+", "-", "@")):
             timeframe = "'" + timeframe.lstrip()
@@ -515,6 +544,11 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
                 {word["keyword"].strip().casefold(): word for word in source.get(market, {}).get("keywords", [])}
                 for source in source_markets
             ]
+            freshness_by_keyword = {
+                issue["keyword"].strip().casefold(): issue["status"]
+                for item in comparisons if item["market"] == market
+                for issue in item.get("after_freshness_exceptions", [])
+            }
             # A completely unavailable market needs a visible row, not an empty CSV.
             for keyword_key in sorted(set(snapshots[0]) | set(snapshots[1])) or [None]:
                 earlier = snapshots[0].get(keyword_key)
@@ -530,7 +564,7 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
                     change = "unchanged"
                 else:
                     change = "gained" if after_valid else "lost"
-                writer.writerow([
+                fields = [
                     market, label, timeframe,
                     str(before_valid).lower() if before_valid is not None else "",
                     str(after_valid).lower() if after_valid is not None else "",
@@ -540,12 +574,19 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
                     _observation_date_change(earlier, later),
                     before_failures.get(market), after_failures.get(market),
                     "false", str(needs_review).lower(), "; ".join(caveats),
-                ])
+                ]
+                if freshness_enabled:
+                    status = (
+                        freshness_by_keyword.get(keyword_key, "within_policy")
+                        if after_valid else "unknown"
+                    )
+                    fields.extend([as_of, max_age_days, status])
+                writer.writerow(fields)
         return buffer.getvalue(), needs_review
     if output_format == "csv":
         buffer = io.StringIO(newline="")
         writer = csv.writer(buffer, lineterminator="\n")
-        writer.writerow([
+        header = [
             "market", "timeframe", "before_observed_keywords", "before_total_keywords",
             "after_observed_keywords", "after_total_keywords", "primary_coverage_change",
             "older_observation_keyword_count",
@@ -553,14 +594,20 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
             "after_failure_code", "before_growth_unavailable", "after_growth_unavailable",
             "before_warning_count", "after_warning_count", "source_authenticated",
             "needs_human_review", "caveats",
-        ])
+        ]
+        if freshness_enabled:
+            header.extend([
+                "freshness_as_of", "freshness_max_age_days",
+                "after_stale_keywords", "after_future_keywords",
+            ])
+        writer.writerow(header)
         # A timeframe is declared by the input file. Prevent spreadsheet formula execution.
         timeframe = report["timeframe"]
         if timeframe.lstrip().startswith(("=", "+", "-", "@")):
             timeframe = "'" + timeframe.lstrip()
         for item in comparisons:
             earlier, later = item["before"], item["after"]
-            writer.writerow([
+            fields = [
                 item["market"], timeframe,
                 earlier["observed_keywords"], earlier["total_keywords"],
                 later["observed_keywords"], later["total_keywords"],
@@ -571,13 +618,25 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
                 earlier["growth_unavailable"], later["growth_unavailable"],
                 earlier["warning_count"], later["warning_count"],
                 "false", str(needs_review).lower(), "; ".join(caveats),
-            ])
+            ]
+            if freshness_enabled:
+                issues = item["after_freshness_exceptions"]
+                fields.extend([
+                    as_of, max_age_days,
+                    sum(issue["status"] == "stale" for issue in issues)
+                    if later["observed_keywords"] is not None else None,
+                    sum(issue["status"] == "future" for issue in issues)
+                    if later["observed_keywords"] is not None else None,
+                ])
+            writer.writerow(fields)
         return buffer.getvalue(), needs_review
 
     lines = [
         "TrendPulse saved Demand Brief evidence coverage comparison (offline)",
         f"Timeframe: {report['timeframe']}",
     ]
+    if freshness_enabled:
+        lines.append(f"After-file freshness policy: as of {as_of}; maximum age {max_age_days} day(s)")
     for item in comparisons:
         def count(data):
             observed, total = data["observed_keywords"], data["total_keywords"]
@@ -592,6 +651,12 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
         for older in item["older_observations"] or []:
             lines.append(f"  Earlier observation in declared after-file: {older['keyword']} "
                          f"{older['before_date']} -> {older['after_date']} (review)")
+        if freshness_enabled:
+            for issue in item["after_freshness_exceptions"]:
+                lines.append(
+                    f"  After-file freshness exception: {issue['keyword']}: {issue['status']} "
+                    f"observation {issue['latest_observation']} (age {issue['age_days']} day(s); review)"
+                )
     lines.append("Assessment: declared observation dates regressed; human review required" if date_regression else
                  "Assessment: current snapshot needs human review" if needs_review else
                  "Assessment: current snapshot structurally complete; review warnings")

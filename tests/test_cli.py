@@ -2328,6 +2328,88 @@ def test_brief_review_output_file_removes_partial_file_on_write_error(tmp_path):
     assert not target.exists()
 
 
+@pytest.mark.parametrize("format_name", ["json", "csv", "keyword-csv", "markdown", "text"])
+def test_brief_compare_optional_after_freshness_policy_flags_stale_without_provider_calls(tmp_path, format_name):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    after.write_bytes(before.read_bytes())
+    original = before.read_bytes(), after.read_bytes()
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("offline only")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-compare", "--before", str(before), "--after", str(after),
+            "--as-of", "2026-09-30", "--max-age-days", "7", "--format", format_name,
+        ])
+    assert result.exit_code == 2, result.output
+    if format_name == "json":
+        report = json.loads(result.output)
+        assert report["freshness_policy"] == {"as_of": "2026-09-30", "max_age_days": 7}
+        assert all(len(m["after_freshness_exceptions"]) == 2 for m in report["markets"])
+        assert report["needs_human_review"] is True
+    else:
+        assert "stale" in result.output.lower()
+        assert "2026-09-30" in result.output
+    assert "latest_index" not in result.output
+    assert (before.read_bytes(), after.read_bytes()) == original
+
+
+def test_brief_compare_current_freshness_and_future_markdown(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    record = json.loads(before.read_text(encoding="utf-8"))
+    record["markets"][0]["keywords"][0]["latest_observation"] = "2026-10-01"
+    after.write_text(json.dumps(record), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after),
+        "--as-of", "2026-09-30", "--max-age-days", "30", "--format", "markdown",
+    ])
+    assert result.exit_code == 2, result.output
+    assert "future" in result.output
+    assert "ChatGPT" in result.output
+    assert "not authenticated" in result.output
+
+
+def test_brief_compare_after_freshness_failed_provider_remains_unknown(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    data = json.loads(before.read_text(encoding="utf-8"))
+    data["markets"] = [m for m in data["markets"] if m["market"] != "GB"]
+    data["failed_markets"] = [{
+        "market": "GB", "component": None, "code": "rate_limited",
+        "retryable": True, "message": "private provider detail",
+    }]
+    data["incomplete"] = True
+    after.write_text(json.dumps(data), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after),
+        "--as-of", "2026-09-30", "--max-age-days", "7", "--format", "csv",
+    ])
+    assert result.exit_code == 2, result.output
+    rows = {row["market"]: row for row in csv.DictReader(io.StringIO(result.output))}
+    assert rows["GB"]["after_observed_keywords"] == ""
+    assert rows["GB"]["after_stale_keywords"] == ""
+    assert rows["GB"]["after_future_keywords"] == ""
+    assert rows["GB"]["after_failure_code"] == "rate_limited"
+    assert "private provider detail" not in result.output
+
+
+@pytest.mark.parametrize("flags", [
+    ["--as-of", "2026-09-30"],
+    ["--max-age-days", "7"],
+    ["--as-of", "2026-02-30", "--max-age-days", "7"],
+])
+def test_brief_compare_invalid_freshness_rejects_before_output(tmp_path, flags):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    after.write_bytes(before.read_bytes())
+    target = tmp_path / "never-created.csv"
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after),
+        *flags, "--format", "csv", "--output-file", str(target),
+    ])
+    assert result.exit_code != 0
+    assert not target.exists()
+
+
 def test_brief_compare_offline_json_tracks_primary_coverage_without_indices(tmp_path):
     before = _saved_mock_brief(tmp_path)
     after = tmp_path / "after.json"

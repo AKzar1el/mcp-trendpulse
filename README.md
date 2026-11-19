@@ -348,6 +348,8 @@ uv run mcp-trendpulse-cli brief-pack --keyword "ChatGPT" --keyword "Claude" --ma
 
 If a keyword has primary observations in both files but its date-only observation becomes **older in the declared after-file**, the comparison highlights the affected keyword and dates in text/JSON, reports the older-keyword count in market CSV and `observation_date_change=older_after` in keyword CSV, and exits 2 for human review even if overall coverage remains complete. Missing market evidence or timestamp-valued observations are reported as unknown rather than implying a chronological regression. This is a comparison of user-ordered saved evidence, **not** an authenticated capture-time or provider-freshness guarantee.
 
+For an optional reproducible **after-file** freshness check, append `--as-of YYYY-MM-DD --max-age-days 7` to `brief-compare`. The same offline validation used by `brief-review` flags primary observations older than the declared threshold or dated in the future, regardless of whether comparison coverage is unchanged, and exits 2 for review. JSON includes per-market after-file freshness exceptions; market CSV adds stale/future counts; keyword CSV adds a per-keyword freshness status; text and Markdown show offending labels and dates. Both flags are required together and omitted by default, so existing comparison output remains unchanged. Unknown primary evidence is never counted as fresh, and saved provider/date labels are not authenticated.
+
 **Source checkout only:** To review or share the human-readable evidence table as a Markdown file without PowerShell redirection or character-encoding surprises, use:
 
 ```bash
