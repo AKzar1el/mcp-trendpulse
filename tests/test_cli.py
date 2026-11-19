@@ -2086,6 +2086,114 @@ def test_brief_review_json_keeps_growth_failure_separate_from_primary_evidence(t
     assert "provider timeout" not in result.output
 
 
+def test_brief_review_csv_exports_offline_market_readiness_without_raw_indices(tmp_path):
+    target = _saved_mock_brief(tmp_path)
+    document = json.loads(target.read_text(encoding="utf-8"))
+    document["timeframe"] = "=HYPERLINK(\"https://example.invalid\")"
+    target.write_text(json.dumps(document), encoding="utf-8")
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("provider called")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-review", "--evidence", str(target), "--format", "csv",
+        ])
+    assert result.exit_code == 0, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert {row["market"] for row in rows} == {"US", "GB"}
+    assert all(row["timeframe"].startswith("'=HYPERLINK(") for row in rows)
+    assert all(row["observed_keywords"] == row["total_keywords"] == "2" for row in rows)
+    assert all(row["source_authenticated"] == "false" for row in rows)
+    assert all(row["needs_human_review"] == "false" for row in rows)
+    assert all("not search volume" in row["caveats"] for row in rows)
+    assert "latest_index" not in result.output and "42.0" not in result.output
+
+
+def test_brief_review_csv_failed_only_market_preserves_unknown_not_zero(tmp_path):
+    target = _saved_mock_brief(tmp_path)
+    document = json.loads(target.read_text(encoding="utf-8"))
+    document["markets"] = [item for item in document["markets"] if item["market"] == "US"]
+    document["failed_markets"] = [{
+        "market": "GB", "component": None, "code": "rate_limited",
+        "retryable": True, "message": "private provider message",
+    }]
+    document["incomplete"] = True
+    target.write_text(json.dumps(document), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-review", "--evidence", str(target), "--format", "csv",
+    ])
+    assert result.exit_code == 2, result.output
+    rows = {row["market"]: row for row in csv.DictReader(io.StringIO(result.output))}
+    assert rows["GB"]["status"] == "no_market_evidence"
+    assert rows["GB"]["observed_keywords"] == rows["GB"]["total_keywords"] == ""
+    assert rows["GB"]["failure_code"] == "rate_limited"
+    assert rows["GB"]["needs_human_review"] == "true"
+    assert "private provider message" not in result.output
+
+
+@pytest.mark.parametrize("output_format", ["text", "json", "csv"])
+def test_brief_review_can_save_exact_utf8_output_without_provider_calls(tmp_path, output_format):
+    evidence = _saved_mock_brief(tmp_path)
+    destination = tmp_path / f"review-{output_format}.txt"
+    args = ["brief-review", "--evidence", str(evidence), "--format", output_format]
+    baseline = CliRunner().invoke(cli_module.cli, args)
+    original = evidence.read_bytes()
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("provider called")):
+        result = CliRunner().invoke(cli_module.cli, [*args, "--output-file", str(destination)])
+    assert baseline.exit_code == result.exit_code == 0, result.output
+    assert destination.read_bytes() == baseline.output.encode("utf-8")
+    assert evidence.read_bytes() == original
+    assert "Wrote Demand Brief review" in result.output
+
+
+def test_brief_review_csv_saves_incomplete_report_and_refuses_overwrite_or_invalid_input(tmp_path):
+    evidence = _saved_mock_brief(tmp_path)
+    document = json.loads(evidence.read_text(encoding="utf-8"))
+    document["markets"][0]["keywords"][1]["latest_index"] = None
+    document["markets"][0]["keywords"][1]["latest_observation"] = None
+    evidence.write_text(json.dumps(document), encoding="utf-8")
+    target = tmp_path / "review.csv"
+    args = ["brief-review", "--evidence", str(evidence), "--format", "csv", "--output-file", str(target)]
+    first = CliRunner().invoke(cli_module.cli, args)
+    assert first.exit_code == 2, first.output
+    assert any(row["needs_human_review"] == "true" for row in csv.DictReader(io.StringIO(target.read_text(encoding="utf-8"))))
+    before = target.read_bytes()
+    second = CliRunner().invoke(cli_module.cli, args)
+    assert second.exit_code == 1 and target.read_bytes() == before
+    invalid = tmp_path / "invalid.csv"
+    evidence.write_bytes(b"invalid-json")
+    third = CliRunner().invoke(cli_module.cli, [*args[:-1], str(invalid)])
+    assert third.exit_code == 1 and not invalid.exists()
+
+
+def test_brief_review_output_file_removes_partial_file_on_write_error(tmp_path):
+    evidence = _saved_mock_brief(tmp_path)
+    target = tmp_path / "partial-review.csv"
+    original_open = Path.open
+
+    class PartialWriter:
+        def __enter__(self):
+            self.handle = original_open(target, "x", encoding="utf-8", newline="\n")
+            return self
+
+        def write(self, content):
+            self.handle.write(content[:12])
+            raise OSError(errno.ENOSPC, "simulated disk full")
+
+        def __exit__(self, *_):
+            self.handle.close()
+
+    def faulting_open(path, mode="r", *args, **kwargs):
+        if path == target and mode == "x":
+            return PartialWriter()
+        return original_open(path, mode, *args, **kwargs)
+
+    with patch.object(Path, "open", new=faulting_open):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-review", "--evidence", str(evidence), "--format", "csv", "--output-file", str(target),
+        ])
+    assert result.exit_code == 1
+    assert "not saved" in result.output.lower()
+    assert not target.exists()
+
+
 def test_brief_compare_offline_json_tracks_primary_coverage_without_indices(tmp_path):
     before = _saved_mock_brief(tmp_path)
     after = tmp_path / "after.json"
