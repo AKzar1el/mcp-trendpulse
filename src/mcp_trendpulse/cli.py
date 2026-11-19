@@ -187,7 +187,12 @@ def watch_evaluate(rule_id, evidence, dry_run):
 @click.option("--window", type=click.IntRange(2, 12), default=None, help="Hypothetical comparison window.")
 @click.option("--cooldown-days", type=click.IntRange(1, 90), default=None, help="Hypothetical alert cooldown.")
 @click.option("--compare-baseline", is_flag=True, help="Show saved-policy and scenario alert-date differences.")
-def watch_backtest(rule_id, evidence, growth_pct, minimum_interest, window, cooldown_days, compare_baseline):
+@click.option("--format", "output_format", type=click.Choice(["json", "csv"]), default="json",
+              show_default=True, help="Structured JSON or spreadsheet-ready simulated alert dates.")
+@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
+              help="Save a new UTF-8 report file; existing files are never overwritten.")
+def watch_backtest(rule_id, evidence, growth_pct, minimum_interest, window, cooldown_days,
+                   compare_baseline, output_format, output_file):
     """Simulate historic threshold decisions offline without updating cooldown."""
     from mcp_trendpulse.trend_watch import MAX_EVIDENCE_BYTES, WatchStore
 
@@ -201,7 +206,55 @@ def watch_backtest(rule_id, evidence, growth_pct, minimum_interest, window, cool
         )
     except (OSError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc
-    click.echo(json.dumps(result, sort_keys=True))
+    report = _watch_backtest_csv(result) if output_format == "csv" else json.dumps(result, sort_keys=True)
+    if output_file is None:
+        click.echo(report, nl=output_format != "csv")
+    else:
+        _save_new_brief_report(output_file, report, kind="backtest", label="Trend Watch")
+
+
+def _watch_backtest_csv(report):
+    """Export one summary and a date-union of hypothetical alerts, never real alerts."""
+    fields = (
+        "row_type", "rule_id", "keyword", "market", "alert_date", "baseline_alert",
+        "scenario_alert", "change", "baseline_evaluated_windows", "scenario_evaluated_windows",
+        "baseline_alert_count", "scenario_alert_count", "delta_alert_count", "simulated", "note",
+    )
+    comparison = report.get("comparison")
+    baseline = comparison["baseline"] if comparison is not None else None
+    baseline_dates = set(baseline["simulated_alert_dates"]) if baseline is not None else set()
+    scenario_dates = {alert["evidence_date"] for alert in report["simulated_alerts"]}
+    common = {"rule_id": report["rule_id"], "keyword": report["keyword"], "market": report["market"]}
+    out = io.StringIO(newline="")
+    writer = csv.DictWriter(out, fieldnames=fields, lineterminator="\n")
+    writer.writeheader()
+
+    def write(row):
+        writer.writerow({field: _brief_csv_cell(row.get(field)) for field in fields})
+
+    write({
+        **common, "row_type": "summary",
+        "baseline_evaluated_windows": baseline["evaluated_windows"] if baseline else "",
+        "scenario_evaluated_windows": report["evaluated_windows"],
+        "baseline_alert_count": len(baseline_dates) if baseline else "",
+        "scenario_alert_count": len(scenario_dates),
+        "delta_alert_count": comparison["alert_count_delta"] if comparison else "",
+        "simulated": "true",
+        "note": report["note"] + (" " + comparison["note"] if comparison else ""),
+    })
+    for alert_date in sorted(baseline_dates | scenario_dates):
+        in_baseline = alert_date in baseline_dates
+        in_scenario = alert_date in scenario_dates
+        change = ""
+        if comparison:
+            change = "shared" if in_baseline and in_scenario else ("added" if in_scenario else "removed")
+        write({
+            **common, "row_type": "alert", "alert_date": alert_date,
+            "baseline_alert": int(in_baseline) if baseline else "",
+            "scenario_alert": int(in_scenario), "change": change,
+            "simulated": "true",
+        })
+    return out.getvalue()
 
 
 @cli.command(help=get_news_by_keyword.__doc__)
@@ -383,7 +436,7 @@ def site(site, period, max_results, no_nlp, headlines_only, save_json_dir):
     asyncio.run(_site())
 
 
-def _save_new_brief_report(destination, report, *, kind):
+def _save_new_brief_report(destination, report, *, kind, label="Demand Brief"):
     """Write an already-validated offline report without overwriting existing files."""
     if destination.exists() or not destination.parent.is_dir():
         raise click.ClickException(f"{kind.capitalize()} destination must be a new file in an existing directory.")
@@ -401,7 +454,7 @@ def _save_new_brief_report(destination, report, *, kind):
                     f"{kind.capitalize()} write failed; partial file may remain at {destination}: {exc}"
                 ) from exc
         raise click.ClickException(f"{kind.capitalize()} file was not saved: {exc}") from exc
-    click.echo(f"Wrote Demand Brief {kind} to {destination}", err=True)
+    click.echo(f"Wrote {label} {kind} to {destination}", err=True)
 
 
 @cli.command("brief-review", help="Review saved Demand Brief JSON offline without provider calls.")
