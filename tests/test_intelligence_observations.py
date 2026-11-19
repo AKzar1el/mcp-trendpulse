@@ -219,3 +219,43 @@ def test_large_input_refused():
 def test_cannot_claim_temporal_change_from_old_record():
     x = review([observed("openalex", [research("2017-06-01")])])
     assert x["dated_recent_sample_records"] == 0
+
+
+def test_all_eighteen_lanes_have_explicit_partial_topic_coverage():
+    x = review([
+        observed("openalex", [research()]),
+        observed("cordis", [{"id": "10001000", "title": "Battery recycling research"}]),
+    ])
+    assert len(x["eighteen_lane_coverage"]) == 18
+    row = next(r for r in x["eighteen_lane_coverage"] if r["lane"] == "research_to_product")
+    assert row["sampled_sources"] == 2
+    assert row["literal_topic_records_in_sample"] == 2
+    assert row["distinct_topic_evidence_classes"] == 2
+    assert row["decision"] == "review_original_sources_and_buyer_workflow"
+    assert row["not_a_validated_market_opportunity"] is True
+    assert x["market_momentum"]["complete_28_day_series"] is False
+    assert x["buyer_budget_verified"] is False
+
+
+def test_one_source_topic_match_not_an_independent_commercial_signal():
+    x = review([observed("openalex", [research()])])
+    row = next(r for r in x["eighteen_lane_coverage"] if r["lane"] == "research_to_product")
+    assert row["decision"] == "insufficient_topical_cross_source_evidence"
+    assert x["literal_topic_matches_in_sample"] == 1
+
+
+def test_bounded_projection_is_not_a_complete_provider_population():
+    x = review([observed("openalex", [research()], count=1)])
+    assert x["source_coverage"][0]["projection_sample_complete"] is True
+    assert x["source_coverage"][0]["sample_complete"] is False
+    assert x["source_coverage"][0]["population_coverage_verified"] is False
+
+
+def test_unrelated_topic_never_treated_as_credible_cross_source_overlap():
+    x = review([
+        observed("openalex", [research()]),
+        observed("cordis", [{"id": "3333333", "title": "Marine acoustics modeling"}]),
+    ])
+    row = next(r for r in x["eighteen_lane_coverage"] if r["lane"] == "research_to_product")
+    assert row["distinct_topic_evidence_classes"] == 1
+    assert row["decision"] == "insufficient_topical_cross_source_evidence"

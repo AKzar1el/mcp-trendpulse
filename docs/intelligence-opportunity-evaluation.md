@@ -297,3 +297,22 @@ Source semantics: [GLEIF registration authorities](https://www.gleif.org/en/lei-
 [Companies House search schema](https://developer-specs.company-information.service.gov.uk/companies-house-public-data-api/resources/companysearch),
 [OpenAlex works](https://help.openalex.org/data/works/attributes/), and
 [USAspending awarded contracts](https://api.usaspending.gov/docs/endpoints/api/search/spending_by_award/).
+
+
+### Eighteen-lane topical observation coverage
+
+The observation report now evaluates the **partial topical sample coverage of
+all 18 recipes**. The `eighteen_lane_coverage` array counts only literal
+source-title/company-name matches against the declared topic, plus the number
+of present source types. This is intentionally a weak retrieval check, **not**
+semantic relevance or a recommendation engine. Every lane reports either
+`review_original_sources_and_buyer_workflow` or
+`insufficient_topical_cross_source_evidence`, with an explicit
+`not_a_validated_market_opportunity` flag. No lane receives a percentage score.
+
+A collector-projected `record_count` describes a **bounded page or sample**, not
+the whole searchable source population. Consequently `sample_complete` and
+`population_coverage_verified` are always false even if the projected row
+count equals the sample length. The narrower `projection_sample_complete`
+metadata only checks whether the bounded extractor retained every projected
+row. This avoids false trending evidence from sampled denominators.

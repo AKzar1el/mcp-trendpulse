@@ -12,7 +12,7 @@ from collections import Counter
 from datetime import date, timedelta
 from typing import Any
 
-from mcp_trendpulse.intelligence_opportunities import SOURCE_KIND, _day, _string
+from mcp_trendpulse.intelligence_opportunities import LANES, SOURCE_KIND, _day, _string
 
 # GLEIF's published Registration Authorities list for the three Companies
 # House registries. Name similarity alone is NEVER a verified entity join.
@@ -229,7 +229,8 @@ def observe_source_snapshots(
         report: dict[str, Any] = {
             "source": source, "kind": SOURCE_KIND[source], "status": status,
             "source_health": "reported_healthy" if status == "observed" else "not_verified",
-            "sample_complete": False, "records_examined": 0, "records_accepted": 0,
+            "sample_complete": False, "population_coverage_verified": False,
+            "records_examined": 0, "records_accepted": 0,
         }
         if status != "observed":
             report["caveat"] = "Source unavailable or invalid; not evidence of zero interest"
@@ -252,9 +253,12 @@ def observe_source_snapshots(
             sources.append(report)
             continue
         report["records_examined"] = len(sample)
-        report["sample_complete"] = count == len(sample)
-        if not report["sample_complete"]:
-            report["caveat"] = "Only a partial relevance-ranked sample; no population rate inference"
+        # record_count counts the collector's bounded projection, NOT the
+        # provider's whole result population. This is never a complete
+        # 28-day search, even when count equals the sample's length.
+        report["projection_sample_complete"] = count == len(sample)
+        report["sample_complete"] = False
+        report["caveat"] = "Only a bounded source sample; population coverage is not verified"
         for item in sample:
             if len(records) >= MAX_ROWS:
                 ignored["result_budget"] += 1
@@ -294,7 +298,7 @@ def observe_source_snapshots(
                 "references": [company["reference"], entity["reference"]],
                 "paid_buyer_verified": False,
             })
-    cutoff = asof - timedelta(days=29)
+    cutoff = (asof - timedelta(days=29)).isoformat()
     recent = [
         row for row in records
         if row.get("event_date") is not None
@@ -304,6 +308,36 @@ def observe_source_snapshots(
             "registry_identity_not_trend",
         }
     ]
+    # Literal text overlap is an audit aid, NOT semantic similarity, market
+    # momentum, a cross-organizational identity join or buyer confirmation.
+    topic_normal = " ".join(subject.casefold().split())
+    literal_matches = [
+        record for record in records if topic_normal in " ".join(
+            str(record.get(field, "")) for field in (
+                "title", "legal_name", "buyer_name", "company_name",
+            )
+        ).casefold()
+    ]
+    lane_coverage = []
+    for lane, info in LANES.items():
+        relevant = [r for r in sources if r["source"] in info["sources"]
+                    and r["status"] == "observed" and r["records_accepted"] > 0]
+        overlap = [r for r in literal_matches if r["source"] in info["sources"]]
+        lane_coverage.append({
+            "lane": lane, "recipe_sources": len(info["sources"]),
+            "sampled_sources": len(relevant),
+            "literal_topic_records_in_sample": len(overlap),
+            "distinct_topic_evidence_classes": len({r["kind"] for r in overlap}),
+            "decision": (
+                "review_original_sources_and_buyer_workflow"
+                if len({r["kind"] for r in overlap}) >= 2 else
+                "insufficient_topical_cross_source_evidence"
+            ),
+            "not_a_validated_market_opportunity": True,
+        })
+    lane_coverage.sort(key=lambda r: (
+        -r["distinct_topic_evidence_classes"], -r["sampled_sources"], r["lane"]
+    ))
     counts = Counter(row["kind"] for row in records)
     unresolved = [src["source"] for src in sources if src["source_health"] != "reported_healthy"]
     return {
@@ -318,6 +352,9 @@ def observe_source_snapshots(
         "dated_recent_sample_records": len(recent),
         "dated_recent_sample_by_class": dict(sorted(Counter(x["kind"] for x in recent).items())),
         "sample_records": records[:40],
+        "literal_topic_matches_in_sample": len(literal_matches),
+        "literal_matching_is_not_semantic_relevance": True,
+        "eighteen_lane_coverage": lane_coverage,
         "discarded_records": dict(ignored),
         "market_momentum": {
             "status": "not_estimable_from_relevance_ranked_samples",
