@@ -6,7 +6,7 @@ import io
 import json
 import math
 import re
-from datetime import datetime
+from datetime import date, datetime
 
 MAX_EVIDENCE_BYTES = 1024 * 1024
 _MARKET = re.compile(r"[A-Z]{2}(?:-[A-Z0-9]{1,6}){0,2}\Z")
@@ -72,10 +72,22 @@ def _observation_date_change(earlier, later):
     return "unchanged"
 
 
-def review_saved_brief(raw, *, output_format="text"):
+def review_saved_brief(raw, *, output_format="text", as_of=None, max_age_days=None):
     """Return (formatted review, needs_attention), without network or file mutations."""
     if output_format not in ("text", "json", "csv", "markdown"):
         raise ValueError("Unsupported Demand Brief review format")
+    freshness_enabled = as_of is not None or max_age_days is not None
+    if freshness_enabled:
+        if as_of is None or max_age_days is None:
+            raise ValueError("Freshness review requires both --as-of and --max-age-days")
+        if not isinstance(as_of, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", as_of):
+            raise ValueError("Freshness --as-of must be YYYY-MM-DD")
+        try:
+            reference_date = date.fromisoformat(as_of)
+        except ValueError as exc:
+            raise ValueError("Invalid freshness --as-of date") from exc
+        if type(max_age_days) is not int or not 0 <= max_age_days <= 3650:
+            raise ValueError("Freshness --max-age-days must be between 0 and 3650")
     if len(raw) > MAX_EVIDENCE_BYTES:
         raise ValueError("Demand Brief evidence exceeds 1 MiB")
     try:
@@ -141,6 +153,8 @@ def review_saved_brief(raw, *, output_format="text"):
         if not isinstance(warnings, list) or any(not isinstance(w, str) for w in warnings):
             raise ValueError("Invalid evidence warnings")
         names, observed = [], 0
+        freshness_exceptions = []
+        stale_count = future_count = 0
         for item in keywords:
             if not isinstance(item, dict) or not isinstance(item.get("keyword"), str):
                 raise ValueError("Malformed keyword record")
@@ -157,6 +171,15 @@ def review_saved_brief(raw, *, output_format="text"):
             _is_number(item.get("growth_3m_pct"))
             _is_number(item.get("growth_1y_pct"))
             observed += int(valid)
+            if freshness_enabled and valid:
+                observed_date = datetime.fromisoformat(last.replace("Z", "+00:00")).date()
+                age_days = (reference_date - observed_date).days
+                if age_days < 0:
+                    future_count += 1
+                    freshness_exceptions.append((keyword, last, "future", age_days))
+                elif age_days > max_age_days:
+                    stale_count += 1
+                    freshness_exceptions.append((keyword, last, "stale", age_days))
         if len(set(names)) != len(names):
             raise ValueError("Duplicate keywords")
         if expected_keywords is not None and expected_keywords != set(names):
@@ -173,7 +196,9 @@ def review_saved_brief(raw, *, output_format="text"):
             status += "; growth unavailable"
         if observed < len(keywords):
             needs_attention = True
-        market_reviews.append({
+        if freshness_exceptions:
+            needs_attention = True
+        market_review = {
             "market": name,
             "observed_keywords": observed,
             "total_keywords": len(keywords),
@@ -181,11 +206,23 @@ def review_saved_brief(raw, *, output_format="text"):
             "status": "observed" if observed == len(keywords) else "missing_primary_evidence",
             "growth_unavailable": bool(failure),
             "warning_count": len(warnings),
-        })
+        }
+        if freshness_enabled:
+            market_review["stale_keywords"] = stale_count
+            market_review["future_keywords"] = future_count
+            market_review["freshness_exceptions"] = [
+                {"keyword": keyword, "latest_observation": observed_at,
+                 "status": status, "age_days": days}
+                for keyword, observed_at, status, days in freshness_exceptions
+            ]
+        market_reviews.append(market_review)
         lines.append(
             f"{name}: {observed}/{len(keywords)} keywords with primary evidence; "
             f"latest market observation {latest}; {status}; {len(warnings)} warning(s)"
         )
+        for keyword, observed_at, status, days in freshness_exceptions:
+            label = keyword.replace("\r", " ").replace("\n", " ")
+            lines.append(f"  {label}: {status} primary observation {observed_at} (age {days} day(s))")
     for name, failure in errors.items():
         if name not in seen:
             lines.append(f"{name}: no market evidence; failure {failure['code']} (not ready)")
@@ -195,6 +232,8 @@ def review_saved_brief(raw, *, output_format="text"):
         "Normalized interest is not search volume; do not rank indices across markets.",
         "This checks saved fields only, not whether the provider supplied the data.",
     ]
+    if freshness_enabled:
+        caveats.append("Freshness uses file-declared observation dates and a user-declared as-of date; neither is authenticated.")
     if output_format == "markdown":
         rows = [
             "# Saved Demand Brief readiness review",
@@ -217,6 +256,20 @@ def review_saved_brief(raw, *, output_format="text"):
             if name not in seen:
                 # No primary response means unknown coverage, not zero keywords.
                 rows.append(f"| {name} | unknown | n/a | no market evidence ({failure['code']}) | unknown |")
+        if freshness_enabled:
+            rows.extend(["", f"**Freshness policy:** as of {as_of}, maximum age {max_age_days} day(s)", ""])
+            rows.append("### Freshness exceptions")
+            has_exceptions = False
+            for market in market_reviews:
+                for issue in market["freshness_exceptions"]:
+                    has_exceptions = True
+                    rows.append(
+                        f"- {market['market']} / {_markdown_safe(issue['keyword'])}: "
+                        f"{issue['status']} primary observation {_markdown_safe(issue['latest_observation'])} "
+                        f"(age {issue['age_days']} day(s)); human review required"
+                    )
+            if not has_exceptions:
+                rows.append("- None among observed primary evidence; missing primary evidence remains unknown")
         rows.extend([
             "",
             "**Assessment:** NEEDS HUMAN REVIEW" if needs_attention else
@@ -240,35 +293,46 @@ def review_saved_brief(raw, *, output_format="text"):
             ],
             "caveats": caveats,
         }
+        if freshness_enabled:
+            report["freshness_policy"] = {"as_of": as_of, "max_age_days": max_age_days}
         if output_format == "json":
             return json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True) + "\n", needs_attention
         buffer = io.StringIO(newline="")
         writer = csv.writer(buffer, lineterminator="\n")
-        writer.writerow([
+        header = [
             "market", "timeframe", "status", "assessment", "observed_keywords", "total_keywords",
             "latest_market_observation", "growth_unavailable", "warning_count", "failure_code",
             "source_authenticated", "needs_human_review", "caveats",
-        ])
+        ]
+        if freshness_enabled:
+            header.extend(["freshness_as_of", "freshness_max_age_days", "stale_keywords", "future_keywords"])
+        writer.writerow(header)
         # The timeframe is declared by the file and may contain a spreadsheet formula.
         csv_timeframe = report["timeframe"]
         if csv_timeframe.lstrip().startswith(("=", "+", "-", "@")):
             csv_timeframe = "'" + csv_timeframe.lstrip()
         for item in market_reviews:
-            writer.writerow([
+            fields = [
                 item["market"], csv_timeframe, item["status"], report["assessment"],
                 item["observed_keywords"], item["total_keywords"], item["latest_market_observation"],
                 str(item["growth_unavailable"]).lower(), item["warning_count"],
                 errors.get(item["market"], {}).get("code"), "false", str(needs_attention).lower(),
                 "; ".join(caveats),
-            ])
+            ]
+            if freshness_enabled:
+                fields.extend([as_of, max_age_days, item["stale_keywords"], item["future_keywords"]])
+            writer.writerow(fields)
         for name, failure in errors.items():
             if name not in seen:
                 # Missing primary market data is unknown, never equivalent to zero coverage.
-                writer.writerow([
+                fields = [
                     name, csv_timeframe, "no_market_evidence", report["assessment"],
                     None, None, None, None, None, failure["code"], "false",
                     str(needs_attention).lower(), "; ".join(caveats),
-                ])
+                ]
+                if freshness_enabled:
+                    fields.extend([as_of, max_age_days, None, None])
+                writer.writerow(fields)
         return buffer.getvalue(), needs_attention
     lines += [
         "Assessment: NEEDS HUMAN REVIEW" if needs_attention else "Assessment: structurally complete; review warnings",

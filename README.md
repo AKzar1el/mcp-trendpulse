@@ -379,6 +379,8 @@ For an explicitly requested one-keyword, one-market Trend Watch series instead o
 
 The CLI and MCP surfaces are intentionally documented separately because they do not expose the same command set.
 
+**Optional offline freshness gate:** `uv run mcp-trendpulse-cli brief-review --evidence evidence.json --as-of 2026-11-19 --max-age-days 7 --format markdown` evaluates each observed keyword's saved primary-observation date against an **explicit, reproducible reference date**. Observations older than seven calendar days or dated after the declared reference date are listed for human review (exit 2), even when every keyword otherwise has primary coverage. This is available in text, JSON, CSV and Markdown, including safe new-file `--output-file` exports; JSON contains the exceptions and CSV reports per-market stale/future counts. Both flags are required together; omitting them preserves existing readiness behavior. Missing primary observations remain unknown, never treated as fresh; saved dates and source labels are unauthenticated, and the check makes no network calls or claims about actual provider publication freshness.
+
 ## Development
 
 Install the project with its development dependencies using your preferred Python environment, then run the unit suite:

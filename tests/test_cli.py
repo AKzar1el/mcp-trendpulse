@@ -1957,6 +1957,71 @@ def _saved_mock_brief(tmp_path):
     return target
 
 
+def test_brief_review_freshness_flags_stale_primary_evidence_offline(tmp_path):
+    evidence = _saved_mock_brief(tmp_path)
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("offline only")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-review", "--evidence", str(evidence), "--as-of", "2026-09-30",
+            "--max-age-days", "7", "--format", "json",
+        ])
+    assert result.exit_code == 2, result.output
+    report = json.loads(result.output)
+    assert report["needs_human_review"] is True
+    assert report["freshness_policy"] == {"as_of": "2026-09-30", "max_age_days": 7}
+    assert all(market["stale_keywords"] == 2 for market in report["markets"])
+    assert all(market["future_keywords"] == 0 for market in report["markets"])
+    assert "latest_index" not in result.output
+    assert report["source_authenticated"] is False
+
+
+def test_brief_review_freshness_current_evidence_and_saved_csv(tmp_path):
+    evidence = _saved_mock_brief(tmp_path)
+    saved = tmp_path / "freshness.csv"
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-review", "--evidence", str(evidence), "--as-of", "2026-09-20",
+        "--max-age-days", "7", "--format", "csv", "--output-file", str(saved),
+    ])
+    assert result.exit_code == 0, result.output
+    rows = list(csv.DictReader(io.StringIO(saved.read_text(encoding="utf-8"))))
+    assert len(rows) == 2
+    assert all(row["stale_keywords"] == "0" and row["future_keywords"] == "0" for row in rows)
+    assert all(row["freshness_as_of"] == "2026-09-20" for row in rows)
+    assert all(row["freshness_max_age_days"] == "7" for row in rows)
+    assert saved.read_bytes().startswith(b"market,")
+
+
+def test_brief_review_freshness_future_date_requires_human_review(tmp_path):
+    evidence = _saved_mock_brief(tmp_path)
+    payload = json.loads(evidence.read_text(encoding="utf-8"))
+    payload["markets"][0]["keywords"][0]["latest_observation"] = "2026-10-01"
+    evidence.write_text(json.dumps(payload), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-review", "--evidence", str(evidence), "--as-of", "2026-09-30",
+        "--max-age-days", "30", "--format", "markdown",
+    ])
+    assert result.exit_code == 2, result.output
+    assert "future" in result.output.lower()
+    assert "ChatGPT" in result.output
+    assert "not authenticated" in result.output.lower()
+
+
+@pytest.mark.parametrize("flags", [
+    ["--as-of", "2026-09-30"],
+    ["--max-age-days", "7"],
+    ["--as-of", "2026-02-30", "--max-age-days", "7"],
+    ["--as-of", "2026-09-30", "--max-age-days", "-1"],
+])
+def test_brief_review_freshness_rejects_invalid_policy_without_output(tmp_path, flags):
+    evidence = _saved_mock_brief(tmp_path)
+    saved = tmp_path / "must-not-exist.txt"
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-review", "--evidence", str(evidence), *flags,
+        "--output-file", str(saved),
+    ])
+    assert result.exit_code != 0
+    assert not saved.exists()
+
+
 def test_brief_review_markdown_handoff_escapes_declared_markup_and_stays_offline(tmp_path):
     evidence = _saved_mock_brief(tmp_path)
     data = json.loads(evidence.read_text(encoding="utf-8"))
