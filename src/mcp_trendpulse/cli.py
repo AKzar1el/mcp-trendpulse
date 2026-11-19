@@ -605,7 +605,8 @@ def brief_audit(evidence_paths, audit_format, output_file, as_of, max_age_days):
               default="markdown", show_default=True)
 @click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
               help="Save the report to a new UTF-8 file without overwriting.")
-def rss_review(evidence, review_format, output_file):
+@click.option("--contains", default=None, help="Filter saved headlines by a case-insensitive literal title substring.")
+def rss_review(evidence, review_format, output_file, contains):
     """Review exact-URL duplicates, missing metadata and evidence limitations offline."""
     from mcp_trendpulse.rss_review import MAX_RSS_EVIDENCE_BYTES, review_saved_rss_headlines
 
@@ -616,7 +617,8 @@ def rss_review(evidence, review_format, output_file):
             raise ValueError("Symbolic-link RSS evidence is not supported")
         with evidence.open("rb") as handle:
             raw = handle.read(MAX_RSS_EVIDENCE_BYTES + 1)
-        report, needs_attention = review_saved_rss_headlines(raw, output_format=review_format)
+        report, needs_attention = review_saved_rss_headlines(
+            raw, output_format=review_format, contains=contains)
     except (OSError, ValueError) as exc:
         raise click.ClickException(f"RSS headline review failed: {exc}") from exc
     if output_file is None:

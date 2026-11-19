@@ -31,10 +31,14 @@ def _date(value):
     return value
 
 
-def review_saved_rss_headlines(raw, *, output_format="markdown"):
+def review_saved_rss_headlines(raw, *, output_format="markdown", contains=None):
     """Return a validated offline report and whether manual review is needed."""
     if output_format not in ("markdown", "json"):
         raise ValueError("Unsupported RSS review format")
+    if contains is not None:
+        if not isinstance(contains, str) or not contains.strip() or len(contains) > 120 or not contains.isprintable():
+            raise ValueError("RSS headline filter must be 1-120 printable characters")
+        contains = contains.strip()
     if len(raw) > MAX_RSS_EVIDENCE_BYTES:
         raise ValueError("Saved RSS evidence exceeds 1 MiB")
     try:
@@ -99,6 +103,14 @@ def review_saved_rss_headlines(raw, *, output_format="markdown"):
         ],
     }
     needs_attention = not unique or duplicate_urls > 0 or missing_publishers > 0 or missing_dates > 0
+    if contains is not None:
+        matches = [item for item in unique if contains.casefold() in item["title"].casefold()]
+        result["filter"] = {"contains": contains, "method": "casefold_literal_substring",
+                            "matched_headlines": len(matches)}
+        result["headlines"] = matches
+        result["caveats"].append(
+            "No matching saved headline is not evidence of absent articles or market demand.")
+        needs_attention = needs_attention or not matches
     if output_format == "json":
         return json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n", needs_attention
     lines = ["# Saved Google News RSS headline review (offline)", "",
@@ -107,7 +119,10 @@ def review_saved_rss_headlines(raw, *, output_format="markdown"):
              f"**Missing publisher:** {missing_publishers}; **missing date:** {missing_dates}",
              "", "| Headline | Publisher | Saved date | Google News URL |",
              "| --- | --- | --- | --- |"]
-    for item in unique:
+    if contains is not None:
+        lines.insert(1, f"**Literal headline filter:** {_markdown_safe(contains)} "
+                        f"({result['filter']['matched_headlines']} matches; case-insensitive)")
+    for item in result["headlines"]:
         cells = [item["title"], item["publisher"] or "unknown",
                  item["publish_date"] or "unknown", item["url"]]
         lines.append("| " + " | ".join(_markdown_safe(value) for value in cells) + " |")
