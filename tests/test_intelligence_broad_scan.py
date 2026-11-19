@@ -157,6 +157,7 @@ def test_broad_scan_measures_shared_top20_not_missing_groups_as_zero(monkeypatch
     signals = result["rising_or_accelerating_watchlist"]
     assert len(signals) == 1
     assert signals[0]["topic_id"] == "T11111"
+    assert signals[0]["label"] == "Rising Mixed-Field Research"
     assert signals[0]["topic_counts"] == [100, 125, 170]
     assert signals[0]["source_topic_reference"] == "https://openalex.org/T11111"
     rendered = "\n".join(broad.format_broad_topic_scan(result))

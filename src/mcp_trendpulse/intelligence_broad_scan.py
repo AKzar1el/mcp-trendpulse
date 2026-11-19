@@ -72,7 +72,7 @@ def _read_group_counts(result: dict[str, Any]) -> dict[str, Any] | None:
             # A non-topic or provider-derived "unknown" bucket is not a
             # genuine topic. Ignore rather than guessing a trend from it.
             continue
-        label = " ".join(
+        label = "".join(
             (x if x.isprintable() else " ") for x in label
         ).strip()
         label = re.sub(r"\s+", " ", label)[:100]

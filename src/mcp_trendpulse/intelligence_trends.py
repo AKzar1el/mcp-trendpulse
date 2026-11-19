@@ -95,7 +95,7 @@ def discovered_topic_ids(
         # invent product ideas or include unbounded provider metadata.
         title = raw.get("display_name")
         if isinstance(title, str):
-            title = " ".join(ch if ch.isprintable() else " "
+            title = "".join(ch if ch.isprintable() else " "
                              for ch in title).strip()
             title = " ".join(title.split())[:115]
             if title and len(row["recent_research_examples"]) < 2:

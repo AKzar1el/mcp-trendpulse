@@ -172,6 +172,8 @@ def test_source_paper_examples_are_bounded_public_and_no_fake_product_adoption()
                for topic in topics for p in topic["recent_research_examples"])
     assert all(0 < len(p["title"]) <= 115 for topic in topics
                for p in topic["recent_research_examples"])
+    assert all(p["title"].startswith("Research title for")
+               for topic in topics for p in topic["recent_research_examples"])
 
 
 def test_full_trend_measurement_uses_nine_bounded_existing_openalex_requests(monkeypatch):
