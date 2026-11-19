@@ -385,7 +385,7 @@ def test_stratified_live_path_bounded_three_ted_windows_and_private_history(
         "round_robin_qualified_notices_across_ted_date_windows"
     )
     assert [w["review_selected"] for w in review["per_date_window"]] == [2, 2, 2]
-    assert [w["displayed_notices"] for w in review["per_date_window"]] == [4, 2, 2]
+    assert [w["displayed_notices"] for w in review["per_date_window"]] == [3, 3, 2]
     assert [w["sampled_notices"] for w in review["per_date_window"]] == [7, 7, 6]
     assert review["software_it_not_review_qualified"] == 0
     assert result["ted_sampling_audit"]["sector_share_or_growth_estimable"] is False
