@@ -3275,3 +3275,116 @@ def test_brief_compare_output_file_removes_its_partial_file_on_write_error(tmp_p
     assert result.exit_code == 1
     assert "not saved" in result.output.lower()
     assert not target.exists()
+
+
+def test_brief_audit_multi_file_json_distinguishes_unknown_market_offline(tmp_path):
+    good = _saved_mock_brief(tmp_path)
+    incomplete = tmp_path / "incomplete.json"
+    saved = json.loads(good.read_text(encoding="utf-8"))
+    saved["markets"] = [saved["markets"][0]]
+    saved["failed_markets"] = [{
+        "market": "GB", "component": None, "code": "rate_limited",
+        "retryable": True, "message": "private upstream failure body",
+    }]
+    saved["incomplete"] = True
+    incomplete.write_text(json.dumps(saved), encoding="utf-8")
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("provider called")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-audit", "--evidence", str(good), "--evidence", str(incomplete),
+            "--format", "json",
+        ])
+    assert result.exit_code == 2, result.output
+    report = json.loads(result.output)
+    assert report["schema_version"] == 1
+    assert report["summary"] == {"files": 2, "structurally_complete": 1, "needs_human_review": 1}
+    assert report["files"][0]["primary_responded_coverage"] == "4/4"
+    assert report["files"][1]["failed_market_count"] == 1
+    assert report["files"][1]["market_coverage"] == "partial_unknown"
+    assert report["source_authenticated"] is False
+    assert "private upstream failure body" not in result.output
+
+
+def test_brief_audit_csv_escapes_untrusted_filename_and_never_infers_volume(tmp_path):
+    good = _saved_mock_brief(tmp_path)
+    renamed = tmp_path / "=financial.csv.json"
+    renamed.write_bytes(good.read_bytes())
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-audit", "--evidence", str(renamed), "--format", "csv",
+    ])
+    assert result.exit_code == 0, result.output
+    assert "'=financial.csv.json" in result.output
+    assert "search volume" in result.output
+    assert "4/4" in result.output
+
+
+def test_brief_audit_all_failed_markets_have_unknown_not_zero_coverage(tmp_path):
+    good = _saved_mock_brief(tmp_path)
+    saved = json.loads(good.read_text(encoding="utf-8"))
+    saved["markets"] = []
+    saved["failed_markets"] = [
+        {"market": code, "component": None, "code": "unavailable",
+         "retryable": True, "message": "private details"}
+        for code in ("US", "GB")
+    ]
+    saved["incomplete"] = True
+    good.write_text(json.dumps(saved), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-audit", "--evidence", str(good), "--format", "json",
+    ])
+    assert result.exit_code == 2, result.output
+    item = json.loads(result.output)["files"][0]
+    assert item["market_coverage"] == "partial_unknown"
+    assert item["primary_responded_coverage"] == "unknown"
+    assert item["failed_market_count"] == 2
+
+
+def test_brief_audit_markdown_reports_stale_evidence_and_escapes_names(tmp_path):
+    good = _saved_mock_brief(tmp_path)
+    unsafe = tmp_path / "#risk#.json"
+    unsafe.write_bytes(good.read_bytes())
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-audit", "--evidence", str(unsafe), "--format", "markdown",
+        "--as-of", "2026-11-19", "--max-age-days", "1",
+    ])
+    assert result.exit_code == 2, result.output
+    assert "\\#risk\\#\\.json" in result.output
+    assert "freshness" in result.output.lower()
+    assert "not authenticated" in result.output
+
+
+def test_brief_audit_rejects_duplicate_invalid_and_overlimit_without_writing(tmp_path):
+    good = _saved_mock_brief(tmp_path)
+    output = tmp_path / "audit.csv"
+    duplicate = CliRunner().invoke(cli_module.cli, [
+        "brief-audit", "--evidence", str(good), "--evidence", str(good),
+        "--format", "csv", "--output-file", str(output),
+    ])
+    assert duplicate.exit_code == 1 and "duplicate" in duplicate.output.lower()
+    invalid = tmp_path / "invalid.json"
+    invalid.write_text('{"schema_version":1}', encoding="utf-8")
+    bad = CliRunner().invoke(cli_module.cli, [
+        "brief-audit", "--evidence", str(good), "--evidence", str(invalid),
+        "--format", "csv", "--output-file", str(output),
+    ])
+    assert bad.exit_code == 1 and "evidence #2" in bad.output
+    assert not output.exists()
+    too_many = CliRunner().invoke(cli_module.cli, [
+        "brief-audit", *[item for _ in range(13) for item in ("--evidence", str(good))],
+    ])
+    assert too_many.exit_code == 1 and "12" in too_many.output
+
+
+def test_brief_audit_writes_utf8_new_file_and_refuses_overwrite(tmp_path):
+    good = _saved_mock_brief(tmp_path)
+    second = tmp_path / "second.json"
+    second.write_bytes(good.read_bytes())
+    output = tmp_path / "audit.json"
+    args = ["brief-audit", "--evidence", str(good), "--evidence", str(second),
+            "--format", "json", "--output-file", str(output)]
+    result = CliRunner().invoke(cli_module.cli, args)
+    assert result.exit_code == 0, result.output
+    assert output.read_bytes().startswith(b'{')
+    assert len(json.loads(output.read_text(encoding="utf-8"))["files"]) == 2
+    again = CliRunner().invoke(cli_module.cli, args)
+    assert again.exit_code == 1
+    assert len(json.loads(output.read_text(encoding="utf-8"))["files"]) == 2

@@ -567,6 +567,37 @@ def brief_compare(before_path, after_path, compare_format, output_file, as_of, m
         raise click.exceptions.Exit(2)
 
 
+@cli.command("brief-audit", help="Audit up to twelve saved Demand Brief files together, offline.")
+@click.option("--evidence", "evidence_paths", multiple=True, required=True,
+              type=click.Path(exists=True, dir_okay=False, path_type=Path),
+              help="Saved schema-v1 evidence file; repeat up to twelve times.")
+@click.option("--format", "audit_format", type=click.Choice(["markdown", "json", "csv"]),
+              default="markdown", show_default=True)
+@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
+              help="Save the batch audit as a new UTF-8 file without overwriting.")
+@click.option("--as-of", default=None, help="Explicit YYYY-MM-DD offline freshness reference date.")
+@click.option("--max-age-days", type=click.IntRange(0, 3650), default=None,
+              help="Maximum age of primary observations; requires --as-of.")
+def brief_audit(evidence_paths, audit_format, output_file, as_of, max_age_days):
+    """Summarize independently saved evidence quality without comparing interest indices."""
+    from mcp_trendpulse.brief_audit import audit_saved_briefs
+
+    if output_file is not None and (output_file.exists() or not output_file.parent.is_dir()):
+        raise click.ClickException("Audit destination must be a new file in an existing directory.")
+    try:
+        report, needs_attention = audit_saved_briefs(
+            evidence_paths, output_format=audit_format, as_of=as_of, max_age_days=max_age_days,
+        )
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(f"Demand Brief batch audit failed: {exc}") from exc
+    if output_file is None:
+        click.echo(report, nl=False)
+    else:
+        _save_new_brief_report(output_file, report, kind="audit")
+    if needs_attention:
+        raise click.exceptions.Exit(2)
+
+
 @cli.command("brief-pack", help="Build the core trend/growth evidence table for a TrendPulse Demand Brief.")
 @click.option("--keyword", "keywords", multiple=True, required=True, help="Keyword or phrase; repeat up to five times.")
 @click.option("--market", "markets", multiple=True, required=True, help="Country or subregion code such as US or US-CA; repeat up to twice.")
