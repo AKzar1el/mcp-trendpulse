@@ -52,6 +52,14 @@ def main() -> int:
         "sample_recent_records": result["recent_observations"],
         "research_candidates_in_sample": result["candidate_count"],
         "procurement_titles_available": len(result["procurement_observations"]),
+        "procurement_competition_notices_rendered": sum(
+            x["procurement_stage"] == "contract_notice_not_award"
+            for x in result["procurement_observations"]
+        ),
+        "procurement_non_competition_notices_rendered": sum(
+            x["procurement_stage"] != "contract_notice_not_award"
+            for x in result["procurement_observations"]
+        ),
         "procurement_with_published_main_cpv": sum(
             bool(x["main_cpv_code"]) for x in result["procurement_observations"]
         ),

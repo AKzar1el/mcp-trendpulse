@@ -27,7 +27,7 @@ SOURCES = ("openalex", "cfpb", "ted")
 SOURCE_LABELS = {
     "openalex": "recently published research",
     "cfpb": "consumer complaint categories",
-    "ted": "EU public procurement notices",
+    "ted": "EU published contract/design competition notices",
 }
 MAX_RECORDS = 20
 MAX_SNAPSHOT_BYTES = 180_000
@@ -402,8 +402,8 @@ def summarize_discovery(
             "This is an explicitly small recent-date sample, not a uniform "
             "random sample or evidence of market acceleration. CFPB records "
             "reflect published consumer complaints, OpenAlex topic assignment "
-            "is algorithmic, and TED notices represent procurement interest "
-            "rather than awards or verified software budgets."
+            "is algorithmic, and TED competition notices represent procurement "
+            "interest rather than awards or verified software budgets."
         ),
     }
 
@@ -428,6 +428,7 @@ def discover_current(
         plan_source("cfpb", limit=limit, lookback_days=lookback_days, env=env),
         plan_source("ted",
                     keyword=(f"PD = ({period_start} <> {now:%Y%m%d}) "
+                             "AND notice-type IN (cn-standard cn-social cn-desg) "
                              "SORT BY publication-date DESC"),
                     limit=limit, env=env),
     ]
@@ -472,6 +473,7 @@ def format_discovery_report(result: dict[str, Any]) -> str:
     lines = [
         f"CURRENT TOPIC DISCOVERY | {result['as_of']} | last {result['lookback_days']} days",
         "No predefined topic seeds. Candidate observations are NOT verified market trends.",
+        "TED sample: published competition notices (cn-standard, cn-social, cn-desg), not awards or planning.",
         "",
     ]
     for item in result["source_coverage"]:

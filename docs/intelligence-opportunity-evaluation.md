@@ -636,6 +636,32 @@ origin allowlist remain covered by deterministic tests. No paid fallback,
 retry storm, new credential, production route or unattended polling is added.
 
 
+### Competition-focused TED discovery (November 19 follow-up)
+
+The public, seedless TED query now selects recent **published contract/design
+competition notices** using TED's documented expert-query operator:
+`notice-type IN (cn-standard cn-social cn-desg)`. This stays sector-agnostic:
+it does not constrain CPV, country, industry, purchaser, or keywords. It still
+uses exactly one TED request, bounded to the existing 2–20 notice limit,
+date window and original budget/cache rules. The 16-tool community MCP,
+hourly scheduler and other provider adapters are unchanged.
+
+**Why:** newest-first all-notice sampling could spend most of a tiny
+20-record window on results/awards and prior-information announcements,
+crowding out prospective buyer-side requests. The competition-only slice
+is more useful for an *investigation* watchlist, but excludes valuable
+historical awards and PINs; use other existing adapters for those.
+A publication is **not proof that the bid window is still open**:
+deadline, amendments, cancellation and eligibility must be checked
+against the original notice. Missing a repeated primary CPV in a small
+non-random slice still means *insufficient sample evidence*, not no
+commercial demand or procurement. CI's live source smoke now reports
+rendered competition versus non-competition notice counts separately.
+
+Expert query and official notice type definitions:
+https://ted.europa.eu/en/help/search-browse
+https://docs.ted.europa.eu/eforms/latest/reference/code-lists/notice-type.html
+
 ### TED buyer-side repeat signals, CPV and deadline integrity (2026-11-19)
 
 The first real `intelligence discover --limit 20` run showed three repeated

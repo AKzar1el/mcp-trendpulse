@@ -408,6 +408,20 @@ def test_discover_uses_recent_first_published_notice_sort():
 
 
 
+def test_seedless_ted_competition_only_query_is_sector_agnostic():
+    plan = discovery.discover_current(execute=False, env={})
+    ted = next(p for p in plan["plans"] if p["source"] == "ted")
+    query = ted["body"]["query"]
+    assert "PD = (" in query
+    assert "notice-type IN (cn-standard cn-social cn-desg)" in query
+    assert query.count("notice-type IN (") == 1
+    assert query.endswith("SORT BY publication-date DESC")
+    # No predefined industry, product, buyer or CPV keywords: only notice stage.
+    assert "classification-cpv" not in query
+    assert " FT " not in query
+    assert "can-standard" not in query and "pin-only" not in query
+
+
 def _rich_ted(id, buyer, cpv, *, kind="cn-standard",
               deadline="2026-12-11", estimated="65000.00", currency="EUR"):
     return {
