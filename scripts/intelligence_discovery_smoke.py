@@ -67,6 +67,20 @@ def main() -> int:
                 or issue_plan["trend_evidence"]["max_additional_github_issue_searches"] != 4
                 or not issue_plan["trend_evidence"]["corroborate_issues_opted_in"]):
             raise AssertionError("Issue corroboration plan is not bounded and offline")
+        cross_plan = discover_current(
+            execute=False, limit=20, lookback_days=30, ted_date_slices=3,
+            measure_trends=True, broad_topic_scan=True,
+            corroborate_issues=True, cross_source_hunt=True, cache=cache, env={},
+        )
+        if (cross_plan["network_performed"]
+                or cross_plan["request_count"] != 5
+                or cross_plan["max_requests_with_trend_measurement"] != 31
+                or cross_plan["trend_evidence"]["max_additional_source_requests"] != 26
+                or cross_plan["trend_evidence"]["max_additional_other_source_requests"] != 4
+                or cross_plan["trend_evidence"]["cross_source_hunt_source_ids"]
+                   != ["cordis", "usaspending"]
+                or not cross_plan["trend_evidence"]["cross_source_hunt_opted_in"]):
+            raise AssertionError("Existing-source hunter must be opt-in and bounded")
         result = discover_current(
             execute=True, limit=20, lookback_days=30,
             cache=cache, env={},
@@ -146,6 +160,7 @@ def main() -> int:
         "trend_measurement_plan_only_safety_verified": True,
         "broad_trend_plan_only_safety_verified": True,
         "github_issue_counts_plan_only_safety_verified": True,
+        "existing_other_sources_plan_only_safety_verified": True,
         "providers_observed": covered,
         "source_status": [
             {"source": s["source"], "status": s["status"],

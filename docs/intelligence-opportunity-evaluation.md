@@ -736,6 +736,70 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Source inventory audit and optional cross-source research follow-up
+
+There are **25 source adapters** across the existing intelligence
+foundation/commercial/specialized/extended modules, but **the seedless
+`intelligence discover` baseline intentionally fetches only three:
+OpenAlex, CFPB and TED**. `--corroborate-issues` separately uses
+GitHub issue search counts. The repository also exposes an
+**eight-source current-activity hunter**, whose default source
+selection is GitHub issues + OpenAlex + CORDIS + USAspending, and
+**18 separate offline opportunity evaluation lanes**. The 18 lanes
+are *recipes*, not 18 automatically executed API integrations.
+Other adapters require country/time-series identifiers, known
+company/hiring board slugs, free registered credentials, or
+self-hosted RSSHub/changedetection. Querying all 25 indiscriminately
+is not a scientifically comparable market-wide trend scan.
+
+To reuse other already implemented datasets with **no manually entered
+topic seeds**, add a deliberately separate opt-in
+`--cross-source-hunt` (requires `--measure-trends`).
+For at most two **auto-measured source-derived research watchlist
+topics** from OpenAlex, it invokes the unchanged existing
+`intelligence_hunter.hunt_current` with exactly the already
+supported **`cordis`** and **`usaspending`** adapters. The
+former searches published EU funded project **titles** (SPARQL EURIO);
+the latter searches US federal award descriptions under a
+bounded public procurement query. These are *contextual corroboration
+examples*, not a count of independent buyers, topic demand growth,
+adoption or changes in keyword searches. The hunter explicitly
+screens source relevance and recency; empty/unavailable results
+never imply no demand. Topic labels are derived from already measured
+research; if none are usable, no rotating built-in seed topics or
+implicit requests are substituted. No newly invented provider,
+crawler or user account is required.
+
+The opt-in contribution is **up to four extra free requests**
+(two dynamic topics × CORDIS + USAspending), under their existing
+source quotas and safe origins, caching, no-redirect limits and
+provider failure states. The full explicit maximum with three TED
+date windows, OpenAlex broad scan, issue text corroboration and
+cross-source hunter is **31 requests** (5 baseline + 9 topic
+counts + 9 broad + 4 GitHub issue counts + 4 other source requests).
+The OpenAlex portion remains capped at 19 of its locally
+budgeted 20/day keyless calls; other sources use independent
+provider caps. Plan-only mode never uses the network.
+
+Reports now explicitly state **25 adapters catalogued** versus the
+three baseline queried sources and include a separate
+`ADDITIONAL EXISTING SOURCES` section when this option is used.
+No claim of automatic full 25-source coverage is ever made.
+The production community MCP, scheduled agents, default
+`intelligence discover` behavior and paid-data restrictions are
+unchanged.
+
+Example, deliberately avoiding repeated broad OpenAlex queries:
+
+```powershell
+mcp-trendpulse-cli intelligence discover --execute --measure-trends --corroborate-issues --cross-source-hunt --lookback-days 30 --limit 20 --format text
+```
+
+Original reference APIs:
+https://cordis.europa.eu/about/sparql
+https://api.usaspending.gov/docs/endpoints
+https://docs.github.com/en/rest/search/search
+
 ### Independent GitHub issue-text corroboration for product-idea research (2026-11-19)
 
 The owner's latest `95a2c88` local Windows run verified that

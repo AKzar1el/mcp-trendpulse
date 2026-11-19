@@ -924,6 +924,7 @@ def discover_current(
     measure_trends: bool = False,
     broad_topic_scan: bool = False,
     corroborate_issues: bool = False,
+    cross_source_hunt: bool = False,
 ) -> dict[str, Any]:
     """Free, read-only discovery; optional source-count trend measurement."""
     if isinstance(lookback_days, bool) or not isinstance(lookback_days, int) or not 7 <= lookback_days <= 90:
@@ -946,6 +947,10 @@ def discover_current(
         raise ValueError("corroborate_issues must be a boolean")
     if corroborate_issues and not measure_trends:
         raise ValueError("--corroborate-issues requires --measure-trends")
+    if not isinstance(cross_source_hunt, bool):
+        raise ValueError("cross_source_hunt must be a boolean")
+    if cross_source_hunt and not measure_trends:
+        raise ValueError("--cross-source-hunt requires --measure-trends")
     now = date.today()
     first = now - timedelta(days=lookback_days - 1)
     plans = [
@@ -988,11 +993,16 @@ def discover_current(
                 MAX_SOURCE_REQUESTS as ISSUE_REQUESTS,
             )
 
+            from mcp_trendpulse.intelligence_auto_hunt import (
+                MAX_NEW_SOURCE_REQUESTS as HUNT_REQUESTS,
+            )
+
             broad_requests = MAX_SCAN_REQUESTS if broad_topic_scan else 0
             issue_requests = ISSUE_REQUESTS if corroborate_issues else 0
+            hunt_requests = HUNT_REQUESTS if cross_source_hunt else 0
             planned["max_requests_with_trend_measurement"] = (
                 len(plans) + MAX_ADDITIONAL_REQUESTS
-                + broad_requests + issue_requests
+                + broad_requests + issue_requests + hunt_requests
             )
             planned["trend_evidence"] = {
                 "status": "planned_dynamic_provider_topic_counts",
@@ -1000,7 +1010,13 @@ def discover_current(
                 "network_performed": False,
                 "max_auto_topics": MAX_TOPICS,
                 "max_additional_source_requests": (
-                    MAX_ADDITIONAL_REQUESTS + broad_requests + issue_requests
+                    MAX_ADDITIONAL_REQUESTS + broad_requests
+                    + issue_requests + hunt_requests
+                ),
+                "cross_source_hunt_opted_in": cross_source_hunt,
+                "max_additional_other_source_requests": hunt_requests,
+                "cross_source_hunt_source_ids": (
+                    ["cordis", "usaspending"] if cross_source_hunt else []
                 ),
                 "corroborate_issues_opted_in": corroborate_issues,
                 "max_additional_github_issue_searches": issue_requests,
@@ -1145,6 +1161,22 @@ def discover_current(
             trend_evidence["max_additional_source_requests"] += (
                 MAX_ISSUE_REQUESTS
             )
+        if cross_source_hunt:
+            from mcp_trendpulse.intelligence_auto_hunt import (
+                MAX_NEW_SOURCE_REQUESTS, investigate_discovered_topics,
+            )
+
+            context = investigate_discovered_topics(
+                trend_evidence["idea_watchlist"], as_of=now,
+                lookback_days=lookback_days, cache=cache, env=env,
+            )
+            trend_evidence["other_source_context"] = context
+            trend_evidence["additional_source_requests"] += context[
+                "source_request_budget"
+            ]
+            trend_evidence["max_additional_source_requests"] += (
+                MAX_NEW_SOURCE_REQUESTS
+            )
         result["trend_evidence"] = trend_evidence
         result["queries_budgeted"] += trend_evidence["additional_source_requests"]
         result["limits"] += (
@@ -1178,6 +1210,16 @@ def format_discovery_report(result: dict[str, Any]) -> str:
         if item.get("partial_date_window_coverage"):
             tag += " | partial date-window coverage"
         lines.append("Source: " + tag)
+    # Catalog availability is not collection. Make that boundary explicit
+    # so the 25 adapters are never mistaken for 25 live source observations.
+    from mcp_trendpulse.intelligence_core import source_catalog
+
+    lines.append(
+        f"AVAILABLE INTELLIGENCE ADAPTERS: {len(source_catalog())} catalogued; "
+        "this discovery's baseline queries only OpenAlex, CFPB and TED. "
+        "Other source families run only when their opt-in or separate "
+        "hunt/query workflows are explicitly executed."
+    )
     lines.append("")
     if result.get("trend_evidence") is not None:
         from mcp_trendpulse.intelligence_trends import format_research_trends

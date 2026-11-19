@@ -431,6 +431,14 @@ def format_research_trends(evidence: dict[str, Any]) -> list[str]:
         lines.extend(format_issue_corroboration(
             evidence["issue_text_corroboration"]
         ))
+    if evidence.get("other_source_context") is not None:
+        from mcp_trendpulse.intelligence_auto_hunt import (
+            format_discovered_source_context,
+        )
+
+        lines.extend(format_discovered_source_context(
+            evidence["other_source_context"]
+        ))
     lines.append(
         "  Source topic assignments changed in October 2026 and the index "
         "can be revised. Early-rising/declining labels are explicit "
