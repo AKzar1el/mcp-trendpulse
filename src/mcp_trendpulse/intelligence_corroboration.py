@@ -55,7 +55,7 @@ def issue_count_plan(template: Plan, phrase: str, period: dict[str, str]) -> Pla
     if from_day > through_day:
         raise ValueError("Invalid GitHub issue count period")
     query = (
-        f'"{phrase}" in:title,body is:issue '
+        f'"{phrase}" in:title,body is:issue is:public '
         f'created:{from_day.isoformat()}..{through_day.isoformat()}'
     )
     url = "https://api.github.com/search/issues?" + urlencode({
@@ -130,7 +130,7 @@ def corroborate_research_issue_mentions(
             plan = issue_count_plan(template, phrase, period)
             links.append("https://github.com/search?" + urlencode({
                 "q": (
-                    f'"{phrase}" in:title,body is:issue '
+                    f'"{phrase}" in:title,body is:issue is:public '
                     f'created:{period["from"]}..{period["through"]}'
                 ),
                 "type": "issues",

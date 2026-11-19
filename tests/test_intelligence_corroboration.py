@@ -125,9 +125,9 @@ def test_two_source_dates_per_auto_topic_not_arbitrary_keywords(monkeypatch):
     assert out["not_market_or_search_growth_verified"] is True
     assert out["not_normalized_by_all_github_issues"] is True
     assert observed == [
-        '"Explainable Artificial Intelligence" in:title,body is:issue '
+        '"Explainable Artificial Intelligence" in:title,body is:issue is:public '
         'created:2026-09-07..2026-10-06',
-        '"Explainable Artificial Intelligence" in:title,body is:issue '
+        '"Explainable Artificial Intelligence" in:title,body is:issue is:public '
         'created:2026-10-07..2026-11-05',
     ]
     rendered = "\n".join(cor.format_issue_corroboration(out))

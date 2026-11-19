@@ -424,7 +424,7 @@ def _is_github_issue_count_plan(plan: Plan) -> bool:
         and query.get("per_page") == ["1"]
         and re.fullmatch(
             r'"[A-Za-z0-9 ]{12,80}" in:title,body is:issue '
-            r'created:\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}',
+            r'is:public created:\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}',
             terms,
         ) is not None
     )
