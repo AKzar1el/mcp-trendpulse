@@ -7,12 +7,13 @@ tools and all scheduled agents remain unchanged.
 
 ## Exact scope and interfaces
 
-The separate opt-in stdio MCP exposes eleven read-only tools, including:
+The separate opt-in stdio MCP exposes twelve read-only tools, including:
 - `intelligence_opportunity_lanes`: inspect each combination and its question;
 - `intelligence_evaluate_opportunities`: evaluate caller-supplied, dated evidence;
 - `intelligence_walk_forward_backtest`: grade historical triage only when later customer outcomes exist.
 - `intelligence_observe_source_snapshots`: convert bounded public collector snapshots into dated evidence trails, provider coverage diagnostics and exact corporate-registry links.
 - `intelligence_hunt_current`: query recent public evidence with bounded topical seeds; rank present-day research activity without requiring historic records.
+- `intelligence_discover_current`: no topic seeds; discover candidate themes from recent scholarly publications, public consumer complaints, and European procurement notices.
 
 CLI equivalents:
 
@@ -524,3 +525,56 @@ Production hunting continues to label an unavailable GitHub source as
 degraded coverage. We never retry keyless 403/429 in a tight loop or invent
 zero activity. Authenticated local testing with an authorized read-only
 token can be a separate follow-up once the existing tunnel reconnects.
+
+## Seedless current-theme discovery (no preset business niches)
+
+Run `mcp-trendpulse-cli intelligence discover --execute --format text` for
+a source-led watchlist that does **not** begin with the rotating 18-topic
+menu. Offline planning without `--execute` makes **zero network requests**.
+The corresponding `intelligence_discover_current` MCP tool is isolated and
+read-only; it is intentionally absent from the normal 16-tool community MCP.
+
+The three bounded free-provider origins are:
+
+- OpenAlex works with `from_publication_date`, sorted by publication date,
+  including their **provider-assigned `primary_topic`** classification. This
+  uses free publication-date filtering (never premium created/updated sync).
+- CFPB's public consumer complaint categories, including *product* and
+  *issue*, using receipt dates and public complaint IDs. It never includes
+  personal complaint narratives or company-contact records.
+- TED published EU procurement notices, filtered by a bounded published-date
+  expert-query window. Notices are buying-related public evidence, but are
+  **not proof of an award** or of vendor spending.
+
+The collector accepts 2–20 sample rows per provider (default 12), a 7–90
+day window (default 30), fixed HTTPS origins, the existing free-only API
+budgets/cache, and no automatic retry. It uses an OpenAlex API token from
+Windows Credential Manager only if already configured, without exposing it
+to the MCP arguments, PR or CLI output. No new EPO registration is needed.
+
+The offline normalizer validates source IDs and public event dates, strips
+nonapproved source payload fields, and groups independently identified
+records. **Two or more distinct source records** with the same source
+category (CFPB product+issue or OpenAlex assigned primary topic) create a
+single-source research theme. Exact distinctive phrases shared between
+multiple provider title/category records yield a **cross-source follow-up**.
+Both are explicitly *observed current topics in a bounded sample*, not
+population trends, growth forecasts or buyer-level commercial validation.
+A lone publication is shown as a source observation, not a "winning" trend.
+
+The output includes original provider references, dates and origin-class
+semantics; missing API access is explicitly inconclusive. When no candidates
+qualify, the watchlist still shows sample recent publications/complaints/
+tenders, instead of manufacturing a positive finding. `--record-history`
+optionally saves only hashed candidate IDs, source counts and sample sizes
+for 90 days locally; it does not store raw record titles, personal info,
+tokens, narratives or URLs. It is never scheduled automatically.
+
+OpenAlex free fields/filter/sort guidance:
+https://help.openalex.org/api/filtering/
+https://help.openalex.org/api/sorting/
+https://help.openalex.org/data/works/attributes/
+CFPB public category documentation:
+https://cfpb.github.io/api/ccdb/fields.html
+TED search documentation:
+https://docs.ted.europa.eu/api/latest/search.html

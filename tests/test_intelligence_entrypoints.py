@@ -41,14 +41,14 @@ def test_intel_cli_offline_ats_file(tmp_path):
 async def test_intel_mcp_is_separate_and_readonly():
     async with Client(intel_mcp) as client:
         tools = {tool.name: tool for tool in await client.list_tools()}
-        assert len(tools) == 11
+        assert len(tools) == 12
         assert set(tools) == {
             "intelligence_source_catalog", "intelligence_plan",
             "intelligence_collect", "intelligence_analyze_job_postings",
             "intelligence_provider_settings", "intelligence_provider_setup",
             "intelligence_opportunity_lanes", "intelligence_evaluate_opportunities",
             "intelligence_walk_forward_backtest", "intelligence_observe_source_snapshots",
-            "intelligence_hunt_current"
+            "intelligence_hunt_current", "intelligence_discover_current"
         }
         for tool in tools.values():
             assert tool.annotations.readOnlyHint is True
@@ -217,3 +217,29 @@ def test_intelligence_query_supports_explicit_bounded_timeout_without_retry(monk
     ])
     assert invalid.exit_code != 0
     assert calls == [("gdelt_latest", True, 30)]
+
+
+def test_discover_cli_plan_only_and_history_gate(monkeypatch):
+    from mcp_trendpulse import intelligence_discovery
+
+    def forbidden(*_a, **_k):
+        raise AssertionError("Seedless discovery planning must not contact providers")
+
+    monkeypatch.setattr(intelligence_discovery, "collect", forbidden)
+    result = CliRunner().invoke(cli, [
+        "intelligence", "discover", "--lookback-days", "30", "--limit", "12",
+    ])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["status"] == "planned"
+    assert data["network_performed"] is False
+    assert {plan["source"] for plan in data["plans"]} == {
+        "openalex", "cfpb", "ted",
+    }
+    assert "Authorization" not in result.output
+
+    bad = CliRunner().invoke(cli, [
+        "intelligence", "discover", "--record-history",
+    ])
+    assert bad.exit_code != 0
+    assert "--record-history requires --execute" in bad.output

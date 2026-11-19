@@ -32,6 +32,7 @@ TOOLS = {
     "intelligence_walk_forward_backtest",
     "intelligence_observe_source_snapshots",
     "intelligence_hunt_current",
+    "intelligence_discover_current",
 }
 FAKE_TOKEN = "SYNTHETIC_OFFLINE_E2E_TOKEN_NOT_A_PROVIDER_KEY"
 
@@ -106,7 +107,18 @@ async def exercise(mode: str, result_path: Path) -> int:
                     schema = json.dumps(tool.inputSchema).lower()
                     if '"api_key"' in schema or '"secret"' in schema or '"token"' in schema:
                         raise AssertionError("Secret-bearing MCP argument schema exposed")
-                checked.append({"case": "initialize_discover_eleven_read_only_tools", "ok": True})
+                checked.append({"case": "initialize_discover_twelve_read_only_tools", "ok": True})
+
+                seedless_plan = await _call(
+                    session, "intelligence_discover_current", {
+                        "lookback_days": 30, "limit": 12, "execute": False,
+                    },
+                )
+                if (seedless_plan.get("status") != "planned"
+                        or seedless_plan.get("network_performed") is not False
+                        or seedless_plan.get("source_count") != 3):
+                    raise AssertionError("Seedless discovery planning contacted an API")
+                checked.append({"case": "seedless_discovery_three_provider_plan_only", "ok": True})
 
                 current_plan = await _call(
                     session, "intelligence_hunt_current", {

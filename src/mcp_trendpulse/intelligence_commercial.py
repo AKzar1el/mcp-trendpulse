@@ -136,17 +136,31 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
         return Plan(method="GET", url=url, headers={"User-Agent": agent},
                     budget_per_day=8, **common)
     if source == "openalex":
-        term = _required(keyword, "keyword")
-        query = {
-            "search": term, "per_page": limit,
-            "select": "id,display_name,publication_year,publication_date,cited_by_count,doi,primary_location",
-        }
-        if p["lookback_days"] is not None:
-            cutoff = datetime.now(timezone.utc).date() - timedelta(days=p["lookback_days"])
-            # Publication filtering is in the FREE API tier. Do NOT use
-            # OpenAlex's paid updated/created sync filters.
-            query["filter"] = f"from_publication_date:{cutoff.isoformat()}"
-            query["sort"] = "publication_date:desc"
+        if p.get("discover"):
+            if keyword:
+                raise IntelligenceError("Seedless OpenAlex discovery cannot include a keyword")
+            lookback = p["lookback_days"]
+            cutoff = datetime.now(timezone.utc).date() - timedelta(days=lookback - 1)
+            # Only published-date, NOT member-only created/updated sync filters.
+            # primary_topic is a provider-assigned classification, not market adoption.
+            query = {
+                "filter": f"from_publication_date:{cutoff.isoformat()}",
+                "sort": "publication_date:desc",
+                "per_page": limit,
+                "select": "id,display_name,publication_date,primary_topic",
+            }
+        else:
+            term = _required(keyword, "keyword")
+            query = {
+                "search": term, "per_page": limit,
+                "select": "id,display_name,publication_year,publication_date,cited_by_count,doi,primary_location",
+            }
+            if p["lookback_days"] is not None:
+                cutoff = datetime.now(timezone.utc).date() - timedelta(days=p["lookback_days"])
+                # Publication filtering is in the FREE API tier. Do NOT use
+                # OpenAlex's paid updated/created sync filters.
+                query["filter"] = f"from_publication_date:{cutoff.isoformat()}"
+                query["sort"] = "publication_date:desc"
         url = "https://api.openalex.org/works?" + urlencode(query)
         key = env.get("TRENDPULSE_INTEL_OPENALEX_KEY", "").strip()
         # OpenAlex permits keyless basic queries; registered free keys are

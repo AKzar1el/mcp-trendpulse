@@ -863,6 +863,40 @@ def intelligence_sources(wave):
 
 
 
+@intelligence.command("discover")
+@click.option("--lookback-days", type=click.IntRange(7, 90), default=30,
+              show_default=True, help="Look at recent public-source publication dates.")
+@click.option("--limit", type=click.IntRange(2, 20), default=12,
+              show_default=True, help="Maximum bounded records per provider.")
+@click.option("--execute", is_flag=True,
+              help="Explicitly fetch fixed public free sources; otherwise plan only.")
+@click.option("--record-history", is_flag=True,
+              help="Store hashes of discovered candidates locally (requires --execute).")
+@click.option("--format", "output_format", type=click.Choice(["json", "text"]),
+              default="json", show_default=True)
+def intelligence_discover(lookback_days, limit, execute, record_history,
+                          output_format):
+    """Discover current source themes without any predefined topic keywords."""
+    from mcp_trendpulse.intelligence_discovery import (
+        discover_current, format_discovery_report, record_discovery_history,
+    )
+
+    try:
+        if record_history and not execute:
+            raise ValueError("--record-history requires --execute")
+        response = discover_current(
+            lookback_days=lookback_days, limit=limit, execute=execute,
+        )
+        if record_history:
+            response["history"] = record_discovery_history(response)
+    except (OSError, ValueError, TypeError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    if output_format == "text" and execute:
+        click.echo(format_discovery_report(response))
+    else:
+        click.echo(json.dumps(response, ensure_ascii=False, sort_keys=True))
+
+
 @intelligence.command("hunt")
 @click.option("--topic", "topics", multiple=True,
               help="Repeat up to four research seed topics; rotates defaults if omitted.")

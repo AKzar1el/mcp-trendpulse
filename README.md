@@ -447,3 +447,8 @@ MIT. See [LICENSE](LICENSE).
 ### Opt-in current activity hunter (free-only)
 
 The optional intelligence extension includes `mcp-trendpulse-cli intelligence hunt --execute`, an evidence-attributed, **current-first** opportunity watchlist. It fetches bounded publicly available signals from fixed source adapters and ranks recent topical observations without requiring historical training data or claiming startup-success probabilities. For reproducible future comparisons, add `--record-history` to store limited local hashed metadata. The separate optional MCP tool is `intelligence_hunt_current`; the community MCP and existing scheduled worker are unchanged. See [opportunity evaluation](docs/intelligence-opportunity-evaluation.md).
+
+
+### Seedless, free current-theme discovery
+
+The optional intelligence MCP/CLI now offers `intelligence discover --execute --format text`. It collects bounded **recent OpenAlex research, CFPB public complaint categories and TED procurement notices**, and identifies repeated original-source themes without any preset industry keywords. It requires no historical database and never infers growth, verified buyers or revenue from source popularity. To accumulate optional hashed candidate history, add `--record-history`. The normal 16-tool community MCP and scheduled worker are unchanged. See [opportunity evaluation](docs/intelligence-opportunity-evaluation.md).

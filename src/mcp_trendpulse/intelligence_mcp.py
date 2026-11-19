@@ -151,6 +151,29 @@ def intelligence_observe_source_snapshots(
 
 @intel_mcp.tool(
     description=(
+        "Seedless, current-first free research: discover candidate themes from "
+        "recently published OpenAlex works, CFPB public complaint categories and "
+        "EU TED procurement notices. NO predefined industries or keyword seeds. "
+        "Plan-only by default; execute=True makes three bounded fixed-origin "
+        "read-only API calls, using free locally stored OpenAlex credentials. "
+        "Never infers growth, paying customers or market-size probabilities."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_discover_current(
+    lookback_days: int = 30,
+    limit: int = 12,
+    execute: bool = False,
+) -> dict[str, Any]:
+    from mcp_trendpulse.intelligence_discovery import discover_current
+
+    return discover_current(
+        lookback_days=lookback_days, limit=limit, execute=execute,
+    )
+
+
+@intel_mcp.tool(
+    description=(
         "Current free-source activity hunter across 1-4 safe topic seeds and 1-5 "
         "fixed providers. Plan-only by default. execute=True fetches bounded "
         "read-only snapshots from public origins using securely stored local "

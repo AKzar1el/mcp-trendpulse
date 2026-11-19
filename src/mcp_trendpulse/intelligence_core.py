@@ -92,7 +92,8 @@ def source_catalog() -> list[dict[str, Any]]:
 def plan_source(source: str, *, keyword: str = "", company: str = "",
                 dataset: str = "", country: str = "", identifier: str = "",
                 limit: int = 10, env: dict[str, str] | None = None,
-                lookback_days: int | None = None) -> Plan:
+                lookback_days: int | None = None,
+                discover: bool = False) -> Plan:
     """Build one bounded request from trusted templates, never an arbitrary URL."""
     if not isinstance(source, str):
         raise IntelligenceError("Source ID must be a string")
@@ -103,7 +104,12 @@ def plan_source(source: str, *, keyword: str = "", company: str = "",
         or not 7 <= lookback_days <= 90
     ):
         raise IntelligenceError("lookback_days must be 7..90 or omitted")
+    if not isinstance(discover, bool) or (discover and source != "openalex"):
+        raise IntelligenceError("Seedless discovery is supported only for OpenAlex works")
+    if discover and lookback_days is None:
+        raise IntelligenceError("Discovery requires a bounded 7-90 day lookback")
     params = {
+        "discover": discover,
         "lookback_days": lookback_days,
         "keyword": _short(keyword, "keyword", 160, optional=True),
         "company": _slug(company, "company", optional=True),
