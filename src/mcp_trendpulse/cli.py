@@ -288,15 +288,17 @@ def _watch_backtest_csv(report):
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
 @click.option("--format", "headline_format", type=click.Choice(["text", "json", "csv"]), default="text",
               show_default=True, help="RSS headline output format; JSON/CSV require --headlines-only.")
+@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
+              help="Save structured RSS headlines to a new UTF-8 file; never overwrite.")
 @click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
               help="Save extracted article JSON in this existing directory without overwriting files.")
-def keyword(keyword, period, max_results, no_nlp, headlines_only, headline_format, save_json_dir):
-    _require_rss_headline_mode(headline_format, headlines_only)
+def keyword(keyword, period, max_results, no_nlp, headlines_only, headline_format, output_file, save_json_dir):
+    _require_rss_headline_mode(headline_format, headlines_only, output_file)
     if headlines_only:
         if save_json_dir is not None:
             raise click.UsageError("--save-json-dir is not supported with --headlines-only.")
         items = asyncio.run(get_provider_set().news.get_rss_headlines_by_keyword(keyword=keyword, period=period, max_results=max_results))
-        print_rss_headlines(items, output_format=headline_format)
+        print_rss_headlines(items, output_format=headline_format, output_file=output_file)
         if headline_format == "text":
             click.echo(f"Found {len(items)} RSS headlines for keyword '{keyword}'.")
         return
@@ -324,15 +326,17 @@ def keyword(keyword, period, max_results, no_nlp, headlines_only, headline_forma
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
 @click.option("--format", "headline_format", type=click.Choice(["text", "json", "csv"]), default="text",
               show_default=True, help="RSS headline output format; JSON/CSV require --headlines-only.")
+@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
+              help="Save structured RSS headlines to a new UTF-8 file; never overwrite.")
 @click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
               help="Save extracted article JSON in this existing directory without overwriting files.")
-def location(location, period, max_results, no_nlp, headlines_only, headline_format, save_json_dir):
-    _require_rss_headline_mode(headline_format, headlines_only)
+def location(location, period, max_results, no_nlp, headlines_only, headline_format, output_file, save_json_dir):
+    _require_rss_headline_mode(headline_format, headlines_only, output_file)
     if headlines_only:
         if save_json_dir is not None:
             raise click.UsageError("--save-json-dir is not supported with --headlines-only.")
         items = asyncio.run(get_provider_set().news.get_rss_headlines_by_location(location=location, period=period, max_results=max_results))
-        print_rss_headlines(items, output_format=headline_format)
+        print_rss_headlines(items, output_format=headline_format, output_file=output_file)
         if headline_format == "text":
             click.echo(f"Found {len(items)} RSS headlines for location '{location}'.")
         return
@@ -360,15 +364,17 @@ def location(location, period, max_results, no_nlp, headlines_only, headline_for
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
 @click.option("--format", "headline_format", type=click.Choice(["text", "json", "csv"]), default="text",
               show_default=True, help="RSS headline output format; JSON/CSV require --headlines-only.")
+@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
+              help="Save structured RSS headlines to a new UTF-8 file; never overwrite.")
 @click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
               help="Save extracted article JSON in this existing directory without overwriting files.")
-def topic(topic, period, max_results, no_nlp, headlines_only, headline_format, save_json_dir):
-    _require_rss_headline_mode(headline_format, headlines_only)
+def topic(topic, period, max_results, no_nlp, headlines_only, headline_format, output_file, save_json_dir):
+    _require_rss_headline_mode(headline_format, headlines_only, output_file)
     if headlines_only:
         if save_json_dir is not None:
             raise click.UsageError("--save-json-dir is not supported with --headlines-only.")
         items = asyncio.run(get_provider_set().news.get_rss_headlines_by_topic(topic=topic, period=period, max_results=max_results))
-        print_rss_headlines(items, output_format=headline_format)
+        print_rss_headlines(items, output_format=headline_format, output_file=output_file)
         if headline_format == "text":
             click.echo(f"Found {len(items)} RSS headlines for topic '{topic}'.")
         return
@@ -419,15 +425,17 @@ def trending(geo, full_data):
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
 @click.option("--format", "headline_format", type=click.Choice(["text", "json", "csv"]), default="text",
               show_default=True, help="RSS headline output format; JSON/CSV require --headlines-only.")
+@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
+              help="Save structured RSS headlines to a new UTF-8 file; never overwrite.")
 @click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
               help="Save extracted article JSON in this existing directory without overwriting files.")
-def top(period, max_results, no_nlp, headlines_only, headline_format, save_json_dir):
-    _require_rss_headline_mode(headline_format, headlines_only)
+def top(period, max_results, no_nlp, headlines_only, headline_format, output_file, save_json_dir):
+    _require_rss_headline_mode(headline_format, headlines_only, output_file)
     if headlines_only:
         if save_json_dir is not None:
             raise click.UsageError("--save-json-dir is not supported with --headlines-only.")
         items = asyncio.run(get_provider_set().news.get_rss_headlines_for_top_news(period=period, max_results=max_results))
-        print_rss_headlines(items, output_format=headline_format)
+        print_rss_headlines(items, output_format=headline_format, output_file=output_file)
         if headline_format == "text":
             click.echo(f"Found {len(items)} RSS headlines for top news.")
         return
@@ -449,17 +457,19 @@ def top(period, max_results, no_nlp, headlines_only, headline_format, save_json_
 @click.option("--headlines-only", is_flag=True, default=False, help="Return labeled RSS headline metadata, not full articles.")
 @click.option("--format", "headline_format", type=click.Choice(["text", "json", "csv"]), default="text",
               show_default=True, help="RSS headline output format; JSON/CSV require --headlines-only.")
+@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
+              help="Save structured RSS headlines to a new UTF-8 file; never overwrite.")
 @click.option("--save-json-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=None,
               help="Save extracted article JSON in this existing directory without overwriting files.")
-def site(site, period, max_results, no_nlp, headlines_only, headline_format, save_json_dir):
-    _require_rss_headline_mode(headline_format, headlines_only)
+def site(site, period, max_results, no_nlp, headlines_only, headline_format, output_file, save_json_dir):
+    _require_rss_headline_mode(headline_format, headlines_only, output_file)
     if headlines_only:
         if save_json_dir is not None:
             raise click.UsageError("--save-json-dir is not supported with --headlines-only.")
         items = asyncio.run(get_provider_set().news.get_rss_headlines_by_site(
             site=site, period=period, max_results=max_results,
         ))
-        print_rss_headlines(items, output_format=headline_format)
+        print_rss_headlines(items, output_format=headline_format, output_file=output_file)
         if headline_format == "text":
             click.echo(f"Found {len(items)} RSS headlines for site '{site}'.")
         return
@@ -1151,12 +1161,17 @@ def _brief_percent(value):
     return f"{number:+.2f}%"
 
 
-def _require_rss_headline_mode(output_format, headlines_only):
+def _require_rss_headline_mode(output_format, headlines_only, output_file=None):
     if output_format != "text" and not headlines_only:
         raise click.UsageError(f"--format {output_format} requires --headlines-only.")
+    if output_file is not None:
+        if not headlines_only or output_format not in ("json", "csv"):
+            raise click.UsageError("--output-file requires --format json or csv and --headlines-only.")
+        if output_file.exists() or not output_file.parent.is_dir():
+            raise click.ClickException("RSS headline destination must be a new file in an existing directory.")
 
 
-def print_rss_headlines(items, *, output_format="text"):
+def print_rss_headlines(items, *, output_format="text", output_file=None):
     """Emit genuine RSS metadata without treating headlines as full articles."""
     headlines = []
     for item in items:
@@ -1174,11 +1189,15 @@ def print_rss_headlines(items, *, output_format="text"):
         except KeyError as exc:
             raise click.ClickException("RSS headline missing required metadata.") from exc
     if output_format == "json":
-        click.echo(json.dumps({
+        document = json.dumps({
             "schema_version": 1, "source": "google_news_rss",
             "content_level": "rss_headline_only", "count": len(headlines),
             "headlines": headlines,
-        }, ensure_ascii=False, indent=2))
+        }, ensure_ascii=False, indent=2) + "\n"
+        if output_file is None:
+            click.echo(document, nl=False)
+        else:
+            _save_new_brief_report(output_file, document, kind="JSON", label="RSS headlines")
         return
     if output_format == "csv":
         out = io.StringIO(newline="")
@@ -1190,7 +1209,10 @@ def print_rss_headlines(items, *, output_format="text"):
                 "source": "google_news_rss", "content_level": "rss_headline_only",
                 **{key: _brief_csv_cell(headline[key]) for key in fields[2:]},
             })
-        click.echo(out.getvalue(), nl=False)
+        if output_file is None:
+            click.echo(out.getvalue(), nl=False)
+        else:
+            _save_new_brief_report(output_file, out.getvalue(), kind="CSV", label="RSS headlines")
         return
     for headline in headlines:
         click.echo(f"Title: {headline['title']}")
