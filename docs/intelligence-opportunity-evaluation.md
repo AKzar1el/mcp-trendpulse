@@ -621,3 +621,16 @@ notice text, personal complaint details or credentials.
 Upstream field documentation:
 https://docs.ted.europa.eu/ODS/latest/reuse/search-api.html
 https://ted.europa.eu/en/help/search-browse
+
+### Shared-runner ECB latency is an availability diagnostic
+
+On 2026-11-19 the broad public live-contract workflow observed 15/16
+mandatory source contracts but its keyless ECB CSV request timed out twice
+while the new seedless OpenAlex+CFPB+TED discovery smoke observed all 3/3
+providers and four usable procurement notices. ECB macroeconomic data are
+not an input to the seedless discovery feature. The generic ECB request is
+now a **separate, status-visible optional external-availability check**
+rather than a required pass from a transient shared-CI-IP probe. A timeout
+must remain `unavailable`, never `observed`; the core ECB CSV shape and
+origin allowlist remain covered by deterministic tests. No paid fallback,
+retry storm, new credential, production route or unattended polling is added.

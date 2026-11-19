@@ -25,16 +25,16 @@ CASES = (
     ("usaspending", {"keyword": "solar", "limit": 2}),
     ("sec_companyconcept", {"identifier": "320193", "keyword": "Assets", "limit": 2}),
     ("gleif", {"keyword": "Siemens", "limit": 2}),
-    ("ecb", {"identifier": "EXR/D.USD.EUR.SP00.A", "limit": 2}),
     ("copernicus", {"limit": 2}),
 )
 
 
-# Public Lever availability and unauthenticated GitHub searches can be
-# unreliable from shared Actions runner IPs. Probe once and record a blocked
-# endpoint as INCONCLUSIVE, not a successful contract or a code regression.
-# No retries or bypasses for HTTP 403/429.
+# Public Lever, keyless GitHub and ECB's public CSV service can be
+# temporarily slow or unreachable from shared Actions runners. Availability
+# probes remain inconclusive rather than being labeled as a code regression.
+# Never claim an unavailable source is a passing source contract.
 OPTIONAL_CASES = (
+    ("ecb", {"identifier": "EXR/D.USD.EUR.SP00.A", "limit": 2}),
     ("lever", {"company": "jobgether", "limit": 2}),
     ("github_issues", {
         "keyword": "mcp", "identifier": "modelcontextprotocol/servers",
@@ -136,8 +136,9 @@ def main() -> int:
         "failed": sum(x["status"] != "observed" for x in checks),
         "note": (
             "Required public contracts must be observed. Keyless GitHub issue "
-            "search and Lever are diagnostic-only due to shared-CI-IP access; "
-            "their unavailable status is NOT a pass, not zero demand, and not "
+            "search, Lever and ECB CSV are diagnostic-only where the "
+            "shared runner has intermittent access; their unavailable status "
+            "is NOT a pass, not zero demand, and not "
             "a source contract verified by this workflow. No secrets/raw records."
         ),
     }

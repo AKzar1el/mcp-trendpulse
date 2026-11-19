@@ -17,6 +17,8 @@ def test_github_keyless_ci_check_is_explicit_optional_availability():
     assert "github_issues" not in mandatory
     assert "github_issues" in optional
     assert "lever" in optional
+    assert "ecb" in optional
+    assert "ecb" not in mandatory
     assert "cordis" in mandatory
     assert "usaspending" in mandatory
     assert "cfpb" in mandatory
