@@ -528,3 +528,17 @@ def test_watchlist_reports_real_provider_coverage_and_safe_http_reason():
     assert "private upstream token text" not in text
     assert result["topics"][0]["source_coverage"][1]["http_status"] == 429
     assert "reason" not in result["topics"][0]["source_coverage"][2]
+
+
+
+def test_structured_or_untrusted_provider_error_never_breaks_watchlist():
+    issue_report = observed("github_issues", [issue()])
+    strange = {"source": "openalex", "status": "unavailable", "reason": {
+        "access_token": "SHOULD_NEVER_APPEAR",
+    }, "http_status": True}
+    r = report(batch("battery recycling", issue_report, strange))
+    output = hunter.format_hunt_report(r)
+    assert "openalex=unavailable" in output
+    assert "SHOULD_NEVER_APPEAR" not in repr(r)
+    assert "HTTP True" not in output
+    assert r["topics"][0]["source_coverage"][1]["status"] == "unavailable"

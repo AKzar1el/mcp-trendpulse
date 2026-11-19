@@ -259,12 +259,13 @@ def observe_source_snapshots(
         code = row.get("http_status")
         if isinstance(code, int) and not isinstance(code, bool) and 100 <= code <= 599:
             report["http_status"] = code
-        if row.get("reason") in {
+        reason = row.get("reason")
+        if isinstance(reason, str) and reason in {
             "HTTPError", "URLError", "TimeoutError", "provider_cooldown",
             "not_configured", "source_setup_required_or_invalid_plan",
             "collection_failed", "invalid_source_shape",
         }:
-            report["reason"] = row["reason"]
+            report["reason"] = reason
         if status != "observed":
             report["caveat"] = "Source unavailable or invalid; not evidence of zero interest"
             sources.append(report)
