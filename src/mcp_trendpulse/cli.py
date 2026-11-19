@@ -379,14 +379,19 @@ def _save_new_brief_report(destination, report, *, kind):
               show_default=True, help="Text, structured JSON, CSV, or offline Markdown readiness report.")
 @click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
               help="Save the review to a new UTF-8 file; never overwrite existing files.")
-def brief_review(evidence, review_format, output_file):
+@click.option("--as-of", default=None, help="Explicit YYYY-MM-DD date for reproducible offline freshness review.")
+@click.option("--max-age-days", type=click.IntRange(0, 3650), default=None,
+              help="Maximum age of each primary observation; requires --as-of.")
+def brief_review(evidence, review_format, output_file, as_of, max_age_days):
     """Review primary evidence coverage and incomplete markets from a saved JSON file."""
     from mcp_trendpulse.brief_review import MAX_EVIDENCE_BYTES, review_saved_brief
 
     try:
         with evidence.open("rb") as handle:
             raw = handle.read(MAX_EVIDENCE_BYTES + 1)
-        report, needs_attention = review_saved_brief(raw, output_format=review_format)
+        report, needs_attention = review_saved_brief(
+            raw, output_format=review_format, as_of=as_of, max_age_days=max_age_days
+        )
     except (OSError, ValueError) as exc:
         raise click.ClickException(f"Demand Brief review failed: {exc}") from exc
     if output_file is None:
