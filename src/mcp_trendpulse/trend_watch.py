@@ -247,9 +247,34 @@ class WatchStore:
         rows = parse_evidence(evidence, keyword=rule.keyword, market=rule.market)
         return evaluate_watch(rule, rows)
 
-    def backtest(self, rule_id: str, evidence: bytes) -> dict[str, Any]:
-        """Simulate historical decisions with virtual cooldown, never persisted."""
+    def backtest(
+        self,
+        rule_id: str,
+        evidence: bytes,
+        *,
+        growth_pct: float | None = None,
+        minimum_interest: float | None = None,
+        window: int | None = None,
+        cooldown_days: int | None = None,
+    ) -> dict[str, Any]:
+        """Simulate historical decisions, optionally testing unsaved thresholds."""
         rule = self.get(rule_id)
+        overrides = {
+            key: value
+            for key, value in {
+                "growth_pct": growth_pct,
+                "minimum_interest": minimum_interest,
+                "window": window,
+                "cooldown_days": cooldown_days,
+            }.items()
+            if value is not None
+        }
+        if overrides:
+            rule = replace(rule, **overrides)
+            validate_rule(
+                rule.keyword, rule.market, rule.growth_pct,
+                rule.minimum_interest, rule.window, rule.cooldown_days,
+            )
         rows = parse_evidence(evidence, keyword=rule.keyword, market=rule.market)
         hypothetical = replace(rule, last_alert_date=None)
         status_counts: dict[str, int] = {}
@@ -261,7 +286,7 @@ class WatchStore:
             if decision.status == "triggered":
                 simulated_alerts.append(asdict(decision))
                 hypothetical = replace(hypothetical, last_alert_date=decision.evidence_date)
-        return {
+        report = {
             "rule_id": rule.id,
             "keyword": rule.keyword,
             "market": rule.market,
@@ -277,6 +302,15 @@ class WatchStore:
                 "or an issued alert. Saved cooldown is neither read nor changed."
             ),
         }
+        if overrides:
+            report["scenario"] = {
+                "growth_pct": rule.growth_pct,
+                "minimum_interest": rule.minimum_interest,
+                "window": rule.window,
+                "cooldown_days": rule.cooldown_days,
+                "overrides": sorted(overrides),
+            }
+        return report
 
     def evaluate_and_record(self, rule_id: str, evidence: bytes) -> WatchDecision:
         rule = self.get(rule_id)

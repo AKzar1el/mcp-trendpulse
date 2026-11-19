@@ -162,6 +162,78 @@ def test_watch_backtest_with_insufficient_data_has_no_windows(tmp_path):
     assert result["simulated_alerts"] == []
 
 
+def test_watch_backtest_scenario_overrides_thresholds_without_changing_saved_rule(tmp_path):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", growth_pct=600, minimum_interest=60, window=2)
+    payload = evidence("AI", "US", [10, 10, 40, 50])
+
+    original = store.backtest(rule.id, payload)
+    assert original["status_counts"] == {"below_threshold": 1}
+    assert "scenario" not in original
+
+    scenario = store.backtest(rule.id, payload, growth_pct=100, minimum_interest=40)
+    assert scenario["status_counts"] == {"triggered": 1}
+    assert scenario["scenario"] == {
+        "growth_pct": 100,
+        "minimum_interest": 40,
+        "window": 2,
+        "cooldown_days": 7,
+        "overrides": ["growth_pct", "minimum_interest"],
+    }
+    assert store.get(rule.id) == rule
+    assert store.backtest(rule.id, payload) == original
+
+
+def test_watch_backtest_scenario_cooldown_and_window_overrides(tmp_path):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2, cooldown_days=3)
+    payload = evidence("AI", "US", [10, 10, 30, 50, 40, 50, 90, 100])
+
+    assert len(store.backtest(rule.id, payload)["simulated_alerts"]) == 2
+    slower = store.backtest(rule.id, payload, cooldown_days=7)
+    assert len(slower["simulated_alerts"]) == 1
+    assert slower["scenario"]["cooldown_days"] == 7
+    wider = store.backtest(rule.id, payload, window=3)
+    assert wider["evaluated_windows"] == 3
+    assert wider["scenario"]["window"] == 3
+    assert store.get(rule.id) == rule
+
+
+@pytest.mark.parametrize("override", [
+    {"growth_pct": 0}, {"growth_pct": float("nan")},
+    {"minimum_interest": 101}, {"window": 1}, {"cooldown_days": 0},
+])
+def test_watch_backtest_scenario_rejects_invalid_policy_without_changes(tmp_path, override):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2)
+    with pytest.raises(ValueError):
+        store.backtest(rule.id, evidence("AI", "US", [10, 10, 40, 60]), **override)
+    assert store.get(rule.id) == rule
+
+
+def test_cli_watch_backtest_scenario_is_opt_in_and_read_only(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2, growth_pct=600, minimum_interest=60)
+    path = tmp_path / "evidence.json"
+    path.write_bytes(evidence("AI", "US", [10, 10, 40, 50]))
+    args = ["watch", "backtest", "--id", rule.id, "--evidence", str(path)]
+    runner = CliRunner()
+
+    default = runner.invoke(cli, args)
+    assert default.exit_code == 0, default.output
+    assert json.loads(default.output)["status_counts"] == {"below_threshold": 1}
+    scenario = runner.invoke(cli, [*args, "--growth-pct", "100", "--minimum-interest", "40"])
+    assert scenario.exit_code == 0, scenario.output
+    assert json.loads(scenario.output)["status_counts"] == {"triggered": 1}
+    assert json.loads(scenario.output)["scenario"]["overrides"] == ["growth_pct", "minimum_interest"]
+    assert store.get(rule.id) == rule
+
+    invalid = runner.invoke(cli, [*args, "--window", "1"])
+    assert invalid.exit_code != 0
+    assert store.get(rule.id) == rule
+
+
 def test_rule_cooldown_prevents_new_alert_on_following_day(tmp_path):
     store = WatchStore(tmp_path)
     rule = store.create(keyword="AI", market="US", window=2, cooldown_days=7)
