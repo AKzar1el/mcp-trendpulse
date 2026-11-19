@@ -423,6 +423,14 @@ def format_research_trends(evidence: dict[str, Any]) -> list[str]:
             "  PRODUCT-IDEA RESEARCH WATCHLIST: no measurable upward "
             "research-share signal from the sampled topics."
         )
+    if evidence.get("issue_text_corroboration") is not None:
+        from mcp_trendpulse.intelligence_corroboration import (
+            format_issue_corroboration,
+        )
+
+        lines.extend(format_issue_corroboration(
+            evidence["issue_text_corroboration"]
+        ))
     lines.append(
         "  Source topic assignments changed in October 2026 and the index "
         "can be revised. Early-rising/declining labels are explicit "

@@ -371,7 +371,22 @@ def _collect_under_lock(
         UnexpectedSourceShape, evidence_projection,
     )
     try:
-        observations = evidence_projection(plan.source, payload)
+        if _is_github_issue_count_plan(plan):
+            # Count-only corroboration must NEVER persist issue bodies,
+            # usernames, titles, labels or authors in the source cache.
+            reduced = _bounded_github_issue_count(payload)
+            observations = {
+                "record_count": 0, "sample": [],
+                "unit": "GitHub aggregate issue search count only",
+            }
+        else:
+            observations = evidence_projection(plan.source, payload)
+            # OpenAlex 100-group requests have a dedicated safe projection.
+            reduced = (
+                _bounded_openalex_topic_groups(payload)
+                if _is_openalex_topic_group_plan(plan)
+                else _bound_payload(payload)
+            )
     except UnexpectedSourceShape as exc:
         failure = {
             "source": plan.source, "status": "invalid_source_shape",
@@ -379,15 +394,6 @@ def _collect_under_lock(
         }
         store.save(identity, failure, 120)
         return failure
-    # OpenAlex group_by responses can contain up to 100 topic groups.
-    # The generic 20-item evidence cap would silently erase groups 21-100.
-    # ONLY this fixed official aggregate plan gets a dedicated reduced
-    # projection; do not weaken caps for arbitrary source lists or records.
-    reduced = (
-        _bounded_openalex_topic_groups(payload)
-        if _is_openalex_topic_group_plan(plan)
-        else _bound_payload(payload)
-    )
     output = {
         "observations": _bound_payload(observations),
         "source": plan.source,
@@ -403,6 +409,47 @@ def _collect_under_lock(
     }
     store.save(identity, output, 3600)
     return output
+
+
+def _is_github_issue_count_plan(plan: Plan) -> bool:
+    parts = urlsplit(plan.url)
+    query = parse_qs(parts.query)
+    terms = query.get("q", [""])[0]
+    return bool(
+        plan.source == "github_issues"
+        and plan.method == "GET"
+        and parts.scheme == "https"
+        and parts.hostname == "api.github.com"
+        and parts.path == "/search/issues"
+        and query.get("per_page") == ["1"]
+        and re.fullmatch(
+            r'"[A-Za-z0-9 ]{12,80}" in:title,body is:issue '
+            r'created:\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}',
+            terms,
+        ) is not None
+    )
+
+
+def _bounded_github_issue_count(payload: Any) -> dict[str, Any]:
+    """Persist only source-reported search totals, never raw issue data."""
+    from mcp_trendpulse.intelligence_evidence import UnexpectedSourceShape
+
+    if not isinstance(payload, dict):
+        raise UnexpectedSourceShape("Expected GitHub issue count JSON")
+    count = payload.get("total_count")
+    incomplete = payload.get("incomplete_results")
+    items = payload.get("items")
+    if (isinstance(count, bool) or not isinstance(count, int)
+            or not 0 <= count <= 100_000_000
+            or not isinstance(incomplete, bool)
+            or not isinstance(items, list) or len(items) > 1):
+        raise UnexpectedSourceShape("Invalid GitHub issue count-only shape")
+    # Even publicly available issue bodies may contain private information
+    # copied into tickets. Never retain any issue content or identity.
+    return {
+        "total_count": count,
+        "incomplete_results": incomplete,
+    }
 
 
 def _is_openalex_topic_group_plan(plan: Plan) -> bool:

@@ -54,6 +54,19 @@ def main() -> int:
                 or broad_plan["trend_evidence"]["max_recent_ranking_gap_history_probes"] != 2
                 or not broad_plan["trend_evidence"]["broad_topic_scan_opted_in"]):
             raise AssertionError("Broad trend plan must remain opt-in and network free")
+        issue_plan = discover_current(
+            execute=False, limit=20, lookback_days=30, ted_date_slices=3,
+            measure_trends=True, broad_topic_scan=True,
+            corroborate_issues=True, cache=cache, env={},
+        )
+        if (issue_plan["network_performed"]
+                or issue_plan["request_count"] != 5
+                or issue_plan["max_requests_with_trend_measurement"] != 27
+                or issue_plan["trend_evidence"]["network_performed"]
+                or issue_plan["trend_evidence"]["max_additional_source_requests"] != 22
+                or issue_plan["trend_evidence"]["max_additional_github_issue_searches"] != 4
+                or not issue_plan["trend_evidence"]["corroborate_issues_opted_in"]):
+            raise AssertionError("Issue corroboration plan is not bounded and offline")
         result = discover_current(
             execute=True, limit=20, lookback_days=30,
             cache=cache, env={},
@@ -132,6 +145,7 @@ def main() -> int:
         "stratified_plan_only_safety_verified": True,
         "trend_measurement_plan_only_safety_verified": True,
         "broad_trend_plan_only_safety_verified": True,
+        "github_issue_counts_plan_only_safety_verified": True,
         "providers_observed": covered,
         "source_status": [
             {"source": s["source"], "status": s["status"],

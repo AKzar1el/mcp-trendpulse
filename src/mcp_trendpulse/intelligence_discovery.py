@@ -923,6 +923,7 @@ def discover_current(
     env: dict[str, str] | None = None, ted_date_slices: int = 1,
     measure_trends: bool = False,
     broad_topic_scan: bool = False,
+    corroborate_issues: bool = False,
 ) -> dict[str, Any]:
     """Free, read-only discovery; optional source-count trend measurement."""
     if isinstance(lookback_days, bool) or not isinstance(lookback_days, int) or not 7 <= lookback_days <= 90:
@@ -941,6 +942,10 @@ def discover_current(
         raise ValueError("broad_topic_scan must be a boolean")
     if broad_topic_scan and not measure_trends:
         raise ValueError("--broad-topic-scan requires --measure-trends")
+    if not isinstance(corroborate_issues, bool):
+        raise ValueError("corroborate_issues must be a boolean")
+    if corroborate_issues and not measure_trends:
+        raise ValueError("--corroborate-issues requires --measure-trends")
     now = date.today()
     first = now - timedelta(days=lookback_days - 1)
     plans = [
@@ -979,9 +984,15 @@ def discover_current(
                 MAX_SCAN_REQUESTS, TOP_GROUPS_PER_PERIOD,
             )
 
+            from mcp_trendpulse.intelligence_corroboration import (
+                MAX_SOURCE_REQUESTS as ISSUE_REQUESTS,
+            )
+
             broad_requests = MAX_SCAN_REQUESTS if broad_topic_scan else 0
+            issue_requests = ISSUE_REQUESTS if corroborate_issues else 0
             planned["max_requests_with_trend_measurement"] = (
-                len(plans) + MAX_ADDITIONAL_REQUESTS + broad_requests
+                len(plans) + MAX_ADDITIONAL_REQUESTS
+                + broad_requests + issue_requests
             )
             planned["trend_evidence"] = {
                 "status": "planned_dynamic_provider_topic_counts",
@@ -989,8 +1000,10 @@ def discover_current(
                 "network_performed": False,
                 "max_auto_topics": MAX_TOPICS,
                 "max_additional_source_requests": (
-                    MAX_ADDITIONAL_REQUESTS + broad_requests
+                    MAX_ADDITIONAL_REQUESTS + broad_requests + issue_requests
                 ),
+                "corroborate_issues_opted_in": corroborate_issues,
+                "max_additional_github_issue_searches": issue_requests,
                 "broad_topic_scan_opted_in": broad_topic_scan,
                 "most_represented_topic_group_cap": TOP_GROUPS_PER_PERIOD,
                 "max_recent_ranking_gap_history_probes": (
@@ -1116,6 +1129,22 @@ def discover_current(
                     "keyword_search_demand_verified": False,
                 })
                 known_ids.add(row["topic_id"])
+        if corroborate_issues:
+            from mcp_trendpulse.intelligence_corroboration import (
+                MAX_SOURCE_REQUESTS as MAX_ISSUE_REQUESTS,
+                corroborate_research_issue_mentions,
+            )
+            source_text = corroborate_research_issue_mentions(
+                trend_evidence["idea_watchlist"], as_of=now,
+                lookback_days=lookback_days, cache=cache, env=env,
+            )
+            trend_evidence["issue_text_corroboration"] = source_text
+            trend_evidence["additional_source_requests"] += source_text[
+                "source_requests"
+            ]
+            trend_evidence["max_additional_source_requests"] += (
+                MAX_ISSUE_REQUESTS
+            )
         result["trend_evidence"] = trend_evidence
         result["queries_budgeted"] += trend_evidence["additional_source_requests"]
         result["limits"] += (

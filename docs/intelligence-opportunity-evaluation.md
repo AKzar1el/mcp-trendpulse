@@ -736,6 +736,74 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Independent GitHub issue-text corroboration for product-idea research (2026-11-19)
+
+The owner's latest `95a2c88` local Windows run verified that
+OpenAlex XAI research momentum survives the quality gate, while
+the two abrupt topic spikes remain only in the audit section.
+That completes the narrow *source-count trend* validation milestone.
+A rising research topic, however, does **not** establish developers
+have a problem, buyers need a product, or keyword traffic is rising.
+
+An additional strictly **opt-in** `--corroborate-issues` flag (requires
+`--measure-trends`) reuses the **existing free/no-key GitHub issues**
+source rather than introducing an external integration. For up to
+**two automatically selected provider-topic labels from the measured
+research watchlist**, it searches the exact safe plain-language phrase
+in the titles/bodies of GitHub issues *created* during the **two most
+recent mature completed windows**, including both open and closed
+issues. Parenthetical abbreviations are discarded to avoid
+accidentally requiring them; no synonyms are invented. Every exact
+GitHub search is independently inspectable from the provided public
+search link. It requests `per_page=1` and reads only the source
+`total_count` when `incomplete_results=false`.
+
+**Privacy and rate safeguards:** The count-only search goes through
+the established fixed GitHub HTTPS origin, same source daily
+budget (**12/day**), cache, request coalescing, provider 429 cooldown,
+response size cap, and no-redirect settings. Up to **4 extra requests**
+are only made after explicit `--execute --corroborate-issues`. A
+dedicated source-plan fingerprint is matched before storing results,
+and the **only** cached GitHub issue data is the aggregate
+`total_count` and `incomplete_results` fields. Not even one
+issue body, issue title, username, email, comment or repository
+identity from a raw match is persisted by this mode. Malformed or
+incomplete source results remain **unknown** rather than fabricated
+zero matches; source exact-phrase searches that genuinely return
+zero have the narrow meaning `no matches for this phrase/period
+in this GitHub index`, not `no customer interest`.
+
+The output is a standalone **INDEPENDENT DEVELOPER DISCUSSION
+CHECK** with period-specific observed text-match counts, official
+GitHub search links and prominent limits. It does not change
+OpenAlex trend classification, the idea watchlist rank, buyer,
+market growth, verified demand or SEO-volume flags. GitHub issue
+search is a biased and potentially incomplete index, with bots,
+multiple issues per person, varying phrase use and pull requests
+excluded; issue mentions do not prove *problem severity* or
+*product viability*. A subsequent deliberate human review of
+the public issues and alternatives is needed before selecting a
+product hypothesis. The SEO keyword phase is independent.
+
+Worst-case opt-in source budgets with the full broad scan:
+three default sources + nine OpenAlex historical counts +
+nine OpenAlex broad/topology requests + **four GitHub issue
+checks = at most 25 calls**. OpenAlex remains capped at
+**19 of its existing 20/day local free budget**, GitHub at
+four of its 12/day source budget. With three TED date windows,
+the total maximum is 27. Plan-only invocations remain zero
+network requests.
+
+Example:
+
+```powershell
+mcp-trendpulse-cli intelligence discover --execute --measure-trends --broad-topic-scan --corroborate-issues --lookback-days 30 --limit 20 --format text
+```
+
+Official evidence:
+https://docs.github.com/en/rest/search/search#search-issues-and-pull-requests
+https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests
+
 ### Live ranking-gap spikes: measured counts, not sustained trends (2026-11-19)
 
 The owner's successful `d9a5940` Windows field run captured three
