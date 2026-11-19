@@ -7,14 +7,16 @@ tools and all scheduled agents remain unchanged.
 
 ## Exact scope and interfaces
 
-The separate opt-in stdio MCP exposes nine read-only tools, including:
+The separate opt-in stdio MCP exposes ten read-only tools, including:
 - `intelligence_opportunity_lanes`: inspect each combination and its question;
 - `intelligence_evaluate_opportunities`: evaluate caller-supplied, dated evidence;
 - `intelligence_walk_forward_backtest`: grade historical triage only when later customer outcomes exist.
+- `intelligence_observe_source_snapshots`: convert bounded public collector snapshots into dated evidence trails, provider coverage diagnostics and exact corporate-registry links.
 
 CLI equivalents:
 
 ```bash
+mcp-trendpulse-cli intelligence observe --input-json observations.json
 mcp-trendpulse-cli intelligence opportunities lanes
 mcp-trendpulse-cli intelligence opportunities evaluate --input-json research.json
 mcp-trendpulse-cli intelligence opportunities backtest --input-json outcomes.json --k 3
@@ -255,3 +257,43 @@ opportunity. The matrix explicitly reports buyer/period/jurisdiction matching
 as *unverified* and never generates commercial confidence, TAM, success
 probability, or product-market-fit scores. Independently validated paid-buyer
 outcomes are required before evaluating commercial predictive accuracy.
+
+
+## Buyer identity and source observations (no EPO credentials needed)
+
+Pass a bounded JSON object containing `topic`, `as_of` and a `snapshots`
+array of previous `intelligence_collect` results to `intelligence observe`, or
+call the corresponding isolated MCP tool. This workflow is **offline** and
+read-only. It accepts Companies House, GLEIF, OpenAlex, TED, USAspending,
+GitHub Issues, CORDIS, CFPB and Greenhouse, with stricter provenance and schema
+handling than treating raw search matches as market signals.
+
+- Companies House corporate numbers and GLEIF LEIs are joined **only** when
+  GLEIF's `registeredAt.id` is one of RA000585 (England and Wales), RA000586
+  (Northern Ireland) or RA000587 (Scotland), and `registeredAs` matches the
+  exact Companies House company number. Similar names are **not** identity
+  evidence; mismatched legal names on exact-ID matches require review.
+- An awarded US federal contract is attached to the **awarding agency** as
+  potential buyer, not the recipient supplier; its reported amount is not
+  assumed to have been paid, nor to be software spending. Record *Last Modified
+  Date* must not be relabeled an award date.
+- Dated OpenAlex works, public GitHub issues, TED notices and CFPB complaints
+  produce traceable observation samples with publication/receipt semantics.
+  Neither research, vacancies, complaints nor notices establish a buyer budget.
+- Search results are relevance-ranked, partial and subject to source failure.
+  This tool explicitly returns **market momentum not estimable**. It will not
+  infer rising demand or fabricate missing zero-event days from top-N results.
+  The separate 28-day coverage-gated `daily_trends` evaluator remains the
+  only pathway to a source-level direction estimate.
+- Each source row can be **caller supplied** and is therefore not independently
+  authenticated. Inspect original provider links before contacting or naming
+  potential buyers. These are observation records, not verified leads.
+
+The old 16-tool community MCP stays unchanged. The observation tool is available
+only on the separate, manually launched optional intelligence server. It has no
+scheduled polling, key access, export automation or paid provider dependencies.
+
+Source semantics: [GLEIF registration authorities](https://www.gleif.org/en/lei-data/lei-linking-to-registration-authorities),
+[Companies House search schema](https://developer-specs.company-information.service.gov.uk/companies-house-public-data-api/resources/companysearch),
+[OpenAlex works](https://help.openalex.org/data/works/attributes/), and
+[USAspending awarded contracts](https://api.usaspending.gov/docs/endpoints/api/search/spending_by_award/).

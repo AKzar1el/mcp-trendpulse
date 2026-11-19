@@ -138,7 +138,7 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
     if source == "openalex":
         term = _required(keyword, "keyword")
         url = "https://api.openalex.org/works?" + urlencode({
-            "search": term, "per_page": limit, "select": "id,display_name,publication_year,cited_by_count,doi,primary_location"
+            "search": term, "per_page": limit, "select": "id,display_name,publication_year,publication_date,cited_by_count,doi,primary_location"
         })
         key = env.get("TRENDPULSE_INTEL_OPENALEX_KEY", "").strip()
         # OpenAlex permits keyless basic queries; registered free keys are

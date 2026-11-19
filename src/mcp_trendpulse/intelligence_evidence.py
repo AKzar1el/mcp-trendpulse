@@ -50,10 +50,14 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
             if not isinstance(entry, dict):
                 continue
             # Never project removed complaint narratives, or sensitive personal details.
-            rows.append({k: entry.get(k) for k in (
-                "date_received", "product", "sub_product",
-                "issue", "sub_issue", "company", "state"
-            ) if k in entry})
+            rows.append({
+                **({"public_complaint_id": hit["_id"]}
+                   if isinstance(hit.get("_id"), str) else {}),
+                **{k: entry.get(k) for k in (
+                    "date_received", "product", "sub_product",
+                    "issue", "sub_issue", "company", "state",
+                ) if k in entry},
+            })
         return {"record_count": len(rows), "sample": rows, "unit": "published complaints"}
     if source == "copernicus":
         if not isinstance(payload, dict):

@@ -863,6 +863,27 @@ def intelligence_sources(wave):
 
 
 
+@intelligence.command("observe")
+@click.option("--input-json", "input_path", required=True,
+              type=click.Path(exists=True, dir_okay=False, path_type=Path))
+def intelligence_observe(input_path):
+    """Audit prior collector snapshots; identify registered entities and dates."""
+    from mcp_trendpulse.intelligence_observations import observe_source_snapshots
+
+    try:
+        if input_path.stat().st_size > 220_000:
+            raise ValueError("Observation batch exceeds 220 KB")
+        request = json.loads(input_path.read_text(encoding="utf-8"))
+        if not isinstance(request, dict):
+            raise ValueError("Observation input must be a JSON object")
+        response = observe_source_snapshots(
+            request["topic"], request["snapshots"], as_of=request.get("as_of")
+        )
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(response, ensure_ascii=False, sort_keys=True))
+
+
 @intelligence.group("opportunities")
 def intelligence_opportunities_group():
     """Offline, source-attributed opportunity triage and dated backtesting."""

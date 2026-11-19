@@ -132,7 +132,26 @@ def intelligence_provider_setup(provider: str) -> dict[str, Any]:
 
 @intel_mcp.tool(
     description=(
-        "List 12 source-aware opportunity investigation lanes. These are research "
+        "Offline source observations for 1-12 bounded prior intelligence_collect "
+        "outputs, with exact GLEIF/Companies House registration-number matching, "
+        "dated source record trails, missing coverage and careful buyer caveats. "
+        "No key access, network, probabilities or market-growth claims."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_observe_source_snapshots(
+    topic: str,
+    snapshots: list[dict[str, Any]],
+    as_of: str | None = None,
+) -> dict[str, Any]:
+    from mcp_trendpulse.intelligence_observations import observe_source_snapshots
+
+    return observe_source_snapshots(topic, snapshots, as_of=as_of)
+
+
+@intel_mcp.tool(
+    description=(
+        "List 18 source-aware opportunity investigation lanes. These are research "
         "recipes, not startup recommendations or validated buyer demand."
     ),
     annotations=READ_ONLY,
@@ -146,7 +165,7 @@ def intelligence_opportunity_lanes() -> list[dict[str, Any]]:
 @intel_mcp.tool(
     description=(
         "Safely triage caller-supplied, dated and attributable evidence across "
-        "12 free-source combinations. Offline only. Detect conflicting signals, "
+        "18 free-source combinations. Offline only. Detect conflicting signals, "
         "duplicates, stale records, missing buyers and incomplete trend coverage. "
         "Ranks investigations, NEVER predicts startup success or accepts secrets."
     ),

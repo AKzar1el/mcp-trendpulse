@@ -30,6 +30,7 @@ TOOLS = {
     "intelligence_opportunity_lanes",
     "intelligence_evaluate_opportunities",
     "intelligence_walk_forward_backtest",
+    "intelligence_observe_source_snapshots",
 }
 FAKE_TOKEN = "SYNTHETIC_OFFLINE_E2E_TOKEN_NOT_A_PROVIDER_KEY"
 
@@ -104,7 +105,7 @@ async def exercise(mode: str, result_path: Path) -> int:
                     schema = json.dumps(tool.inputSchema).lower()
                     if '"api_key"' in schema or '"secret"' in schema or '"token"' in schema:
                         raise AssertionError("Secret-bearing MCP argument schema exposed")
-                checked.append({"case": "initialize_discover_nine_read_only_tools", "ok": True})
+                checked.append({"case": "initialize_discover_ten_read_only_tools", "ok": True})
 
                 catalogue = await _call(session, "intelligence_source_catalog", {})
                 if not isinstance(catalogue, list) or len(catalogue) != 25:

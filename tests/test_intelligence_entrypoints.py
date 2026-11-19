@@ -41,13 +41,13 @@ def test_intel_cli_offline_ats_file(tmp_path):
 async def test_intel_mcp_is_separate_and_readonly():
     async with Client(intel_mcp) as client:
         tools = {tool.name: tool for tool in await client.list_tools()}
-        assert len(tools) == 9
+        assert len(tools) == 10
         assert set(tools) == {
             "intelligence_source_catalog", "intelligence_plan",
             "intelligence_collect", "intelligence_analyze_job_postings",
             "intelligence_provider_settings", "intelligence_provider_setup",
             "intelligence_opportunity_lanes", "intelligence_evaluate_opportunities",
-            "intelligence_walk_forward_backtest"
+            "intelligence_walk_forward_backtest", "intelligence_observe_source_snapshots"
         }
         for tool in tools.values():
             assert tool.annotations.readOnlyHint is True
