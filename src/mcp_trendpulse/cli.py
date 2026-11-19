@@ -875,8 +875,9 @@ def intelligence_sources(wave):
               help="Opt in to compare up to two auto-discovered OpenAlex topics "
                    "across three prior periods (up to 9 extra free requests).")
 @click.option("--broad-topic-scan", is_flag=True,
-              help="With --measure-trends, compare top 20 OpenAlex topic groups "
-                   "across three periods (3 more bounded free requests).")
+              help="With --measure-trends, compare top 100 OpenAlex topic groups "
+                   "across three periods and verify at most two history gaps "
+                   "(up to 9 more bounded free requests).")
 @click.option("--execute", is_flag=True,
               help="Explicitly fetch fixed public free sources; otherwise plan only.")
 @click.option("--record-history", is_flag=True,

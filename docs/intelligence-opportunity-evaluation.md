@@ -736,6 +736,73 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Broad topic coverage and verifiable ranking-gap rescue (2026-11-19)
+
+**Latest Windows field evidence on `57c873f`**: the opt-in
+`--broad-topic-scan` succeeded and reported only **13 topic groups
+present in all three ranked top-20 lists**, with **15** unique topics
+omitted from at least one of the lists. None of the 13 fully matched
+groups qualified as consistently rising. This is a **coverage/truncation
+failure for the user's goal**, not evidence that no emerging or smaller
+research-topic trends exist. Independent OpenAlex T12026 still showed
+396 → 478 → 499 recent historical counts and +26.7% normalized research
+share, correctly placed on the *early-rising* research watchlist.
+
+OpenAlex's live API documentation describes `group_by` as source-
+counted with pages. Its supported general `per_page` maximum is
+**100** (older grouping docs mention 200). The three fixed, explicit
+free grouped queries now request the **top 100 topic groups** in each
+equal, completed period, instead of only 20; no additional group
+requests or user seed keywords are required. **Important code-level
+fix:** the shared collector's generic `_bound_payload` intentionally
+truncates arbitrary lists to 20. Simply raising `per_page` would
+otherwise hide groups 21–100. Only known, fixed-host
+`openalex /works?group_by=primary_topic.id&per_page=100` plans now
+receive a dedicated **maximum-100-group compact projection** storing
+*only original topic ID, short display name, integer count and
+validated meta count*; all other source response caps remain at 20.
+Oversized/malformed grouped replies become source-unavailable, never
+fabricated zero counts or unbounded history writes.
+
+To avoid silently discarding promising topics absent from one or both
+older **ranked** top-100 lists, the opt-in scan takes at most **two**
+recently ranked, not-fully-comparable source topic IDs and checks their
+actual publication counts in **all three** date periods with the same
+fixed free OpenAlex count query and normalized source denominator.
+A ranking absence is not interpreted as zero; a **verified API
+`meta.count=0`** is allowed, as a statement about matching indexed
+OpenAlex works in that period. If the API fails, counts disagree
+materially with the recent grouped snapshot, or the source is
+rate-limited, the follow-up remains **unavailable** rather than
+becoming a rising/declining signal. Real source-counted upward-share
+signals can enter the bounded research watchlist with a clear
+`history_verified_by_three_direct_counts` provenance annotation.
+No buyer demand, paid customer, product fit, general market growth or
+SEO keyword volume is inferred.
+
+The maximum opt-in request cost with `--ted-date-slices 3` is:
+**5 normal sources + 9 existing OpenAlex historical count requests
++ 3 grouped queries + 6 targeted follow-up counts = 23 source calls**,
+with a worst-case **19 OpenAlex calls** under its existing **20/day
+local keyless budget**. This explicit allowance includes the initial
+seedless OpenAlex work sample; existing same-request cache may save
+network calls. Free provider cooldowns, same-query locks, no redirect,
+no paid API tiers and all production scheduling remain unchanged.
+If today's source quota is already partially consumed, counts become
+unavailable, not zero; there is no quota-bypass or automatic retry.
+
+The source type/topic classifier may be revised, and even the top-100
+scan is **not exhaustive** across 4,516 topic classes. It is a
+larger, economical *research trend scanner*, not yet a market or
+Google search demand detector. Actual product concepts require a
+subsequent, separately evidenced workflow/problem validation phase.
+SEO/keyword source analysis remains a different milestone.
+
+Official OpenAlex references:
+https://help.openalex.org/api/grouping/
+https://help.openalex.org/api/paging/
+https://help.openalex.org/api/authentication/
+
 ### Bounded mainstream-topic landscape scan (2026-11-19)
 
 The previous, correctly source-counted `--measure-trends` mode

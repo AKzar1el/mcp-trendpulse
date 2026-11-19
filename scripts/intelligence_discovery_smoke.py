@@ -47,9 +47,11 @@ def main() -> int:
         )
         if (broad_plan["network_performed"]
                 or broad_plan["request_count"] != 5
-                or broad_plan["max_requests_with_trend_measurement"] != 17
+                or broad_plan["max_requests_with_trend_measurement"] != 23
                 or broad_plan["trend_evidence"]["network_performed"]
-                or broad_plan["trend_evidence"]["max_additional_source_requests"] != 12
+                or broad_plan["trend_evidence"]["max_additional_source_requests"] != 18
+                or broad_plan["trend_evidence"]["most_represented_topic_group_cap"] != 100
+                or broad_plan["trend_evidence"]["max_recent_ranking_gap_history_probes"] != 2
                 or not broad_plan["trend_evidence"]["broad_topic_scan_opted_in"]):
             raise AssertionError("Broad trend plan must remain opt-in and network free")
         result = discover_current(

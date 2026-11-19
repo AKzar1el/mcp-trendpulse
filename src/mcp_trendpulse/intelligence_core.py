@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 from xml.etree import ElementTree
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
@@ -379,7 +379,15 @@ def _collect_under_lock(
         }
         store.save(identity, failure, 120)
         return failure
-    reduced = _bound_payload(payload)
+    # OpenAlex group_by responses can contain up to 100 topic groups.
+    # The generic 20-item evidence cap would silently erase groups 21-100.
+    # ONLY this fixed official aggregate plan gets a dedicated reduced
+    # projection; do not weaken caps for arbitrary source lists or records.
+    reduced = (
+        _bounded_openalex_topic_groups(payload)
+        if _is_openalex_topic_group_plan(plan)
+        else _bound_payload(payload)
+    )
     output = {
         "observations": _bound_payload(observations),
         "source": plan.source,
@@ -395,6 +403,48 @@ def _collect_under_lock(
     }
     store.save(identity, output, 3600)
     return output
+
+
+def _is_openalex_topic_group_plan(plan: Plan) -> bool:
+    parts = urlsplit(plan.url)
+    return bool(
+        plan.source == "openalex"
+        and plan.method == "GET"
+        and parts.scheme == "https"
+        and parts.hostname == "api.openalex.org"
+        and parts.path == "/works"
+        and parse_qs(parts.query).get("group_by") == ["primary_topic.id"]
+        and parse_qs(parts.query).get("per_page") == ["100"]
+    )
+
+
+def _bounded_openalex_topic_groups(payload: Any) -> dict[str, Any]:
+    """Keep only 100 capped public topic group IDs, labels and counts.
+
+    Never retain arbitrary upstream metadata or raw work records in the
+    grouped response's cached data. Source contract validation happens
+    downstream; malformed groups remain obviously invalid, not zero.
+    """
+    if not isinstance(payload, dict):
+        return {"meta": {"count": None}, "group_by": []}
+    groups = payload.get("group_by")
+    if not isinstance(groups, list):
+        return {"meta": {"count": None}, "group_by": []}
+    if len(groups) > 100:
+        raise IntelligenceError("Unexpected OpenAlex grouped response exceeding 100 groups")
+    meta = payload.get("meta")
+    corpus_count = meta.get("count") if isinstance(meta, dict) else None
+    compact = []
+    for row in groups:
+        if not isinstance(row, dict):
+            compact.append({})
+            continue
+        compact.append({
+            "key": _bound_payload(row.get("key")),
+            "key_display_name": _bound_payload(row.get("key_display_name")),
+            "count": _bound_payload(row.get("count")),
+        })
+    return {"meta": {"count": corpus_count}, "group_by": compact}
 
 
 def _bound_payload(value: Any) -> Any:

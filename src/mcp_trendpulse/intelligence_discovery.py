@@ -975,9 +975,11 @@ def discover_current(
             from mcp_trendpulse.intelligence_trends import (
                 MAX_ADDITIONAL_REQUESTS, MAX_TOPICS, PUBLICATION_LAG_DAYS,
             )
-            from mcp_trendpulse.intelligence_broad_scan import GROUP_REQUESTS
+            from mcp_trendpulse.intelligence_broad_scan import (
+                MAX_SCAN_REQUESTS, TOP_GROUPS_PER_PERIOD,
+            )
 
-            broad_requests = GROUP_REQUESTS if broad_topic_scan else 0
+            broad_requests = MAX_SCAN_REQUESTS if broad_topic_scan else 0
             planned["max_requests_with_trend_measurement"] = (
                 len(plans) + MAX_ADDITIONAL_REQUESTS + broad_requests
             )
@@ -990,7 +992,10 @@ def discover_current(
                     MAX_ADDITIONAL_REQUESTS + broad_requests
                 ),
                 "broad_topic_scan_opted_in": broad_topic_scan,
-                "most_represented_topic_group_cap": 20,
+                "most_represented_topic_group_cap": TOP_GROUPS_PER_PERIOD,
+                "max_recent_ranking_gap_history_probes": (
+                    2 if broad_topic_scan else 0
+                ),
                 "publication_lag_days": PUBLICATION_LAG_DAYS,
                 "free_only": True,
                 "source": "openalex",
@@ -1078,7 +1083,7 @@ def discover_current(
         )
         if broad_topic_scan:
             from mcp_trendpulse.intelligence_broad_scan import (
-                GROUP_REQUESTS, scan_openalex_topic_landscape,
+                MAX_SCAN_REQUESTS, scan_openalex_topic_landscape,
             )
 
             grouped = scan_openalex_topic_landscape(
@@ -1088,7 +1093,7 @@ def discover_current(
             trend_evidence["additional_source_requests"] += grouped[
                 "source_requests"
             ]
-            trend_evidence["max_additional_source_requests"] += GROUP_REQUESTS
+            trend_evidence["max_additional_source_requests"] += MAX_SCAN_REQUESTS
             known_ids = {
                 item["topic_id"] for item in trend_evidence["idea_watchlist"]
             }
