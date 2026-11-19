@@ -161,11 +161,6 @@ def test_source_projected_record_shape_errors_are_inconclusive():
     assert x["candidate_count"] == 0
 
 
-@pytest.mark.parametrize("invalid", [
-    [], [None], [123], [
-        {"source": "unknown", "status": "observed"}],
-    [{"source": "cfpb", "status": "observed"}] * 2,
-])
 def test_twenty_record_bulky_provider_snapshots_keep_all_bounded_evidence(monkeypatch):
     # Reproduces the exact --limit 20 failure without live APIs, credentials,
     # or reliance on current wall-clock date. Unused provider metadata is
@@ -220,6 +215,11 @@ def test_oversized_untrusted_discovery_input_still_refused():
         report(huge)
 
 
+@pytest.mark.parametrize("invalid", [
+    [], [None], [123], [
+        {"source": "unknown", "status": "observed"}],
+    [{"source": "cfpb", "status": "observed"}] * 2,
+])
 def test_untrusted_snapshot_input_is_bounded_and_validated(invalid):
     with pytest.raises(ValueError):
         report(*invalid)
