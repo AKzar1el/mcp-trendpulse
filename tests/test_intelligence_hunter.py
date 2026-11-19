@@ -542,3 +542,86 @@ def test_structured_or_untrusted_provider_error_never_breaks_watchlist():
     assert "SHOULD_NEVER_APPEAR" not in repr(r)
     assert "HTTP True" not in output
     assert r["topics"][0]["source_coverage"][1]["status"] == "unavailable"
+
+
+
+def test_source_success_not_equal_current_topic_relevance():
+    """Five OpenAlex results can be valid yet irrelevant to the topic."""
+    oa = [
+        article("General industrial automation insights", "2026-11-18",
+                f"W27418098{i:02d}") for i in range(5)
+    ]
+    project = [{"id": "CORDIS-2024", "title": "Battery recycling research"}]
+    award = [{
+        "Award ID": "EXAMPLE-AWARD-01", "Awarding Agency": "Demo Agency",
+        "Recipient Name": "Demonstration Supplier",
+        "Description": "Battery recycling infrastructure equipment",
+        "Last Modified Date": "2026-11-18",
+    }]
+    r = report(batch(
+        "battery recycling", observed("openalex", oa),
+        observed("cordis", project), observed("usaspending", award),
+    ))
+    x = r["topics"][0]
+    assert x["status"] == "context_only_not_recent_activity"
+    assert x["investigation_priority"] == 0
+    assert x["recent_dated_records_in_sample"] == 0
+    by_source = {z["source"]: z for z in x["source_coverage"]}
+    assert by_source["openalex"]["records_accepted"] == 5
+    assert by_source["openalex"]["topical_title_matches"] == 0
+    assert by_source["openalex"]["recent_eligible_matches"] == 0
+    assert by_source["openalex"]["unmatched_sample_records"] == 5
+    assert by_source["openalex"]["topical_coverage_note"] == (
+        "no_title_match_in_bounded_sample"
+    )
+    assert by_source["cordis"]["context_only_matches"] == 1
+    assert by_source["usaspending"]["context_only_matches"] == 1
+    assert by_source["usaspending"]["recent_eligible_matches"] == 0
+    assert {z["reason"] for z in x["context_examples"]} == {
+        "timestamp_not_comparable_recent_market_event"
+    }
+    text = hunter.format_hunt_report(r)
+    assert "openalex=0 title match(es) [recent:0, context:0, screened:0]" in text
+    assert "cordis=1 title match(es) [recent:0, context:1, screened:0]" in text
+    assert "Context only (not recent market activity):" in text
+    assert "Battery recycling infrastructure equipment" in text
+    assert "not verified market growth" in text
+
+
+def test_fresh_research_and_incident_records_still_qualify_by_source():
+    r = report(batch(
+        "battery recycling",
+        observed("openalex", [article("Battery recycling research")]),
+        observed("github_issues", [issue("Battery recycling workflow failure")]),
+    ))
+    x = r["topics"][0]
+    assert x["status"] == "current_cross_source_activity"
+    assert x["investigation_priority"] == 2
+    assert x["context_examples"] == []
+    assert all(p["topical_title_matches"] == 1 for p in x["source_coverage"])
+    assert all(p["recent_eligible_matches"] == 1 for p in x["source_coverage"])
+    assert "Context only" not in hunter.format_hunt_report(r)
+
+
+def test_stale_dated_title_match_is_context_not_current_priority():
+    r = report(batch(
+        "battery recycling",
+        observed("openalex", [article("Battery recycling research", "2026-01-01")]),
+    ))
+    x = r["topics"][0]
+    assert x["status"] == "context_only_not_recent_activity"
+    assert x["investigation_priority"] == 0
+    assert x["context_examples"][0]["reason"] == "outside_requested_lookback"
+
+
+def test_unrelated_recent_research_not_promoted_by_source_health():
+    r = report(batch(
+        "agent reliability",
+        observed("openalex", [article("New battery recycling research", "2026-11-19")]),
+        observed("github_issues", [issue("Battery recycling workflow failure")]),
+    ))
+    x = r["topics"][0]
+    assert x["status"] == "insufficient_topical_observation"
+    assert x["investigation_priority"] == 0
+    assert x["recent_dated_records_in_sample"] == 0
+    assert all(s["topical_title_matches"] == 0 for s in x["source_coverage"])

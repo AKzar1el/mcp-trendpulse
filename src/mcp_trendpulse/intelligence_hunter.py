@@ -179,14 +179,56 @@ def summarize_current_hunt(
             # never two-thirds confidence in an actual business opportunity.
             stage, priority = "current_single_source_activity", 1
         elif context:
-            stage, priority = "context_only_not_recent_activity", 1
+            # Historic/undated evidence does not establish current momentum.
+            stage, priority = "context_only_not_recent_activity", 0
         elif excluded:
             stage, priority = "excluded_low_quality_activity", 0
         else:
             stage, priority = "insufficient_topical_observation", 0
         coverage = report["source_coverage"]
+        # "observed:5" means five valid *sample* records, not five
+        # topic matches. Expose both measurements without another request.
+        for provider in coverage:
+            key = provider["source"]
+            topical = [r for r in matches if r["source"] == key]
+            fresh = [r for r in current if r["source"] == key]
+            contextual = [r for r in context if r["source"] == key]
+            noisy = [r for r in excluded if r["source"] == key]
+            provider["topical_title_matches"] = len(topical)
+            provider["recent_eligible_matches"] = len(fresh)
+            provider["context_only_matches"] = len(contextual)
+            provider["excluded_noise_matches"] = len(noisy)
+            provider["unmatched_sample_records"] = max(
+                0, provider["records_accepted"] - len(topical)
+            )
+            if provider["status"] == "observed":
+                if not provider["records_accepted"]:
+                    provider["topical_coverage_note"] = "empty_bounded_sample"
+                elif not topical:
+                    provider["topical_coverage_note"] = "no_title_match_in_bounded_sample"
+                elif not fresh:
+                    provider["topical_coverage_note"] = "context_or_noise_only"
+                else:
+                    provider["topical_coverage_note"] = "recent_dated_title_match"
         if coverage and all(row["status"] != "observed" for row in coverage):
             stage, priority = "no_usable_provider_coverage", 0
+        context_examples = []
+        for item in context[:4]:
+            day = item.get("event_date")
+            semantics = item.get("date_semantics")
+            if semantics not in DATE_SEMANTICS:
+                reason = "timestamp_not_comparable_recent_market_event"
+            elif day is None:
+                reason = "publication_date_unavailable"
+            elif day < recent_cutoff:
+                reason = "outside_requested_lookback"
+            else:
+                reason = "not_recent_activity"
+            context_examples.append({
+                "source": item["source"], "title": item.get("title", ""),
+                "reference": item["reference"], "event_date": day,
+                "reason": reason,
+            })
         latest = max((row["event_date"] for row in current), default=None)
         candidate = {
             "topic": term, "status": stage, "investigation_priority": priority,
@@ -197,6 +239,8 @@ def summarize_current_hunt(
             "recent_source_classes": sorted(classes),
             "recent_independent_provider_types": source_count,
             "topical_context_records": len(context),
+            "context_examples": context_examples,
+            "title_overlap_is_not_semantic_or_buyer_validation": True,
             "quality_screened_issue_records": len(excluded),
             "quality_exclusion_reasons": dict(sorted(quality_reasons.items())),
             "quality_excluded_examples": [{
@@ -430,6 +474,19 @@ def format_hunt_report(result: dict[str, Any]) -> str:
             states.append(state)
         if states:
             lines.append("   Providers: " + " | ".join(states))
+        counts = []
+        for provider in row["source_coverage"]:
+            src = provider["source"]
+            title_hits = provider.get("topical_title_matches", 0)
+            recent = provider.get("recent_eligible_matches", 0)
+            noise = provider.get("excluded_noise_matches", 0)
+            contextual = provider.get("context_only_matches", 0)
+            counts.append(
+                f"{src}={title_hits} title match(es) "
+                f"[recent:{recent}, context:{contextual}, screened:{noise}]"
+            )
+        if counts:
+            lines.append("   Topic overlap: " + " | ".join(counts))
         repaired = sum(
             p.get("quality_reclassified_from_cached_payload", 0)
             for p in row["source_coverage"]
@@ -457,6 +514,14 @@ def format_hunt_report(result: dict[str, Any]) -> str:
             title = " ".join(title.split())[:75]
             lines.append(f"   - {item['source']} {item['event_date']}: {title}")
             lines.append(f"     {item['reference']}")
+        if not row["evidence"] and row.get("context_examples"):
+            lines.append("   Context only (not recent market activity):")
+            for item in row["context_examples"][:2]:
+                raw = str(item.get("title") or "")
+                title = "".join(ch if ch.isprintable() else " " for ch in raw)
+                title = " ".join(title.split())[:75]
+                lines.append(f"   - {item['source']} ({item['reason']}): {title}")
+                lines.append(f"     {item['reference']}")
         lines.append(f"   Next: {row['follow_up']}")
         lines.append("")
     lines.append(

@@ -477,3 +477,30 @@ limited. Safe source metadata do not reproduce unknown upstream error strings,
 tokens, auth headers or private bodies. These are availability diagnostics,
 not measured demand volumes. Regression tests cover the exact public-issue
 failure mode, source-ID/title mismatch protection and HTTP 429 visibility.
+
+### Source contribution audit: observed rows are not trend evidence
+
+The user's third local run on 2026-11-19 verified the quality-screen repair:
+the promotional GitHub market-size post and the hypothetical Zion proposal
+were both excluded. Yet OpenAlex reported five valid sampled records for
+each seed with no eligible topical dates, while CORDIS/USAspending contributed
+undated or non-comparable background. This is not a provider failure and
+must not be mistaken for evidence of recent or increasing demand.
+
+The human-facing watchlist now keeps provider status separate from **source
+contribution**: for every provider it reports accepted bounded sample rows,
+literal-title topic matches, recent eligible matches, contextual-only
+matches and filtered noise counts. For a context-only topic, it displays
+up to two original context records with the precise date/eligibility reason
+(e.g., absent publication date, outside lookback or award Last Modified Date
+not being a comparable market-event timestamp). Providers that successfully
+returned five unrelated results are explicitly shown as zero topical
+matches rather than implicitly credited for five signals.
+
+In this **current-first** priority scale, purely historical or undated
+context now has priority 0/3, while source-specific current activity can
+receive 1/3 and distinct recent source classes can receive up to 2/3.
+None of these numbers estimates a probability of market growth or purchase.
+No extra API calls, credential access, background polling or cache reset is
+required to produce the new diagnostics. Title overlap remains lexical
+and does not substantiate a matching buyer or the same work process.
