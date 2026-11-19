@@ -634,7 +634,7 @@ def rss_review(evidence, review_format, output_file, contains):
               help="User-designated earlier schema-v1 RSS headline JSON file.")
 @click.option("--newer", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True,
               help="User-designated later schema-v1 RSS headline JSON file.")
-@click.option("--format", "comparison_format", type=click.Choice(["markdown", "json"]),
+@click.option("--format", "comparison_format", type=click.Choice(["markdown", "json", "csv"]),
               default="markdown", show_default=True)
 @click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
               help="Save report as a new UTF-8 file without overwriting.")

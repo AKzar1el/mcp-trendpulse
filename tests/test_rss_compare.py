@@ -1,5 +1,7 @@
 """Offline acceptance tests for comparing two saved RSS headline captures."""
 
+import csv
+import io
 import json
 from unittest.mock import patch
 
@@ -98,3 +100,65 @@ def test_rss_compare_saved_report_is_offline_and_valid(tmp_path):
                       "--output-file", str(destination))
     assert result.exit_code == 0, result.output
     assert json.loads(destination.read_text(encoding="utf-8"))["summary"]["newly_seen"] == 1
+
+
+def test_rss_compare_csv_is_spreadsheet_ready_and_retitles_are_explicit(tmp_path):
+    result = _compare(
+        tmp_path,
+        _capture(_item("Old", "a"), _item("Before", "b", publisher="Old publisher")),
+        _capture(_item("After", "b", publisher="New publisher"), _item("New", "c")),
+        "--format", "csv",
+    )
+    assert result.exit_code == 0, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert rows[0]["record_type"] == "summary"
+    assert rows[0]["comparison_method"] == "exact_url_membership"
+    assert rows[0]["source_authenticated"] == "false"
+    assert rows[0]["newly_seen"] == "1"
+    assert rows[0]["not_seen_in_newer"] == "1"
+    assert rows[0]["retitled_same_url"] == "1"
+    assert "feed window" in rows[0]["limitations"].lower()
+    assert "demand growth" in rows[0]["limitations"].lower()
+    headlines = [row for row in rows if row["record_type"] == "headline"]
+    assert len(headlines) == 3
+    by_slug = {row["url"].rsplit("/", 1)[-1]: row for row in headlines}
+    assert by_slug["a"]["status"] == "not_seen_in_newer"
+    assert by_slug["c"]["status"] == "newly_seen"
+    assert by_slug["b"]["status"] == "still_seen"
+    assert by_slug["b"]["old_title"] == "Before"
+    assert by_slug["b"]["new_title"] == "After"
+    assert by_slug["b"]["title_changed"] == "true"
+
+
+def test_rss_compare_csv_prevents_spreadsheet_formulas(tmp_path):
+    result = _compare(
+        tmp_path, _capture(),
+        _capture(_item('=HYPERLINK("https://attacker.invalid","open")', "x",
+                       publisher="  @SUM(1,2)")),
+        "--format", "csv",
+    )
+    assert result.exit_code == 2, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert rows[1]["new_title"].startswith("'=HYPERLINK")
+    assert rows[1]["new_publisher"].startswith("'@SUM")
+    assert rows[1]["source_authenticated"] == "false"
+
+
+def test_rss_compare_csv_empty_has_visible_limitations_and_save_new_only(tmp_path):
+    result = _compare(tmp_path, _capture(), _capture(), "--format", "csv")
+    assert result.exit_code == 2, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert len(rows) == 1
+    assert rows[0]["record_type"] == "summary"
+    assert "not authenticated" in rows[0]["limitations"].lower()
+    destination = tmp_path / "comparison.csv"
+    saved = _compare(tmp_path, _capture(_item("A", "a")),
+                     _capture(_item("B", "b")), "--format", "csv",
+                     "--output-file", str(destination))
+    assert saved.exit_code == 0, saved.output
+    assert destination.read_bytes().startswith(b"record_type,")
+    assert len(list(csv.DictReader(io.StringIO(destination.read_text(encoding="utf-8"))))) == 3
+    again = _compare(tmp_path, _capture(_item("A", "a")),
+                     _capture(_item("B", "b")), "--format", "csv",
+                     "--output-file", str(destination))
+    assert again.exit_code != 0
