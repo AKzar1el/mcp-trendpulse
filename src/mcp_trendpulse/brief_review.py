@@ -407,7 +407,7 @@ def review_saved_brief(raw, *, output_format="text", as_of=None, max_age_days=No
 
 def compare_saved_briefs(before_raw, after_raw, *, output_format="text", as_of=None, max_age_days=None):
     """Compare saved evidence *coverage*, never normalized interest indices."""
-    if output_format not in ("text", "json", "csv", "keyword-csv", "markdown"):
+    if output_format not in ("text", "json", "csv", "keyword-csv", "markdown", "checklist"):
         raise ValueError("Unsupported Demand Brief comparison format")
     before_text, _ = review_saved_brief(before_raw, output_format="json")
     after_text, needs_review = review_saved_brief(
@@ -528,6 +528,118 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text", as_of=N
         report["freshness_policy"] = after_report["freshness_policy"]
     if output_format == "json":
         return json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True) + "\n", needs_review
+    if output_format == "checklist":
+        rows = [
+            "# Demand Brief comparison action checklist",
+            "",
+            f"**Timeframe:** {_markdown_safe(report['timeframe'])}",
+            "**Source:** Saved Google Trends / Google Search labels (not authenticated)",
+            "**Assessment:** NEEDS HUMAN REVIEW" if needs_review else
+            "**Assessment:** current snapshot structurally complete; review provenance",
+            *([f"**After-file freshness policy:** as of {as_of}, maximum age {max_age_days} day(s)"]
+              if freshness_enabled else []),
+            "",
+            "## Follow-up actions",
+        ]
+        primary_actions = 0
+        for item in comparisons:
+            market = item["market"]
+            before_source = source_markets[0].get(market)
+            after_source = source_markets[1].get(market)
+            if after_source is None:
+                # A failed provider market has unknown coverage, never a measured loss.
+                code = after_failures.get(market, "unknown")
+                advice = (
+                    "Do not bypass provider rate limits; only retry under approved quotas."
+                    if code == "rate_limited"
+                    else "Investigate the saved failure before an authorized refresh."
+                )
+                rows.append(
+                    f"- [ ] {market}: After-file primary coverage unknown, not zero "
+                    f"({code}). {advice}"
+                )
+                primary_actions += 1
+                continue
+            if before_source is None:
+                rows.append(
+                    f"- [ ] {market}: Before-file primary coverage unknown; "
+                    "inspect the after-file evidence without claiming a measured gain."
+                )
+                primary_actions += 1
+            else:
+                earlier_words = {
+                    word["keyword"].strip().casefold(): word
+                    for word in before_source["keywords"]
+                }
+                later_words = {
+                    word["keyword"].strip().casefold(): word
+                    for word in after_source["keywords"]
+                }
+                for key in sorted(later_words):
+                    first, second = earlier_words[key], later_words[key]
+                    label = _markdown_safe(second["keyword"].strip())
+                    earlier_valid = _is_number(first["latest_index"], interest=True)
+                    later_valid = _is_number(second["latest_index"], interest=True)
+                    if earlier_valid and not later_valid:
+                        rows.append(
+                            f"- [ ] {market} / {label}: Primary evidence lost in the "
+                            "declared after-file; verify the source and recover evidence "
+                            "only through an authorized, bounded query."
+                        )
+                        primary_actions += 1
+                    elif not earlier_valid and later_valid:
+                        rows.append(
+                            f"- [ ] {market} / {label}: Primary evidence gained in the "
+                            "declared after-file; independently verify provenance."
+                        )
+                    elif not earlier_valid:
+                        rows.append(
+                            f"- [ ] {market} / {label}: Primary evidence still missing "
+                            "in both files; investigate the gap before interpretation."
+                        )
+                        primary_actions += 1
+            for older in item["older_observations"] or []:
+                rows.append(
+                    f"- [ ] {market} / {_markdown_safe(older['keyword'])}: "
+                    "Review older primary observation in declared after-file "
+                    f"({_markdown_safe(older['before_date'])} -> "
+                    f"{_markdown_safe(older['after_date'])}); file order is not "
+                    "verified capture chronology."
+                )
+            if item["after"]["growth_unavailable"]:
+                rows.append(
+                    f"- [ ] {market}: Growth unavailable "
+                    f"({after_failures.get(market, 'unknown')}); "
+                    "do not infer a trend direction."
+                )
+            warning_count = item["after"]["warning_count"]
+            if warning_count:
+                rows.append(
+                    f"- [ ] {market}: Review {warning_count} saved warning(s) "
+                    "without treating warning text as verified evidence."
+                )
+            if freshness_enabled:
+                for issue in item["after_freshness_exceptions"]:
+                    rows.append(
+                        f"- [ ] {market} / {_markdown_safe(issue['keyword'])}: "
+                        f"{issue['status']} primary observation "
+                        f"{_markdown_safe(issue['latest_observation'])} "
+                        f"(age {issue['age_days']} day(s) as of {as_of}); "
+                        "review before use."
+                    )
+        if primary_actions == 0:
+            rows.append(
+                "- [ ] No primary availability regressions or continuing gaps "
+                "detected in comparable saved records; confirm relevance manually."
+            )
+        rows.extend([
+            "- [ ] Independently verify source provenance, keyword and market scope, "
+            "file ordering and warnings before buyer-facing conclusions.",
+            "",
+            "## Evidence limitations",
+            *[f"- {caveat}" for caveat in caveats],
+        ])
+        return "\n".join(rows) + "\n", needs_review
     if output_format == "markdown":
         rows = [
             "# Saved Demand Brief evidence comparison",

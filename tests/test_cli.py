@@ -2381,6 +2381,106 @@ def test_brief_compare_markdown_exposes_older_after_and_unknown_without_indices(
     assert "secret error details" not in result.output
 
 
+def test_brief_compare_checklist_identifies_offsetting_keyword_changes_offline(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    previous = json.loads(before.read_text(encoding="utf-8"))
+    us_before = next(m for m in previous["markets"] if m["market"] == "US")
+    us_before["keywords"][0]["latest_index"] = None
+    us_before["keywords"][0]["latest_observation"] = None
+    before.write_text(json.dumps(previous), encoding="utf-8")
+    current = json.loads(json.dumps(previous))
+    us_after = next(m for m in current["markets"] if m["market"] == "US")
+    us_after["keywords"][0]["latest_index"] = 45
+    us_after["keywords"][0]["latest_observation"] = "2026-09-20"
+    us_after["keywords"][1]["latest_index"] = None
+    us_after["keywords"][1]["latest_observation"] = None
+    after = tmp_path / "after.json"
+    after.write_text(json.dumps(current), encoding="utf-8")
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("provider called")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-compare", "--before", str(before), "--after", str(after),
+            "--format", "checklist",
+        ])
+    assert result.exit_code == 2, result.output
+    assert "# Demand Brief comparison action checklist" in result.output
+    assert "US / Claude: Primary evidence lost" in result.output
+    assert "US / ChatGPT: Primary evidence gained" in result.output
+    assert "GB / Claude: Primary evidence lost" not in result.output
+    assert "not authenticated" in result.output
+    assert "normalized" in result.output
+
+
+def test_brief_compare_checklist_failed_market_is_unknown_and_private_error_hidden(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after_data = json.loads(before.read_text(encoding="utf-8"))
+    after_data["markets"] = [m for m in after_data["markets"] if m["market"] == "US"]
+    after_data["failed_markets"] = [{
+        "market": "GB", "component": None, "code": "rate_limited",
+        "retryable": True, "message": "private provider failure detail",
+    }]
+    after_data["incomplete"] = True
+    after = tmp_path / "after.json"
+    after.write_text(json.dumps(after_data), encoding="utf-8")
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("provider called")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-compare", "--before", str(before), "--after", str(after),
+            "--format", "checklist",
+        ])
+    assert result.exit_code == 2, result.output
+    assert "GB: After-file primary coverage unknown, not zero" in result.output
+    assert "rate_limited" in result.output
+    assert "Do not bypass provider rate limits" in result.output
+    assert "private provider failure detail" not in result.output
+    assert "GB / ChatGPT: Primary evidence lost" not in result.output
+
+
+def test_brief_compare_checklist_freshness_dates_escaped_labels_and_new_file(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    previous = json.loads(before.read_text(encoding="utf-8"))
+    for market in previous["markets"]:
+        market["keywords"][0]["keyword"] = "**Risk** | query"
+    before.write_text(json.dumps(previous), encoding="utf-8")
+    current = json.loads(json.dumps(previous))
+    us_after = next(m for m in current["markets"] if m["market"] == "US")
+    us_after["keywords"][0]["latest_observation"] = "2021-01-01"
+    us_after["warnings"].append("sensitive warning body")
+    after = tmp_path / "after.json"
+    after.write_text(json.dumps(current), encoding="utf-8")
+    destination = tmp_path / "changes.md"
+    args = [
+        "brief-compare", "--before", str(before), "--after", str(after),
+        "--format", "checklist", "--as-of", "2026-09-30",
+        "--max-age-days", "7",
+    ]
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("provider called")):
+        report = CliRunner().invoke(cli_module.cli, args)
+        saved = CliRunner().invoke(cli_module.cli, [*args, "--output-file", str(destination)])
+    assert report.exit_code == saved.exit_code == 2
+    assert "older primary observation" in report.output
+    assert "stale primary observation" in report.output
+    assert r"\*\*Risk\*\* \| query" in report.output
+    assert "Review 1 saved warning(s)" in report.output
+    assert "sensitive warning body" not in report.output
+    assert destination.read_bytes() == report.output.encode("utf-8")
+    again = CliRunner().invoke(cli_module.cli, [*args, "--output-file", str(destination)])
+    assert again.exit_code == 1
+    assert destination.read_bytes() == report.output.encode("utf-8")
+
+
+def test_brief_compare_checklist_clean_evidence_keeps_manual_review_caveat(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    after.write_bytes(before.read_bytes())
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after),
+        "--format", "checklist",
+    ])
+    assert result.exit_code == 0, result.output
+    assert "No primary availability regressions" in result.output
+    assert "Independently verify" in result.output
+    assert "not authenticated" in result.output
+
+
 def test_brief_review_valid_saved_two_market_evidence_is_offline(tmp_path):
     target = _saved_mock_brief(tmp_path)
     with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("unexpected provider call")):
