@@ -182,14 +182,21 @@ def watch_evaluate(rule_id, evidence, dry_run):
 @watch.command("backtest")
 @click.option("--id", "rule_id", required=True, help="Existing watch rule ID.")
 @click.option("--evidence", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
-def watch_backtest(rule_id, evidence):
+@click.option("--growth-pct", type=click.FloatRange(1, 1000), default=None, help="Hypothetical growth threshold.")
+@click.option("--minimum-interest", type=click.FloatRange(0, 100), default=None, help="Hypothetical minimum interest.")
+@click.option("--window", type=click.IntRange(2, 12), default=None, help="Hypothetical comparison window.")
+@click.option("--cooldown-days", type=click.IntRange(1, 90), default=None, help="Hypothetical alert cooldown.")
+def watch_backtest(rule_id, evidence, growth_pct, minimum_interest, window, cooldown_days):
     """Simulate historic threshold decisions offline without updating cooldown."""
     from mcp_trendpulse.trend_watch import MAX_EVIDENCE_BYTES, WatchStore
 
     try:
         if evidence.stat().st_size > MAX_EVIDENCE_BYTES:
             raise ValueError("Evidence file exceeds 256 KiB")
-        result = WatchStore().backtest(rule_id, evidence.read_bytes())
+        result = WatchStore().backtest(
+            rule_id, evidence.read_bytes(), growth_pct=growth_pct,
+            minimum_interest=minimum_interest, window=window, cooldown_days=cooldown_days,
+        )
     except (OSError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(json.dumps(result, sort_keys=True))

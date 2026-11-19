@@ -103,6 +103,20 @@ updated. A series with fewer than two full windows reports zero evaluations.
 uv run mcp-trendpulse-cli watch backtest --id YOUR_RULE_ID --evidence ./trend-series.json
 ```
 
+To compare a different alert policy **without editing the saved rule**, add any
+combination of `--growth-pct`, `--minimum-interest`, `--window`, and
+`--cooldown-days`. All use the same bounds as `watch create`. For example:
+
+```bash
+uv run mcp-trendpulse-cli watch backtest --id YOUR_RULE_ID --evidence ./trend-series.json --growth-pct 45 --cooldown-days 14
+```
+
+With overrides, JSON includes a `scenario` object showing the effective values
+and exactly which settings were supplied. With no overrides, the previous
+backtest output is unchanged. Neither form modifies the saved thresholds or
+alert history. Compare candidate reports yourself; this is not automatic
+parameter tuning, optimization, or evidence of predictive accuracy.
+
 The JSON result is explicitly marked `simulated: true`. Historical observations
 are evaluated as of each observation date, so old data may produce historical
 *hypothetical* alerts even though live evaluation correctly returns
