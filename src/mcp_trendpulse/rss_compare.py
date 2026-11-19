@@ -1,14 +1,17 @@
 """Provider-free exact-URL comparison of two saved Google News RSS captures."""
 
+import csv
+import io
 import json
 
+from mcp_trendpulse.brief_audit import _csv_safe
 from mcp_trendpulse.brief_review import _markdown_safe
 from mcp_trendpulse.rss_review import review_saved_rss_headlines
 
 
 def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown"):
     """Compare declared old/new capture membership, not article or demand changes."""
-    if output_format not in ("markdown", "json"):
+    if output_format not in ("markdown", "json", "csv"):
         raise ValueError("Unsupported RSS comparison format")
     older_text, older_attention = review_saved_rss_headlines(older_raw, output_format="json")
     newer_text, newer_attention = review_saved_rss_headlines(newer_raw, output_format="json")
@@ -58,6 +61,39 @@ def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown
     needs_attention = older_attention or newer_attention
     if output_format == "json":
         return json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n", needs_attention
+
+    if output_format == "csv":
+        buffer = io.StringIO(newline="")
+        fields = [
+            "record_type", "status", "url", "old_title", "new_title", "old_publisher",
+            "new_publisher", "old_publish_date", "new_publish_date", "title_changed",
+            *summary.keys(), "comparison_method", "source_authenticated", "limitations",
+        ]
+        writer = csv.DictWriter(buffer, fieldnames=fields, lineterminator="\n")
+        writer.writeheader()
+        common = {"comparison_method": "exact_url_membership", "source_authenticated": "false"}
+        writer.writerow({
+            "record_type": "summary", **summary, **common,
+            "limitations": " ".join(result["caveats"]),
+        })
+        for status, rows in (("newly_seen", newly_seen), ("still_seen", still_seen),
+                             ("not_seen_in_newer", not_seen)):
+            for row in rows:
+                old = old_rows.get(row["url"]) or {}
+                new = new_rows.get(row["url"]) or {}
+                writer.writerow({
+                    "record_type": "headline", "status": status,
+                    "url": _csv_safe(row["url"]),
+                    "old_title": _csv_safe(old.get("title") or ""),
+                    "new_title": _csv_safe(new.get("title") or ""),
+                    "old_publisher": _csv_safe(old.get("publisher") or ""),
+                    "new_publisher": _csv_safe(new.get("publisher") or ""),
+                    "old_publish_date": _csv_safe(old.get("publish_date") or ""),
+                    "new_publish_date": _csv_safe(new.get("publish_date") or ""),
+                    "title_changed": str(bool(old and new and old["title"] != new["title"])).lower(),
+                    **common,
+                })
+        return buffer.getvalue(), needs_attention
 
     lines = ["# Saved Google News RSS headline comparison (offline)", "",
              "Two user-declared captures compared by exact Google News URL; not a growth score.", "",
