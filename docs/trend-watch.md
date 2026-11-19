@@ -92,6 +92,25 @@ This preview is a read-only snapshot of the saved rule, not an atomic
 reservation; a concurrent real evaluation can change the subsequent decision.
 Without the flag, recording and the original JSON output are unchanged.
 
+For a retrospective, non-recording **walk-forward simulation** across one
+supplied series, run `watch backtest`. It evaluates each complete two-window
+prefix in date order, simulates cooldown from the first candidate observation,
+and reports a count of decisions by status plus the hypothetical alert dates.
+The saved rule's real `last_alert_date` neither affects this scenario nor gets
+updated. A series with fewer than two full windows reports zero evaluations.
+
+```bash
+uv run mcp-trendpulse-cli watch backtest --id YOUR_RULE_ID --evidence ./trend-series.json
+```
+
+The JSON result is explicitly marked `simulated: true`. Historical observations
+are evaluated as of each observation date, so old data may produce historical
+*hypothetical* alerts even though live evaluation correctly returns
+`stale_data`. This is **not** a reconstruction of which data was published on
+each historical date: partial/revised points, missing observations, source
+authenticity, and changing provider normalization cannot be established from
+this one file. It never polls a provider, records an alert, or sends a message.
+
 The evaluator compares average interest across the latest `window` complete
 points with the preceding `window` points. It only triggers if the relative
 growth and minimum current interest meet your thresholds. An entirely zero
