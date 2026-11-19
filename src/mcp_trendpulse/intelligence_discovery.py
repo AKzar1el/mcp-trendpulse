@@ -115,11 +115,30 @@ def _record(
             stage = "prior_information_notice"
         else:
             stage = "unclassified_procurement_notice"
+        deadlines = base.get("lot_deadline_dates", [])
+        if deadlines:
+            if deadlines[-1] < today.isoformat():
+                deadline_assessment = "all_published_lot_dates_past"
+            elif deadlines[0] >= today.isoformat():
+                deadline_assessment = "published_lot_dates_on_or_after_asof"
+            else:
+                deadline_assessment = "mixed_past_and_future_published_lot_dates"
+        else:
+            deadline_assessment = "no_published_lot_deadline"
         out.update({
             "buyer_name": base.get("buyer_name", ""),
+            "buyer_country_code": base.get("buyer_country_code", ""),
             "notice_type": kind,
             "procurement_stage": stage,
             "title_language": base.get("title_language", ""),
+            "cpv_codes": base.get("cpv_codes", []),
+            "main_cpv_code": base.get("main_cpv_code", ""),
+            "lot_deadline_dates": deadlines,
+            "latest_lot_deadline_date": deadlines[-1] if deadlines else "",
+            "deadline_assessment": deadline_assessment,
+            "estimated_value_as_published": base.get("estimated_value_as_published", ""),
+            "estimated_value_currency": base.get("estimated_value_currency", ""),
+            "estimated_value_not_verified_spending": True,
         })
         # TED notices are distinct original records. A single notice cannot
         # establish a recurring trend; cross-source matching stays separate.
@@ -237,14 +256,50 @@ def summarize_discovery(
             "label": phrase, "group_basis": "literal_phrase_across_sources_not_verified_workflow",
             "records": group, "source_count": len(sources),
         })
+    # Repeated procedure-level CPV across distinct *published buyer labels*
+    # is more directly commercial than complaint frequency. Labels are NOT
+    # verified legal entities; exclude award/PIN and same-buyer repeats.
+    ted_by_cpv: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for record in records:
+        if (record["source"] == "ted"
+                and record.get("procurement_stage") == "contract_notice_not_award"
+                and record.get("main_cpv_code") and record.get("buyer_name")):
+            ted_by_cpv[record["main_cpv_code"]].append(record)
+    for cpv, group in ted_by_cpv.items():
+        buyer_labels = {
+            " ".join(r["buyer_name"].casefold().split())
+            for r in group if r["buyer_name"].strip()
+        }
+        if len(group) < 2 or len(buyer_labels) < 2:
+            continue
+        candidates.append({
+            "label": f"TED CPV {cpv}",
+            "group_basis": "ted_distinct_published_buyer_labels_shared_primary_cpv",
+            "records": group, "source_count": 1,
+            "published_buyer_label_count": len(buyer_labels),
+        })
+    ranking = {
+        "literal_phrase_across_sources_not_verified_workflow": 0,
+        "ted_distinct_published_buyer_labels_shared_primary_cpv": 1,
+        "openalex_assigned_primary_topic": 2,
+        "cfpb_public_product_issue_categories": 3,
+    }
     candidates.sort(key=lambda c: (
-        -c["source_count"], -len(c["records"]),
+        -c["source_count"], ranking.get(c["group_basis"], 9),
+        -len(c["records"]),
         -int(max(r["date"] for r in c["records"]).replace("-", "")),
         c["label"].lower(),
     ))
 
     selected = []
+    basis_counts: dict[str, int] = defaultdict(int)
+    # Avoid saturating the first dozen slots with one complaint category
+    # family just because there are many independent public record IDs.
     for row in candidates:
+        kind = row["group_basis"]
+        max_of_kind = 4 if kind == "cfpb_public_product_issue_categories" else 6
+        if basis_counts[kind] >= max_of_kind:
+            continue
         group = row["records"]
         sources = sorted({r["source"] for r in group})
         selected.append({
@@ -256,6 +311,10 @@ def summarize_discovery(
             "unique_recent_records_in_sample": len(group),
             "distinct_source_classes": len(sources),
             "sources": sources,
+            "distinct_published_buyer_labels_in_sample": row.get(
+                "published_buyer_label_count", 0,
+            ),
+            "buyer_labels_not_verified_entity_identities": True,
             "latest_event_date": max(r["date"] for r in group),
             "examples": [{
                 "source": r["source"], "title": r["title"],
@@ -267,9 +326,12 @@ def summarize_discovery(
             "next_check": (
                 "Compare original sources: do they describe the same buyer/workflow?"
                 if len(sources) >= 2 else
+                "Validate the published buyers, precise CPV scope, dates and tender value"
+                if kind == "ted_distinct_published_buyer_labels_shared_primary_cpv" else
                 "Validate independent sources and a buyer with a budget"
             ),
         })
+        basis_counts[kind] += 1
         if len(selected) >= 12:
             break
 
@@ -280,13 +342,33 @@ def summarize_discovery(
         (r for r in records if r["source"] == "ted" and r["title"]),
         key=lambda x: (x["date"], x["id"]), reverse=True,
     )
+    # Surface current competition notice types first (excluding contract
+    # awards and prior-information announcements). Publication does not imply
+    # the tender is still open, even if lot dates are in the future.
+    procurement_sorted = sorted(
+        ted_records,
+        key=lambda x: (
+            x.get("procurement_stage") == "contract_notice_not_award"
+            and x.get("deadline_assessment") != "all_published_lot_dates_past",
+            x["date"], x["id"],
+        ), reverse=True,
+    )
     procurement_observations = [{
         "title": r["title"], "date": r["date"], "reference": r["reference"],
-        "buyer_name": r.get("buyer_name", ""), "notice_type": r.get("notice_type", ""),
+        "buyer_name": r.get("buyer_name", ""),
+        "buyer_country_code": r.get("buyer_country_code", ""),
+        "notice_type": r.get("notice_type", ""),
         "procurement_stage": r.get("procurement_stage", ""),
         "title_language": r.get("title_language", ""),
+        "main_cpv_code": r.get("main_cpv_code", ""),
+        "cpv_codes": r.get("cpv_codes", []),
+        "latest_lot_deadline_date": r.get("latest_lot_deadline_date", ""),
+        "deadline_assessment": r.get("deadline_assessment", ""),
+        "estimated_value_as_published": r.get("estimated_value_as_published", ""),
+        "estimated_value_currency": r.get("estimated_value_currency", ""),
+        "estimated_value_not_verified_spending": True,
         "buying_intent_verified": False, "contract_value_verified": False,
-    } for r in ted_records[:4]]
+    } for r in procurement_sorted[:4]]
     research_records = sorted(
         (r for r in records if r["source"] == "openalex" and r["title"]),
         key=lambda x: (x["date"], x["id"]), reverse=True,
@@ -424,6 +506,13 @@ def format_discovery_report(result: dict[str, Any]) -> str:
                 "   Interpretation: repeat complaints in one source, not "
                 "independent buyers or verified market growth"
             )
+        if item["basis"] == "ted_distinct_published_buyer_labels_shared_primary_cpv":
+            lines.append(
+                "   Buyer-side repeat: "
+                f"{item['distinct_published_buyer_labels_in_sample']} distinct "
+                "published buyer labels; legal-entity identities, awards and "
+                "market growth NOT verified"
+            )
         lines.append("   Next: " + item["next_check"])
         lines.append("")
     if result.get("procurement_observations"):
@@ -438,6 +527,18 @@ def format_discovery_report(result: dict[str, Any]) -> str:
                 buyer = "".join(c if c.isprintable() else " " for c in notice["buyer_name"])
                 details.append("buyer published: " + " ".join(buyer.split())[:85])
             details.append(notice["procurement_stage"].replace("_", " "))
+            if notice["buyer_country_code"]:
+                details.append("buyer country: " + notice["buyer_country_code"])
+            if notice["main_cpv_code"]:
+                details.append("main CPV: " + notice["main_cpv_code"])
+            if notice["latest_lot_deadline_date"]:
+                details.append("last published lot date: " + notice["latest_lot_deadline_date"])
+            if notice["estimated_value_as_published"]:
+                details.append(
+                    "estimated (not spent): "
+                    + notice["estimated_value_as_published"] + " "
+                    + notice["estimated_value_currency"]
+                )
             if notice["title_language"]:
                 details.append("title language: " + notice["title_language"])
             lines.append("    " + " | ".join(details))

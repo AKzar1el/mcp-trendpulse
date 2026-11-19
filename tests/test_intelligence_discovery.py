@@ -405,3 +405,169 @@ def test_discover_uses_recent_first_published_notice_sort():
     assert "SORT BY publication-date DESC" in ted["body"]["query"]
     assert "PD = (" in ted["body"]["query"]
     assert ted["body"]["limit"] == 12
+
+
+
+def _rich_ted(id, buyer, cpv, *, kind="cn-standard",
+              deadline="2026-12-11", estimated="65000.00", currency="EUR"):
+    return {
+        "publication-number": id,
+        "publication-date": "2026-11-19",
+        "notice-title": {"eng": [f"Procurement of specialist services {id}"]},
+        "buyer-name": {"eng": [buyer]},
+        "buyer-country": ["DEU"],
+        "notice-type": kind,
+        "main-classification-proc": cpv,
+        "classification-cpv": [cpv, cpv, "72222300"],
+        "deadline-receipt-tender-date-lot": [deadline],
+        "estimated-value-proc": estimated,
+        "estimated-value-cur-proc": currency,
+    }
+
+
+def test_seedless_ted_enrichment_preserves_only_published_source_values():
+    from mcp_trendpulse.intelligence_observations import _entry
+
+    notice = _rich_ted("804511-2026", "City Data Office", "72000000")
+    normal = _entry("ted", notice, date(2026, 11, 19))
+    assert normal["buyer_country_code"] == "DEU"
+    assert normal["main_cpv_code"] == "72000000"
+    assert normal["cpv_codes"] == ["72000000", "72222300"]
+    assert normal["lot_deadline_dates"] == ["2026-12-11"]
+    assert normal["estimated_value_as_published"] == "65000.00"
+    assert normal["estimated_value_currency"] == "EUR"
+    assert normal["estimated_value_not_verified_spending"] is True
+
+    x = report(observed("ted", [notice]))
+    lead = x["procurement_observations"][0]
+    assert lead["main_cpv_code"] == "72000000"
+    assert lead["deadline_assessment"] == "published_lot_dates_on_or_after_asof"
+    assert lead["latest_lot_deadline_date"] == "2026-12-11"
+    assert lead["estimated_value_as_published"] == "65000.00"
+    assert lead["contract_value_verified"] is False
+    output = discovery.format_discovery_report(x)
+    assert "main CPV: 72000000" in output
+    assert "buyer country: DEU" in output
+    assert "last published lot date: 2026-12-11" in output
+    assert "estimated (not spent): 65000.00 EUR" in output
+
+
+def test_two_distinct_published_buyers_same_primary_cpv_are_research_candidate():
+    x = report(observed("ted", [
+        _rich_ted("805001-2026", "Municipality East", "72000000"),
+        _rich_ted("805002-2026", "Municipality West", "72000000"),
+        _rich_ted("805003-2026", "Municipality East", "72000000"),
+    ]))
+    clusters = [c for c in x["candidates"]
+                if c["basis"] ==
+                "ted_distinct_published_buyer_labels_shared_primary_cpv"]
+    assert len(clusters) == 1
+    c = clusters[0]
+    assert c["label"] == "TED CPV 72000000"
+    assert c["unique_recent_records_in_sample"] == 3
+    assert c["distinct_source_classes"] == 1
+    assert c["distinct_published_buyer_labels_in_sample"] == 2
+    assert c["investigation_priority"] == 1
+    assert c["same_buyer_verified"] is False
+    assert c["commercial_budget_verified"] is False
+    output = discovery.format_discovery_report(x)
+    assert "Buyer-side repeat: 2 distinct published buyer labels" in output
+    assert "legal-entity identities, awards" in output
+
+
+def test_repeat_notices_from_same_buyer_cannot_fake_cross_buyer_demand():
+    x = report(observed("ted", [
+        _rich_ted("805001-2026", "Municipality East", "72000000"),
+        _rich_ted("805002-2026", "municipality east ", "72000000"),
+    ]))
+    assert not any(c["basis"] ==
+                   "ted_distinct_published_buyer_labels_shared_primary_cpv"
+                   for c in x["candidates"])
+
+
+def test_awards_and_prior_information_not_grouped_as_new_procurement():
+    x = report(observed("ted", [
+        _rich_ted("805001-2026", "Municipality East", "72000000", kind="can-standard"),
+        _rich_ted("805002-2026", "Municipality West", "72000000", kind="pin-only"),
+    ]))
+    assert not any(c["basis"] ==
+                   "ted_distinct_published_buyer_labels_shared_primary_cpv"
+                   for c in x["candidates"])
+    assert all(z["buying_intent_verified"] is False
+               for z in x["procurement_observations"])
+
+
+def test_no_unverified_primary_cpv_from_only_additional_lot_codes():
+    x = _rich_ted("805010-2026", "Town A", "72000000")
+    x.pop("main-classification-proc")
+    y = _rich_ted("805011-2026", "Town B", "72000000")
+    y.pop("main-classification-proc")
+    output = report(observed("ted", [x, y]))
+    assert not any(c["basis"] ==
+                   "ted_distinct_published_buyer_labels_shared_primary_cpv"
+                   for c in output["candidates"])
+
+
+def test_prioritize_competition_notices_with_future_lot_dates_over_awards():
+    x = report(observed("ted", [
+        _rich_ted("805002-2026", "Town B", "72000000",
+                  kind="can-standard"),
+        _rich_ted("805001-2026", "Town A", "72000000",
+                  deadline="2026-12-30", kind="cn-standard"),
+        _rich_ted("805003-2026", "Town C", "72000000",
+                  deadline="2026-10-01", kind="cn-standard"),
+    ]))
+    assert x["procurement_observations"][0]["notice_type"] == "cn-standard"
+    assert x["procurement_observations"][0]["deadline_assessment"] == (
+        "published_lot_dates_on_or_after_asof"
+    )
+    assert any(
+        item["deadline_assessment"] == "all_published_lot_dates_past"
+        for item in x["procurement_observations"]
+    )
+
+
+def test_no_false_budget_from_invalid_or_unpaired_estimate():
+    from mcp_trendpulse.intelligence_observations import _entry
+
+    bad = _rich_ted(
+        "805010-2026", "Town A", "72000000",
+        estimated="999999999999999999999999999999999.123",
+        currency="EUR",
+    )
+    raw = _entry("ted", bad, date(2026, 11, 19))
+    assert raw["estimated_value_as_published"] == ""
+    invalid_currency = {**bad, "estimated-value-proc": "12345",
+                        "estimated-value-cur-proc": "NOTISO!"}
+    raw = _entry("ted", invalid_currency, date(2026, 11, 19))
+    assert raw["estimated_value_currency"] == ""
+
+
+def test_seedless_ted_field_contract_requests_verified_source_fields():
+    plan = discovery.discover_current(execute=False, env={})
+    ted = next(p for p in plan["plans"] if p["source"] == "ted")
+    fields = set(ted["body"]["fields"])
+    assert {
+        "classification-cpv", "main-classification-proc", "title-proc",
+        "estimated-value-proc", "estimated-value-cur-proc",
+        "deadline-receipt-tender-date-lot", "buyer-country",
+    } <= fields
+
+
+def test_cfpb_cannot_consume_all_discovery_candidate_slots():
+    complaints = [
+        complaint(str(i), issue=f"Complaint category {i // 2}")
+        for i in range(16)
+    ]
+    publications = [
+        work("W2741809807"), work("W2741809808"),
+    ]
+    x = report(
+        observed("cfpb", complaints),
+        observed("openalex", publications),
+    )
+    cfpb = [c for c in x["candidates"]
+            if c["basis"] == "cfpb_public_product_issue_categories"]
+    assert len(cfpb) <= 4
+    assert any(c["basis"] == "openalex_assigned_primary_topic"
+               for c in x["candidates"])

@@ -64,9 +64,14 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
         if any(c in query for c in "\r\n{};") or len(query) > 140:
             raise IntelligenceError("Unsafe or oversized TED query")
         body = {
-            "query": query, "fields": ["publication-number", "notice-title",
-                                      "buyer-name", "publication-date",
-                                      "notice-type", "official-language"],
+            "query": query, "fields": [
+                "publication-number", "publication-date", "notice-type",
+                "notice-title", "title-proc", "official-language",
+                "buyer-name", "buyer-country", "classification-cpv",
+                "main-classification-proc",
+                "deadline-receipt-tender-date-lot",
+                "estimated-value-proc", "estimated-value-cur-proc",
+            ],
             "limit": limit, "page": 1, "paginationMode": "PAGE_NUMBER",
         }
         return Plan(method="POST", url="https://api.ted.europa.eu/v3/notices/search",

@@ -634,3 +634,43 @@ rather than a required pass from a transient shared-CI-IP probe. A timeout
 must remain `unavailable`, never `observed`; the core ECB CSV shape and
 origin allowlist remain covered by deterministic tests. No paid fallback,
 retry storm, new credential, production route or unattended polling is added.
+
+
+### TED buyer-side repeat signals, CPV and deadline integrity (2026-11-19)
+
+The first real `intelligence discover --limit 20` run showed three repeated
+CFPB complaint categories ahead of isolated TED purchases. **A complaint ID
+is not a verified distinct buyer.** The new bounded TED projection requests
+official procedure/lot data: `main-classification-proc`,
+`classification-cpv`, `deadline-receipt-tender-date-lot`,
+`buyer-country`, `estimated-value-proc`, `estimated-value-cur-proc`
+(and `title-proc` as a multilingual title fallback). All remain free,
+read-only, fixed-origin, subject to the same cache and provider-day budget.
+
+For usable TED notices the output now shows published buyer country, main CPV,
+last lot-deadline **date** (without inventing an open-now state), published
+estimated procedure amount **and original currency**, if present. An estimate
+is neither verified vendor revenue nor payment nor addressable software
+budget. No currency conversion, values inferred from unrelated lot notices,
+or guessed CPV labels are generated. Invalid codes, prices, currencies and
+dates are omitted.
+
+An optional recurring buyer-side candidate exists only when **at least two
+recent contract-notice records** in the same *published primary eight-digit
+CPV* have **different published buyer-name labels**. This excludes award
+notices, prior-information notices, mismatched CPV codes and multiple notices
+from a buyer with the same normalized label. Two name labels are NOT two
+independently verified registered legal entities. Such clusters carry a
+single-source investigation priority (1/2), not evidence of rising market
+volume, awarded contracts or budget execution.
+
+Candidates sort cross-source lexical leads first, then published-buyer CPV
+repeats, then research and complaints. CFPB-only repetition cannot consume
+more than four of the 12 result slots. Individual procurement notices with
+possible remaining lot dates appear before award/historical notice examples
+regardless of whether they form a group; this is an inspection order, **not
+a guarantee that the tender is still open**. A notice may need its primary
+PDF/XML and procurement platform checked before any bid decision.
+
+Official source references: TED API https://docs.ted.europa.eu/api/latest/search.html
+and published field list https://docs.ted.europa.eu/ODS/latest/reuse/field-list.html .

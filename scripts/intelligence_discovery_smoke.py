@@ -52,6 +52,16 @@ def main() -> int:
         "sample_recent_records": result["recent_observations"],
         "research_candidates_in_sample": result["candidate_count"],
         "procurement_titles_available": len(result["procurement_observations"]),
+        "procurement_with_published_main_cpv": sum(
+            bool(x["main_cpv_code"]) for x in result["procurement_observations"]
+        ),
+        "procurement_with_lot_date": sum(
+            bool(x["latest_lot_deadline_date"]) for x in result["procurement_observations"]
+        ),
+        "procurement_cpv_buyer_repeat_candidates": sum(
+            x["basis"] == "ted_distinct_published_buyer_labels_shared_primary_cpv"
+            for x in result["candidates"]
+        ),
         "research_titles_available": len(result["research_observations"]),
         "latest_procurement_date": (
             result["procurement_observations"][0]["date"]

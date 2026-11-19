@@ -88,6 +88,55 @@ def _multilingual(value: Any, *, official: Any = None, size: int = 180) -> tuple
     return "", ""
 
 
+def _ted_code_list(value: Any) -> list[str]:
+    """Return only exact eight-digit CPV codes, not inferred descriptions."""
+    rows = value if isinstance(value, list) else [value]
+    codes = []
+    for entry in rows[:20]:
+        if isinstance(entry, str) and re.fullmatch(r"[0-9]{8}(?:-[0-9])?", entry):
+            code = entry[:8]
+            if code not in codes:
+                codes.append(code)
+    return codes[:12]
+
+
+def _ted_dates(value: Any) -> list[str]:
+    """Return only published ISO lot-deadline dates, no open-now inference."""
+    rows = value if isinstance(value, list) else [value]
+    valid = []
+    for entry in rows[:20]:
+        if isinstance(entry, str) and re.match(r"^\d{4}-\d{2}-\d{2}", entry):
+            try:
+                day = date.fromisoformat(entry[:10]).isoformat()
+            except ValueError:
+                continue
+            if day not in valid:
+                valid.append(day)
+    return sorted(valid)
+
+
+def _ted_country(value: Any) -> str:
+    rows = value if isinstance(value, list) else [value]
+    for item in rows[:8]:
+        if isinstance(item, str) and re.fullmatch(r"[A-Za-z]{3}", item):
+            return item.upper()
+    return ""
+
+
+def _ted_estimate(value: Any, currency: Any) -> tuple[str, str]:
+    """Preserve public procedure estimates as strings, without currency math."""
+    values = value if isinstance(value, list) else [value]
+    amount = next((
+        str(v) for v in values[:5]
+        if isinstance(v, (str, int, float)) and not isinstance(v, bool)
+        and re.fullmatch(r"[0-9]{1,13}(?:\.[0-9]{1,2})?", str(v))
+    ), "")
+    currencies = currency if isinstance(currency, list) else [currency]
+    unit = next((c.upper() for c in currencies[:5]
+                 if isinstance(c, str) and re.fullmatch(r"[A-Za-z]{3}", c)), "")
+    return (amount, unit) if amount and unit else ("", "")
+
+
 def _entry(source: str, raw: dict[str, Any], asof: date) -> dict[str, Any] | None:
     """Extract only source-published non-personal fields, never raw payloads."""
     result: dict[str, Any] = {"source": source, "kind": SOURCE_KIND[source]}
@@ -166,7 +215,8 @@ def _entry(source: str, raw: dict[str, Any], asof: date) -> dict[str, Any] | Non
             return None
         official = raw.get("official-language")
         title, title_language = _multilingual(
-            raw.get("notice-title") or raw.get("notice_title"),
+            raw.get("notice-title") or raw.get("notice_title")
+            or raw.get("title-proc"),
             official=official, size=180,
         )
         buyer, buyer_language = _multilingual(
@@ -180,10 +230,23 @@ def _entry(source: str, raw: dict[str, Any], asof: date) -> dict[str, Any] | Non
             if re.fullmatch(r"[0-9]{1,7}-20[0-9]{2}", tender_id)
             else "https://ted.europa.eu/en/"
         )
+        cpv_codes = _ted_code_list(raw.get("classification-cpv"))
+        main_cpv = _ted_code_list(raw.get("main-classification-proc"))
+        deadline_dates = _ted_dates(raw.get("deadline-receipt-tender-date-lot"))
+        estimated_amount, estimated_currency = _ted_estimate(
+            raw.get("estimated-value-proc"), raw.get("estimated-value-cur-proc"),
+        )
         result.update({
             "id": tender_id,
             "buyer_name": buyer,
             "buyer_language": buyer_language,
+            "buyer_country_code": _ted_country(raw.get("buyer-country")),
+            "cpv_codes": cpv_codes,
+            "main_cpv_code": main_cpv[0] if main_cpv else "",
+            "lot_deadline_dates": deadline_dates,
+            "estimated_value_as_published": estimated_amount,
+            "estimated_value_currency": estimated_currency,
+            "estimated_value_not_verified_spending": True,
             "title": title,
             "title_language": title_language,
             "notice_type": _text(raw.get("notice-type") or raw.get("notice_type"), 50),
