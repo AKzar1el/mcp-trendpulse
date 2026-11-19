@@ -1893,6 +1893,88 @@ def test_cli_headlines_are_labeled_without_article_extraction(command, method, k
     provider.assert_awaited_once_with(**kwargs)
 
 
+@pytest.mark.parametrize(
+    ("command", "method"),
+    [
+        (["keyword", "python"], "get_rss_headlines_by_keyword"),
+        (["location", "London"], "get_rss_headlines_by_location"),
+        (["topic", "TECHNOLOGY"], "get_rss_headlines_by_topic"),
+        (["top"], "get_rss_headlines_for_top_news"),
+        (["site", "bbc.com"], "get_rss_headlines_by_site"),
+    ],
+)
+def test_cli_rss_json_has_only_labeled_metadata(command, method):
+    headline = {
+        "title": "=Potential formula", "url": "https://news.google.com/rss/articles/example",
+        "meta_site_name": "Example News", "publish_date": "2026-10-25T09:00:00+00:00",
+        "meta_data": {"content_level": "rss_headline_only", "source": "google_news_rss"},
+        "summary": "forbidden article summary", "text": "forbidden article text",
+    }
+    provider = AsyncMock(return_value=[headline])
+    with (
+        patch("mcp_trendpulse.cli.get_provider_set", return_value=SimpleNamespace(
+            news=SimpleNamespace(**{method: provider})
+        )),
+        patch("mcp_trendpulse.cli.BrowserManager", side_effect=AssertionError("no browser")),
+        patch("mcp_trendpulse.cli.save_article_to_json", side_effect=AssertionError("no article file")),
+    ):
+        result = CliRunner().invoke(cli_module.cli, [*command, "--headlines-only", "--format", "json"])
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report == {
+        "schema_version": 1, "source": "google_news_rss",
+        "content_level": "rss_headline_only", "count": 1,
+        "headlines": [{
+            "title": "=Potential formula", "url": headline["url"],
+            "publisher": "Example News", "publish_date": headline["publish_date"],
+        }],
+    }
+    provider.assert_awaited_once()
+
+
+@pytest.mark.parametrize("command", [
+    ["keyword", "python"], ["location", "London"], ["topic", "TECHNOLOGY"],
+    ["top"], ["site", "bbc.com"],
+])
+def test_cli_rss_json_requires_headlines_only_without_calling_provider(command):
+    with (
+        patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("no provider call")),
+        patch("mcp_trendpulse.cli.BrowserManager", side_effect=AssertionError("no browser")),
+    ):
+        result = CliRunner().invoke(cli_module.cli, [*command, "--format", "json"])
+    assert result.exit_code == 2
+    assert "--format json requires --headlines-only" in result.output
+
+
+def test_cli_rss_json_empty_is_parseable_and_without_text_footer():
+    provider = AsyncMock(return_value=[])
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=SimpleNamespace(
+        news=SimpleNamespace(get_rss_headlines_for_top_news=provider)
+    )):
+        result = CliRunner().invoke(cli_module.cli, ["top", "--headlines-only", "--format", "json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == {
+        "schema_version": 1, "source": "google_news_rss",
+        "content_level": "rss_headline_only", "count": 0, "headlines": [],
+    }
+
+
+def test_cli_rss_json_rejects_mixed_unlabeled_evidence_without_partial_document():
+    valid = {
+        "title": "Real headline", "url": "https://news.google.com/rss/articles/valid",
+        "publish_date": "2026-10-25T09:00:00+00:00",
+        "meta_data": {"content_level": "rss_headline_only", "source": "google_news_rss"},
+    }
+    invalid = {**valid, "meta_data": {"content_level": "article_full", "source": "google_news_rss"}}
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=SimpleNamespace(
+        news=SimpleNamespace(get_rss_headlines_by_keyword=AsyncMock(return_value=[valid, invalid]))
+    )):
+        result = CliRunner().invoke(cli_module.cli, ["keyword", "ai", "--headlines-only", "--format", "json"])
+    assert result.exit_code != 0
+    assert "Unexpected RSS headline evidence level" in result.output
+    assert "schema_version" not in result.output
+
+
 def test_cli_rejects_unlabeled_rss_claims():
     news = SimpleNamespace(get_rss_headlines_by_keyword=AsyncMock(return_value=[{
         "title": "Not RSS", "meta_data": {"content_level": "article_full", "source": "google_news_rss"},
