@@ -1,6 +1,7 @@
 """Provider-free readiness review of saved Demand Brief schema-v1 JSON."""
 
 import csv
+import html
 import io
 import json
 import math
@@ -9,6 +10,12 @@ from datetime import datetime
 
 MAX_EVIDENCE_BYTES = 1024 * 1024
 _MARKET = re.compile(r"[A-Z]{2}(?:-[A-Z0-9]{1,6}){0,2}\Z")
+
+
+def _markdown_safe(value):
+    """Render saved, unauthenticated labels as literal Markdown text."""
+    text = html.escape(str(value).replace("\r", " ").replace("\n", " "), quote=False)
+    return re.sub(r"([\\`*_{}\[\]()#+.!|~>-])", r"\\\1", text)
 
 
 def _unique_keys(pairs):
@@ -67,7 +74,7 @@ def _observation_date_change(earlier, later):
 
 def review_saved_brief(raw, *, output_format="text"):
     """Return (formatted review, needs_attention), without network or file mutations."""
-    if output_format not in ("text", "json", "csv"):
+    if output_format not in ("text", "json", "csv", "markdown"):
         raise ValueError("Unsupported Demand Brief review format")
     if len(raw) > MAX_EVIDENCE_BYTES:
         raise ValueError("Demand Brief evidence exceeds 1 MiB")
@@ -188,6 +195,37 @@ def review_saved_brief(raw, *, output_format="text"):
         "Normalized interest is not search volume; do not rank indices across markets.",
         "This checks saved fields only, not whether the provider supplied the data.",
     ]
+    if output_format == "markdown":
+        rows = [
+            "# Saved Demand Brief readiness review",
+            "",
+            f"**Timeframe:** {_markdown_safe(timeframe.strip())}",
+            "**Source:** Google Trends / Google Search (declared by file, not authenticated)",
+            "",
+            "| Market | Primary coverage | Latest observation | Status | Warnings |",
+            "| --- | ---: | --- | --- | ---: |",
+        ]
+        for item in market_reviews:
+            status = item["status"].replace("_", " ")
+            if item["growth_unavailable"]:
+                status += "; growth unavailable"
+            rows.append(
+                f"| {item['market']} | {item['observed_keywords']}/{item['total_keywords']} | "
+                f"{item['latest_market_observation'] or 'n/a'} | {status} | {item['warning_count']} |"
+            )
+        for name, failure in errors.items():
+            if name not in seen:
+                # No primary response means unknown coverage, not zero keywords.
+                rows.append(f"| {name} | unknown | n/a | no market evidence ({failure['code']}) | unknown |")
+        rows.extend([
+            "",
+            "**Assessment:** NEEDS HUMAN REVIEW" if needs_attention else
+            "**Assessment:** structurally complete; review warnings",
+            "",
+            "## Evidence limitations",
+            *[f"- {caveat}" for caveat in caveats],
+        ])
+        return "\n".join(rows) + "\n", needs_attention
     if output_format in ("json", "csv"):
         report = {
             "schema_version": 1,
@@ -241,7 +279,7 @@ def review_saved_brief(raw, *, output_format="text"):
 
 def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
     """Compare saved evidence *coverage*, never normalized interest indices."""
-    if output_format not in ("text", "json", "csv", "keyword-csv"):
+    if output_format not in ("text", "json", "csv", "keyword-csv", "markdown"):
         raise ValueError("Unsupported Demand Brief comparison format")
     before_text, _ = review_saved_brief(before_raw, output_format="json")
     after_text, needs_review = review_saved_brief(after_raw, output_format="json")
@@ -345,6 +383,55 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
     }
     if output_format == "json":
         return json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True) + "\n", needs_review
+    if output_format == "markdown":
+        rows = [
+            "# Saved Demand Brief evidence comparison",
+            "",
+            f"**Timeframe:** {_markdown_safe(report['timeframe'])}",
+            "**Source:** Saved Google Trends / Google Search labels (not authenticated)",
+            "",
+            "| Market | Before primary coverage | After primary coverage | Coverage delta |",
+            "| --- | ---: | ---: | ---: |",
+        ]
+        for item in comparisons:
+            def coverage(snapshot):
+                observed = snapshot["observed_keywords"]
+                return "unknown" if observed is None else f"{observed}/{snapshot['total_keywords']}"
+
+            delta = item["primary_coverage_change"]
+            rows.append(
+                f"| {item['market']} | {coverage(item['before'])} | {coverage(item['after'])} | "
+                f"{'unknown' if delta is None else f'{delta:+d}'} |"
+            )
+        for item in comparisons:
+            rows.append("")
+            rows.append(f"### {item['market']} observation details")
+            rows.append(
+                f"- Latest market observation (before -> after): "
+                f"{item['before']['latest_market_observation'] or 'n/a'} -> "
+                f"{item['after']['latest_market_observation'] or 'n/a'}"
+            )
+            rows.append(
+                f"- Failure codes (before -> after): "
+                f"{item['before']['failure_code'] or 'none'} -> "
+                f"{item['after']['failure_code'] or 'none'}"
+            )
+            for older in item["older_observations"] or []:
+                rows.append(
+                    f"- Primary observation older in declared after-file: "
+                    f"{_markdown_safe(older['keyword'])} "
+                    f"({_markdown_safe(older['before_date'])} -> {_markdown_safe(older['after_date'])}); "
+                    "human review required"
+                )
+        rows.extend([
+            "",
+            "**Assessment:** NEEDS HUMAN REVIEW" if needs_review else
+            "**Assessment:** current snapshot structurally complete; review warnings",
+            "",
+            "## Evidence limitations",
+            *[f"- {caveat}" for caveat in caveats],
+        ])
+        return "\n".join(rows) + "\n", needs_review
     if output_format == "keyword-csv":
         buffer = io.StringIO(newline="")
         writer = csv.writer(buffer, lineterminator="\n")
