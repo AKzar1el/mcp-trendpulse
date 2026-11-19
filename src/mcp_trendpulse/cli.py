@@ -408,7 +408,10 @@ def brief_review(evidence, review_format, output_file, as_of, max_age_days):
 @click.option("--format", "compare_format", type=click.Choice(["text", "json", "csv", "keyword-csv", "markdown"]), default="text", show_default=True)
 @click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
               help="Save the comparison to a new UTF-8 file; never overwrite existing files.")
-def brief_compare(before_path, after_path, compare_format, output_file):
+@click.option("--as-of", default=None, help="Explicit YYYY-MM-DD reference for checking after-file primary observation dates.")
+@click.option("--max-age-days", type=click.IntRange(0, 3650), default=None,
+              help="Maximum age of after-file primary observations; requires --as-of.")
+def brief_compare(before_path, after_path, compare_format, output_file, as_of, max_age_days):
     """Compare two compatible saved evidence files without querying providers."""
     from mcp_trendpulse.brief_review import MAX_EVIDENCE_BYTES, compare_saved_briefs
 
@@ -419,7 +422,10 @@ def brief_compare(before_path, after_path, compare_format, output_file):
             before_raw = handle.read(MAX_EVIDENCE_BYTES + 1)
         with after_path.open("rb") as handle:
             after_raw = handle.read(MAX_EVIDENCE_BYTES + 1)
-        report, needs_attention = compare_saved_briefs(before_raw, after_raw, output_format=compare_format)
+        report, needs_attention = compare_saved_briefs(
+            before_raw, after_raw, output_format=compare_format,
+            as_of=as_of, max_age_days=max_age_days,
+        )
     except (OSError, ValueError) as exc:
         raise click.ClickException(f"Demand Brief comparison failed: {exc}") from exc
     if output_file is None:
