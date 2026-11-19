@@ -506,8 +506,8 @@ def _save_new_brief_report(destination, report, *, kind, label="Demand Brief"):
 
 @cli.command("brief-review", help="Review saved Demand Brief JSON offline without provider calls.")
 @click.option("--evidence", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
-@click.option("--format", "review_format", type=click.Choice(["text", "json", "csv", "markdown"]), default="text",
-              show_default=True, help="Text, structured JSON, CSV, or offline Markdown readiness report.")
+@click.option("--format", "review_format", type=click.Choice(["text", "json", "csv", "markdown", "checklist"]), default="text",
+              show_default=True, help="Text, JSON, CSV, Markdown, or an offline evidence-gap checklist.")
 @click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
               help="Save the review to a new UTF-8 file; never overwrite existing files.")
 @click.option("--as-of", default=None, help="Explicit YYYY-MM-DD date for reproducible offline freshness review.")
