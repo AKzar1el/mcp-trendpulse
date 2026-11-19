@@ -920,8 +920,9 @@ def discover_current(
     *, lookback_days: int = 30, limit: int = 12,
     execute: bool = False, cache: BudgetCache | None = None,
     env: dict[str, str] | None = None, ted_date_slices: int = 1,
+    measure_trends: bool = False,
 ) -> dict[str, Any]:
-    """Free, read-only discovery: default three requests; opt-in five."""
+    """Free, read-only discovery; optional source-count trend measurement."""
     if isinstance(lookback_days, bool) or not isinstance(lookback_days, int) or not 7 <= lookback_days <= 90:
         raise ValueError("lookback_days must be 7-90")
     if isinstance(limit, bool) or not isinstance(limit, int) or not 2 <= limit <= MAX_RECORDS:
@@ -932,6 +933,8 @@ def discover_current(
         raise ValueError("Three TED date slices require limit >= 3")
     if not isinstance(execute, bool):
         raise ValueError("execute must be a boolean")
+    if not isinstance(measure_trends, bool):
+        raise ValueError("measure_trends must be a boolean")
     now = date.today()
     first = now - timedelta(days=lookback_days - 1)
     plans = [
@@ -950,7 +953,7 @@ def discover_current(
             ), limit=cap, env=env,
         ))
     if not execute:
-        return {
+        planned = {
             "status": "planned", "network_performed": False,
             "execute_required_for_network": True,
             "source_count": len(SOURCES), "request_count": len(plans),
@@ -962,6 +965,26 @@ def discover_current(
             "plans": [p.public() for p in plans],
             "budget_excludes_paid_api_tiers": True,
         }
+        if measure_trends:
+            from mcp_trendpulse.intelligence_trends import (
+                MAX_ADDITIONAL_REQUESTS, MAX_TOPICS, PUBLICATION_LAG_DAYS,
+            )
+            planned["max_requests_with_trend_measurement"] = (
+                len(plans) + MAX_ADDITIONAL_REQUESTS
+            )
+            planned["trend_evidence"] = {
+                "status": "planned_dynamic_provider_topic_counts",
+                "requires_execute": True,
+                "network_performed": False,
+                "max_auto_topics": MAX_TOPICS,
+                "max_additional_source_requests": MAX_ADDITIONAL_REQUESTS,
+                "publication_lag_days": PUBLICATION_LAG_DAYS,
+                "free_only": True,
+                "source": "openalex",
+                "note": "Candidates are chosen from current seedless source results; "
+                        "actual count queries cannot be planned before observing topics.",
+            }
+        return planned
 
     sources: list[dict[str, Any]] = []
     ted_snapshots: list[dict[str, Any]] = []
@@ -1028,6 +1051,26 @@ def discover_current(
             " Three TED windows improve time spread but still return"
             " bounded newest-first pages, not representative market data."
         )
+    if measure_trends:
+        from mcp_trendpulse.intelligence_trends import (
+            measure_discovered_research_trends,
+        )
+
+        openalex = next((
+            source for source in sources if source.get("source") == "openalex"
+        ), {"source": "openalex", "status": "unavailable"})
+        trend_evidence = measure_discovered_research_trends(
+            openalex, as_of=now, lookback_days=lookback_days,
+            cache=cache, env=env,
+        )
+        result["trend_evidence"] = trend_evidence
+        result["queries_budgeted"] += trend_evidence["additional_source_requests"]
+        result["limits"] += (
+            " OpenAlex trend direction is measured using source-wide counts "
+            "over three same-width completed windows, not sampled record "
+            "frequency; provider topic assignments and indexing may change. "
+            "No overall market-growth or purchasing claim follows."
+        )
     return result
 
 
@@ -1054,6 +1097,11 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             tag += " | partial date-window coverage"
         lines.append("Source: " + tag)
     lines.append("")
+    if result.get("trend_evidence") is not None:
+        from mcp_trendpulse.intelligence_trends import format_research_trends
+
+        lines.extend(format_research_trends(result["trend_evidence"]))
+        lines.append("")
     sample_audit = result.get("ted_sampling_audit", {})
     if sample_audit and result.get("ted_date_slices") == 3:
         lines.append(

@@ -871,14 +871,17 @@ def intelligence_sources(wave):
 @click.option("--ted-date-slices", type=click.Choice(["1", "3"]), default="1",
               show_default=True, help="Opt-in 3 separate TED date windows (5 source "
                                       "requests instead of 3; total TED cap unchanged).")
+@click.option("--measure-trends", is_flag=True,
+              help="Opt in to compare up to two auto-discovered OpenAlex topics "
+                   "across three prior periods (up to 9 extra free requests).")
 @click.option("--execute", is_flag=True,
               help="Explicitly fetch fixed public free sources; otherwise plan only.")
 @click.option("--record-history", is_flag=True,
               help="Store hashes of discovered candidates locally (requires --execute).")
 @click.option("--format", "output_format", type=click.Choice(["json", "text"]),
               default="json", show_default=True)
-def intelligence_discover(lookback_days, limit, ted_date_slices, execute,
-                          record_history, output_format):
+def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
+                          execute, record_history, output_format):
     """Discover current source themes without any predefined topic keywords."""
     from mcp_trendpulse.intelligence_discovery import (
         discover_current, format_discovery_report, record_discovery_history,
@@ -889,7 +892,7 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, execute,
             raise ValueError("--record-history requires --execute")
         response = discover_current(
             lookback_days=lookback_days, limit=limit, execute=execute,
-            ted_date_slices=int(ted_date_slices),
+            ted_date_slices=int(ted_date_slices), measure_trends=measure_trends,
         )
         if record_history:
             response["history"] = record_discovery_history(response)

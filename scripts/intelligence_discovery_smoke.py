@@ -31,6 +31,16 @@ def main() -> int:
                 or plan3["source_count"] != 3
                 or sum(w["requested_limit"] for w in plan3["ted_windows"]) != 20):
             raise AssertionError("Time-stratified plan is not network-free or bounded")
+        measured_plan = discover_current(
+            execute=False, limit=20, lookback_days=30, ted_date_slices=3,
+            measure_trends=True, cache=cache, env={},
+        )
+        if (measured_plan["network_performed"]
+                or measured_plan["request_count"] != 5
+                or measured_plan["max_requests_with_trend_measurement"] != 14
+                or measured_plan["trend_evidence"]["network_performed"]
+                or measured_plan["trend_evidence"]["max_additional_source_requests"] != 9):
+            raise AssertionError("Opt-in trend measurement plan is not bounded and offline")
         result = discover_current(
             execute=True, limit=20, lookback_days=30,
             cache=cache, env={},
@@ -107,6 +117,7 @@ def main() -> int:
         "providers_attempted": 3,
         "per_provider_record_limit_requested": 20,
         "stratified_plan_only_safety_verified": True,
+        "trend_measurement_plan_only_safety_verified": True,
         "providers_observed": covered,
         "source_status": [
             {"source": s["source"], "status": s["status"],

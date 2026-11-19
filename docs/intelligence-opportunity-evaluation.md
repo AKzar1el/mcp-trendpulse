@@ -736,6 +736,85 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Real trend direction from OpenAlex source-wide dated counts (2026-11-19)
+
+The owner's latest live `9b48087` test worked at 20/20/20
+OpenAlex/CFPB/TED observations, three bounded TED date windows, 16
+TED buyer-review-qualified notices, seven with a paired original
+procedure amount/currency. That evidence establishes functioning
+collection and conservative procurement provenance but **does not
+establish whether the scientific or consumer topics are rising**.
+Two works tagged with the same OpenAlex topic are not, by themselves,
+a measured trend. The product's primary objective is discovering
+trends, *not* generating procurement revenue leads or requiring
+verified willing-to-pay buyer budgets.
+
+Opt-in `--measure-trends` performs the **first population-counted
+direction test** without requiring user-supplied topic keywords:
+take up to **two** provider-assigned primary-topic IDs repeated
+in the existing latest OpenAlex work sample (two distinct valid,
+in-window work IDs minimum), then ask the *same* official OpenAlex
+Works API for **full matching counts**, not newest-20 observations.
+Compare three prior consecutive, equal-length publication periods.
+For a 30-day lookback at 2026-11-19, the completed periods are
+Aug 8–Sep 6, Sep 7–Oct 6, and Oct 7–Nov 5, leaving the most recent
+**14 days** out of the measurement to reduce incomplete indexing.
+
+For each of those three periods, one bounded list request retrieves
+`meta.count` of all OpenAlex `article|review|book|book-chapter`
+works, then one additional request per auto-discovered primary-topic
+ID retrieves its `meta.count` under the **same publication-type
+and date filters**. The result is transparent research-topic
+**works per million comparable works**, rather than the absolute
+number of works in a twenty-row sample. Up to
+`3 * (1 + 2) = 9` **additional** GETs use exactly the same
+`openalex` source identity, fixed host, filelock, cache, rate
+budget and free/keyless credentials as normal discovery.
+The other providers, community MCP tools, workers, production main
+and background schedules remain unchanged. No paid sync filters,
+hidden subscription fallback, search terms or external scraping.
+
+The report shows exact period counts, normalized shares and
+source-limited heuristic directions (newly observed, rising,
+accelerating, approximately stable, declining, insufficient
+volume or inconclusive). Thresholds intentionally prevent one
+or two records from becoming a sensational signal, and a failed
+source-count query leaves direction **unavailable**, never zero.
+This is **OpenAlex publication share momentum**, not proof that
+Google searches, customer spending, product purchases or market
+growth accelerated. The recent work sample selects a topic for
+measurement; it is **not** used as the denominator or a statistically
+representative sample. CFPB and TED topic directions remain
+**unmeasured** until equivalent complete, comparable source
+counts are implemented. Topic classifiers, category assignments
+and indexing change, and older counts can be revised.
+
+OpenAlex updated the topic classifier in October 2026. The
+names/IDs are provider-derived, subject to change in meaning,
+and the historical-count measurement must not claim a
+pre-2026 cross-classifier trend without qualification.
+Official API documentation:
+https://help.openalex.org/api/
+https://help.openalex.org/api/filtering/
+https://help.openalex.org/data/topics/
+https://help.openalex.org/api/authentication/
+
+Explicit PowerShell example with bounded free evidence:
+
+```powershell
+mcp-trendpulse-cli intelligence discover --execute --measure-trends --lookback-days 30 --limit 20 --ted-date-slices 3 --record-history --format text
+```
+
+Plan-only invocation without `--execute` performs **zero**
+network calls and shows the fixed request maximum. The
+normal command remains unchanged and uses three requests or
+five with TED date slicing; opt-in measurement uses at most
+nine additional OpenAlex requests and stays capped by existing
+source-local daily quotas. Measured trends are emitted
+separately from the hash-only candidate history; no raw
+work IDs, buyer registration numbers, passwords or complaints
+are persisted by the discovery history.
+
 ### Identity-consistency checks for repeated TED procurement leads (2026-11-19)
 
 The owner's latest `16f32fd` field test confirmed 20/20 dated TED
