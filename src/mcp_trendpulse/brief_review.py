@@ -67,7 +67,7 @@ def _observation_date_change(earlier, later):
 
 def review_saved_brief(raw, *, output_format="text"):
     """Return (formatted review, needs_attention), without network or file mutations."""
-    if output_format not in ("text", "json"):
+    if output_format not in ("text", "json", "csv"):
         raise ValueError("Unsupported Demand Brief review format")
     if len(raw) > MAX_EVIDENCE_BYTES:
         raise ValueError("Demand Brief evidence exceeds 1 MiB")
@@ -188,7 +188,7 @@ def review_saved_brief(raw, *, output_format="text"):
         "Normalized interest is not search volume; do not rank indices across markets.",
         "This checks saved fields only, not whether the provider supplied the data.",
     ]
-    if output_format == "json":
+    if output_format in ("json", "csv"):
         report = {
             "schema_version": 1,
             "assessment": "needs_human_review" if needs_attention else "structurally_complete",
@@ -202,7 +202,36 @@ def review_saved_brief(raw, *, output_format="text"):
             ],
             "caveats": caveats,
         }
-        return json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True) + "\n", needs_attention
+        if output_format == "json":
+            return json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True) + "\n", needs_attention
+        buffer = io.StringIO(newline="")
+        writer = csv.writer(buffer, lineterminator="\n")
+        writer.writerow([
+            "market", "timeframe", "status", "assessment", "observed_keywords", "total_keywords",
+            "latest_market_observation", "growth_unavailable", "warning_count", "failure_code",
+            "source_authenticated", "needs_human_review", "caveats",
+        ])
+        # The timeframe is declared by the file and may contain a spreadsheet formula.
+        csv_timeframe = report["timeframe"]
+        if csv_timeframe.lstrip().startswith(("=", "+", "-", "@")):
+            csv_timeframe = "'" + csv_timeframe.lstrip()
+        for item in market_reviews:
+            writer.writerow([
+                item["market"], csv_timeframe, item["status"], report["assessment"],
+                item["observed_keywords"], item["total_keywords"], item["latest_market_observation"],
+                str(item["growth_unavailable"]).lower(), item["warning_count"],
+                errors.get(item["market"], {}).get("code"), "false", str(needs_attention).lower(),
+                "; ".join(caveats),
+            ])
+        for name, failure in errors.items():
+            if name not in seen:
+                # Missing primary market data is unknown, never equivalent to zero coverage.
+                writer.writerow([
+                    name, csv_timeframe, "no_market_evidence", report["assessment"],
+                    None, None, None, None, None, failure["code"], "false",
+                    str(needs_attention).lower(), "; ".join(caveats),
+                ])
+        return buffer.getvalue(), needs_attention
     lines += [
         "Assessment: NEEDS HUMAN REVIEW" if needs_attention else "Assessment: structurally complete; review warnings",
         *caveats,

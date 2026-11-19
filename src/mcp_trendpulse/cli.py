@@ -352,11 +352,34 @@ def site(site, period, max_results, no_nlp, headlines_only, save_json_dir):
     asyncio.run(_site())
 
 
+def _save_new_brief_report(destination, report, *, kind):
+    """Write an already-validated offline report without overwriting existing files."""
+    if destination.exists() or not destination.parent.is_dir():
+        raise click.ClickException(f"{kind.capitalize()} destination must be a new file in an existing directory.")
+    created = False
+    try:
+        with destination.open("x", encoding="utf-8", newline="\n") as handle:
+            created = True
+            handle.write(report)
+    except OSError as exc:
+        if created:
+            try:
+                destination.unlink()
+            except OSError:
+                raise click.ClickException(
+                    f"{kind.capitalize()} write failed; partial file may remain at {destination}: {exc}"
+                ) from exc
+        raise click.ClickException(f"{kind.capitalize()} file was not saved: {exc}") from exc
+    click.echo(f"Wrote Demand Brief {kind} to {destination}", err=True)
+
+
 @cli.command("brief-review", help="Review saved Demand Brief JSON offline without provider calls.")
 @click.option("--evidence", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
-@click.option("--format", "review_format", type=click.Choice(["text", "json"]), default="text", show_default=True,
-              help="Human-readable review or structured JSON for offline workflows.")
-def brief_review(evidence, review_format):
+@click.option("--format", "review_format", type=click.Choice(["text", "json", "csv"]), default="text",
+              show_default=True, help="Human-readable, structured JSON, or market-level CSV readiness report.")
+@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
+              help="Save the review to a new UTF-8 file; never overwrite existing files.")
+def brief_review(evidence, review_format, output_file):
     """Review primary evidence coverage and incomplete markets from a saved JSON file."""
     from mcp_trendpulse.brief_review import MAX_EVIDENCE_BYTES, review_saved_brief
 
@@ -366,7 +389,10 @@ def brief_review(evidence, review_format):
         report, needs_attention = review_saved_brief(raw, output_format=review_format)
     except (OSError, ValueError) as exc:
         raise click.ClickException(f"Demand Brief review failed: {exc}") from exc
-    click.echo(report, nl=False)
+    if output_file is None:
+        click.echo(report, nl=False)
+    else:
+        _save_new_brief_report(output_file, report, kind="review")
     if needs_attention:
         raise click.exceptions.Exit(2)
 
@@ -394,21 +420,7 @@ def brief_compare(before_path, after_path, compare_format, output_file):
     if output_file is None:
         click.echo(report, nl=False)
     else:
-        created = False
-        try:
-            with output_file.open("x", encoding="utf-8", newline="\n") as handle:
-                created = True
-                handle.write(report)
-        except OSError as exc:
-            if created:
-                try:
-                    output_file.unlink()
-                except OSError:
-                    raise click.ClickException(
-                        f"Comparison write failed; partial file may remain at {output_file}: {exc}"
-                    ) from exc
-            raise click.ClickException(f"Comparison file was not saved: {exc}") from exc
-        click.echo(f"Wrote Demand Brief comparison to {output_file}", err=True)
+        _save_new_brief_report(output_file, report, kind="comparison")
     if needs_attention:
         raise click.exceptions.Exit(2)
 
