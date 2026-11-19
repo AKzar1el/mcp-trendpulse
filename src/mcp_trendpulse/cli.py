@@ -179,6 +179,22 @@ def watch_evaluate(rule_id, evidence, dry_run):
         click.echo(result.as_json())
 
 
+@watch.command("backtest")
+@click.option("--id", "rule_id", required=True, help="Existing watch rule ID.")
+@click.option("--evidence", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
+def watch_backtest(rule_id, evidence):
+    """Simulate historic threshold decisions offline without updating cooldown."""
+    from mcp_trendpulse.trend_watch import MAX_EVIDENCE_BYTES, WatchStore
+
+    try:
+        if evidence.stat().st_size > MAX_EVIDENCE_BYTES:
+            raise ValueError("Evidence file exceeds 256 KiB")
+        result = WatchStore().backtest(rule_id, evidence.read_bytes())
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(result, sort_keys=True))
+
+
 @cli.command(help=get_news_by_keyword.__doc__)
 @click.argument("keyword")
 @click.option("--period", type=click.IntRange(min=1), default=7, help="Period in days to search for articles.")

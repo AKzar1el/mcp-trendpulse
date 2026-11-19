@@ -13,7 +13,7 @@ import re
 import secrets
 import sqlite3
 from contextlib import closing, contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import date
 from pathlib import Path
 from statistics import fmean, median
@@ -117,7 +117,9 @@ def parse_evidence(payload: bytes, *, keyword: str, market: str) -> list[tuple[d
     return rows
 
 
-def evaluate_watch(rule: WatchRule, rows: list[tuple[date, float]]) -> WatchDecision:
+def evaluate_watch(
+    rule: WatchRule, rows: list[tuple[date, float]], *, as_of: date | None = None
+) -> WatchDecision:
     """Compare complete recent and preceding windows on the same normalized series."""
     if len(rows) < rule.window * 2:
         return WatchDecision(rule.id, "insufficient_data", None, None, None, None)
@@ -131,7 +133,7 @@ def evaluate_watch(rule: WatchRule, rows: list[tuple[date, float]]) -> WatchDeci
     # Allow delayed weekly/monthly provider buckets, but never turn old evidence
     # into a present-day alert merely because its historical scores increased.
     max_age_days = min(62, max(14, int(2 * cadence_days)))
-    if (date.today() - latest_date).days > max_age_days:
+    if ((as_of if as_of is not None else date.today()) - latest_date).days > max_age_days:
         return WatchDecision(rule.id, "stale_data", latest, None, None, None)
     previous = fmean(value for _, value in rows[-2 * rule.window : -rule.window])
     current = fmean(value for _, value in rows[-rule.window :])
@@ -244,6 +246,37 @@ class WatchStore:
         rule = self.get(rule_id)
         rows = parse_evidence(evidence, keyword=rule.keyword, market=rule.market)
         return evaluate_watch(rule, rows)
+
+    def backtest(self, rule_id: str, evidence: bytes) -> dict[str, Any]:
+        """Simulate historical decisions with virtual cooldown, never persisted."""
+        rule = self.get(rule_id)
+        rows = parse_evidence(evidence, keyword=rule.keyword, market=rule.market)
+        hypothetical = replace(rule, last_alert_date=None)
+        status_counts: dict[str, int] = {}
+        simulated_alerts: list[dict[str, Any]] = []
+        for end in range(2 * rule.window, len(rows) + 1):
+            # Only evidence available through this simulated observation is visible.
+            decision = evaluate_watch(hypothetical, rows[:end], as_of=rows[end - 1][0])
+            status_counts[decision.status] = status_counts.get(decision.status, 0) + 1
+            if decision.status == "triggered":
+                simulated_alerts.append(asdict(decision))
+                hypothetical = replace(hypothetical, last_alert_date=decision.evidence_date)
+        return {
+            "rule_id": rule.id,
+            "keyword": rule.keyword,
+            "market": rule.market,
+            "window": rule.window,
+            "cooldown_days": rule.cooldown_days,
+            "evaluated_windows": sum(status_counts.values()),
+            "status_counts": status_counts,
+            "simulated_alerts": simulated_alerts,
+            "simulated": True,
+            "note": (
+                "Retrospective what-if on one user-supplied normalized series; not a reconstruction "
+                "of data availability at each historical date, independent source verification, "
+                "or an issued alert. Saved cooldown is neither read nor changed."
+            ),
+        }
 
     def evaluate_and_record(self, rule_id: str, evidence: bytes) -> WatchDecision:
         rule = self.get(rule_id)

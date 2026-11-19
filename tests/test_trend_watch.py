@@ -94,6 +94,74 @@ def test_watch_preview_invalid_evidence_preserves_alert_history(tmp_path):
     assert store.get(rule.id).last_alert_date is None
 
 
+def test_watch_backtest_walks_historical_windows_with_virtual_cooldown(tmp_path):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2, cooldown_days=3)
+    payload = evidence("AI", "US", [10, 10, 30, 50, 40, 50, 90, 100])
+
+    result = store.backtest(rule.id, payload)
+    assert result["simulated"] is True
+    assert result["evaluated_windows"] == 5
+    assert result["status_counts"] == {"triggered": 2, "cooldown": 2, "below_threshold": 1}
+    assert [alert["evidence_date"] for alert in result["simulated_alerts"]] == [
+        (date.today() - timedelta(days=4)).isoformat(),
+        (date.today() - timedelta(days=1)).isoformat(),
+    ]
+    assert store.get(rule.id).last_alert_date is None
+
+    assert store.evaluate_and_record(rule.id, payload).status == "triggered"
+    assert store.backtest(rule.id, payload) == result  # Recorded state cannot taint a hypothetical run.
+    assert store.get(rule.id).last_alert_date == date.today().isoformat()
+
+
+def test_watch_backtest_handles_old_evidence_without_false_live_alert(tmp_path):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2)
+    points = [
+        {"date": (date.today() - timedelta(days=130 - index)).isoformat(), "value": value}
+        for index, value in enumerate([10, 10, 50, 70])
+    ]
+    payload = json.dumps({"keyword": "AI", "market": "US", "points": points}).encode()
+    assert store.evaluate_and_record(rule.id, payload).status == "stale_data"
+    result = store.backtest(rule.id, payload)
+    assert result["evaluated_windows"] == 1
+    assert result["status_counts"] == {"triggered": 1}
+    assert result["simulated_alerts"][0]["evidence_date"] == points[-1]["date"]
+    assert store.get(rule.id).last_alert_date is None
+
+
+def test_cli_watch_backtest_is_offline_and_rejects_invalid_evidence(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2)
+    path = tmp_path / "evidence.json"
+    path.write_bytes(evidence("AI", "US", [10, 10, 40, 60]))
+    runner = CliRunner()
+    args = ["watch", "backtest", "--id", rule.id, "--evidence", str(path)]
+
+    result = runner.invoke(cli, args)
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report["simulated"] is True
+    assert report["status_counts"]["triggered"] == 1
+    assert store.get(rule.id).last_alert_date is None
+
+    path.write_bytes(evidence("AI", "GB", [10, 10, 40, 60]))
+    rejected = runner.invoke(cli, args)
+    assert rejected.exit_code != 0
+    assert "does not match" in rejected.output
+    assert store.get(rule.id).last_alert_date is None
+
+
+def test_watch_backtest_with_insufficient_data_has_no_windows(tmp_path):
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2)
+    result = store.backtest(rule.id, evidence("AI", "US", [10, 20, 30]))
+    assert result["evaluated_windows"] == 0
+    assert result["status_counts"] == {}
+    assert result["simulated_alerts"] == []
+
+
 def test_rule_cooldown_prevents_new_alert_on_following_day(tmp_path):
     store = WatchStore(tmp_path)
     rule = store.create(keyword="AI", market="US", window=2, cooldown_days=7)
