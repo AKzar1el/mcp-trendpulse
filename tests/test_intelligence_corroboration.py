@@ -57,7 +57,7 @@ def test_issue_count_plan_uses_existing_free_source_and_exact_closed_open_dates(
     assert params["per_page"] == ["1"]
     assert params["q"] == [
         '"Explainable Artificial Intelligence" in:title,body '
-        'is:issue created:2026-10-07..2026-11-05'
+        'is:issue is:public created:2026-10-07..2026-11-05'
     ]
     assert "is:open" not in params["q"][0]
     assert _is_github_issue_count_plan(q) is True
