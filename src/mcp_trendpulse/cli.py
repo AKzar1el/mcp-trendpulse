@@ -627,6 +627,43 @@ def rss_review(evidence, review_format, output_file):
         raise click.exceptions.Exit(2)
 
 
+@cli.command("rss-compare", help="Compare two saved headline-only Google News RSS captures offline.")
+@click.option("--older", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True,
+              help="User-designated earlier schema-v1 RSS headline JSON file.")
+@click.option("--newer", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True,
+              help="User-designated later schema-v1 RSS headline JSON file.")
+@click.option("--format", "comparison_format", type=click.Choice(["markdown", "json"]),
+              default="markdown", show_default=True)
+@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
+              help="Save report as a new UTF-8 file without overwriting.")
+def rss_compare(older, newer, comparison_format, output_file):
+    """Compare exact saved Google News URLs without a network or provider request."""
+    from mcp_trendpulse.rss_compare import compare_saved_rss_headlines
+    from mcp_trendpulse.rss_review import MAX_RSS_EVIDENCE_BYTES
+
+    if older == newer or older.resolve() == newer.resolve():
+        raise click.ClickException("RSS comparison requires two distinct captures.")
+    if output_file is not None and (output_file.exists() or not output_file.parent.is_dir()):
+        raise click.ClickException("RSS comparison destination must be a new file in an existing directory.")
+    try:
+        if older.is_symlink() or newer.is_symlink():
+            raise ValueError("Symbolic-link RSS evidence is not supported")
+        with older.open("rb") as handle:
+            older_raw = handle.read(MAX_RSS_EVIDENCE_BYTES + 1)
+        with newer.open("rb") as handle:
+            newer_raw = handle.read(MAX_RSS_EVIDENCE_BYTES + 1)
+        report, needs_attention = compare_saved_rss_headlines(
+            older_raw, newer_raw, output_format=comparison_format)
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(f"RSS headline comparison failed: {exc}") from exc
+    if output_file is None:
+        click.echo(report, nl=False)
+    else:
+        _save_new_brief_report(output_file, report, kind="comparison", label="RSS headlines")
+    if needs_attention:
+        raise click.exceptions.Exit(2)
+
+
 @cli.command("brief-pack", help="Build the core trend/growth evidence table for a TrendPulse Demand Brief.")
 @click.option("--keyword", "keywords", multiple=True, required=True, help="Keyword or phrase; repeat up to five times.")
 @click.option("--market", "markets", multiple=True, required=True, help="Country or subregion code such as US or US-CA; repeat up to twice.")
