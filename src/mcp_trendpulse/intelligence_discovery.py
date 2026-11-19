@@ -165,6 +165,18 @@ def _record(
     return out
 
 
+def _has_paired_published_procedure_estimate(record: dict[str, Any]) -> bool:
+    """True only for the source-projected numeric amount and original currency.
+
+    TED BT-27 is a procedure estimate at launch, not a verified budget,
+    an award, spending, or the value of a particular software lot.
+    """
+    return bool(
+        record.get("estimated_value_as_published")
+        and record.get("estimated_value_currency")
+    )
+
+
 def _buyer_review_gaps(record: dict[str, Any], today: date) -> list[str]:
     """Missing *published/projection* evidence, not adjudicated tender status."""
     gaps = []
@@ -496,6 +508,47 @@ def summarize_discovery(
             if not made_progress:
                 break
     qualified_ids = {r["id"] for r in buyer_review}
+    with_estimate = [
+        r for r in buyer_review
+        if _has_paired_published_procedure_estimate(r)
+    ]
+    # Evidence completeness is not market attractiveness. Never compare,
+    # convert or rank published values across sectors and currencies. Show
+    # at most three source-backed examples, spreading across TED windows
+    # where the opt-in stratified sample provides them.
+    inspected_estimates = []
+    inspected_ids: set[str] = set()
+    if ted_date_windows is not None:
+        for start, end, _ in ted_date_windows:
+            matching = next((
+                r for r in with_estimate
+                if r["id"] not in inspected_ids
+                and start.isoformat() <= r["date"] <= end.isoformat()
+            ), None)
+            if matching is not None:
+                inspected_estimates.append(matching)
+                inspected_ids.add(matching["id"])
+    for r in with_estimate:
+        if len(inspected_estimates) >= 3:
+            break
+        if r["id"] not in inspected_ids:
+            inspected_estimates.append(r)
+            inspected_ids.add(r["id"])
+    procurement_estimate_examples = [{
+        "date": r["date"], "title": r["title"],
+        "reference": r["reference"],
+        "published_buyer_name": r["buyer_name"],
+        "buyer_country_code": r.get("buyer_country_code", ""),
+        "main_cpv_code": r["main_cpv_code"],
+        "published_lot_date": r["latest_lot_deadline_date"],
+        "published_procedure_estimate": r["estimated_value_as_published"],
+        "published_currency": r["estimated_value_currency"],
+        "procedure_estimate_not_software_lot_amount": True,
+        "confirmed_buyer_budget": False,
+        "awarded_contract_value": False,
+        "still_open_tender_verified": False,
+        "product_market_fit_verified": False,
+    } for r in inspected_estimates]
     if ted_date_windows is None:
         context = [r for r in procurement_sorted if r["id"] not in selected_ids]
         display_notices = review_selected + context[:max(0, 8 - len(review_selected))]
@@ -601,6 +654,12 @@ def summarize_discovery(
         "qualified_notices_in_bounded_sample": len(buyer_review),
         "qualified_main_cpv_software_it": len(software_it),
         "qualified_other_main_cpv_sectors": len(other_sectors),
+        "qualified_with_published_procedure_estimate": len(with_estimate),
+        "qualified_without_published_procedure_estimate": (
+            len(buyer_review) - len(with_estimate)
+        ),
+        "procedure_estimate_examples_selected": len(inspected_estimates),
+        "estimate_review_is_not_value_or_sector_ranking": True,
         "selected_for_review": len(review_selected),
         "selection_strategy": (
             "round_robin_qualified_notices_across_ted_date_windows"
@@ -642,6 +701,7 @@ def summarize_discovery(
         "candidate_count": len(selected), "candidates": selected,
         "procurement_observations": procurement_observations,
         "procurement_review": procurement_review,
+        "procurement_estimate_examples": procurement_estimate_examples,
         "ted_sampling_audit": ted_sample,
         "coarse_cpv_repeats_not_candidates": sorted(
             coarse_cpv_repeats, key=lambda row: (
@@ -1018,6 +1078,46 @@ def format_discovery_report(result: dict[str, Any]) -> str:
                 f"{excluded_it}; observed missing criteria: {why}. "
                 "These are projection-level checks, not official tender outcomes."
             )
+        with_estimate = buyer_review.get(
+            "qualified_with_published_procedure_estimate", 0
+        )
+        without_estimate = buyer_review.get(
+            "qualified_without_published_procedure_estimate", 0
+        )
+        lines.append(
+            "PUBLISHED PROCEDURE ESTIMATES: "
+            f"{with_estimate} source-review-qualified notice(s) have a paired "
+            f"published amount/currency; {without_estimate} have no usable "
+            "procedure estimate in this bounded projection."
+        )
+        lines.append(
+            "A published estimate is NOT awarded spending, confirmed buyer "
+            "budget, software-only value or a measure of market size."
+        )
+        examples = result.get("procurement_estimate_examples", [])
+        if examples:
+            lines.append(
+                "Source-backed notices for manual scope/eligibility review "
+                "(not ranked by currency or amount):"
+            )
+            for example in examples:
+                title = " ".join("".join(
+                    c if c.isprintable() else " " for c in example["title"]
+                ).split())[:90]
+                buyer = " ".join("".join(
+                    c if c.isprintable() else " "
+                    for c in example["published_buyer_name"]
+                ).split())[:85]
+                lines.append(f"  TED [{example['date']}] {title}")
+                lines.append(
+                    f"    buyer published: {buyer} | "
+                    f"main CPV: {example['main_cpv_code']} | "
+                    "procedure estimate (not spent): "
+                    f"{example['published_procedure_estimate']} "
+                    f"{example['published_currency']} | "
+                    f"last published lot date: {example['published_lot_date']}"
+                )
+                lines.append(f"    {example['reference']}")
         lines.append("")
     if not result["candidates"]:
         lines.append("No recurring current themes passed conservative grouping in this small sample.")

@@ -56,6 +56,22 @@ def main() -> int:
     ):
         raise AssertionError("Broad primary CPV counted as narrow workflow demand")
     review = result["procurement_review"]
+    if (review["qualified_with_published_procedure_estimate"]
+            + review["qualified_without_published_procedure_estimate"]
+            != review["qualified_notices_in_bounded_sample"]
+            or review["estimate_review_is_not_value_or_sector_ranking"] is not True
+            or len(result["procurement_estimate_examples"]) > 3
+            or len(result["procurement_estimate_examples"])
+            != review["procedure_estimate_examples_selected"]
+            or any(
+                e["confirmed_buyer_budget"] or e["awarded_contract_value"]
+                or e["still_open_tender_verified"] or
+                e["product_market_fit_verified"]
+                or not e["published_procedure_estimate"]
+                or not e["published_currency"]
+                for e in result["procurement_estimate_examples"]
+            )):
+        raise AssertionError("Procurement estimate evidence fabricated spending or counts")
     if (review["software_it_not_review_qualified"] < 0
             or review["software_it_not_review_qualified"]
             + review["qualified_main_cpv_software_it"]
@@ -99,6 +115,15 @@ def main() -> int:
             "qualified_main_cpv_software_it"
         ],
         "buyer_side_review_selected": review["selected_for_review"],
+        "buyer_review_with_published_estimate": review[
+            "qualified_with_published_procedure_estimate"
+        ],
+        "buyer_review_without_published_estimate": review[
+            "qualified_without_published_procedure_estimate"
+        ],
+        "procedure_estimate_examples_selected": review[
+            "procedure_estimate_examples_selected"
+        ],
         "buyer_side_review_it_unqualified_in_sample": review[
             "software_it_not_review_qualified"
         ],

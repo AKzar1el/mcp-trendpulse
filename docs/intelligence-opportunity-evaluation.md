@@ -736,6 +736,46 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Procedure-estimate evidence separated from market opportunity (2026-11-19)
+
+The owner's latest 20/20/20 source-backed field test confirms three
+disjoint TED windows and balanced 2/2/2 buyer-review examples, with the
+single 48/72 software notice correctly excluded because its published
+lot date (2026-11-12) was before the analysis date (2026-11-19).
+The procedure was a Bavaria IBM EntireX/webMethods licence renewal,
+not source evidence that an emerging software category is growing.
+Later amendments and eventual award outcomes require inspecting the
+official TED notice and original buyer procurement platform.
+
+A new **published procedure estimate evidence** section is separate
+from the recurring-topic `candidates` and buyer-review completeness
+counts. It only includes already reviewed contract notices with an
+explicit paired source-published numeric `estimated-value-proc`
+and original `estimated-value-cur-proc`. Up to three such notices
+are shown for manual verification; with three TED date windows it
+picks one from each date bin where available, filling empty slots
+newest-first. It does **not** sort by monetary magnitude, convert
+currencies or claim any notice offers an addressable startup product.
+One procedure may contain multiple lots and mixed software/non-
+software deliverables, so a procedure-level estimate is not a
+software-only budget or a vendor's attainable contract revenue.
+
+The report now distinguishes a usable published estimate from
+missing/unpaired projection data across all buyer-review-qualified
+notices. Individual inspection examples carry the original tender
+link, published buyer label, primary CPV, amount, currency and latest
+published lot date. False claims remain explicitly rejected:
+confirmed buyer budget, awards/spending, bid open-now, software-only
+amount, legal buyer identity and product-market fit are unverified.
+The regular capped buyer-review examples and historic candidate
+hashes remain unchanged; no extra network requests, source keys,
+pricing, scheduled tasks or production changes.
+
+TED official explanation of estimate `BT-27-Procedure`: it is a
+rough estimation by the contracting authority near the launch of
+the competition, not an award or settled spend.
+https://docs.ted.europa.eu/eforms/1.13/schema/procedure-lot-part-information.html
+
 ### Window-balanced buyer review and transparent IT notice exclusions (2026-11-19)
 
 **Owner's real three-window field test:** all five fixed public-source

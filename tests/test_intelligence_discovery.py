@@ -774,6 +774,86 @@ def test_buyer_side_review_separates_inspectable_procurement_from_theme_count():
     assert "Growth, buyer budgets and market size: NOT VERIFIED." in text
 
 
+def test_published_procedure_estimate_evidence_is_not_budget_or_market_rank():
+    # Three different sectors, currencies and estimate sizes. Recency and
+    # source-date representation—not money—choose the inspection examples.
+    today = date(2026, 11, 19)
+    windows = discovery._ted_date_windows(today, 30, 20)
+    rows = []
+    for i, (_, end, _) in enumerate(windows):
+        record = _rich_ted(
+            f"{820000 + i}-2026", f"Public Buyer {i}",
+            ["90510000", "71000000", "72222300"][i],
+            estimated=["1000.00", "7000000", "200"][i],
+            currency=["EUR", "CZK", "SEK"][i],
+        )
+        record["publication-date"] = end.isoformat()
+        rows.append(record)
+    unpriced = _rich_ted(
+        "820010-2026", "Unpriced Public Buyer", "45000000",
+        estimated="unknown",
+    )
+    unpriced["publication-date"] = windows[0][1].isoformat()
+    rows.append(unpriced)
+    expired_money = _rich_ted(
+        "820011-2026", "Past Bid Buyer", "72222300",
+        deadline="2026-11-02", estimated="400000", currency="EUR",
+    )
+    expired_money["publication-date"] = windows[1][1].isoformat()
+    rows.append(expired_money)
+    x = discovery.summarize_discovery(
+        [observed("ted", rows)],
+        as_of=today.isoformat(), ted_date_windows=windows,
+    )
+    p = x["procurement_review"]
+    assert p["qualified_notices_in_bounded_sample"] == 4
+    assert p["qualified_with_published_procedure_estimate"] == 3
+    assert p["qualified_without_published_procedure_estimate"] == 1
+    assert p["procedure_estimate_examples_selected"] == 3
+    assert p["estimate_review_is_not_value_or_sector_ranking"] is True
+    examples = x["procurement_estimate_examples"]
+    assert [e["published_currency"] for e in examples] == [
+        "EUR", "CZK", "SEK"
+    ]
+    assert [e["published_procedure_estimate"] for e in examples] == [
+        "1000.00", "7000000", "200"
+    ]
+    assert [e["date"] for e in examples] == [
+        w[1].isoformat() for w in windows
+    ]
+    assert all(e["procedure_estimate_not_software_lot_amount"]
+               and not e["confirmed_buyer_budget"]
+               and not e["awarded_contract_value"]
+               and not e["still_open_tender_verified"]
+               and not e["product_market_fit_verified"] for e in examples)
+    assert "820011-2026" not in repr(examples)
+    assert "Unpriced Public Buyer" not in repr(examples)
+    output = discovery.format_discovery_report(x)
+    assert "PUBLISHED PROCEDURE ESTIMATES: 3" in output
+    assert "1 have no usable procedure estimate" in output
+    assert "not ranked by currency or amount" in output
+    assert "procedure estimate (not spent): 7000000 CZK" in output
+    assert "software-only value" in output
+
+
+def test_unpriced_qualified_notice_remains_visible_but_not_monetary_evidence():
+    x = report(observed("ted", [
+        _rich_ted("820021-2026", "Town A", "90510000",
+                  estimated="unknown"),
+        _rich_ted("820022-2026", "Town B", "48000000",
+                  estimated="12000", currency="NOTISO!"),
+    ]))
+    p = x["procurement_review"]
+    assert p["qualified_notices_in_bounded_sample"] == 2
+    assert p["qualified_with_published_procedure_estimate"] == 0
+    assert p["qualified_without_published_procedure_estimate"] == 2
+    assert p["procedure_estimate_examples_selected"] == 0
+    assert x["procurement_estimate_examples"] == []
+    assert len([r for r in x["procurement_observations"]
+                if r["buyer_side_review_qualified"]]) == 2
+    assert "PUBLISHED PROCEDURE ESTIMATES: 0" in discovery.format_discovery_report(x)
+
+
 def test_buyer_review_requires_original_reference_named_buyer_primary_cpv_and_lot_date():
     valid = _rich_ted("804742-2026", "Government", "72000000")
     no_buyer = _rich_ted("804743-2026", "Government", "72000000")
