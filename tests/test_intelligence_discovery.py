@@ -520,6 +520,84 @@ def test_seedless_ted_enrichment_preserves_only_published_source_values():
     assert "estimated (not spent): 65000.00 EUR" in output
 
 
+def test_buyer_side_review_separates_inspectable_procurement_from_theme_count():
+    ted = [
+        _rich_ted("804742-2026", "Greek Employment Authority", "72000000",
+                  deadline="2026-12-21", estimated="10588350"),
+        _rich_ted("804842-2026", "Croatian Waste Authority", "90510000",
+                  deadline="2026-12-04", estimated="1075000"),
+        _rich_ted("804823-2026", "German Building Buyer", "45000000",
+                  deadline="2027-01-11", estimated="567000"),
+        _rich_ted("804817-2026", "French Fuel Buyer", "09134000",
+                  deadline="2026-12-18", estimated="25000"),
+        _rich_ted("804901-2026", "Old Date Buyer", "72000000",
+                  deadline="2026-11-01"),
+        _rich_ted("804902-2026", "Already Awarded", "72000000",
+                  kind="can-standard"),
+    ]
+    x = report(observed("ted", ted))
+    review = x["procurement_review"]
+    assert review["qualified_notices_in_bounded_sample"] == 4
+    assert review["qualified_main_cpv_software_it"] == 1
+    assert review["qualified_other_main_cpv_sectors"] == 3
+    assert review["selected_for_review"] == 4
+    assert review["open_bid_status_verified"] is False
+    assert review["estimated_value_is_not_spending_or_software_only_budget"] is True
+    assert x["candidate_count"] == 0
+    selected = [
+        notice for notice in x["procurement_observations"]
+        if notice["buyer_side_review_qualified"]
+    ]
+    assert len(selected) == 4
+    assert selected[0]["reference"].endswith("804742-2026")
+    assert selected[0]["main_cpv_software_it_category"] is True
+    assert selected[0]["estimated_value_as_published"] == "10588350"
+    assert selected[0]["software_only_estimate_verified"] is False
+    assert all(not n["buyer_entity_identity_verified"] and
+               not n["still_open_tender_verified"] for n in selected)
+    text = discovery.format_discovery_report(x)
+    assert "BUYER-SIDE PROCUREMENT REVIEW" in text
+    assert "software/IT main CPV: 1; other: 3" in text
+    assert "other published CPVs: 72222300" in text
+    assert "Growth, buyer budgets and market size: NOT VERIFIED." in text
+
+
+def test_buyer_review_requires_original_reference_named_buyer_primary_cpv_and_lot_date():
+    valid = _rich_ted("804742-2026", "Government", "72000000")
+    no_buyer = _rich_ted("804743-2026", "Government", "72000000")
+    no_buyer.pop("buyer-name")
+    no_cpv = _rich_ted("804744-2026", "Government", "72000000")
+    no_cpv.pop("main-classification-proc")
+    old = _rich_ted("804745-2026", "Government", "72000000",
+                    deadline="2026-10-11")
+    no_deadline = _rich_ted("804746-2026", "Government", "72000000")
+    no_deadline.pop("deadline-receipt-tender-date-lot")
+    invalid_identity = _rich_ted("BAD_NOTICE", "Government", "72000000")
+    x = report(observed("ted", [
+        valid, no_buyer, no_cpv, old, no_deadline, invalid_identity,
+    ]))
+    assert x["procurement_review"]["qualified_notices_in_bounded_sample"] == 1
+    selected = [n for n in x["procurement_observations"]
+                if n["buyer_side_review_qualified"]]
+    assert len(selected) == 1
+    assert selected[0]["reference"].endswith("804742-2026")
+
+
+def test_buyer_review_is_not_exclusive_to_software_or_estimated_contracts():
+    tenders = [
+        _rich_ted("804800-2026", "Town One", "90510000",
+                  estimated="unknown"),
+        _rich_ted("804801-2026", "Town Two", "45000000",
+                  estimated="unknown"),
+    ]
+    x = report(observed("ted", tenders))
+    assert x["procurement_review"]["qualified_notices_in_bounded_sample"] == 2
+    assert x["procurement_review"]["qualified_main_cpv_software_it"] == 0
+    assert x["procurement_review"]["qualified_other_main_cpv_sectors"] == 2
+    assert all(n["estimated_value_as_published"] == "" for n in
+               x["procurement_observations"] if n["buyer_side_review_qualified"])
+
+
 def test_two_distinct_published_buyers_same_primary_cpv_are_research_candidate():
     x = report(observed("ted", [
         _rich_ted("805001-2026", "Municipality East", "72000000"),

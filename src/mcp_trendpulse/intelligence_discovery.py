@@ -365,6 +365,44 @@ def summarize_discovery(
             x["date"], x["id"],
         ), reverse=True,
     )
+    # An individual published tender is a more directly inspectable
+    # buyer-side lead than a repeated paper topic or consumer complaint.
+    # This is only a source-completeness review, NOT an open-tender,
+    # buyer-identity, software budget, or market-growth verification.
+    # We keep a sector-agnostic fetch and select from its existing records:
+    # two main-CPV 48/72 IT/software notices at most, plus up to four
+    # other sectors, filling any unused slots in original recency order.
+    # Published lot dates may be revised/cancelled: never infer "open now".
+    buyer_review = [
+        r for r in ted_records
+        if r.get("procurement_stage") == "contract_notice_not_award"
+        and r.get("buyer_name")
+        and r.get("main_cpv_code")
+        and r.get("latest_lot_deadline_date", "") >= today.isoformat()
+        and r.get("reference", "").startswith(
+            "https://ted.europa.eu/en/notice/-/detail/"
+        )
+    ]
+    software_it = [
+        r for r in buyer_review if r["main_cpv_code"][:2] in {"48", "72"}
+    ]
+    other_sectors = [
+        r for r in buyer_review if r["main_cpv_code"][:2] not in {"48", "72"}
+    ]
+    review_selected = software_it[:2] + other_sectors[:4]
+    selected_ids = {r["id"] for r in review_selected}
+    for r in buyer_review:
+        if len(review_selected) >= 6:
+            break
+        if r["id"] not in selected_ids:
+            review_selected.append(r)
+            selected_ids.add(r["id"])
+    # Preserve the prior contextual examples (including awards and notices
+    # without published buyer/deadline) when the review queue has room.
+    display_notices = review_selected + [
+        r for r in procurement_sorted if r["id"] not in selected_ids
+    ][:max(0, 8 - len(review_selected))]
+    review_ids = {r["id"] for r in review_selected}
     procurement_observations = [{
         "title": r["title"], "date": r["date"], "reference": r["reference"],
         "buyer_name": r.get("buyer_name", ""),
@@ -379,8 +417,27 @@ def summarize_discovery(
         "estimated_value_as_published": r.get("estimated_value_as_published", ""),
         "estimated_value_currency": r.get("estimated_value_currency", ""),
         "estimated_value_not_verified_spending": True,
+        "buyer_side_review_qualified": r["id"] in review_ids,
+        "main_cpv_software_it_category": (
+            r.get("main_cpv_code", "")[:2] in {"48", "72"}
+        ),
+        "buyer_entity_identity_verified": False,
+        "still_open_tender_verified": False,
+        "software_only_estimate_verified": False,
         "buying_intent_verified": False, "contract_value_verified": False,
-    } for r in procurement_sorted[:4]]
+    } for r in display_notices]
+    procurement_review = {
+        "basis": "published_contract_notice_with_buyer_primary_cpv_and_future_lot_date",
+        "qualified_notices_in_bounded_sample": len(buyer_review),
+        "qualified_main_cpv_software_it": len(software_it),
+        "qualified_other_main_cpv_sectors": len(other_sectors),
+        "selected_for_review": len(review_selected),
+        "not_trend_candidates": True,
+        "same_buyer_legal_entity_verified": False,
+        "open_bid_status_verified": False,
+        "market_growth_verified": False,
+        "estimated_value_is_not_spending_or_software_only_budget": True,
+    }
     research_records = sorted(
         (r for r in records if r["source"] == "openalex" and r["title"]),
         key=lambda x: (x["date"], x["id"]), reverse=True,
@@ -404,6 +461,7 @@ def summarize_discovery(
         "source_coverage": coverage, "recent_observations": len(records),
         "candidate_count": len(selected), "candidates": selected,
         "procurement_observations": procurement_observations,
+        "procurement_review": procurement_review,
         "research_observations": research_observations,
         "source_balanced_examples_not_additional_trend_candidates": True,
         "sample_examples_by_source": recent_examples,
@@ -500,6 +558,21 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             tag += " (cached)"
         lines.append("Source: " + tag)
     lines.append("")
+    buyer_review = result.get("procurement_review", {})
+    if buyer_review:
+        lines.append(
+            "BUYER-SIDE PROCUREMENT REVIEW (bounded sample, not verified active bids): "
+            f"{buyer_review['qualified_notices_in_bounded_sample']} records with "
+            "published buyer label, primary CPV and at least one "
+            "lot date on/after analysis date "
+            f"(software/IT main CPV: {buyer_review['qualified_main_cpv_software_it']}; "
+            f"other: {buyer_review['qualified_other_main_cpv_sectors']})."
+        )
+        lines.append(
+            "Source-based review only: buyer legal identities, tender amendments, "
+            "eligibility, awarded spend, software-only budgets and market growth unverified."
+        )
+        lines.append("")
     if not result["candidates"]:
         lines.append("No recurring current themes passed conservative grouping in this small sample.")
     for idx, item in enumerate(result["candidates"], start=1):
@@ -537,6 +610,8 @@ def format_discovery_report(result: dict[str, Any]) -> str:
                 f"  TED [{notice['date']}] {' '.join(title.split())[:100]}"
             )
             details = []
+            if notice.get("buyer_side_review_qualified"):
+                details.append("buyer-side review: inspect original notice")
             if notice["buyer_name"]:
                 buyer = "".join(c if c.isprintable() else " " for c in notice["buyer_name"])
                 details.append("buyer published: " + " ".join(buyer.split())[:85])
@@ -545,6 +620,15 @@ def format_discovery_report(result: dict[str, Any]) -> str:
                 details.append("buyer country: " + notice["buyer_country_code"])
             if notice["main_cpv_code"]:
                 details.append("main CPV: " + notice["main_cpv_code"])
+            if notice.get("main_cpv_software_it_category"):
+                details.append("main CPV software/IT class 48/72; scope not verified")
+            if len(notice.get("cpv_codes", [])) > 1:
+                extra = [
+                    code for code in notice["cpv_codes"]
+                    if code != notice["main_cpv_code"]
+                ][:4]
+                if extra:
+                    details.append("other published CPVs: " + ", ".join(extra))
             if notice["latest_lot_deadline_date"]:
                 details.append("last published lot date: " + notice["latest_lot_deadline_date"])
             if notice["estimated_value_as_published"]:
@@ -581,6 +665,7 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             lines.append(f"    {item['reference']}")
     lines.append(
         "Growth, buyer budgets and market size: NOT VERIFIED. "
+        "CFPB complaint counts are not a representative market sample. "
         "Later comparable source histories may improve confidence."
     )
     return "\n".join(lines)

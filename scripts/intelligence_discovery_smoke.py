@@ -36,6 +36,13 @@ def main() -> int:
         for row in result["candidates"]
     ):
         raise AssertionError("Unverified records promoted to buyer proof")
+    review = result["procurement_review"]
+    if (review["open_bid_status_verified"]
+            or review["same_buyer_legal_entity_verified"]
+            or review["market_growth_verified"]
+            or review["qualified_notices_in_bounded_sample"] <
+            review["selected_for_review"]):
+        raise AssertionError("Buyer-side review fabricated verification or coverage")
     covered = sum(s["status"] == "observed" for s in result["source_coverage"])
     diagnostic = {
         "status": "source_contracts_observed" if covered == 3
@@ -53,6 +60,13 @@ def main() -> int:
         "sample_recent_records": result["recent_observations"],
         "research_candidates_in_sample": result["candidate_count"],
         "procurement_titles_available": len(result["procurement_observations"]),
+        "buyer_side_review_qualified_in_sample": review[
+            "qualified_notices_in_bounded_sample"
+        ],
+        "buyer_side_review_software_it_in_sample": review[
+            "qualified_main_cpv_software_it"
+        ],
+        "buyer_side_review_selected": review["selected_for_review"],
         "procurement_competition_notices_rendered": sum(
             x["procurement_stage"] == "contract_notice_not_award"
             for x in result["procurement_observations"]

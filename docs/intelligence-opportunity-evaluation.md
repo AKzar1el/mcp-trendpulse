@@ -689,6 +689,49 @@ The live discovery workflow now exercises `--limit 20` and remains
 explicitly inconclusive when an external provider is unavailable. Its
 source-status counters distinguish provider failures from analysis defects.
 
+### Distinguish published buyer-side tenders from topic recurrence (November 19)
+
+The owner's first fully working 20/20/20 run produced five repeated-theme
+candidates, none corroborated across independent sources. Two came from
+OpenAlex's algorithmic research topics, three from CFPB public complaint
+categories. It also surfaced a specific TED digital-services procedure:
+notice `804742-2026` for a Greek national employment policy portal, with
+a published estimated procedure amount of EUR 10,588,350 and a published
+lot deadline date of 2026-12-21. The full procedure includes non-software
+communication/publicity work. This is **one buyer-side research lead**, not
+evidence of a repeatable SaaS market or a software-only budget.
+
+Discovery now returns `procurement_review` alongside the original
+`candidates`. The review count includes only **recent TED contract-notice
+records** with a published buyer-name label, published procedure-level
+primary 8-digit CPV, validated notice-specific TED URL and at least one
+published lot date **on or after** the report's analysis date. These
+fields make a notice inspectable but do **not** establish current opening,
+legal identity of a buyer, bid eligibility, contract award, spending,
+or product-market fit. Notice amendments and cancellations must be checked
+in the original TED notice and primary tender documentation.
+
+The display is still sector-agnostic at the query level. From the
+already fetched 20 TED records, it selects up to **two main CPV 48/72
+software/IT-class notices** and **four notices from other CPV families**,
+filling unused review slots by publication recency. This is an explicit
+**review visibility mix**, not an estimate of market attractiveness,
+software-related spending share or bidder probability. Up to two more
+context-only notice examples remain visible. Unverified estimated values
+are never used to rank between currencies or infer a single software
+budget. Other published CPVs are listed to expose possible mixed scope.
+The ordinary `candidate_count` and all existing research qualification
+logic remain unchanged; review notices are **not counted as market
+trends**. An offline fixture with 20 TED observations and the official
+notice stages tests this independently of live provider availability.
+
+TED official CPV vocabulary:
+https://docs.ted.europa.eu/eforms/latest/reference/code-lists/cpv.html
+TED notice status and amendment guidance:
+https://ted.europa.eu/en/help/search-browse
+CFPB complaint sampling limitations:
+https://www.consumerfinance.gov/data-research/consumer-complaints/
+
 ### TED buyer-side repeat signals, CPV and deadline integrity (2026-11-19)
 
 The first real `intelligence discover --limit 20` run showed three repeated
