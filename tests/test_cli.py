@@ -2129,6 +2129,100 @@ def test_brief_compare_current_missing_evidence_preserves_exit_two(tmp_path):
     assert "current snapshot needs human review" in result.output.lower()
 
 
+def test_brief_compare_flags_regressed_observation_dates_even_with_complete_coverage(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    earlier = json.loads(before.read_text(encoding="utf-8"))
+    earlier["markets"][0]["keywords"][0]["latest_observation"] = "2026-11-18"
+    before.write_text(json.dumps(earlier), encoding="utf-8")
+    later = json.loads(json.dumps(earlier))
+    later["markets"][0]["keywords"][0]["latest_observation"] = "2026-11-17"
+    after.write_text(json.dumps(later), encoding="utf-8")
+    original = before.read_bytes(), after.read_bytes()
+
+    with patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("provider called")):
+        result = CliRunner().invoke(cli_module.cli, [
+            "brief-compare", "--before", str(before), "--after", str(after), "--format", "json",
+        ])
+    assert result.exit_code == 2, result.output
+    report = json.loads(result.output)
+    assert report["needs_human_review"] is True
+    us = next(item for item in report["markets"] if item["market"] == "US")
+    assert us["primary_coverage_change"] == 0
+    assert us["older_observations"] == [
+        {"keyword": "ChatGPT", "before_date": "2026-11-18", "after_date": "2026-11-17"}
+    ]
+    assert report["source_authenticated"] is False
+    assert (before.read_bytes(), after.read_bytes()) == original
+    text_result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after),
+    ])
+    assert text_result.exit_code == 2
+    assert "ChatGPT 2026-11-18 -> 2026-11-17 (review)" in text_result.output
+    assert "declared observation dates regressed" in text_result.output
+
+
+def test_brief_compare_date_regression_csv_is_unknown_for_missing_market_and_timestamps(tmp_path):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    earlier = json.loads(before.read_text(encoding="utf-8"))
+    earlier["markets"][0]["keywords"][0]["latest_observation"] = "2026-11-18"
+    earlier["markets"][0]["keywords"][1]["latest_observation"] = "2026-11-18T18:00:00+01:00"
+    before.write_text(json.dumps(earlier), encoding="utf-8")
+    later = json.loads(json.dumps(earlier))
+    later["markets"][0]["keywords"][0]["latest_observation"] = "2026-11-17"
+    later["markets"][0]["keywords"][1]["latest_observation"] = "2026-11-17T20:00:00Z"
+    later["markets"] = [market for market in later["markets"] if market["market"] != "GB"]
+    later["failed_markets"] = [{
+        "market": "GB", "component": None, "code": "rate_limited",
+        "retryable": True, "message": "private provider error",
+    }]
+    later["incomplete"] = True
+    after.write_text(json.dumps(later), encoding="utf-8")
+
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after), "--format", "keyword-csv",
+    ])
+    assert result.exit_code == 2, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    us = {row["keyword"]: row for row in rows if row["market"] == "US"}
+    assert us["ChatGPT"]["observation_date_change"] == "older_after"
+    assert us["Claude"]["observation_date_change"] == "unknown"
+    assert all(row["observation_date_change"] == "unknown" for row in rows if row["market"] == "GB")
+    assert "private provider error" not in result.output
+    market_result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after), "--format", "csv",
+    ])
+    assert market_result.exit_code == 2
+    market_rows = {row["market"]: row for row in csv.DictReader(io.StringIO(market_result.output))}
+    assert market_rows["US"]["older_observation_keyword_count"] == "1"
+    assert market_rows["GB"]["older_observation_keyword_count"] == ""
+
+
+@pytest.mark.parametrize("later_date, expected", [
+    ("2026-11-18", "unchanged"),
+    ("2026-11-19", "newer_after"),
+    ("2026-11-17T23:00:00Z", "unknown"),
+])
+def test_brief_compare_does_not_flag_nonregressed_or_mixed_precision_dates(tmp_path, later_date, expected):
+    before = _saved_mock_brief(tmp_path)
+    after = tmp_path / "after.json"
+    earlier = json.loads(before.read_text(encoding="utf-8"))
+    earlier["markets"][0]["keywords"][0]["latest_observation"] = "2026-11-18"
+    before.write_text(json.dumps(earlier), encoding="utf-8")
+    later = json.loads(json.dumps(earlier))
+    later["markets"][0]["keywords"][0]["latest_observation"] = later_date
+    after.write_text(json.dumps(later), encoding="utf-8")
+    result = CliRunner().invoke(cli_module.cli, [
+        "brief-compare", "--before", str(before), "--after", str(after), "--format", "keyword-csv",
+    ])
+    assert result.exit_code == 0, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    row = next(row for row in rows if row["market"] == "US" and row["keyword"] == "ChatGPT")
+    assert row["observation_date_change"] == expected
+    assert row["needs_human_review"] == "false"
+
+
 @pytest.mark.parametrize("mismatch", ["timeframe", "keywords", "market"])
 def test_brief_compare_rejects_incompatible_snapshot_scopes(tmp_path, mismatch):
     before = _saved_mock_brief(tmp_path)
