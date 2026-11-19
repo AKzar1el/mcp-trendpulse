@@ -11,7 +11,7 @@ import hashlib
 import json
 import re
 import sqlite3
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
