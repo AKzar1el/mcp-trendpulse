@@ -736,6 +736,51 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Traceable context-only source matches (2026-11-20)
+
+Owner's next Windows run on `fed3f923` proved the six-source path
+actually executed: CORDIS returned two sampled rows and two literal
+title overlaps, USAspending three sampled rows and two title overlaps;
+both reported **zero recent dated evidence rows**. This is not a
+provider outage and not independent confirmation of rising demand:
+the current hunter intentionally classifies CORDIS funded project
+metadata as **undated project context**, and the USAspending
+`Last Modified Date` as a **record edit timestamp**, not a new
+award or purchasing event. The contextual rows already exist in
+the hunter's `context_examples`, but the auto-hunt wrapper previously
+read only the `evidence` (recent-only) list and silently dropped
+all original context titles, URLs and exclusion reasons. This
+made "2 title matches" practically unauditable.
+
+The auto-hunt output now carries at most four bounded
+`source_context_examples` **per selected topic** from the
+existing contextual evidence, keeping source, sanitized title,
+comparable event date when available, and exactly the hunter's
+original exclusion reason (`timestamp_not_comparable_recent_market_event`,
+`publication_date_unavailable`, `outside_requested_lookback`,
+`not_recent_activity`). It labels the entire section
+**CONTEXT-ONLY SOURCE RECORDS** and does not change the
+`recent_dated_matches_in_sample` value or count context as
+recent or independently validated demand.
+
+CORDIS EURIO `eurio:identifier` supplies an official project
+identifier; when it is strictly numeric and within bounds, the
+observation layer links to the corresponding official
+`https://cordis.europa.eu/project/id/{id}` fact sheet (no new
+HTTP request). No project URL is invented for nonnumeric IDs.
+The existing USAspending "Award ID" is not sufficient to infer
+the site's internal award URL identifier, so the unchanged
+`https://www.usaspending.gov/search` reference is conspicuously
+marked **provider search landing, NOT an exact record permalink**.
+Unrecognized external URLs are omitted, rather than accepting
+arbitrary untrusted source URLs or query parameters.
+
+These are *source provenance and report usability* changes, not
+new adoption estimates, actual award-date verification, or an
+additional network query. Real commercial opportunity detection
+will require recent dated independent buyer/problem evidence in
+comparable source populations, not these historic context matches.
+
 ### Independent follow-up must not depend on promotion to the growth watchlist (2026-11-20)
 
 The owner's first Windows run with both

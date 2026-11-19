@@ -126,6 +126,26 @@ def test_us_award_recipient_is_supplier_not_budget_owner():
     assert result["buyer_budget_verified"] is False
 
 
+def test_cordis_exact_project_id_links_are_source_attributed_not_new_demand():
+    report = review([observed("cordis", [{
+        "id": "101123330", "title": "Battery recycling research project",
+    }])])
+    row = report["sample_records"][0]
+    assert row["reference"] == "https://cordis.europa.eu/project/id/101123330"
+    assert row["event_date"] is None
+    assert row["date_semantics"] == "research_project_no_comparable_event_date"
+    assert report["dated_recent_sample_records"] == 0
+    assert report["buyer_budget_verified"] is False
+
+
+def test_non_numeric_cordis_identifier_does_not_invent_project_deep_link():
+    report = review([observed("cordis", [{
+        "id": "TEST:UNKNOWN", "title": "Battery recycling research project",
+    }])])
+    assert report["sample_records"][0]["reference"] == "https://cordis.europa.eu/"
+    assert report["dated_recent_sample_records"] == 0
+
+
 def test_research_search_pages_are_not_growth_estimators():
     result = review([observed("openalex", [
         research(), {**research("2026-11-16"), "id": "https://openalex.org/W2741809808"},

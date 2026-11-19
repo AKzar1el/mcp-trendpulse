@@ -291,9 +291,18 @@ def _entry(source: str, raw: dict[str, Any], asof: date) -> dict[str, Any] | Non
         ident = _key(raw.get("id"))
         if not ident:
             return None
+        # EURIO's eurio:identifier is the official project/grant ID,
+        # not an independently verified award or dated demand signal.
+        # Publish a project-specific fact-sheet URL only for a validated
+        # numeric identifier. Never construct URLs from arbitrary text.
+        detail_ref = (
+            "https://cordis.europa.eu/project/id/" + ident
+            if re.fullmatch(r"[0-9]{4,15}", ident)
+            else "https://cordis.europa.eu/"
+        )
         result.update({
             "id": ident, "title": _text(raw.get("title"), 180),
-            "reference": "https://cordis.europa.eu/",
+            "reference": detail_ref,
             "event_date": None, "date_semantics": "research_project_no_comparable_event_date",
         })
     elif source == "cfpb":

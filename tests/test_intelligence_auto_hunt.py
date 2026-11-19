@@ -110,6 +110,63 @@ def test_reuses_exact_existing_hunter_with_two_other_provider_sources(
     assert "https://www.usaspending.gov/award/" in formatted
 
 
+def test_context_only_records_include_exact_project_links_and_safe_exclusion_reasons(
+    monkeypatch,
+):
+    checked = stub("Explainable Artificial Intelligence")
+    checked["evidence"] = []
+    checked["source_coverage"][0]["recent_eligible_matches"] = 0
+    checked["source_coverage"][1]["recent_eligible_matches"] = 0
+    checked["context_examples"] = [
+        {
+            "source": "cordis",
+            "title": "Explainable Artificial Intelligence EU-funded research",
+            "reference": "https://cordis.europa.eu/project/id/101123330",
+            "event_date": None,
+            "reason": "timestamp_not_comparable_recent_market_event",
+        },
+        {
+            "source": "usaspending",
+            "title": "Explainable Artificial Intelligence federal contract",
+            "reference": "https://www.usaspending.gov/search",
+            "event_date": "2026-11-18",
+            "reason": "timestamp_not_comparable_recent_market_event",
+        },
+        {
+            "source": "cordis",
+            "title": "MALICIOUS REMOTE LINK",
+            "reference": "https://evil.example/?secret=leak",
+            "event_date": None,
+            "reason": "publication_date_unavailable",
+        },
+    ]
+    monkeypatch.setattr(context, "hunt_current", lambda *_a, **_kw: {
+        "topics": [checked],
+    })
+    result = context.investigate_discovered_topics(
+        [idea()], as_of=AS_OF, lookback_days=30, env={},
+    )
+    topic = result["topics"][0]
+    assert topic["source_examples"] == []
+    assert len(topic["source_context_examples"]) == 2
+    assert all(r["not_recent_market_activity"] for r in topic["source_context_examples"])
+    assert topic["source_context_examples"][0]["reference_specificity"] == (
+        "exact_official_project_record"
+    )
+    assert topic["source_context_examples"][1]["reference_specificity"] == (
+        "provider_search_or_home_landing_only"
+    )
+    printed = "\n".join(context.format_discovered_source_context(result))
+    assert "CONTEXT-ONLY SOURCE RECORDS" in printed
+    assert "Exact published project fact sheet" in printed
+    assert "NOT an exact record permalink" in printed
+    assert "timestamp_not_comparable_recent_market_event" in printed
+    assert "evil.example" not in repr(result)
+    assert "recent market activity" in printed
+    assert topic["source_context_exclusions_are_auditable"] is True
+    assert result["product_or_market_growth_verified"] is False
+
+
 def test_hunter_may_reorder_topics_but_labels_and_evidence_are_joined_by_phrase(
     monkeypatch,
 ):

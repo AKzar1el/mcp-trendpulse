@@ -123,6 +123,57 @@ def investigate_discovered_topics(
                 "source": row["source"], "title": title,
                 "reference": ref, "event_date": row.get("event_date"),
             })
+        # The existing hunter intentionally places historic/undated CORDIS
+        # projects and USAspending last-modified dates into context_examples
+        # rather than dated recent evidence. Preserve *their* citations and
+        # exclusion reasons instead of silently hiding every match.
+        contextual = []
+        reasons = {
+            "timestamp_not_comparable_recent_market_event",
+            "publication_date_unavailable", "outside_requested_lookback",
+            "not_recent_activity",
+        }
+        for row in checked.get("context_examples", [])[:4]:
+            source = row.get("source")
+            ref = row.get("reference")
+            if source not in SOURCE_IDS or not isinstance(ref, str):
+                continue
+            if source == "cordis":
+                exact = re.fullmatch(
+                    r"https://cordis\.europa\.eu/project/id/[0-9]{4,15}",
+                    ref,
+                ) is not None
+                portal = ref == "https://cordis.europa.eu/"
+            else:
+                # USAspending's Award ID is not the internally scoped
+                # USASpending database ID. Do not manufacture an /award/ URL.
+                exact = False
+                portal = ref == "https://www.usaspending.gov/search"
+            if not (exact or portal):
+                continue
+            title = " ".join(
+                ch if ch.isprintable() else " "
+                for ch in str(row.get("title") or "")
+            ).strip()[:110]
+            if not title:
+                continue
+            reason = row.get("reason")
+            if reason not in reasons:
+                continue
+            day = row.get("event_date")
+            if not isinstance(day, str) or re.fullmatch(
+                r"[0-9]{4}-[0-9]{2}-[0-9]{2}", day
+            ) is None:
+                day = None
+            contextual.append({
+                "source": source, "title": title, "reference": ref,
+                "reference_specificity": (
+                    "exact_official_project_record" if exact
+                    else "provider_search_or_home_landing_only"
+                ),
+                "event_date": day, "not_recent_reason": reason,
+                "not_recent_market_activity": True,
+            })
         outcome["topics"].append({
             "topic_id": code,
             "label": label,
@@ -139,6 +190,8 @@ def investigate_discovered_topics(
             ),
             "source_coverage": coverage,
             "source_examples": examples,
+            "source_context_examples": contextual,
+            "source_context_exclusions_are_auditable": True,
             "hunter_screening_status": checked.get(
                 "status", "unavailable"
             ),
@@ -194,9 +247,30 @@ def format_discovered_source_context(result: dict[str, Any]) -> list[str]:
                 )
         for item in topic["source_examples"]:
             lines.append(
-                f"    Source clue ({item['source']}): {item['title']}"
+                f"    Recent source clue ({item['source']}): {item['title']}"
             )
             lines.append("      " + item["reference"])
+        if topic.get("source_context_examples"):
+            lines.append(
+                "    CONTEXT-ONLY SOURCE RECORDS — matches do not "
+                "qualify as recent market activity:"
+            )
+        for item in topic.get("source_context_examples", []):
+            date_text = item["event_date"] or "no comparable event date"
+            lines.append(
+                f"      {item['source']} | {date_text} | "
+                f"{item['not_recent_reason']}: {item['title']}"
+            )
+            if item["reference_specificity"] == "exact_official_project_record":
+                lines.append(
+                    "        Exact published project fact sheet: "
+                    + item["reference"]
+                )
+            else:
+                lines.append(
+                    "        Provider search/home only — NOT an exact "
+                    "record permalink: " + item["reference"]
+                )
     lines.append(
         "  CORDIS funded project metadata and US federal awards are "
         "not independent paying customers or software adoption counts. "
