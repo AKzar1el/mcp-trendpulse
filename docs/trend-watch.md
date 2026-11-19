@@ -134,6 +134,27 @@ count difference is not a fair accuracy score, evidence of an earlier original
 publication date, or a recommendation to adopt the proposed rule. Both
 simulations are offline and leave the real rule and alert history untouched.
 
+For a spreadsheet-friendly comparison, add `--format csv` to the same command,
+or save it directly without PowerShell redirection:
+
+```bash
+uv run mcp-trendpulse-cli watch backtest --id YOUR_RULE_ID --evidence ./trend-series.json --growth-pct 45 --compare-baseline --format csv --output-file watch-backtest.csv
+```
+
+The CSV contains one `summary` row (even when no historical window is
+eligible) and one `alert` row for each distinct hypothetical alert date, in
+chronological order. `baseline_alert` and `scenario_alert` are 0/1; `change`
+is `added`, `removed`, or `shared`. Without `--compare-baseline`, baseline
+fields and change labels remain blank rather than implying that hypothetical
+alerts are improvements. The summary records each policy's eligible window
+count, alert count, net difference (only with comparison), `simulated: true`,
+and the source limitation note. A different window size can change the number
+of opportunities to alert. User-supplied keyword text is spreadsheet-formula
+escaped. Saved files use BOM-free UTF-8, refuse overwrites, and are only
+created after the bounded evidence is validated; neither source evidence nor
+the saved watch rule is altered. JSON output remains the default, and CSV is
+not a predictive score, an authenticated trend history, or a real alert log.
+
 The JSON result is explicitly marked `simulated: true`. Historical observations
 are evaluated as of each observation date, so old data may produce historical
 *hypothetical* alerts even though live evaluation correctly returns

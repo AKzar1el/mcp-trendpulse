@@ -1,5 +1,7 @@
 """Local Trend Watch evaluation without polling, notifications or credentials."""
 
+import csv
+import io
 import json
 from datetime import date, timedelta
 from pathlib import Path
@@ -300,6 +302,117 @@ def test_cli_watch_backtest_compare_baseline_is_opt_in_and_nonrecording(tmp_path
     invalid = runner.invoke(cli, [*args, "--compare-baseline"])
     assert invalid.exit_code != 0
     assert "requires" in invalid.output.lower()
+    assert store.get(rule.id) == rule
+
+
+def test_cli_watch_backtest_csv_exports_summary_and_hypothetical_alerts(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2)
+    path = tmp_path / "evidence.json"
+    path.write_bytes(evidence("AI", "US", [10, 10, 40, 60]))
+    args = ["watch", "backtest", "--id", rule.id, "--evidence", str(path)]
+    runner = CliRunner()
+
+    default = runner.invoke(cli, args)
+    assert default.exit_code == 0, default.output
+    assert "comparison" not in json.loads(default.output)
+    result = runner.invoke(cli, [*args, "--format", "csv"])
+    assert result.exit_code == 0, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert len(rows) == 2
+    assert rows[0]["row_type"] == "summary"
+    assert rows[0]["scenario_evaluated_windows"] == "1"
+    assert rows[0]["scenario_alert_count"] == "1"
+    assert rows[0]["baseline_alert_count"] == ""
+    assert rows[0]["simulated"] == "true"
+    assert "not" in rows[0]["note"].lower()
+    assert rows[1]["row_type"] == "alert"
+    assert rows[1]["alert_date"] == date.today().isoformat()
+    assert rows[1]["scenario_alert"] == "1"
+    assert rows[1]["baseline_alert"] == ""
+    assert rows[1]["change"] == ""
+    assert store.get(rule.id).last_alert_date is None
+
+
+@pytest.mark.parametrize("saved_growth,scenario_growth,change", [
+    (600, 30, "added"), (30, 600, "removed"),
+])
+def test_cli_watch_backtest_csv_compares_added_and_removed_dates(
+    tmp_path, monkeypatch, saved_growth, scenario_growth, change,
+):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2, growth_pct=saved_growth)
+    path = tmp_path / "evidence.json"
+    path.write_bytes(evidence("AI", "US", [10, 10, 40, 60]))
+    result = CliRunner().invoke(cli, [
+        "watch", "backtest", "--id", rule.id, "--evidence", str(path),
+        "--growth-pct", str(scenario_growth), "--compare-baseline", "--format", "csv",
+    ])
+    assert result.exit_code == 0, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert [row["row_type"] for row in rows] == ["summary", "alert"]
+    assert rows[1]["change"] == change
+    assert rows[1]["baseline_alert"] == ("0" if change == "added" else "1")
+    assert rows[1]["scenario_alert"] == ("1" if change == "added" else "0")
+    assert rows[0]["delta_alert_count"] == ("1" if change == "added" else "-1")
+    assert rows[0]["baseline_evaluated_windows"] == "1"
+    assert store.get(rule.id) == rule
+
+
+def test_cli_watch_backtest_csv_export_is_safe_and_no_clobber(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    keyword = "=HYPERLINK(\"https://example.invalid\")"
+    rule = store.create(keyword=keyword, market="US", window=2)
+    path = tmp_path / "evidence.json"
+    path.write_bytes(evidence(keyword, "US", [10, 20, 30]))
+    output = tmp_path / "watch-report.csv"
+    args = [
+        "watch", "backtest", "--id", rule.id, "--evidence", str(path),
+        "--format", "csv", "--output-file", str(output),
+    ]
+    runner = CliRunner()
+    saved = runner.invoke(cli, args)
+    assert saved.exit_code == 0, saved.output
+    raw = output.read_bytes()
+    assert not raw.startswith(b"\xef\xbb\xbf")
+    rows = list(csv.DictReader(io.StringIO(raw.decode("utf-8"))))
+    assert len(rows) == 1 and rows[0]["row_type"] == "summary"
+    assert rows[0]["keyword"].startswith("'=HYPERLINK")
+    assert rows[0]["scenario_evaluated_windows"] == "0"
+    assert rows[0]["scenario_alert_count"] == "0"
+    assert runner.invoke(cli, args).exit_code != 0
+    assert output.read_bytes() == raw
+    path.write_bytes(evidence(keyword, "GB", [10, 10, 40, 60]))
+    other = tmp_path / "invalid.csv"
+    invalid = runner.invoke(cli, [*args[:-1], str(other)])
+    assert invalid.exit_code != 0
+    assert not other.exists()
+    assert store.get(rule.id).last_alert_date is None
+
+
+def test_cli_watch_backtest_csv_shared_date_and_json_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2, growth_pct=30)
+    path = tmp_path / "evidence.json"
+    path.write_bytes(evidence("AI", "US", [10, 10, 40, 60]))
+    args = ["watch", "backtest", "--id", rule.id, "--evidence", str(path)]
+    runner = CliRunner()
+    compared = runner.invoke(cli, [*args, "--growth-pct", "40", "--compare-baseline", "--format", "csv"])
+    assert compared.exit_code == 0, compared.output
+    rows = list(csv.DictReader(io.StringIO(compared.output)))
+    assert rows[1]["change"] == "shared"
+    assert rows[1]["baseline_alert"] == "1" and rows[1]["scenario_alert"] == "1"
+    assert rows[0]["delta_alert_count"] == "0"
+
+    output = tmp_path / "backtest.json"
+    saved = runner.invoke(cli, [*args, "--output-file", str(output)])
+    assert saved.exit_code == 0, saved.output
+    assert json.loads(output.read_text(encoding="utf-8")) == json.loads(runner.invoke(cli, args).output)
+    assert runner.invoke(cli, [*args, "--output-file", str(output)]).exit_code != 0
     assert store.get(rule.id) == rule
 
 
