@@ -1975,6 +1975,86 @@ def test_cli_rss_json_rejects_mixed_unlabeled_evidence_without_partial_document(
     assert "schema_version" not in result.output
 
 
+@pytest.mark.parametrize(
+    ("command", "method"),
+    [
+        (["keyword", "python"], "get_rss_headlines_by_keyword"),
+        (["location", "London"], "get_rss_headlines_by_location"),
+        (["topic", "TECHNOLOGY"], "get_rss_headlines_by_topic"),
+        (["top"], "get_rss_headlines_for_top_news"),
+        (["site", "bbc.com"], "get_rss_headlines_by_site"),
+    ],
+)
+def test_cli_rss_csv_spreadsheet_safe_metadata_only(command, method):
+    headline = {
+        "title": " \t=HYPERLINK(\"https://example.com\")", "url": "https://news.google.com/rss/a",
+        "meta_site_name": "+Unsafe publisher", "publish_date": "2026-10-25T09:00:00+00:00",
+        "meta_data": {"content_level": "rss_headline_only", "source": "google_news_rss"},
+        "summary": "forbidden article summary", "text": "forbidden article text",
+    }
+    provider = AsyncMock(return_value=[headline])
+    with (
+        patch("mcp_trendpulse.cli.get_provider_set", return_value=SimpleNamespace(
+            news=SimpleNamespace(**{method: provider})
+        )),
+        patch("mcp_trendpulse.cli.BrowserManager", side_effect=AssertionError("no browser")),
+        patch("mcp_trendpulse.cli.save_article_to_json", side_effect=AssertionError("no export")),
+    ):
+        result = CliRunner().invoke(cli_module.cli, [*command, "--headlines-only", "--format", "csv"])
+    assert result.exit_code == 0, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert len(rows) == 1
+    assert rows[0] == {
+        "source": "google_news_rss", "content_level": "rss_headline_only",
+        "title": "' \t=HYPERLINK(\"https://example.com\")",
+        "url": headline["url"], "publisher": "'+Unsafe publisher",
+        "publish_date": headline["publish_date"],
+    }
+    assert "forbidden" not in result.output
+    assert "Found " not in result.output
+    provider.assert_awaited_once()
+
+
+@pytest.mark.parametrize("command", [
+    ["keyword", "ai"], ["location", "London"], ["topic", "TECHNOLOGY"],
+    ["top"], ["site", "bbc.com"],
+])
+def test_cli_rss_csv_requires_headline_mode_without_provider_call(command):
+    with (
+        patch("mcp_trendpulse.cli.get_provider_set", side_effect=AssertionError("no provider")),
+        patch("mcp_trendpulse.cli.BrowserManager", side_effect=AssertionError("no browser")),
+    ):
+        result = CliRunner().invoke(cli_module.cli, [*command, "--format", "csv"])
+    assert result.exit_code == 2
+    assert "--format csv requires --headlines-only" in result.output
+
+
+def test_cli_rss_csv_empty_result_has_header_and_no_footer():
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=SimpleNamespace(
+        news=SimpleNamespace(get_rss_headlines_for_top_news=AsyncMock(return_value=[]))
+    )):
+        result = CliRunner().invoke(cli_module.cli, ["top", "--headlines-only", "--format", "csv"])
+    assert result.exit_code == 0, result.output
+    assert list(csv.reader(io.StringIO(result.output))) == [[
+        "source", "content_level", "title", "url", "publisher", "publish_date",
+    ]]
+
+
+def test_cli_rss_csv_rejects_unlabeled_evidence_without_partial_output():
+    valid = {
+        "title": "Valid", "url": "https://news.google.com/rss/a", "publish_date": "2026-10-25",
+        "meta_data": {"content_level": "rss_headline_only", "source": "google_news_rss"},
+    }
+    invalid = {**valid, "meta_data": {"content_level": "article_full", "source": "google_news_rss"}}
+    with patch("mcp_trendpulse.cli.get_provider_set", return_value=SimpleNamespace(
+        news=SimpleNamespace(get_rss_headlines_by_keyword=AsyncMock(return_value=[valid, invalid]))
+    )):
+        result = CliRunner().invoke(cli_module.cli, ["keyword", "ai", "--headlines-only", "--format", "csv"])
+    assert result.exit_code != 0
+    assert "Unexpected RSS headline evidence level" in result.output
+    assert "source,content_level,title" not in result.output
+
+
 def test_cli_rejects_unlabeled_rss_claims():
     news = SimpleNamespace(get_rss_headlines_by_keyword=AsyncMock(return_value=[{
         "title": "Not RSS", "meta_data": {"content_level": "article_full", "source": "google_news_rss"},

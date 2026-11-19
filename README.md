@@ -335,6 +335,12 @@ uv run --no-sync mcp-trendpulse-cli keyword "OpenAI" --headlines-only --format j
 
 The JSON response includes a schema version, `google_news_rss` source, `rss_headline_only` evidence level, count, and only title, Google News URL, publisher and publication date for each headline. It never represents RSS metadata as extracted articles or serializes article body/summary fields. An empty result is valid JSON with an empty `headlines` list. `--format json` requires `--headlines-only` and prints no human-readable footer; it does not save files or make additional provider requests.
 
+**Source checkout (not yet in the published PyPI version):** All five headline-only commands also support `--format csv` for spreadsheet workflows. CSV contains `source,content_level,title,url,publisher,publish_date` columns, with one header row even for zero results, no human footer, and spreadsheet-formula-safe untrusted metadata. It is RSS headline evidence, **not extracted article content or verified search volume**. For example, redirect standard output to a new file using your shell; the CLI itself does not write the CSV or create directories:
+
+```bash
+uv run --no-sync mcp-trendpulse-cli keyword "OpenAI" --headlines-only --format csv > rss-headlines.csv
+```
+
 **Source checkout (not yet in the published PyPI version):** Extracted-article CLI commands print results without creating JSON files. To opt into file export, pass `--save-json-dir` with an existing directory, for example `uv run mcp-trendpulse-cli keyword "OpenAI" --save-json-dir ./exports`. Output filenames include a short URL hash to distinguish similarly titled articles; existing files are never overwritten, and duplicate destinations or export failures produce errors. The `--headlines-only` mode does not export article JSON.
 
 The operator-only `bigquery-sql` command generates a fixed-table, partition-filtered SQL preview for Google's official public Top 25 / Rising datasets. It never submits a job or incurs API usage automatically. See `docs/bigquery-trends.md` for sandbox, query-cost guardrails, and market-coverage limitations.
