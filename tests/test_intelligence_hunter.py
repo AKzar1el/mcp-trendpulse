@@ -428,3 +428,103 @@ def test_hunter_text_reports_quality_screened_noise_without_promoting_it():
     assert "Noise screened: 1" in output
     assert "promotional_market_claim=1" in output
     assert "Current market winner" not in output
+
+
+
+def test_real_first_hunt_legacy_cache_reclassified_without_network_or_secrets():
+    """Reproduce the Nov 19 user watchlist that leaked a hypothetical signal."""
+    promotional = {
+        "id": 90,
+        "title": "Automotive Battery Recycling Market to Reach USD 29.78 Billion by 2034",
+        "created_at": "2026-11-19T09:18:06Z",
+        "html_url": "https://github.com/karannaware/Karan-Naware/issues/90",
+        "body": "Projected market size and compound annual growth rate (CAGR).",
+    }
+    hypothetical = {
+        "id": 72103,
+        "title": "Zion Metric: dimensional yield definitions for battery recycling research",
+        "created_at": "2026-11-17T16:33:21Z",
+        "html_url": "https://github.com/Zion-support/zion-support.github.io/issues/72103",
+        "body": (
+            "A hypothetical battery recycling research consortium proposes a "
+            "definition and measurement lineage service. NO_PRIVATE_RAW_BODY"
+        ),
+    }
+    # Old cache has original bounded data.items with bodies, but the earlier
+    # observations.sample has only the unclassified projected public fields.
+    old_projection = [
+        {k: x[k] for k in ("id", "title", "created_at", "html_url")}
+        for x in (promotional, hypothetical)
+    ]
+    snapshot = observed("github_issues", old_projection)
+    snapshot["cache_hit"] = True
+    snapshot["data"] = {"items": [promotional, hypothetical]}
+    x = report(batch("battery recycling", snapshot))["topics"][0]
+    assert x["status"] == "excluded_low_quality_activity"
+    assert x["investigation_priority"] == 0
+    assert x["recent_dated_records_in_sample"] == 0
+    assert x["quality_screened_issue_records"] == 2
+    assert x["quality_exclusion_reasons"] == {
+        "hypothetical_or_unverified_design": 1,
+        "promotional_market_claim": 1,
+    }
+    assert x["source_coverage"][0]["quality_reclassified_from_cached_payload"] == 2
+    assert x["source_coverage"][0]["cache_hit"] is True
+    assert "NO_PRIVATE_RAW_BODY" not in repr(x)
+    text = hunter.format_hunt_report({
+        **report(batch("battery recycling", snapshot)),
+    })
+    assert "Cached issue quality refreshed: 2" in text
+    assert "github_issues=observed:2(cached)" in text
+    assert "Noise screened: 2" in text
+
+
+def test_missing_cached_body_stays_unverified_not_manufactured_market_proof():
+    raw = {
+        "id": 72103, "title": "Zion Metric battery recycling research",
+        "created_at": "2026-11-17T16:33:21Z",
+        "html_url": "https://github.com/Zion-support/zion-support.github.io/issues/72103",
+    }
+    snapshot = observed("github_issues", [raw])
+    snapshot["cache_hit"] = True
+    snapshot["data"] = {"items": [raw]}
+    x = report(batch("battery recycling", snapshot))["topics"][0]
+    assert x["source_coverage"][0]["quality_reclassified_from_cached_payload"] == 0
+    assert x["evidence"][0]["issue_evidence_type"] == "unverified_public_issue"
+    assert x["buying_intent_confirmed"] is False
+    assert x["investigation_priority"] <= 1
+
+
+def test_cached_body_mismatched_title_cannot_launder_issue_identity():
+    raw = {
+        "id": 712, "title": "Battery recycling workflow regression",
+        "created_at": "2026-11-19T10:00:00Z",
+        "html_url": "https://github.com/example/project/issues/712",
+    }
+    altered = {**raw, "title": "Battery recycling market to reach 90 billion",
+               "body": "A hypothetical proposal, not a real problem."}
+    snap = observed("github_issues", [raw])
+    snap["data"] = {"items": [altered]}
+    x = report(batch("battery recycling", snap))["topics"][0]
+    assert x["source_coverage"][0]["quality_reclassified_from_cached_payload"] == 0
+    assert x["evidence"][0]["issue_evidence_type"] == "unverified_public_issue"
+
+
+def test_watchlist_reports_real_provider_coverage_and_safe_http_reason():
+    body = {
+        "source": "openalex", "status": "unavailable", "reason": "HTTPError",
+        "http_status": 429, "private_access_token": "NEVER_SHOW_THIS",
+    }
+    unavailable = {"source": "cordis", "status": "unavailable",
+                   "reason": "private upstream token text"}
+    snapshot = observed("github_issues", [issue()])
+    snapshot["cache_hit"] = True
+    result = report(batch("battery recycling", snapshot, body, unavailable))
+    text = hunter.format_hunt_report(result)
+    assert "github_issues=observed:1(cached)" in text
+    assert "openalex=unavailable(HTTP 429)" in text
+    assert "cordis=unavailable" in text
+    assert "NEVER_SHOW_THIS" not in text
+    assert "private upstream token text" not in text
+    assert result["topics"][0]["source_coverage"][1]["http_status"] == 429
+    assert "reason" not in result["topics"][0]["source_coverage"][2]

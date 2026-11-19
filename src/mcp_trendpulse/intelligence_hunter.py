@@ -414,6 +414,31 @@ def format_hunt_report(result: dict[str, Any]) -> str:
             f"({row['recent_7_day_records_in_sample']} from last seven days); "
             f"evidence classes: {row['distinct_recent_source_classes']}"
         )
+        states = []
+        for provider in row["source_coverage"]:
+            source = provider["source"]
+            if provider["status"] == "observed":
+                state = f"{source}=observed:{provider['records_accepted']}"
+                if provider.get("cache_hit"):
+                    state += "(cached)"
+            else:
+                state = f"{source}={provider['status']}"
+                if "http_status" in provider:
+                    state += f"(HTTP {provider['http_status']})"
+                elif provider.get("reason"):
+                    state += f"({provider['reason']})"
+            states.append(state)
+        if states:
+            lines.append("   Providers: " + " | ".join(states))
+        repaired = sum(
+            p.get("quality_reclassified_from_cached_payload", 0)
+            for p in row["source_coverage"]
+        )
+        if repaired:
+            lines.append(
+                f"   Cached issue quality refreshed: {repaired} record(s), "
+                "no new API calls"
+            )
         if row["provider_coverage_degraded"]:
             lines.append("   Coverage incomplete: one or more providers unavailable")
         if row["quality_screened_issue_records"]:

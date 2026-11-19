@@ -251,7 +251,20 @@ def observe_source_snapshots(
             "source_health": "reported_healthy" if status == "observed" else "not_verified",
             "sample_complete": False, "population_coverage_verified": False,
             "records_examined": 0, "records_accepted": 0,
+            "cache_hit": row.get("cache_hit") is True,
+            "quality_reclassified_from_cached_payload": 0,
         }
+        # Only publish bounded, known diagnostic fields; never copy arbitrary
+        # HTTP responses, auth values or provider error texts to the watchlist.
+        code = row.get("http_status")
+        if isinstance(code, int) and not isinstance(code, bool) and 100 <= code <= 599:
+            report["http_status"] = code
+        if row.get("reason") in {
+            "HTTPError", "URLError", "TimeoutError", "provider_cooldown",
+            "not_configured", "source_setup_required_or_invalid_plan",
+            "collection_failed", "invalid_source_shape",
+        }:
+            report["reason"] = row["reason"]
         if status != "observed":
             report["caveat"] = "Source unavailable or invalid; not evidence of zero interest"
             sources.append(report)
@@ -279,6 +292,20 @@ def observe_source_snapshots(
         report["projection_sample_complete"] = count == len(sample)
         report["sample_complete"] = False
         report["caveat"] = "Only a bounded source sample; population coverage is not verified"
+        # Old successful collector caches hold a *bounded, already retrieved*
+        # data.items payload, while observations.sample predates body-aware
+        # quality classification. Upgrade those labels IN MEMORY, without a
+        # network request, deleting cache rows or exposing raw issue bodies.
+        raw_issue_by_id: dict[str, dict[str, Any]] = {}
+        if source == "github_issues":
+            payload = row.get("data")
+            raw_items = payload.get("items") if isinstance(payload, dict) else None
+            if isinstance(raw_items, list):
+                for raw in raw_items[:20]:
+                    if isinstance(raw, dict):
+                        key = _key(raw.get("id"))
+                        if key and isinstance(raw.get("body"), str):
+                            raw_issue_by_id[key] = raw
         for item in sample:
             if len(records) >= MAX_ROWS:
                 ignored["result_budget"] += 1
@@ -286,6 +313,35 @@ def observe_source_snapshots(
             if not isinstance(item, dict):
                 ignored["malformed_record"] += 1
                 continue
+            if source == "github_issues" and raw_issue_by_id:
+                from mcp_trendpulse.intelligence_issue_quality import (
+                    EXCLUDED_FROM_CURRENT_HUNT, classify_github_issue,
+                )
+
+                raw_issue = raw_issue_by_id.get(_key(item.get("id")))
+                # An issue ID alone must not allow a different cached item
+                # to contaminate this observation's classification.
+                if (raw_issue is not None
+                        and raw_issue.get("title") == item.get("title")
+                        and raw_issue.get("html_url") == item.get("html_url")):
+                    repaired = classify_github_issue(
+                        raw_issue.get("title"), raw_issue.get("body"),
+                        raw_issue.get("html_url"),
+                    )
+                    previous = item.get("issue_evidence_type")
+                    # Preserve a previously stricter classification if the
+                    # truncated cached body omits its original evidence.
+                    if repaired in EXCLUDED_FROM_CURRENT_HUNT and repaired != previous:
+                        item = {**item, "issue_evidence_type": repaired}
+                        report["quality_reclassified_from_cached_payload"] += 1
+                    elif not isinstance(previous, str) or previous not in {
+                        "promotional_market_claim", "hypothetical_or_unverified_design",
+                        "profile_repository_work_item",
+                        "internal_implementation_work_item",
+                        "reported_operational_problem", "unverified_public_issue",
+                    }:
+                        item = {**item, "issue_evidence_type": repaired}
+                        report["quality_reclassified_from_cached_payload"] += 1
             entry = _entry(source, item, asof)
             if entry is None:
                 ignored["unsupported_or_unidentified_record"] += 1

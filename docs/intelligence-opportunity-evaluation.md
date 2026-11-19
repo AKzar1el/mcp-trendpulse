@@ -449,3 +449,31 @@ Previously cached public query snapshots may lack body-derived classifications
 until normal expiry. Title/URL fallback screening still rejects forecast
 headlines and personal-profile issues, without deleting caches or bypassing
 provider quotas.
+
+### One-hour cached-issue classification gap (2026-11-19 field report)
+
+The second real user watchlist still showed a hypothetical Zion Metric issue.
+Root cause: the collector caches provider results for 60 minutes, including
+a *bounded* raw `data.items` projection, but its older
+`observations.sample` lacks `issue_evidence_type` computed by the newer
+GitHub-body filter. Title/URL-only fallback could not see the explicitly
+hypothetical language in the issue body.
+
+The offline normalization layer now **reclassifies matching cached public issue
+items from their already retrieved, bounded raw bodies, in memory**. It requires
+matching GitHub issue ID, title and URL to avoid misattribution; a stricter
+prior classification is preserved if a truncated cached body omits context.
+The raw body is never returned in normalized observations or the human-facing
+watchlist. No network request, cache deletion, quota bypass, or new credential
+is needed to update these source-quality labels. If a cached response truly
+lacks the original body, its issue remains explicitly **unverified**, not
+automatically treated as a validated customer pain report.
+
+The text watchlist also lists each selected provider's actual reported status,
+bounded accepted record count, cache usage and allowlisted HTTP failure code
+when present. This makes it obvious when all evidence came from GitHub because
+OpenAlex, CORDIS or procurement returned no matching records or were rate
+limited. Safe source metadata do not reproduce unknown upstream error strings,
+tokens, auth headers or private bodies. These are availability diagnostics,
+not measured demand volumes. Regression tests cover the exact public-issue
+failure mode, source-ID/title mismatch protection and HTTP 429 visibility.
