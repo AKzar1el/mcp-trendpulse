@@ -1145,13 +1145,21 @@ def discover_current(
                     "keyword_search_demand_verified": False,
                 })
                 known_ids.add(row["topic_id"])
+        if corroborate_issues or cross_source_hunt:
+            from mcp_trendpulse.intelligence_followup import (
+                select_source_followups,
+            )
+
+            source_selection = select_source_followups(trend_evidence)
+            trend_evidence["source_followup_selection"] = source_selection
+            measured_topics_for_followup = source_selection["topics"]
         if corroborate_issues:
             from mcp_trendpulse.intelligence_corroboration import (
                 MAX_SOURCE_REQUESTS as MAX_ISSUE_REQUESTS,
                 corroborate_research_issue_mentions,
             )
             source_text = corroborate_research_issue_mentions(
-                trend_evidence["idea_watchlist"], as_of=now,
+                measured_topics_for_followup, as_of=now,
                 lookback_days=lookback_days, cache=cache, env=env,
             )
             trend_evidence["issue_text_corroboration"] = source_text
@@ -1167,7 +1175,7 @@ def discover_current(
             )
 
             context = investigate_discovered_topics(
-                trend_evidence["idea_watchlist"], as_of=now,
+                measured_topics_for_followup, as_of=now,
                 lookback_days=lookback_days, cache=cache, env=env,
             )
             trend_evidence["other_source_context"] = context

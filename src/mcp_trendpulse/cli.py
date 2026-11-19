@@ -879,13 +879,15 @@ def intelligence_sources(wave):
                    "across three periods and verify at most two history gaps "
                    "(up to 9 more bounded free requests).")
 @click.option("--corroborate-issues", is_flag=True,
-              help="Optional two-period GitHub issue phrase-count checks for "
-                   "up to two research watchlist topics (max 4 free requests); "
+              help="Optional two-period public GitHub issue phrase-count checks "
+                   "for up to two source-measured topics, including strictly "
+                   "qualified inconclusive signals (max 4 free requests); "
                    "not validated customer problems or market growth.")
 @click.option("--cross-source-hunt", is_flag=True,
-              help="Opt in to CORDIS + USAspending context checks using up to "
-                   "two discovered research-topic phrases (max 4 extra free "
-                   "requests); existing hunter, not verified market demand.")
+              help="Opt in to existing CORDIS + USAspending context checks using up "
+                   "to two source-measured research topics, including strictly "
+                   "qualified inconclusive signals (max 4 extra free "
+                   "requests); not verified market demand.")
 @click.option("--execute", is_flag=True,
               help="Explicitly fetch fixed public free sources; otherwise plan only.")
 @click.option("--record-history", is_flag=True,

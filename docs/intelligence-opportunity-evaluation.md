@@ -736,6 +736,57 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Independent follow-up must not depend on promotion to the growth watchlist (2026-11-20)
+
+The owner's first Windows run with both
+`--corroborate-issues --cross-source-hunt` showed that **both
+optional sources were skipped**, although all three baseline sources
+returned observed samples. The cause was the strict eligibility gate:
+the research `idea_watchlist` was empty, despite a recent XAI
+source-count trajectory of **407 → 470 → 503 works**, normalized
+**639.106 → 657.282 → 808.180 per million** (two consecutive
+increases, +26.5% oldest-to-recent). This did **not** meet the
+conservative first-interval 1.03× threshold for
+`early_rising_research_watchlist`; the first gain was ~1.028×.
+**Advanced Numerical Methods** **185 → 189 → 191** works, but
+normalized **290.503 → 264.311 → 306.884** *declined and then
+rebounded*, so it should not be treated as an emerging trend
+or an automatically corroborated monotonic follow-up.
+
+The original code used ONLY the **promoted idea watchlist** as
+the input for both opt-in corroboration features. This conflated
+`not enough evidence to assert rising` with `nothing worth
+investigating` and silently disabled cross-provider research.
+
+A new pure source-selection step now **preserves** the original
+research direction, main product-idea watchlist, classification
+thresholds, volatility flags and source budgets. It first selects
+actual rising watchlist topics; if there are fewer than two,
+it *only* fills remaining slots from **already source-counted**
+`inconclusive` or approximately stable research topics with:
+- three valid mature-period topic counts and corpus denominators;
+- at least eight topic works in each period, with both normalized
+  comparisons nondeclining;
+- latest share up at least 8%, total share at least 10%;
+- **no** indexing, publication-spike or reversal quality flag.
+
+These candidates appear as
+`exploratory_monotonic_below_trend_threshold`, not as rising
+product opportunities. They are explicitly labeled for
+**source follow-up only** in output JSON/text and in the GitHub
+and CORDIS/USAspending corroboration sections, including their
+original `inconclusive` research direction. Any missing counts,
+unstable research direction, reversed period, or absent measured
+topics continue to produce **zero** source follow-up calls.
+Neither a title/phrase match nor issue count is treated as
+independent customers, comparable market growth or SEO demand.
+The full max remains **4 GitHub + 4 CORDIS/USAspending** additional
+source calls, using the existing source-specific free quotas.
+
+The narrow purpose is to test emerging or near-emerging ideas
+with **other evidence sources**, without rewriting the original
+trend detector to manufacture confidence.
+
 ### Separate intelligence MCP now exposes the same opt-in discovery modes
 
 The original twelve-tool read-only intelligence MCP previously allowed

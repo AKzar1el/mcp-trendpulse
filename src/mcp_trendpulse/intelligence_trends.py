@@ -423,6 +423,14 @@ def format_research_trends(evidence: dict[str, Any]) -> list[str]:
             "  PRODUCT-IDEA RESEARCH WATCHLIST: no measurable upward "
             "research-share signal from the sampled topics."
         )
+    if evidence.get("source_followup_selection") is not None:
+        from mcp_trendpulse.intelligence_followup import (
+            format_source_followups,
+        )
+
+        lines.extend(format_source_followups(
+            evidence["source_followup_selection"]
+        ))
     if evidence.get("issue_text_corroboration") is not None:
         from mcp_trendpulse.intelligence_corroboration import (
             format_issue_corroboration,

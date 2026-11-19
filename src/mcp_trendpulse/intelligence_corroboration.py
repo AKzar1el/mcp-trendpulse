@@ -103,7 +103,7 @@ def corroborate_research_issue_mentions(
     }
     if not isinstance(watchlist, list):
         raise ValueError("Research watchlist must be a list")
-    selected: list[tuple[str, str, str]] = []
+    selected: list[tuple[str, str, str, str, str, bool | None]] = []
     seen: set[str] = set()
     for item in watchlist[:20]:
         if not isinstance(item, dict):
@@ -115,7 +115,12 @@ def corroborate_research_issue_mentions(
         if not phrase or code in seen:
             continue
         seen.add(code)
-        selected.append((code, item["label"], phrase))
+        selected.append((
+            code, item["label"], phrase,
+            item.get("research_direction", "unspecified"),
+            item.get("selection_basis", "direct_topic_list"),
+            item.get("included_in_product_idea_watchlist"),
+        ))
         if len(selected) == MAX_TOPICS:
             break
     if not selected:
@@ -123,7 +128,7 @@ def corroborate_research_issue_mentions(
     template = plan_source(
         "github_issues", keyword="research", limit=1, env=env,
     )
-    for code, label, phrase in selected:
+    for code, label, phrase, direction, basis, original_watchlist in selected:
         source_counts: list[int | None] = []
         links: list[str] = []
         for period in periods:
@@ -146,6 +151,9 @@ def corroborate_research_issue_mentions(
         output["topics"].append({
             "topic_id": code,
             "label": label,
+            "research_direction": direction,
+            "selection_basis": basis,
+            "included_in_product_idea_watchlist": original_watchlist,
             "exact_source_phrase": phrase,
             "source_created_issue_counts": source_counts,
             "source_search_urls": links,
@@ -182,6 +190,14 @@ def format_issue_corroboration(result: dict[str, Any]) -> list[str]:
             f"  {item['label']} [{item['topic_id']}] — "
             f"exact phrase: {item['exact_source_phrase']}"
         )
+        if item.get("selection_basis") != "direct_topic_list":
+            lines.append(
+                "    Research source classification: "
+                + str(item["research_direction"])
+                + " | selection: "
+                + str(item["selection_basis"])
+                + " | NOT confirmed search or customer demand"
+            )
         if item["status"] == "observed_complete_lexical_counts":
             lines.append(
                 "    Matching issues (older → newer): "

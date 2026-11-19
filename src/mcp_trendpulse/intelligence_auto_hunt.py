@@ -127,6 +127,16 @@ def investigate_discovered_topics(
             "topic_id": code,
             "label": label,
             "source_derived_search_phrase": phrase,
+            "research_direction": next(
+                (x.get("research_direction", "unspecified")
+                 for x in research_watchlist if isinstance(x, dict)
+                 and x.get("topic_id") == code), "unspecified"
+            ),
+            "selection_basis": next(
+                (x.get("selection_basis", "direct_topic_list")
+                 for x in research_watchlist if isinstance(x, dict)
+                 and x.get("topic_id") == code), "direct_topic_list"
+            ),
             "source_coverage": coverage,
             "source_examples": examples,
             "hunter_screening_status": checked.get(
@@ -160,6 +170,13 @@ def format_discovered_source_context(result: dict[str, Any]) -> list[str]:
             + " | source-derived phrase: "
             + topic["source_derived_search_phrase"]
         )
+        if topic.get("selection_basis") != "direct_topic_list":
+            lines.append(
+                "    Research source classification: "
+                + str(topic["research_direction"])
+                + " | selection: " + str(topic["selection_basis"])
+                + " | NOT a validated product trend"
+            )
         for provider in topic["source_coverage"]:
             if provider["status"] == "observed":
                 lines.append(
