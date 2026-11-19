@@ -367,6 +367,10 @@ def format_research_trends(evidence: dict[str, Any]) -> list[str]:
                 "    Count comparison unavailable (missing source totals); "
                 "no inferred decrease or zero demand."
             )
+    if evidence.get("broad_topic_scan") is not None:
+        from mcp_trendpulse.intelligence_broad_scan import format_broad_topic_scan
+
+        lines.extend(format_broad_topic_scan(evidence["broad_topic_scan"]))
     watchlist = evidence.get("idea_watchlist", [])
     if watchlist:
         lines.append("  PRODUCT-IDEA RESEARCH WATCHLIST (hypotheses, not buyers):")
@@ -378,6 +382,9 @@ def format_research_trends(evidence: dict[str, Any]) -> list[str]:
             for paper in row["recent_research_examples"][:2]:
                 lines.append("      Research clue: " + paper["title"])
                 lines.append("        " + paper["reference"])
+            if row.get("source_topic_reference"):
+                lines.append("      Provider topic: " +
+                             row["source_topic_reference"])
     else:
         lines.append(
             "  PRODUCT-IDEA RESEARCH WATCHLIST: no measurable upward "

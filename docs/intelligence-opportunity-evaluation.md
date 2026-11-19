@@ -736,6 +736,60 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Bounded mainstream-topic landscape scan (2026-11-19)
+
+The previous, correctly source-counted `--measure-trends` mode
+investigated at most two OpenAlex topics selected from the **newest
+twenty published work records**. The result could accurately detect
+momentum in those two themes, but the candidate pool was too narrow
+to support broader product ideation.
+
+An additional explicit `--broad-topic-scan` opt-in (requires
+`--measure-trends`) now requests **three** more free OpenAlex
+`group_by=primary_topic.id&per_page=20` grouped-count pages,
+one for each completed, equal-length source interval.
+These queries use identical source-publication type/date filters
+to the current two-topic counter and consume only three additional
+requests under the **same** OpenAlex keyless free daily budget,
+request coalescing/cache and fixed HTTPS origin. A base three-source
+discovery with three TED date windows uses five calls, the optional
+two-topic count measurement uses at most nine additional calls,
+and the grouped scan adds at most three: **17 fixed requests total**,
+of which at most thirteen are OpenAlex calls including the initial
+seedless Works request. All require `--execute`; plan-only performs
+no network requests.
+
+Each period's group response is strictly validated for source
+`meta.count`, topic IDs, original bounded labels, and nonnegative
+group counts; at most 20 source groups per period enter analysis.
+Only topics present in **all three top-20 lists** can have their
+shares compared. An absent topic is **unknown, not zero**, because
+the group may still exist outside the first 20; it can never
+create a fabricated new or declining trend. Missing, malformed,
+rate-limited or inaccessible windows return a clearly unavailable
+comparison and no inferred growth.
+
+The broad scan identifies the strongest *rising research-share*
+signals among the common high-volume topics, with up to eight
+source-backed source-topic links, period counts, and normalized
+shares. It enriches the product-idea research watchlist without
+inventing product-market fit, search volume, sales or a paying
+customer. It is explicitly **not a comprehensive emerging-niche
+scanner**: its top-20-by-volume selection still misses the
+long-tail 4,516-topic universe. It makes the current workflow
+more useful across mainstream research fields, and explicitly
+identifies the next coverage limitation.
+
+Example:
+
+```powershell
+mcp-trendpulse-cli intelligence discover --execute --measure-trends --broad-topic-scan --lookback-days 30 --limit 20 --ted-date-slices 3 --record-history --format text
+```
+
+Official OpenAlex field/grouping references:
+https://help.openalex.org/api/grouping/
+https://help.openalex.org/data/topics/
+
 ### Trend-first product-idea research watchlist, live field verification (2026-11-19)
 
 The owner's Windows execution of `1909e0a` confirms the optional

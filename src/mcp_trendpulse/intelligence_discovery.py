@@ -922,6 +922,7 @@ def discover_current(
     execute: bool = False, cache: BudgetCache | None = None,
     env: dict[str, str] | None = None, ted_date_slices: int = 1,
     measure_trends: bool = False,
+    broad_topic_scan: bool = False,
 ) -> dict[str, Any]:
     """Free, read-only discovery; optional source-count trend measurement."""
     if isinstance(lookback_days, bool) or not isinstance(lookback_days, int) or not 7 <= lookback_days <= 90:
@@ -936,6 +937,10 @@ def discover_current(
         raise ValueError("execute must be a boolean")
     if not isinstance(measure_trends, bool):
         raise ValueError("measure_trends must be a boolean")
+    if not isinstance(broad_topic_scan, bool):
+        raise ValueError("broad_topic_scan must be a boolean")
+    if broad_topic_scan and not measure_trends:
+        raise ValueError("--broad-topic-scan requires --measure-trends")
     now = date.today()
     first = now - timedelta(days=lookback_days - 1)
     plans = [
@@ -970,15 +975,22 @@ def discover_current(
             from mcp_trendpulse.intelligence_trends import (
                 MAX_ADDITIONAL_REQUESTS, MAX_TOPICS, PUBLICATION_LAG_DAYS,
             )
+            from mcp_trendpulse.intelligence_broad_scan import GROUP_REQUESTS
+
+            broad_requests = GROUP_REQUESTS if broad_topic_scan else 0
             planned["max_requests_with_trend_measurement"] = (
-                len(plans) + MAX_ADDITIONAL_REQUESTS
+                len(plans) + MAX_ADDITIONAL_REQUESTS + broad_requests
             )
             planned["trend_evidence"] = {
                 "status": "planned_dynamic_provider_topic_counts",
                 "requires_execute": True,
                 "network_performed": False,
                 "max_auto_topics": MAX_TOPICS,
-                "max_additional_source_requests": MAX_ADDITIONAL_REQUESTS,
+                "max_additional_source_requests": (
+                    MAX_ADDITIONAL_REQUESTS + broad_requests
+                ),
+                "broad_topic_scan_opted_in": broad_topic_scan,
+                "most_represented_topic_group_cap": 20,
                 "publication_lag_days": PUBLICATION_LAG_DAYS,
                 "free_only": True,
                 "source": "openalex",
@@ -1064,6 +1076,41 @@ def discover_current(
             openalex, as_of=now, lookback_days=lookback_days,
             cache=cache, env=env,
         )
+        if broad_topic_scan:
+            from mcp_trendpulse.intelligence_broad_scan import (
+                GROUP_REQUESTS, scan_openalex_topic_landscape,
+            )
+
+            grouped = scan_openalex_topic_landscape(
+                as_of=now, lookback_days=lookback_days, cache=cache, env=env,
+            )
+            trend_evidence["broad_topic_scan"] = grouped
+            trend_evidence["additional_source_requests"] += grouped[
+                "source_requests"
+            ]
+            trend_evidence["max_additional_source_requests"] += GROUP_REQUESTS
+            known_ids = {
+                item["topic_id"] for item in trend_evidence["idea_watchlist"]
+            }
+            for row in grouped["rising_or_accelerating_watchlist"]:
+                if row["topic_id"] in known_ids:
+                    continue
+                trend_evidence["idea_watchlist"].append({
+                    "topic_id": row["topic_id"],
+                    "label": row["label"],
+                    "research_direction": row["direction"],
+                    "oldest_to_recent_share_change_percent": row[
+                        "oldest_to_recent_share_change_percent"
+                    ],
+                    "recent_research_examples": [],
+                    "source_topic_reference": row["source_topic_reference"],
+                    "why_investigate": "Research publication share is rising "
+                        "among the currently top-represented source topics; "
+                        "identify actual user workflows and alternatives.",
+                    "product_opportunity_verified": False,
+                    "keyword_search_demand_verified": False,
+                })
+                known_ids.add(row["topic_id"])
         result["trend_evidence"] = trend_evidence
         result["queries_budgeted"] += trend_evidence["additional_source_requests"]
         result["limits"] += (

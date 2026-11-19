@@ -134,6 +134,16 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
             if not payload.get("cik") or "entityName" not in payload:
                 raise UnexpectedSourceShape("Expected SEC XBRL company identifier and entityName")
             rows = [{"cik": payload["cik"], "entity_name": payload["entityName"]}]
+        elif (source == "openalex" and "results" not in payload
+              and isinstance(payload.get("group_by"), list)
+              and isinstance(payload.get("meta"), dict)
+              and isinstance(payload["meta"].get("count"), int)
+              and not isinstance(payload["meta"]["count"], bool)):
+            # Trusted OpenAlex group_by queries return aggregates in
+            # group_by, often with no results array. The original grouped
+            # data stays bounded in collect.data for strict trend parsing;
+            # it must never be confused with a list of published works.
+            rows = []
         else:
             rows = _objects(payload.get(fields[source]))
         # Recent-discovery plans request up to 20 rows. The former ten-row

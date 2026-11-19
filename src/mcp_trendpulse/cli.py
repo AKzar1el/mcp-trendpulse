@@ -874,6 +874,9 @@ def intelligence_sources(wave):
 @click.option("--measure-trends", is_flag=True,
               help="Opt in to compare up to two auto-discovered OpenAlex topics "
                    "across three prior periods (up to 9 extra free requests).")
+@click.option("--broad-topic-scan", is_flag=True,
+              help="With --measure-trends, compare top 20 OpenAlex topic groups "
+                   "across three periods (3 more bounded free requests).")
 @click.option("--execute", is_flag=True,
               help="Explicitly fetch fixed public free sources; otherwise plan only.")
 @click.option("--record-history", is_flag=True,
@@ -881,7 +884,8 @@ def intelligence_sources(wave):
 @click.option("--format", "output_format", type=click.Choice(["json", "text"]),
               default="json", show_default=True)
 def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
-                          execute, record_history, output_format):
+                          broad_topic_scan, execute, record_history,
+                          output_format):
     """Discover current source themes without any predefined topic keywords."""
     from mcp_trendpulse.intelligence_discovery import (
         discover_current, format_discovery_report, record_discovery_history,
@@ -893,6 +897,7 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
         response = discover_current(
             lookback_days=lookback_days, limit=limit, execute=execute,
             ted_date_slices=int(ted_date_slices), measure_trends=measure_trends,
+            broad_topic_scan=broad_topic_scan,
         )
         if record_history:
             response["history"] = record_discovery_history(response)

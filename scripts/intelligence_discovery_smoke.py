@@ -41,6 +41,17 @@ def main() -> int:
                 or measured_plan["trend_evidence"]["network_performed"]
                 or measured_plan["trend_evidence"]["max_additional_source_requests"] != 9):
             raise AssertionError("Opt-in trend measurement plan is not bounded and offline")
+        broad_plan = discover_current(
+            execute=False, limit=20, lookback_days=30, ted_date_slices=3,
+            measure_trends=True, broad_topic_scan=True, cache=cache, env={},
+        )
+        if (broad_plan["network_performed"]
+                or broad_plan["request_count"] != 5
+                or broad_plan["max_requests_with_trend_measurement"] != 17
+                or broad_plan["trend_evidence"]["network_performed"]
+                or broad_plan["trend_evidence"]["max_additional_source_requests"] != 12
+                or not broad_plan["trend_evidence"]["broad_topic_scan_opted_in"]):
+            raise AssertionError("Broad trend plan must remain opt-in and network free")
         result = discover_current(
             execute=True, limit=20, lookback_days=30,
             cache=cache, env={},
@@ -118,6 +129,7 @@ def main() -> int:
         "per_provider_record_limit_requested": 20,
         "stratified_plan_only_safety_verified": True,
         "trend_measurement_plan_only_safety_verified": True,
+        "broad_trend_plan_only_safety_verified": True,
         "providers_observed": covered,
         "source_status": [
             {"source": s["source"], "status": s["status"],
