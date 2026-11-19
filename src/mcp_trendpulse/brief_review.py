@@ -46,6 +46,25 @@ def _is_number(value, *, interest=False):
     return True
 
 
+def _observation_date_change(earlier, later):
+    """Classify only comparable primary date-only observations, not timestamps."""
+    if not earlier or not later:
+        return "unknown"
+    if not _is_number(earlier.get("latest_index"), interest=True) or not _is_number(
+        later.get("latest_index"), interest=True
+    ):
+        return "unknown"
+    before_date, after_date = earlier.get("latest_observation"), later.get("latest_observation")
+    if not all(isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value)
+               for value in (before_date, after_date)):
+        return "unknown"
+    if after_date < before_date:
+        return "older_after"
+    if after_date > before_date:
+        return "newer_after"
+    return "unchanged"
+
+
 def review_saved_brief(raw, *, output_format="text"):
     """Return (formatted review, needs_attention), without network or file mutations."""
     if output_format not in ("text", "json"):
@@ -226,6 +245,11 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
             if before_keywords[market] != after_keywords[market]:
                 raise ValueError(f"Snapshots not comparable: keyword scope differs in {market}")
 
+    source_markets = [
+        {market["market"]: market for market in document["markets"]}
+        for document in (before_data, after_data)
+    ]
+
     def snapshot(market, records, failures):
         item = records.get(market)
         return {
@@ -238,23 +262,48 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
         }
 
     comparisons = []
+    date_regression = False
     for market in sorted(before_scope):
         earlier = snapshot(market, before_markets, before_failures)
         later = snapshot(market, after_markets, after_failures)
         delta = None
         if earlier["observed_keywords"] is not None and later["observed_keywords"] is not None:
             delta = later["observed_keywords"] - earlier["observed_keywords"]
+        older = None
+        if market in source_markets[0] and market in source_markets[1]:
+            before_words = {
+                word["keyword"].strip().casefold(): word
+                for word in source_markets[0][market]["keywords"]
+            }
+            after_words = {
+                word["keyword"].strip().casefold(): word
+                for word in source_markets[1][market]["keywords"]
+            }
+            older = []
+            for key in sorted(before_words):
+                first, second = before_words[key], after_words[key]
+                if _observation_date_change(first, second) == "older_after":
+                    older.append({
+                        "keyword": second["keyword"].strip(),
+                        "before_date": first["latest_observation"],
+                        "after_date": second["latest_observation"],
+                    })
+            if older:
+                date_regression = True
+                needs_review = True
         comparisons.append({
             "market": market,
             "before": earlier,
             "after": later,
             "primary_coverage_change": delta,
+            "older_observations": older,
         })
 
     caveats = [
         "Do not compare normalized relative-interest indices across captures or markets.",
         "File order is user-declared; capture chronology and provider provenance are not authenticated.",
         "Missing market records do not establish an identical keyword scope; coverage delta is unknown.",
+        "Only date-only primary observations are compared for earlier after-file dates; timestamps are unclassified.",
     ]
     report = {
         "schema_version": 1,
@@ -274,13 +323,10 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
             "market", "keyword", "timeframe", "before_primary_available",
             "after_primary_available", "primary_availability_change",
             "before_latest_observation", "after_latest_observation",
+            "observation_date_change",
             "before_failure_code", "after_failure_code", "source_authenticated",
             "needs_human_review", "caveats",
         ])
-        source_markets = [
-            {market["market"]: market for market in document["markets"]}
-            for document in (before_data, after_data)
-        ]
         timeframe = report["timeframe"]
         if timeframe.lstrip().startswith(("=", "+", "-", "@")):
             timeframe = "'" + timeframe.lstrip()
@@ -311,6 +357,7 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
                     change,
                     earlier["latest_observation"] if before_valid else "",
                     later["latest_observation"] if after_valid else "",
+                    _observation_date_change(earlier, later),
                     before_failures.get(market), after_failures.get(market),
                     "false", str(needs_review).lower(), "; ".join(caveats),
                 ])
@@ -321,6 +368,7 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
         writer.writerow([
             "market", "timeframe", "before_observed_keywords", "before_total_keywords",
             "after_observed_keywords", "after_total_keywords", "primary_coverage_change",
+            "older_observation_keyword_count",
             "before_latest_observation", "after_latest_observation", "before_failure_code",
             "after_failure_code", "before_growth_unavailable", "after_growth_unavailable",
             "before_warning_count", "after_warning_count", "source_authenticated",
@@ -337,6 +385,7 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
                 earlier["observed_keywords"], earlier["total_keywords"],
                 later["observed_keywords"], later["total_keywords"],
                 item["primary_coverage_change"],
+                len(item["older_observations"]) if item["older_observations"] is not None else None,
                 earlier["latest_market_observation"], later["latest_market_observation"],
                 earlier["failure_code"], later["failure_code"],
                 earlier["growth_unavailable"], later["growth_unavailable"],
@@ -360,6 +409,10 @@ def compare_saved_briefs(before_raw, after_raw, *, output_format="text"):
                      f"-> {item['after']['latest_market_observation'] or 'n/a'}; "
                      f"failure codes: {item['before']['failure_code'] or 'none'} "
                      f"-> {item['after']['failure_code'] or 'none'}")
-    lines.append("Assessment: current snapshot needs human review" if needs_review else
+        for older in item["older_observations"] or []:
+            lines.append(f"  Earlier observation in declared after-file: {older['keyword']} "
+                         f"{older['before_date']} -> {older['after_date']} (review)")
+    lines.append("Assessment: declared observation dates regressed; human review required" if date_regression else
+                 "Assessment: current snapshot needs human review" if needs_review else
                  "Assessment: current snapshot structurally complete; review warnings")
     return "\n".join([*lines, *caveats]) + "\n", needs_review
