@@ -97,7 +97,29 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
             raise UnexpectedSourceShape("Expected [pagination, values] from World Bank")
         rows = _objects(payload[1])
         return {"record_count": len(rows), "sample": rows, "unit": "official indicator observations"}
-    if source in {"github_issues", "usaspending", "openalex", "gleif", "ted",
+    if source == "github_issues":
+        if not isinstance(payload, dict):
+            raise UnexpectedSourceShape("Expected GitHub issue search JSON")
+        from mcp_trendpulse.intelligence_issue_quality import classify_github_issue
+
+        issues = _objects(payload.get("items"))
+        projected = []
+        for item in issues[:10]:
+            # Deliberately do NOT emit issue body, author, email or labels.
+            # Classification is a bounded lexical screen, not trust or demand.
+            projected.append({
+                **{k: item[k] for k in (
+                    "id", "title", "created_at", "html_url", "pull_request",
+                ) if k in item},
+                "issue_evidence_type": classify_github_issue(
+                    item.get("title"), item.get("body"), item.get("html_url"),
+                ),
+            })
+        return {
+            "record_count": len(issues), "sample": projected,
+            "unit": "public GitHub issue titles and coarse evidence quality only",
+        }
+    if source in {"usaspending", "openalex", "gleif", "ted",
                   "greenhouse", "ashby", "smartrecruiters", "sec_companyfacts",
                   "sec_companyconcept", "companies_house"}:
         if not isinstance(payload, dict):

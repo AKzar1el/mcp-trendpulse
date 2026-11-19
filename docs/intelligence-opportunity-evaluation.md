@@ -417,3 +417,35 @@ https://cfpb.github.io/ccdb5-api/
 ### Human-readable watchlists
 
 Pass `--format text` together with `--execute` for a compact numbered list of ranked current activity, dates, source references, coverage warnings and next steps. Agents retain the default JSON format. Source titles have terminal control characters stripped. CFPB observations combine public product and issue categories, without personal complaint narratives. Topic matching now normalizes simple plurals, but never claims semantic equivalence or verified growth.
+
+
+### Current hunter: GitHub issue quality gates
+
+A November 19 review of four public GitHub issues revealed that an automotive
+battery-recycling market forecast, a hypothetical engineering design proposal,
+and a personal profile repository task were being treated as evidence of
+fresh market demand. None of these establish a paying customer. The remaining
+agent-reliability issue is a legitimate engineering task but does not by itself
+verify external buying intent.
+
+The GitHub issues adapter now uses **bounded lexical classification**, reads
+only a short in-memory body excerpt, and projects only the public issue title,
+ID, creation date, URL and coarse quality label. The raw narrative, author
+identity and labels are not exposed through the observations projection.
+The hunter screens promotional market forecasts, explicitly hypothetical
+proposals, personal-profile repository tasks, and obvious implementation
+assignments from *current market activity* counts. Quality-screen diagnostics
+preserve original source links and exclusion reasons for audit.
+
+Single-source activity earns at most **1/3 investigation priority**; multiple
+current corroborating evidence *classes* at most **2/3** until buyer, budget,
+and workflow relationships are independently verified. Priority 3/3 is
+intentionally unreachable from source titles alone. These are heuristic
+investigation priorities, **not success probabilities**. A genuine novel
+proposal or engineering task might be downgraded: the gate does not establish
+that a source is spam, fraudulent, or worthless.
+
+Previously cached public query snapshots may lack body-derived classifications
+until normal expiry. Title/URL fallback screening still rejects forecast
+headlines and personal-profile issues, without deleting caches or bypassing
+provider quotas.

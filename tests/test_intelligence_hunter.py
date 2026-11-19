@@ -56,7 +56,7 @@ def test_cross_source_dated_activity_ranked_without_inventing_growth():
     ))
     row = r["topics"][0]
     assert row["status"] == "current_cross_source_activity"
-    assert row["investigation_priority"] == 3
+    assert row["investigation_priority"] == 2
     assert row["recent_dated_records_in_sample"] == 2
     assert row["recent_7_day_records_in_sample"] == 2
     assert row["distinct_recent_source_classes"] == 2
@@ -75,7 +75,7 @@ def test_single_source_dated_mention_is_not_cross_source_research():
     r = report(batch("battery recycling", observed("github_issues", [issue()])))
     row = r["topics"][0]
     assert row["status"] == "current_single_source_activity"
-    assert row["investigation_priority"] == 2
+    assert row["investigation_priority"] == 1
     assert row["recent_independent_provider_types"] == 1
 
 
@@ -315,3 +315,116 @@ def test_simple_plurals_count_as_lexical_overlap_not_semantic_similarity():
         issue("Cloud costs management budget problem"),
     ])))
     assert r["topics"][0]["status"] == "current_single_source_activity"
+
+
+
+def test_realistic_market_forecast_github_issue_is_excluded_from_fresh_signals():
+    from mcp_trendpulse.intelligence_evidence import evidence_projection
+
+    payload = {
+        "items": [{
+            "id": 90, "title": (
+                "Automotive Battery Recycling Market to Reach USD 29 Billion "
+                "by 2034 as Demand Accelerates"
+            ),
+            "created_at": "2026-11-19T09:18:06Z",
+            "html_url": "https://github.com/karannaware/Karan-Naware/issues/90",
+            "body": "Marketing market forecast with projected CAGR.",
+        }],
+    }
+    projected = evidence_projection("github_issues", payload)["sample"]
+    assert "body" not in projected[0]
+    assert projected[0]["issue_evidence_type"] == "promotional_market_claim"
+    x = report(batch("battery recycling", observed("github_issues", projected)))["topics"][0]
+    assert x["investigation_priority"] == 0
+    assert x["status"] == "excluded_low_quality_activity"
+    assert x["recent_dated_records_in_sample"] == 0
+    assert x["quality_exclusion_reasons"] == {"promotional_market_claim": 1}
+
+
+def test_hypothetical_issue_discarded_without_erasing_original_audit_trail():
+    from mcp_trendpulse.intelligence_evidence import evidence_projection
+
+    raw = {
+        "items": [{
+            "id": 72103,
+            "title": "Dimensional yield definitions for battery recycling research",
+            "created_at": "2026-11-17T16:33:21Z",
+            "html_url": "https://github.com/zion-support/zion-support.github.io/issues/72103",
+            "body": "A hypothetical battery recycling research consortium proposes a tool.",
+        }],
+    }
+    projected = evidence_projection("github_issues", raw)["sample"]
+    result = report(batch("battery recycling", observed("github_issues", projected)))
+    item = result["topics"][0]
+    assert item["quality_screened_issue_records"] == 1
+    assert item["status"] == "excluded_low_quality_activity"
+    assert item["quality_excluded_examples"][0]["reference"].endswith("/issues/72103")
+    assert "hypothetical" in item["quality_excluded_examples"][0]["classification"]
+
+
+def test_profile_repository_owner_task_not_confused_with_paid_market_demand():
+    x = report(batch("agent reliability", observed("github_issues", [{
+        "id": 3,
+        "title": "Extract Agent Reliability Lab into a dedicated repository",
+        "created_at": "2026-11-19T10:46:10Z",
+        "html_url": "https://github.com/artemoffM8/artemoffM8/issues/3",
+    }])))["topics"][0]
+    assert x["status"] == "excluded_low_quality_activity"
+    assert x["quality_exclusion_reasons"]["profile_repository_work_item"] == 1
+
+
+def test_technical_issue_stays_visible_but_is_not_two_thirds_of_opportunity():
+    x = report(batch("agent reliability", observed("github_issues", [{
+        "id": 1,
+        "title": "Audit AI Agent Batch Transaction Reliability and Recovery",
+        "created_at": "2026-11-19T10:56:04Z",
+        "html_url": "https://github.com/bownyu/fin-dash/issues/1",
+    }])))["topics"][0]
+    assert x["status"] == "current_single_source_activity"
+    assert x["investigation_priority"] == 1
+    assert x["recent_dated_records_in_sample"] == 1
+    assert x["buying_intent_confirmed"] is False
+    assert x["evidence"][0]["issue_evidence_type"] == "unverified_public_issue"
+
+
+def test_promotional_github_issues_cannot_amplify_genuine_research():
+    from mcp_trendpulse.intelligence_evidence import evidence_projection
+
+    github = evidence_projection("github_issues", {
+        "items": [{
+            "id": 101, "title": "Battery Recycling Market to Reach $8B by 2034",
+            "created_at": "2026-11-19T10:00:00Z",
+            "html_url": "https://github.com/example/market/issues/101",
+            "body": "Claimed billions in market size, no primary source.",
+        }],
+    })["sample"]
+    x = report(batch(
+        "battery recycling",
+        observed("github_issues", github),
+        observed("openalex", [article()]),
+    ))["topics"][0]
+    assert x["status"] == "current_single_source_activity"
+    assert x["distinct_recent_source_classes"] == 1
+    assert x["investigation_priority"] == 1
+    assert x["quality_screened_issue_records"] == 1
+
+
+def test_hunter_text_reports_quality_screened_noise_without_promoting_it():
+    from mcp_trendpulse.intelligence_evidence import evidence_projection
+
+    github = evidence_projection("github_issues", {
+        "items": [{
+            "id": 101,
+            "title": "Battery Recycling Market to Reach 4 Billion by 2034",
+            "created_at": "2026-11-19T10:00:00Z",
+            "html_url": "https://github.com/example/market/issues/101",
+            "body": "Market report for a growing sector.",
+        }],
+    })["sample"]
+    summary = report(batch("battery recycling", observed("github_issues", github)))
+    output = hunter.format_hunt_report(summary)
+    assert "priority 0/3" in output
+    assert "Noise screened: 1" in output
+    assert "promotional_market_claim=1" in output
+    assert "Current market winner" not in output

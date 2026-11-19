@@ -152,9 +152,24 @@ def _entry(source: str, raw: dict[str, Any], asof: date) -> dict[str, Any] | Non
             ref = "https://github.com/"
         if not issue_id:
             return None
+        from mcp_trendpulse.intelligence_issue_quality import classify_github_issue
+
+        # A cached older collector snapshot may omit the classification.
+        # Classify title and vetted GitHub URL locally as a conservative
+        # fallback; never treat absent body metadata as verified buyer pain.
+        provided_type = raw.get("issue_evidence_type")
+        issue_type = (
+            provided_type
+            if isinstance(provided_type, str) and provided_type in {
+                "promotional_market_claim", "hypothetical_or_unverified_design",
+                "profile_repository_work_item", "internal_implementation_work_item",
+                "reported_operational_problem", "unverified_public_issue",
+            }
+            else classify_github_issue(raw.get("title"), url=ref)
+        )
         result.update({
             "id": issue_id, "title": _text(raw.get("title"), 180),
-            "reference": ref,
+            "reference": ref, "issue_evidence_type": issue_type,
             "event_date": _date(raw.get("created_at"), asof),
             "date_semantics": "issue_creation_not_buyer_spend",
         })

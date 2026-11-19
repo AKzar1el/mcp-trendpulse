@@ -11,7 +11,7 @@ import hashlib
 import json
 import re
 import sqlite3
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -20,6 +20,7 @@ from mcp_trendpulse.intelligence_core import (
     BudgetCache, IntelligenceError, collect, plan_source,
 )
 from mcp_trendpulse.intelligence_observations import observe_source_snapshots
+from mcp_trendpulse.intelligence_issue_quality import EXCLUDED_FROM_CURRENT_HUNT
 from mcp_trendpulse.intelligence_opportunities import _day
 
 HUNT_SOURCES = (
@@ -146,8 +147,20 @@ def summarize_current_hunt(
         report = observe_source_snapshots(term, snapshots, as_of=now.isoformat())
         matches = [row for row in report["sample_records"]
                    if _relevant(term, str(row.get("title") or ""))]
-        current = [
+        excluded = [
             row for row in matches
+            if row["source"] == "github_issues"
+            and row.get("issue_evidence_type") in EXCLUDED_FROM_CURRENT_HUNT
+        ]
+        quality_reasons = Counter(
+            row["issue_evidence_type"] for row in excluded
+        )
+        # GitHub issue titles often contain market forecasts, hypothetical
+        # specifications, or profile-repo tasks. They remain auditable, but
+        # can never become fresh customer-pain or purchasing signals.
+        screened = [row for row in matches if row not in excluded]
+        current = [
+            row for row in screened
             if row.get("event_date") is not None
             and recent_cutoff <= row["event_date"] <= now.isoformat()
             and row.get("date_semantics") in DATE_SEMANTICS
@@ -156,13 +169,19 @@ def summarize_current_hunt(
         classes = {row["kind"] for row in current}
         source_count = len({row["source"] for row in current})
         recent_week = [row for row in current if row["event_date"] >= weekly_cutoff]
-        context = [row for row in matches if row not in current]
+        context = [row for row in screened if row not in current]
         if len(classes) >= 2 and source_count >= 2:
-            stage, priority = "current_cross_source_activity", 3
+            # Independent source categories = investigation priority, NOT
+            # shared buyer/workflow or a validated commercial opportunity.
+            stage, priority = "current_cross_source_activity", 2
         elif current:
-            stage, priority = "current_single_source_activity", 2
+            # A single GitHub issue / paper is evidence of *publication*,
+            # never two-thirds confidence in an actual business opportunity.
+            stage, priority = "current_single_source_activity", 1
         elif context:
             stage, priority = "context_only_not_recent_activity", 1
+        elif excluded:
+            stage, priority = "excluded_low_quality_activity", 0
         else:
             stage, priority = "insufficient_topical_observation", 0
         coverage = report["source_coverage"]
@@ -178,6 +197,13 @@ def summarize_current_hunt(
             "recent_source_classes": sorted(classes),
             "recent_independent_provider_types": source_count,
             "topical_context_records": len(context),
+            "quality_screened_issue_records": len(excluded),
+            "quality_exclusion_reasons": dict(sorted(quality_reasons.items())),
+            "quality_excluded_examples": [{
+                "reference": row["reference"], "title": row.get("title", ""),
+                "classification": row["issue_evidence_type"],
+            } for row in excluded[:3]],
+            "quality_screen_is_heuristic": True,
             "provider_coverage_degraded": report["coverage_degraded"],
             "source_coverage": coverage,
             "evidence": [
@@ -187,6 +213,8 @@ def summarize_current_hunt(
                     "event_date": row["event_date"],
                     "date_semantics": row["date_semantics"],
                     "reference": row["reference"],
+                    **({"issue_evidence_type": row["issue_evidence_type"]}
+                       if row["source"] == "github_issues" else {}),
                 }
                 for row in sorted(current, key=lambda x: (x["event_date"], x["source"]),
                                   reverse=True)[:12]
@@ -200,6 +228,10 @@ def summarize_current_hunt(
             "follow_up": (
                 "Read original evidence and verify common workflow, geography, and budget owner"
                 if priority >= 2 else
+                "Investigate independent buying evidence; recent posts alone cannot establish demand"
+                if priority == 1 else
+                "Discard promotional/hypothetical issue noise and seek original sources"
+                if excluded else
                 "Collect more recent dated evidence and identify the paying buyer"
             ),
         }
@@ -384,6 +416,15 @@ def format_hunt_report(result: dict[str, Any]) -> str:
         )
         if row["provider_coverage_degraded"]:
             lines.append("   Coverage incomplete: one or more providers unavailable")
+        if row["quality_screened_issue_records"]:
+            reasons = ", ".join(
+                f"{name}={number}" for name, number in
+                row["quality_exclusion_reasons"].items()
+            )
+            lines.append(
+                f"   Noise screened: {row['quality_screened_issue_records']} "
+                f"GitHub issue(s) ({reasons})"
+            )
         for item in row["evidence"][:3]:
             # Publisher titles are untrusted. Strip terminal control codes.
             raw = str(item.get("title") or "")
