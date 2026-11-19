@@ -160,6 +160,8 @@ def classify_publication_momentum(
             "oldest_to_recent_share_change_percent": None,
             "latest_interval_share_change_percent": None,
             "research_share_measured": False,
+            "trajectory_integrity_flag": "missing_or_invalid_source_counts",
+            "two_interval_direction_consistent": False,
             "market_growth_verified": False,
         }
     shares = [t / c for t, c in zip(topic_counts, corpus_counts)]
@@ -173,20 +175,30 @@ def classify_publication_momentum(
     total_change = round(100 * (shares[2] / shares[0] - 1), 1) if shares[0] else None
     latest_change = round(100 * (shares[2] / shares[1] - 1), 1) if shares[1] else None
     direction = "inconclusive"
-    # Do not turn a small denominator or two stray indexed papers into a
-    # sensational new trend. These bounds are transparent heuristics,
-    # not calibrated confidence intervals or statistical significance tests.
+    quality_flag = ""
+    # Directional evidence != robust product-ideation evidence. A new
+    # classifier, publisher batch or indexing revision may create a
+    # one-period jump with correct source counts but no sustained trend.
+    # These thresholds are intentionally conservative heuristics, NOT
+    # causal attribution or calibrated statistical tests.
     if recent >= 8 and first <= 2 and middle <= 2:
         direction = "newly_observed_research_activity"
     elif min(first, middle, recent) >= 8:
-        if (a is not None and b is not None and
+        if (a is not None and b is not None and b >= 4.0):
+            direction = "abrupt_publication_spike_needs_validation"
+            quality_flag = "single_completed_period_discontinuous_jump"
+        elif (a is not None and b is not None
+              and a <= 0.97 and b >= 1.50):
+            direction = "volatile_rebound_needs_validation"
+            quality_flag = "earlier_share_declined_before_recent_rebound"
+        elif (a is not None and b is not None and
                 a >= 1.15 and b >= 1.30 and b >= a * 1.10):
             direction = "accelerating_research_share"
         elif (b is not None and a is not None and
-              b >= 1.30 and a * b >= 1.45):
+              a >= 1.0 and b >= 1.30 and a * b >= 1.45):
             direction = "rising_research_share"
         elif (b is not None and a is not None and
-              b <= 0.75 and a * b <= 0.65):
+              a <= 1.0 and b <= 0.75 and a * b <= 0.65):
             direction = "declining_research_share"
         elif (a is not None and b is not None and
               a >= 1.03 and b >= 1.08 and a * b >= 1.20):
@@ -209,6 +221,19 @@ def classify_publication_momentum(
         "oldest_to_recent_share_change_percent": total_change,
         "latest_interval_share_change_percent": latest_change,
         "research_share_measured": True,
+        "trajectory_integrity_flag": quality_flag,
+        "two_interval_direction_consistent": bool(
+            a is not None and b is not None
+            and (
+                (a >= 1.0 and b >= 1.0)
+                or (a <= 1.0 and b <= 1.0)
+            )
+            and direction not in {
+                "volatile_rebound_needs_validation",
+                "abrupt_publication_spike_needs_validation",
+                "newly_observed_research_activity",
+            }
+        ),
         "market_growth_verified": False,
     }
 
@@ -331,6 +356,8 @@ def format_research_trends(evidence: dict[str, Any]) -> list[str]:
         "accelerating_research_share": 1,
         "rising_research_share": 2,
         "early_rising_research_watchlist": 3,
+        "abrupt_publication_spike_needs_validation": 5,
+        "volatile_rebound_needs_validation": 5,
         "approximately_stable_research_share": 4,
         "inconclusive": 5,
         "insufficient_volume": 6,
@@ -361,6 +388,12 @@ def format_research_trends(evidence: dict[str, Any]) -> list[str]:
                 lines.append(
                     f"    Research-share change, oldest → recent: {total:+.1f}%"
                     + (f" | middle → recent: {recent:+.1f}%" if recent is not None else "")
+                )
+            if topic.get("trajectory_integrity_flag"):
+                lines.append(
+                    "    CAUTION: abrupt/volatile research-count trajectory; "
+                    "investigate index/backfill/publication-date effects "
+                    "before treating it as sustained momentum."
                 )
         else:
             lines.append(

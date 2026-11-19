@@ -28,6 +28,11 @@ MAX_MISSING_HISTORY_PROBES = 2
 MAX_HISTORY_PROBE_REQUESTS = PERIOD_COUNT * MAX_MISSING_HISTORY_PROBES
 MAX_SCAN_REQUESTS = GROUP_REQUESTS + MAX_HISTORY_PROBE_REQUESTS
 WATCHLIST_LIMIT = 8
+ANOMALY_REVIEW_LIMIT = 6
+CAUTION_DIRECTIONS = {
+    "abrupt_publication_spike_needs_validation",
+    "volatile_rebound_needs_validation",
+}
 
 
 def _group_plan(template: Plan, period: dict[str, str]) -> Plan:
@@ -137,6 +142,8 @@ def scan_openalex_topic_landscape(
         "history_probe_results": [],
         "periods": periods,
         "rising_or_accelerating_watchlist": [],
+        "unconfirmed_spikes_for_source_audit": [],
+        "unconfirmed_spikes_not_product_idea_leads": True,
         "buyer_or_market_growth_verified": False,
         "not_a_complete_niche_scan": True,
         "omitted_group_not_equivalent_to_zero_count": True,
@@ -181,6 +188,7 @@ def scan_openalex_topic_landscape(
         "early_rising_research_watchlist",
     }
     shared_signals = []
+    anomaly_review = []
     for code in sorted(common):
         counted = [
             old["topic_groups"][code]["count"],
@@ -188,9 +196,10 @@ def scan_openalex_topic_landscape(
             recent["topic_groups"][code]["count"],
         ]
         measured = classify_publication_momentum(counted, denominators)
-        if measured["direction"] not in upward:
+        if (measured["direction"] not in upward
+                and measured["direction"] not in CAUTION_DIRECTIONS):
             continue
-        shared_signals.append({
+        item = {
             "topic_id": code,
             "label": recent["topic_groups"][code]["label"],
             "source_topic_reference": "https://openalex.org/" + code,
@@ -199,7 +208,11 @@ def scan_openalex_topic_landscape(
             "sample_selection": "top100_in_each_of_three_mature_periods",
             "historical_cells_verified_by_direct_count": False,
             **measured,
-        })
+        }
+        if measured["direction"] in CAUTION_DIRECTIONS:
+            anomaly_review.append(item)
+        else:
+            shared_signals.append(item)
 
     niche_signals = []
     if probe_recent_missing:
@@ -258,8 +271,9 @@ def scan_openalex_topic_landscape(
             probe["status"] = "measured"
             probe["research_direction"] = measured["direction"]
             output["history_probe_results"].append(probe)
-            if measured["direction"] in upward:
-                niche_signals.append({
+            if (measured["direction"] in upward
+                    or measured["direction"] in CAUTION_DIRECTIONS):
+                item = {
                     "topic_id": code, "label": label,
                     "source_topic_reference": "https://openalex.org/" + code,
                     "topic_counts": counted, "corpus_counts": denominators,
@@ -267,7 +281,11 @@ def scan_openalex_topic_landscape(
                         "recent_top100_history_verified_by_three_direct_counts",
                     "historical_cells_verified_by_direct_count": True,
                     **measured,
-                })
+                }
+                if measured["direction"] in CAUTION_DIRECTIONS:
+                    anomaly_review.append(item)
+                else:
+                    niche_signals.append(item)
 
     def ranking(row: dict[str, Any]) -> tuple[float, int, str]:
         return (
@@ -282,6 +300,10 @@ def scan_openalex_topic_landscape(
     reserved = min(MAX_MISSING_HISTORY_PROBES, len(niche_signals))
     shown = shared_signals[:WATCHLIST_LIMIT - reserved] + niche_signals[:reserved]
     output["rising_or_accelerating_watchlist"] = sorted(shown, key=ranking)
+    anomaly_review.sort(key=ranking)
+    output["unconfirmed_spikes_for_source_audit"] = anomaly_review[
+        :ANOMALY_REVIEW_LIMIT
+    ]
     output["status"] = "observed_bounded_top100_overlap"
     return output
 
@@ -318,11 +340,12 @@ def format_broad_topic_scan(scan: dict[str, Any]) -> list[str]:
         + str(scan["history_probe_inconsistent_recent_counts"]) + "."
     )
     signals = scan["rising_or_accelerating_watchlist"]
+    anomalies = scan.get("unconfirmed_spikes_for_source_audit", [])
     if not signals:
         lines.append(
-            "  No qualifying upward research-share evidence among the "
-            "fully comparable or verified follow-up topics. "
-            "Unmeasured niche topics remain UNKNOWN."
+            "  No qualifying SUSTAINED upward research-share signal among "
+            "the comparable or verified follow-up topics; unmeasured niches "
+            "remain UNKNOWN."
         )
     for i, row in enumerate(signals, 1):
         change = row["oldest_to_recent_share_change_percent"]
@@ -352,6 +375,26 @@ def format_broad_topic_scan(scan: dict[str, Any]) -> list[str]:
             + " → ".join(str(x) for x in row["share_per_million"])
         )
         lines.append("     " + row["source_topic_reference"])
+    if anomalies:
+        lines.append(
+            "  UNCONFIRMED PUBLICATION SPIKES — NOT product-idea "
+            "growth leads; inspect source indexing, publication dates "
+            "and independent evidence:"
+        )
+        for row in anomalies:
+            lines.append(
+                "    " + row["label"] + " [" + row["topic_id"] + "]"
+                + " — " + row["direction"].replace("_", " ")
+            )
+            lines.append(
+                "      Actual source works, old → middle → recent: "
+                + " → ".join(map(str, row["topic_counts"]))
+            )
+            lines.append(
+                "      Normalized works per million: "
+                + " → ".join(map(str, row["share_per_million"]))
+            )
+            lines.append("      " + row["source_topic_reference"])
     lines.append(
         "  This is a bounded source-count scan, not all 4,516 topics "
         "or a survey of emerging product niches; source indexing/classifier "

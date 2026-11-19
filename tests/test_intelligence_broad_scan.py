@@ -382,6 +382,63 @@ def test_only_two_recent_gaps_probed_at_most_six_extra_requests(monkeypatch):
     assert len(scan["rising_or_accelerating_watchlist"]) == 2
 
 
+def test_actual_field_ranking_gap_spikes_do_not_create_product_idea_leads(
+    monkeypatch,
+):
+    """A measured 69 -> 1078 jump is not evidence of sustained popularity."""
+    periods = trends.completed_periods(date.today(), 30)
+    counts = {
+        "T13590": [78, 69, 1078],
+        "T10129": [589, 477, 1161],
+    }
+    totals = [628356, 711639, 624923]
+    calls = []
+    def fake_collect(plan, **_kwargs):
+        q = parse_qs(urlsplit(plan.url).query)
+        period = [p["through"] for p in periods].index(
+            q["filter"][0].split("to_publication_date:")[1][:10]
+        )
+        if "group_by" in q:
+            groups = {"T55555": ("Established Stable Baseline", 2000)}
+            if period == 2:
+                groups.update({
+                    "T13590": ("Oral History, Memory, Narrative Analysis", 1078),
+                    "T10129": ("Glioma Diagnosis and Treatment", 1161),
+                })
+            calls.append(("group", period))
+            return _group_response(groups, total=totals[period])
+        topic = q["filter"][0].split("primary_topic.id:")[1]
+        calls.append((topic, period))
+        return {"source": "openalex", "status": "observed",
+                "data": {"meta": {"count": counts[topic][period]}}}
+    monkeypatch.setattr(broad, "collect", fake_collect)
+    out = broad.scan_openalex_topic_landscape(
+        as_of=date.today(), lookback_days=30, env={},
+    )
+    assert out["status"] == "observed_bounded_top100_overlap"
+    assert out["source_requests"] == 9
+    assert out["history_probe_candidate_count"] == 2
+    assert out["history_probe_measured"] == 2
+    assert out["rising_or_accelerating_watchlist"] == []
+    flagged = out["unconfirmed_spikes_for_source_audit"]
+    assert {r["topic_id"] for r in flagged} == {"T13590", "T10129"}
+    assert {r["direction"] for r in flagged} == {
+        "abrupt_publication_spike_needs_validation",
+        "volatile_rebound_needs_validation",
+    }
+    assert all(r["historical_cells_verified_by_direct_count"] for r in flagged)
+    assert out["unconfirmed_spikes_not_product_idea_leads"] is True
+    rendered = "\n".join(broad.format_broad_topic_scan(out))
+    assert "UNCONFIRMED PUBLICATION SPIKES" in rendered
+    assert "NOT product-idea growth leads" in rendered
+    assert "78 → 69 → 1078" in rendered
+    assert "589 → 477 → 1161" in rendered
+    assert "No qualifying SUSTAINED" in rendered
+    assert "T13590" in rendered and "T10129" in rendered
+    assert out["buyer_or_market_growth_verified"] is False
+    assert len(calls) == 9
+
+
 def test_broad_scan_is_explicit_and_plan_only_mode_is_network_free(monkeypatch):
     def forbidden(*_a, **_kw):
         raise AssertionError("No network access allowed in plan-only mode")

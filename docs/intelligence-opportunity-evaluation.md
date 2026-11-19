@@ -736,6 +736,63 @@ https://ted.europa.eu/en/help/search-browse
 CFPB complaint sampling limitations:
 https://www.consumerfinance.gov/data-research/consumer-complaints/
 
+### Live ranking-gap spikes: measured counts, not sustained trends (2026-11-19)
+
+The owner's successful `d9a5940` Windows field run captured three
+top-100 OpenAlex grouped pages (**100 → 100 → 100**), with **76** topic
+IDs present in all three windows and **58** unique groups missing
+from one or more ranking pages. Of **24** recently ranked topics not
+fully present in older rankings, the first **two** passed three
+direct historical source-count queries each (0 rate/source failures).
+
+The source-verified counts exhibited *extreme, unstable*
+**decline-then-jump** patterns:
+- Oral History, Memory, Narrative Analysis, T13590:
+  **78 → 69 → 1078** research works, or
+  **124.134 → 96.958 → 1725.013** works per million
+  (overall +1,289.6% normalized share).
+- Glioma Diagnosis and Treatment, T10129:
+  **589 → 477 → 1161** works, or
+  **937.37 → 670.278 → 1857.829** per million
+  (overall +98.2% normalized share).
+
+Those are valid *observed source counts*. They are **not**
+independently verified rising product trends: both declined in
+the first interval, then rebounded abruptly. OpenAlex replaced its
+topic assignment classifier on **2026-10-06** and periodically revises
+historical topics; API publication dates also follow metadata from
+upstream publishers. These changes are credible *risks* requiring
+investigation, **not proven causes of either spike**.
+
+To avoid promoting such noise into the product-ideation shortlist,
+the common three-window classifier now labels a large (>4×)
+single-completed-period jump as
+`abrupt_publication_spike_needs_validation`, and a material
+previous-share decline (<=0.97×) followed by >=1.5× rebound as
+`volatile_rebound_needs_validation`. The regular
+`rising_research_share` branch now requires first-window share
+not to decline, and a clean decline requires both periods to fall.
+Guarded signals do **not** enter the product-idea watchlist.
+A separate bounded `unconfirmed_spikes_for_source_audit`
+retains up to six exact source-backed periods, normalized shares
+and provider topic URLs in the output for human investigation.
+No data is removed, no false-negative zero counts are inserted
+and no additional API requests are made. These labels are
+conservative quality heuristics, NOT statistical significance
+or causal evidence.
+
+The XAI T12026 signal (630.218 → 671.683 → 798.498 works per
+million, two consecutive share increases) continues to qualify
+as an exploratory early-rising research watchlist lead. For real
+product ideas, corroboration with practical workflows, independent
+activity and customer problems is necessary. SEO keyword-demand
+research remains a separate future milestone.
+
+Official context:
+https://blog.openalex.org/same-topics-better-assignments/
+https://help.openalex.org/data/works/attributes/
+https://help.openalex.org/data/topics/
+
 ### Broad topic coverage and verifiable ranking-gap rescue (2026-11-19)
 
 **Latest Windows field evidence on `57c873f`**: the opt-in

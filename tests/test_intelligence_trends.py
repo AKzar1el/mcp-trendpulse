@@ -132,6 +132,13 @@ def test_unsafe_or_guessed_topic_ids_rejected(bad):
     ([396, 478, 499], [628356, 711639, 624923],
      "early_rising_research_watchlist"),
     ([100, 94, 78], [100000] * 3, "early_declining_research_watchlist"),
+    ([78, 69, 1078], [628356, 711639, 624923],
+     "abrupt_publication_spike_needs_validation"),
+    ([589, 477, 1161], [628356, 711639, 624923],
+     "volatile_rebound_needs_validation"),
+    ([100, 100, 500], [100000] * 3,
+     "abrupt_publication_spike_needs_validation"),
+    ([50, 40, 95], [100000] * 3, "volatile_rebound_needs_validation"),
     ([None, 20, 30], [100000] * 3, "unavailable"),
     ([10, 20, 30], [100000, None, 100000], "unavailable"),
     ([10, 20, 30], [100000, 0, 100000], "unavailable"),
@@ -147,6 +154,30 @@ def test_directional_trend_heuristics_are_transparent_and_bounded(topic, corpus,
         assert result["research_share_measured"] is True
         assert len(result["share_per_million"]) == 3
         assert len(result["period_over_period_share_ratios"]) == 2
+
+
+def test_actual_november_field_spikes_remain_measured_but_not_sustained():
+    corpus = [628356, 711639, 624923]
+    oral = trends.classify_publication_momentum([78, 69, 1078], corpus)
+    glioma = trends.classify_publication_momentum([589, 477, 1161], corpus)
+    xai = trends.classify_publication_momentum([396, 478, 499], corpus)
+    assert oral["research_share_measured"] is True
+    assert glioma["research_share_measured"] is True
+    assert oral["direction"] == "abrupt_publication_spike_needs_validation"
+    assert glioma["direction"] == "volatile_rebound_needs_validation"
+    assert oral["trajectory_integrity_flag"] == (
+        "single_completed_period_discontinuous_jump"
+    )
+    assert glioma["trajectory_integrity_flag"] == (
+        "earlier_share_declined_before_recent_rebound"
+    )
+    assert oral["two_interval_direction_consistent"] is False
+    assert glioma["two_interval_direction_consistent"] is False
+    assert oral["market_growth_verified"] is False
+    assert glioma["market_growth_verified"] is False
+    assert xai["direction"] == "early_rising_research_watchlist"
+    assert xai["two_interval_direction_consistent"] is True
+    assert xai["trajectory_integrity_flag"] == ""
 
 
 def test_real_field_xai_research_watchlist_not_false_market_growth():
