@@ -140,11 +140,17 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
             if keyword:
                 raise IntelligenceError("Seedless OpenAlex discovery cannot include a keyword")
             lookback = p["lookback_days"]
-            cutoff = datetime.now(timezone.utc).date() - timedelta(days=lookback - 1)
+            now = datetime.now(timezone.utc).date()
+            cutoff = now - timedelta(days=lookback - 1)
             # Only published-date, NOT member-only created/updated sync filters.
             # primary_topic is a provider-assigned classification, not market adoption.
             query = {
-                "filter": f"from_publication_date:{cutoff.isoformat()}",
+                # A newest-first list without an upper date bound can be full
+                # of future-dated journal records. Only published <= today.
+                "filter": (
+                    f"from_publication_date:{cutoff.isoformat()},"
+                    f"to_publication_date:{now.isoformat()}"
+                ),
                 "sort": "publication_date:desc",
                 "per_page": limit,
                 "select": "id,display_name,publication_date,primary_topic",

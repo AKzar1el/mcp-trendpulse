@@ -144,6 +144,8 @@ def summarize_discovery(
             "status": status, "sampled_rows": 0, "recent_valid_records": 0,
             "cache_hit": snapshot.get("cache_hit") is True,
             "sample_is_not_population": True,
+            "future_dated_records_rejected": 0,
+            "missing_or_invalid_dates_or_identity": 0,
         }
         http = snapshot.get("http_status")
         if isinstance(http, int) and not isinstance(http, bool) and 400 <= http <= 599:
@@ -162,9 +164,19 @@ def summarize_discovery(
         row["sampled_rows"] = len(sample)
         for raw in sample:
             if not isinstance(raw, dict):
+                row["missing_or_invalid_dates_or_identity"] += 1
                 continue
+            if source == "openalex" and isinstance(raw.get("publication_date"), str):
+                try:
+                    candidate_day = date.fromisoformat(raw["publication_date"][:10])
+                except ValueError:
+                    candidate_day = None
+                if candidate_day is not None and candidate_day > today:
+                    row["future_dated_records_rejected"] += 1
+                    continue
             item = _record(source, raw, today, cutoff)
             if item is None:
+                row["missing_or_invalid_dates_or_identity"] += 1
                 continue
             identifier = (source, item["id"])
             if identifier in seen_records:
@@ -334,6 +346,10 @@ def format_discovery_report(result: dict[str, Any]) -> str:
     ]
     for item in result["source_coverage"]:
         tag = f"{item['source']}: {item['status']} | {item['recent_valid_records']}/{item['sampled_rows']} recent valid records"
+        if item["future_dated_records_rejected"]:
+            tag += f" | future-dated rejected:{item['future_dated_records_rejected']}"
+        if item["missing_or_invalid_dates_or_identity"]:
+            tag += f" | invalid/outside lookback:{item['missing_or_invalid_dates_or_identity']}"
         if "http_status" in item:
             tag += f" | HTTP {item['http_status']}"
         if item["cache_hit"]:

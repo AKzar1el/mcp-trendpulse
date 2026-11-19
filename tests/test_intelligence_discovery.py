@@ -186,7 +186,10 @@ def test_openalex_seedless_plan_has_freshness_filter_not_paid_sync():
                        lookback_days=30, limit=12, env={})
     query = parse_qs(urlsplit(plan.url).query)
     assert "search" not in query
-    assert query["filter"] == [f"from_publication_date:{cutoff.isoformat()}"]
+    assert query["filter"] == [
+        f"from_publication_date:{cutoff.isoformat()},"
+        f"to_publication_date:{now.isoformat()}"
+    ]
     assert query["sort"] == ["publication_date:desc"]
     assert "primary_topic" in query["select"][0]
     assert "from_updated_date" not in plan.url
@@ -277,3 +280,15 @@ def test_text_output_is_useful_even_with_zero_candidates():
     assert "openalex: observed" in output
     assert "New battery recycling" in output
     assert "Growth, buyer budgets and market size: NOT VERIFIED." in output
+
+
+def test_future_publication_date_is_rejected_with_explainable_coverage():
+    report = discovery.summarize_discovery([
+        observed("openalex", [
+            work("W2741809807", "2026-11-20"),
+            work("W2741809808", "2026-11-18"),
+        ]),
+    ], as_of=ASOF)
+    assert report["source_coverage"][0]["future_dated_records_rejected"] == 1
+    assert report["source_coverage"][0]["recent_valid_records"] == 1
+    assert "future-dated rejected:1" in discovery.format_discovery_report(report)
