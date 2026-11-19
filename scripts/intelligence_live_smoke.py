@@ -16,7 +16,6 @@ CASES = (
     ("eurostat", {"dataset": "nama_10_gdp", "country": "DE", "limit": 2}),
     ("ted", {"keyword": "PD = (20261001 <> 20261031)", "limit": 2}),
     ("cellar", {"keyword": "battery", "limit": 2}),
-    ("github_issues", {"keyword": "mcp", "identifier": "modelcontextprotocol/servers", "limit": 1}),
     ("worldbank", {"country": "US", "identifier": "NY.GDP.MKTP.CD", "limit": 2}),
     ("greenhouse", {"company": "mozilla", "limit": 2}),
     ("smartrecruiters", {"company": "BoschGroup", "limit": 2}),
@@ -31,9 +30,17 @@ CASES = (
 )
 
 
-# Public Lever job boards sometimes take >25 seconds on GitHub runners.
-# Probe and report it, but do not misclassify upstream timeout as a code failure.
-OPTIONAL_CASES = (("lever", {"company": "jobgether", "limit": 2}),)
+# Public Lever availability and unauthenticated GitHub searches can be
+# unreliable from shared Actions runner IPs. Probe once and record a blocked
+# endpoint as INCONCLUSIVE, not a successful contract or a code regression.
+# No retries or bypasses for HTTP 403/429.
+OPTIONAL_CASES = (
+    ("lever", {"company": "jobgether", "limit": 2}),
+    ("github_issues", {
+        "keyword": "mcp", "identifier": "modelcontextprotocol/servers",
+        "limit": 1,
+    }),
+)
 
 
 def main() -> int:
@@ -127,7 +134,12 @@ def main() -> int:
         "tested": len(checks),
         "passed": sum(x["status"] == "observed" for x in checks),
         "failed": sum(x["status"] != "observed" for x in checks),
-        "note": "No secrets/raw records; key-only and local-only services excluded",
+        "note": (
+            "Required public contracts must be observed. Keyless GitHub issue "
+            "search and Lever are diagnostic-only due to shared-CI-IP access; "
+            "their unavailable status is NOT a pass, not zero demand, and not "
+            "a source contract verified by this workflow. No secrets/raw records."
+        ),
     }
     dest = Path(os.environ.get("TRENDPULSE_INTEL_SMOKE_REPORT", "intelligence-live.json"))
     dest.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")

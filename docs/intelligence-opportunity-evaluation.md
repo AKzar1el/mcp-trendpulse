@@ -504,3 +504,23 @@ None of these numbers estimates a probability of market growth or purchase.
 No extra API calls, credential access, background polling or cache reset is
 required to produce the new diagnostics. Title overlap remains lexical
 and does not substantiate a matching buyer or the same work process.
+
+### Keyless GitHub CI rate limits are external availability, not market inactivity
+
+On the Nov 19 source-contract smoke, GitHub issue search returned HTTP 403
+from an unauthenticated shared GitHub Actions runner IP while the other
+public data providers returned their normal records. The behavior is a
+provider-access limitation, not proof that Github has no issues or that
+the hunter failed to match market signals. GitHub documents that
+unauthenticated REST calls are rate-limited by originating IP and that
+HTTP 403/429 may indicate rate limiting:
+https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
+
+The public-provider smoke now checks GitHub issue search as an **optional
+availability probe**, along with Lever, and records failure statuses without
+marking them as observed, verified or a passing contract. Core GitHub
+JSON projection and issue-quality rules retain deterministic unit regressions.
+Production hunting continues to label an unavailable GitHub source as
+degraded coverage. We never retry keyless 403/429 in a tight loop or invent
+zero activity. Authenticated local testing with an authorized read-only
+token can be a separate follow-up once the existing tunnel reconnects.
