@@ -91,13 +91,20 @@ def source_catalog() -> list[dict[str, Any]]:
 
 def plan_source(source: str, *, keyword: str = "", company: str = "",
                 dataset: str = "", country: str = "", identifier: str = "",
-                limit: int = 10, env: dict[str, str] | None = None) -> Plan:
+                limit: int = 10, env: dict[str, str] | None = None,
+                lookback_days: int | None = None) -> Plan:
     """Build one bounded request from trusted templates, never an arbitrary URL."""
     if not isinstance(source, str):
         raise IntelligenceError("Source ID must be a string")
     if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= MAX_LIMIT:
         raise IntelligenceError("limit must be an integer between 1 and 20")
+    if lookback_days is not None and (
+        isinstance(lookback_days, bool) or not isinstance(lookback_days, int)
+        or not 7 <= lookback_days <= 90
+    ):
+        raise IntelligenceError("lookback_days must be 7..90 or omitted")
     params = {
+        "lookback_days": lookback_days,
         "keyword": _short(keyword, "keyword", 160, optional=True),
         "company": _slug(company, "company", optional=True),
         "dataset": _slug(dataset, "dataset", optional=True),

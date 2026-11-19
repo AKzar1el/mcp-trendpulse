@@ -151,6 +151,29 @@ def intelligence_observe_source_snapshots(
 
 @intel_mcp.tool(
     description=(
+        "Current free-source activity hunter across 1-4 safe topic seeds and 1-5 "
+        "fixed providers. Plan-only by default. execute=True fetches bounded "
+        "read-only snapshots from public origins using securely stored local "
+        "credentials where configured. Ranking is topical recent activity, "
+        "never a growth forecast, paid-buyer proof, or success probability."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_hunt_current(
+    topics: list[str] | None = None,
+    sources: list[str] | None = None,
+    lookback_days: int = 30,
+    execute: bool = False,
+) -> dict[str, Any]:
+    from mcp_trendpulse.intelligence_hunter import hunt_current
+
+    return hunt_current(
+        topics, sources, lookback_days=lookback_days, execute=execute,
+    )
+
+
+@intel_mcp.tool(
+    description=(
         "List 18 source-aware opportunity investigation lanes. These are research "
         "recipes, not startup recommendations or validated buyer demand."
     ),

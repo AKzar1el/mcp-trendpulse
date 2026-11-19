@@ -60,7 +60,9 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
     if source == "cfpb":
         # Since September 2026 narratives are removed from public responses.
         # Leave format absent: the API's format=csv is an export mode that ignores size.
-        since = (date.today() - timedelta(days=365)).isoformat()
+        since = (
+            date.today() - timedelta(days=p["lookback_days"] or 365)
+        ).isoformat()
         url = ("https://www.consumerfinance.gov/data-research/"
                "consumer-complaints/search/api/v1/?"
                + urlencode({

@@ -442,3 +442,8 @@ Current production-readiness priorities are:
 MIT. See [LICENSE](LICENSE).
 
 <!-- mcp-name: io.github.AKzar1el/mcp-trendpulse -->
+
+
+### Opt-in current activity hunter (free-only)
+
+The optional intelligence extension includes `mcp-trendpulse-cli intelligence hunt --execute`, an evidence-attributed, **current-first** opportunity watchlist. It fetches bounded publicly available signals from fixed source adapters and ranks recent topical observations without requiring historical training data or claiming startup-success probabilities. For reproducible future comparisons, add `--record-history` to store limited local hashed metadata. The separate optional MCP tool is `intelligence_hunt_current`; the community MCP and existing scheduled worker are unchanged. See [opportunity evaluation](docs/intelligence-opportunity-evaluation.md).

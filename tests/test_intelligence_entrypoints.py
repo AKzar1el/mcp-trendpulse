@@ -41,13 +41,14 @@ def test_intel_cli_offline_ats_file(tmp_path):
 async def test_intel_mcp_is_separate_and_readonly():
     async with Client(intel_mcp) as client:
         tools = {tool.name: tool for tool in await client.list_tools()}
-        assert len(tools) == 10
+        assert len(tools) == 11
         assert set(tools) == {
             "intelligence_source_catalog", "intelligence_plan",
             "intelligence_collect", "intelligence_analyze_job_postings",
             "intelligence_provider_settings", "intelligence_provider_setup",
             "intelligence_opportunity_lanes", "intelligence_evaluate_opportunities",
-            "intelligence_walk_forward_backtest", "intelligence_observe_source_snapshots"
+            "intelligence_walk_forward_backtest", "intelligence_observe_source_snapshots",
+            "intelligence_hunt_current"
         }
         for tool in tools.values():
             assert tool.annotations.readOnlyHint is True
@@ -158,3 +159,33 @@ def test_offline_observation_cli_keeps_sources_and_coverage_separate(tmp_path):
     assert report["dated_recent_sample_records"] == 1
     assert report["source_coverage"][0]["population_coverage_verified"] is False
     assert report["paid_customer_outcome_verified"] is False
+
+
+def test_current_hunter_cli_plan_only_never_calls_network(monkeypatch):
+    from click.testing import CliRunner
+    from mcp_trendpulse.cli import cli
+    from mcp_trendpulse import intelligence_hunter
+
+    def no_network(*_args, **_kwargs):
+        raise AssertionError("Plan-only hunt cannot execute a network request")
+    monkeypatch.setattr(intelligence_hunter, "collect", no_network)
+    result = CliRunner().invoke(cli, [
+        "intelligence", "hunt", "--topic", "battery recycling",
+        "--source", "github_issues", "--lookback-days", "30",
+    ])
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report["status"] == "planned"
+    assert report["network_performed"] is False
+    assert report["request_count"] == 1
+
+
+def test_current_hunter_history_requires_live_opt_in():
+    from click.testing import CliRunner
+    from mcp_trendpulse.cli import cli
+
+    result = CliRunner().invoke(cli, [
+        "intelligence", "hunt", "--record-history",
+    ])
+    assert result.exit_code != 0
+    assert "--record-history requires --execute" in result.output

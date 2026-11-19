@@ -137,9 +137,17 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
                     budget_per_day=8, **common)
     if source == "openalex":
         term = _required(keyword, "keyword")
-        url = "https://api.openalex.org/works?" + urlencode({
-            "search": term, "per_page": limit, "select": "id,display_name,publication_year,publication_date,cited_by_count,doi,primary_location"
-        })
+        query = {
+            "search": term, "per_page": limit,
+            "select": "id,display_name,publication_year,publication_date,cited_by_count,doi,primary_location",
+        }
+        if p["lookback_days"] is not None:
+            cutoff = datetime.now(timezone.utc).date() - timedelta(days=p["lookback_days"])
+            # Publication filtering is in the FREE API tier. Do NOT use
+            # OpenAlex's paid updated/created sync filters.
+            query["filter"] = f"from_publication_date:{cutoff.isoformat()}"
+            query["sort"] = "publication_date:desc"
+        url = "https://api.openalex.org/works?" + urlencode(query)
         key = env.get("TRENDPULSE_INTEL_OPENALEX_KEY", "").strip()
         # OpenAlex permits keyless basic queries; registered free keys are
         # optional for larger budgets and deeper pagination. Never pay/upgrade.

@@ -863,6 +863,37 @@ def intelligence_sources(wave):
 
 
 
+@intelligence.command("hunt")
+@click.option("--topic", "topics", multiple=True,
+              help="Repeat up to four research seed topics; rotates defaults if omitted.")
+@click.option("--source", "sources", multiple=True,
+              help="Repeat up to five approved source IDs; keyless defaults if omitted.")
+@click.option("--lookback-days", type=click.IntRange(7, 90), default=30,
+              show_default=True)
+@click.option("--execute", is_flag=True,
+              help="Explicitly perform bounded, free, read-only source requests.")
+@click.option("--record-history", is_flag=True,
+              help="Opt in to local metadata-only SQLite history (requires --execute).")
+def intelligence_hunt(topics, sources, lookback_days, execute, record_history):
+    """Rank fresh public-source observations without requiring a historical baseline."""
+    from mcp_trendpulse.intelligence_hunter import hunt_current, record_hunt_history
+
+    try:
+        if record_history and not execute:
+            raise ValueError("--record-history requires --execute")
+        result = hunt_current(
+            list(topics) if topics else None,
+            list(sources) if sources else None,
+            lookback_days=lookback_days,
+            execute=execute,
+        )
+        if record_history:
+            result["history"] = record_hunt_history(result)
+    except (OSError, ValueError, TypeError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(result, ensure_ascii=False, sort_keys=True))
+
+
 @intelligence.command("observe")
 @click.option("--input-json", "input_path", required=True,
               type=click.Path(exists=True, dir_okay=False, path_type=Path))

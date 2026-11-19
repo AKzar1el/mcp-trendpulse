@@ -95,6 +95,12 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
     if source == "github_issues":
         terms = _required(keyword, "keyword")
         query = f'"{terms}" is:issue is:open'
+        # Created recently, not merely an old issue updated this week.
+        if p["lookback_days"] is not None:
+            from datetime import date, timedelta
+
+            cutoff = date.today() - timedelta(days=p["lookback_days"])
+            query += f" created:>={cutoff.isoformat()}"
         owner_repo = p["identifier"]
         if owner_repo:
             # Narrow extremely large issue-search responses to one named public
@@ -104,7 +110,9 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
                 raise IntelligenceError("GitHub repo selector must be owner/repo")
             query += f" repo:{owner_repo}"
         url = "https://api.github.com/search/issues?" + urlencode(
-            {"q": query, "per_page": limit, "sort": "updated", "order": "desc"})
+            {"q": query, "per_page": limit,
+             "sort": "created" if p["lookback_days"] is not None else "updated",
+             "order": "desc"})
         return Plan(method="GET", url=url, budget_per_day=12, **common)
     if source == "worldbank":
         country = _required(p["country"], "country")

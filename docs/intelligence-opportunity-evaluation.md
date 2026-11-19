@@ -7,15 +7,17 @@ tools and all scheduled agents remain unchanged.
 
 ## Exact scope and interfaces
 
-The separate opt-in stdio MCP exposes ten read-only tools, including:
+The separate opt-in stdio MCP exposes eleven read-only tools, including:
 - `intelligence_opportunity_lanes`: inspect each combination and its question;
 - `intelligence_evaluate_opportunities`: evaluate caller-supplied, dated evidence;
 - `intelligence_walk_forward_backtest`: grade historical triage only when later customer outcomes exist.
 - `intelligence_observe_source_snapshots`: convert bounded public collector snapshots into dated evidence trails, provider coverage diagnostics and exact corporate-registry links.
+- `intelligence_hunt_current`: query recent public evidence with bounded topical seeds; rank present-day research activity without requiring historic records.
 
 CLI equivalents:
 
 ```bash
+mcp-trendpulse-cli intelligence hunt --topic "battery recycling" --topic "agent reliability" --execute
 mcp-trendpulse-cli intelligence observe --input-json observations.json
 mcp-trendpulse-cli intelligence opportunities lanes
 mcp-trendpulse-cli intelligence opportunities evaluate --input-json research.json
@@ -348,3 +350,65 @@ The separate multi-lane suite continues to test OpenAlex when permitted;
 this observation smoke avoids an unnecessary duplicate concurrent API call
 and instead checks the GLEIF corporate-identity JSON shape. Authenticated
 OpenAlex testing uses locally stored free credentials, never CI secrets.
+
+## Current-activity hunter — no historical database required
+
+Run the new standalone CLI or call the **eleventh isolated MCP tool**:
+
+`mcp-trendpulse-cli intelligence hunt --execute`
+
+Without `--topic`, a transparent deterministic three-topic rotation draws from
+18 global research **seeds**. Those seeds are investigation questions, not
+automatically detected trends. Use `--topic` up to four times to study specific
+themes; use `--source` up to five times to select actual original providers.
+Without `--execute`, the command is **plan-only** and never fetches remote data.
+The normal community/hosted 16-tool MCP and scheduled workers stay untouched.
+
+The default fixed-origin, free-only providers are GitHub issues, OpenAlex,
+CORDIS and USAspending. You can add `--source companies_house` and
+`--source gleif` for company identity context (or select CFPB complaints and
+TED procurement notices). When the CLI runs under the same Windows account as
+the securely configured credentials, its Companies House/OpenAlex requests
+read the OS Credential Manager automatically. **No key is returned by hunter
+outputs or passed as an LLM tool argument.** If the MCP service uses another
+OS identity, configure credentials for that account separately.
+
+The optional `lookback_days` parameter (7–90; 30 by default) uses free,
+provider-supported **publication/creation** filters on OpenAlex works,
+GitHub issues and CFPB complaints, not OpenAlex's paid synchronization
+filters. OpenAlex publication date is not its provider-indexing date.
+Incomparable macroeconomic, registry, and award-modification timestamps
+are never passed off as recent buyer purchases.
+
+A trend is classified as *current cross-source activity* only when dated
+topical records are observed in at least two independent evidence classes,
+with sample provenance and original links. This is a **watchlist for
+investigation**, not proof of growth: small relevance-ranked API pages
+cannot estimate a population rate or growth direction. Single-source
+activity, undated context, sparse/no results, outages, and missing credentials
+are reported distinctly. Lexical term overlap is an exact/partial keyword
+check, not semantic proof that two sources describe the same buyer or
+workflow.
+
+Use `mcp-trendpulse-cli intelligence hunt --execute --record-history` to
+**opt in** to minimal SQLite metadata history under the current Windows
+user's `~/.mcp-trendpulse/intelligence/hunter_history.sqlite`. It stores
+hashes of topic/query identity, date, provider coverage and sampled counts,
+not raw records, company names, URLs, or credentials; retention is 90 days.
+Comparable complete time series can be developed from future evidence,
+but the present-day hunter never requires one. No scheduled polling or
+new agent is activated by this command.
+
+Recommended initial verification:
+
+`mcp-trendpulse-cli intelligence hunt --topic "battery recycling" --topic "cloud cost management" --execute --record-history`
+
+The one-time test workflow proves that the safe read-only workflow runs from
+a fresh GitHub Actions client with publicly accessible data. Authenticated
+local tests remain separate and will be possible when the Codexify tunnel is
+restored. No patents or EPO registration are necessary.
+
+Current official API references:
+https://help.openalex.org/api/filtering/
+https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests
+https://cfpb.github.io/ccdb5-api/

@@ -31,6 +31,7 @@ TOOLS = {
     "intelligence_evaluate_opportunities",
     "intelligence_walk_forward_backtest",
     "intelligence_observe_source_snapshots",
+    "intelligence_hunt_current",
 }
 FAKE_TOKEN = "SYNTHETIC_OFFLINE_E2E_TOKEN_NOT_A_PROVIDER_KEY"
 
@@ -105,7 +106,20 @@ async def exercise(mode: str, result_path: Path) -> int:
                     schema = json.dumps(tool.inputSchema).lower()
                     if '"api_key"' in schema or '"secret"' in schema or '"token"' in schema:
                         raise AssertionError("Secret-bearing MCP argument schema exposed")
-                checked.append({"case": "initialize_discover_ten_read_only_tools", "ok": True})
+                checked.append({"case": "initialize_discover_eleven_read_only_tools", "ok": True})
+
+                current_plan = await _call(
+                    session, "intelligence_hunt_current", {
+                        "topics": ["battery recycling"],
+                        "sources": ["github_issues", "openalex"],
+                        "lookback_days": 30, "execute": False,
+                    },
+                )
+                if (current_plan.get("status") != "planned"
+                        or current_plan.get("network_performed") is not False
+                        or current_plan.get("request_count") != 2):
+                    raise AssertionError("Current hunter did not fail closed in plan mode")
+                checked.append({"case": "current_hunter_plan_no_network", "ok": True})
 
                 observation = await _call(
                     session, "intelligence_observe_source_snapshots", {
