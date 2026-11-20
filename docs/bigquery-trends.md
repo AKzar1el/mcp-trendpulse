@@ -64,6 +64,13 @@ signals. Their values are **curated ranks from the latest source week**,
 not total query counts, search volume, market share, or all country searches.
 If a country's snapshot is absent, an empty result is **unknown coverage**,
 not zero popularity. Source data can be delayed and country coverage varies.
+Use a snapshot date that actually exists in the public table's published
+partitions; yesterday is only a default, **not** a freshness guarantee.
+The optional BigQuery SDK's read-only table metadata/partition listing can
+help identify an available date before using a scarce daily query attempt.
+International partitions can exceed the 100 MiB scan ceiling even with a
+country filter and a small LIMIT; the client will refuse the data query in
+that case rather than raise the cap.
 
 Results such as no_sandbox_project, bigquery_extra_missing,
 no_sandbox_credentials, sandbox_billing_unverified,
@@ -71,6 +78,25 @@ billing_account_attached, local_daily_budget_exhausted, and
 estimated_bytes_exceeds_limit are refusals, **not** fallback modes.
 The CLI deliberately does not print account credentials, tokens, raw
 upstream errors, or inferred missing search metrics.
+
+## Verified sandbox smoke, 2026-11-20
+
+An operator-owned project with billing disabled and no attached billing
+account successfully read five curated US rising terms for the
+**2026-11-18** snapshot. The dry run estimated **61,072,200 bytes**
+against a **104,857,600-byte** server-side maximum; the bounded live query
+returned five observed source ranks (1–5), zero rejected records, and
+source-country/snapshot provenance. No exact search volumes or market-growth
+claims were inferred.
+
+Two guardrail cases were observed before that successful query:
+**2026-11-19** was not yet available in the international dataset
+(no_data), and the **2026-11-18** GB international partition's dry-run
+estimate was **309,018,782 bytes**, so the data job was refused.
+These were separate, quota-counted attempts—not a license to remove the cap.
+The shared local BigQuery budget reached **3/3 for 2026-11-20 UTC**,
+so no additional same-day requests should be made. Do not assume that
+today's or yesterday's partition exists without checking the provider.
 
 ## Zero automatic paid usage
 
