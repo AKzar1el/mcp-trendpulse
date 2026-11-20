@@ -15,7 +15,7 @@ import sqlite3
 from typing import Any
 
 from mcp_trendpulse.intelligence_core import (
-    BudgetCache, DailyBudgetExceeded, IntelligenceError,
+    BudgetCache, DailyBudgetExceeded,
 )
 
 PROVIDER_BUDGET_ID = "google_trends_idea_related_queries"
