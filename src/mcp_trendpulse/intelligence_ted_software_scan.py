@@ -7,11 +7,12 @@ page. Query inclusion is NOT market growth or representative sector frequency.
 from __future__ import annotations
 
 import re
+import sqlite3
 from datetime import date, timedelta
 from typing import Any
 
 from mcp_trendpulse.intelligence_core import (
-    BudgetCache, IntelligenceError, collect, plan_source,
+    BudgetCache, DailyBudgetExceeded, IntelligenceError, collect, plan_source,
 )
 
 MAX_FOCUS_ROWS = 12
@@ -75,12 +76,36 @@ def scan_software_procurements(
     }
     try:
         outcome = collect(plan, fetch=True, cache=cache, env=env, timeout=20)
+    except DailyBudgetExceeded as exc:
+        # No HTTP request was made. The typed local limit is safe to publish.
+        outcome = {
+            "status": "unavailable", "reason": "local_daily_budget_exhausted",
+        }
+        result["local_quota_utc_day"] = exc.utc_day
+        result["local_quota_used"] = exc.used
+        result["local_quota_limit"] = exc.cap
+    except sqlite3.Error:
+        outcome = {
+            "status": "unavailable", "reason": "local_cache_storage_error",
+        }
     except (OSError, ValueError, IntelligenceError):
         outcome = {"status": "unavailable", "reason": "collection_failed"}
     result["cache_hit"] = outcome.get("cache_hit") is True
+    safe_reasons = {
+        "local_daily_budget_exhausted", "local_cache_storage_error",
+        "provider_cooldown", "HTTPError", "URLError", "TimeoutError",
+        "collection_failed",
+    }
+    reason = outcome.get("reason")
+    if outcome.get("status") != "observed":
+        result["source_failure_reason"] = (
+            reason if reason in safe_reasons else "source_failure_unclassified"
+        )
     result["source_requests_performed"] = (
-        0 if result["cache_hit"] or outcome.get("reason") == "provider_cooldown"
-        else 1
+        0 if result["cache_hit"] or reason in {
+            "provider_cooldown", "local_daily_budget_exhausted",
+            "local_cache_storage_error",
+        } else 1
     )
     state = outcome.get("status")
     if state != "observed":
@@ -241,10 +266,27 @@ def format_software_scan(report: dict[str, Any]) -> list[str]:
             )
     if report.get("http_status"):
         lines.append(f"  Source HTTP {report['http_status']} (unavailable; NOT no demand)")
-    if not report["briefs"]:
+    if report["status"] in {"unavailable", "rate_limited", "invalid_source_shape"}:
         lines.append(
-            "  No eligible primary-CPV software notices in this bounded page;"
-            " NOT a market-wide negative finding."
+            "  TED collection did not produce a usable focused sample;"
+            " eligibility is UNKNOWN, not zero opportunities."
+        )
+        if report.get("source_failure_reason"):
+            lines.append(
+                "  Source failure: " + report["source_failure_reason"]
+            )
+        if report.get("source_failure_reason") == "local_daily_budget_exhausted":
+            lines.append(
+                "  UTC " + report["local_quota_utc_day"]
+                + " local TED quota "
+                + str(report["local_quota_used"])
+                + "/" + str(report["local_quota_limit"])
+                + " exhausted; no bypass or automatic retry."
+            )
+    elif not report["briefs"]:
+        lines.append(
+            "  No eligible primary-CPV software notices in the observed bounded"
+            " page; NOT a market-wide negative finding."
         )
     for item in report["briefs"][:4]:
         evidence = item["evidence"][0]

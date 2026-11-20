@@ -9,6 +9,7 @@ from click.testing import CliRunner
 from mcp_trendpulse import intelligence_discovery as discovery
 from mcp_trendpulse import intelligence_ted_software_scan as focused
 from mcp_trendpulse.cli import cli
+from mcp_trendpulse.intelligence_core import DailyBudgetExceeded
 
 DAY = date.today()
 NOW = DAY.isoformat()
@@ -108,6 +109,32 @@ def test_focused_api_unavailable_keeps_buyer_claims_unknown(monkeypatch):
     assert result["briefs"] == []
     assert "DO_NOT_LEAK_ACCESS_TOKEN" not in repr(result)
     assert result["recurring_market_growth_verified"] is False
+
+
+def test_exhausted_ted_quota_is_unavailable_not_no_eligible_notices(monkeypatch):
+    def exhausted(*_a, **_kw):
+        raise DailyBudgetExceeded("ted", "2026-11-20", 20, 20)
+
+    monkeypatch.setattr(focused, "collect", exhausted)
+    result = focused.scan_software_procurements(as_of=DAY, env={})
+    assert result["status"] == "unavailable"
+    assert result["source_requests_performed"] == 0
+    assert result["source_failure_reason"] == "local_daily_budget_exhausted"
+    assert result["qualified_primary_software_briefs"] == 0
+    assert not result["briefs"]
+    text = "\n".join(focused.format_software_scan(result))
+    assert "eligibility is UNKNOWN, not zero opportunities" in text
+    assert "quota 20/20 exhausted" in text
+    assert "No eligible primary-CPV software notices" not in text
+
+
+def test_focused_observed_empty_page_is_different_from_unavailable(monkeypatch):
+    monkeypatch.setattr(focused, "collect", lambda *_a, **_kw: snapshot("ted", []))
+    result = focused.scan_software_procurements(as_of=DAY, env={})
+    text = "\n".join(focused.format_software_scan(result))
+    assert result["status"] == "source_observed_without_qualified_primary_it_briefs"
+    assert "No eligible primary-CPV software notices" in text
+    assert "eligibility is UNKNOWN" not in text
 
 
 def test_plan_only_is_offline_and_adds_single_source_request(monkeypatch):

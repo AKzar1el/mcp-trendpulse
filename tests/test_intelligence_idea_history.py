@@ -60,10 +60,60 @@ def test_unique_source_day_idempotence_and_visible_prior_tender(tmp_path):
     old = second["previously_observed_but_not_in_current_sample"]
     assert len(old) == 1 and old[0]["source_reference"] == TED
     assert old[0]["last_screen_category"] == "license_or_entitlement_purchase"
-    assert old[0]["current_source_status"].endswith("requires_revalidation")
+    assert old[0]["current_source_status"] == (
+        "source_status_not_provided_not_revalidated"
+    )
     assert old[0]["prior_deadline_or_scope_may_have_changed"]
-    assert "NOT present in current sample" in "\n".join(
+    assert "source status not supplied; current presence UNKNOWN" in "\n".join(
         history.format_idea_history(second)
+    )
+
+
+def test_unavailable_ted_does_not_make_historical_notice_disappear(tmp_path):
+    db = tmp_path / "ledger.sqlite3"
+    old = idea(TED, "Slovenia – Obnova licenčnih pravic")
+    observed_cfpb = idea(
+        CFPB, "Checking or savings account — Managing an account",
+        kind="consumer_problem_derived_software_hypothesis",
+    )
+    history.record_idea_history(bundle(DAY, [old]), path=db)
+    refreshed = history.record_idea_history(
+        bundle(DAY, [observed_cfpb]), path=db,
+        source_status={"ted": "unavailable", "cfpb": "observed"},
+    )
+    past = refreshed["prior_history_not_selected_in_current_idea_map"]
+    assert len(past) == 1
+    assert past[0]["source_reference"] == TED
+    assert past[0]["current_source_status"] == "source_unavailable_not_revalidated"
+    assert past[0]["current_source_collection_status"] == "unavailable"
+    assert "current presence UNKNOWN" in "\n".join(
+        history.format_idea_history(refreshed)
+    )
+    assert refreshed["new_distinct_day_sightings"] == 1
+    assert refreshed["source_revalidation_performed"] is False
+
+
+def test_observed_source_capped_map_selection_does_not_prove_absence(tmp_path):
+    db = tmp_path / "ledger.sqlite3"
+    old = idea(
+        CFPB, "Credit reporting — Incorrect information on your report",
+        kind="consumer_problem_derived_software_hypothesis",
+    )
+    current = idea(
+        CFPB, "Checking or savings account — Managing an account",
+        kind="consumer_problem_derived_software_hypothesis",
+    )
+    history.record_idea_history(bundle(DAY, [old]), path=db)
+    result = history.record_idea_history(
+        bundle(DAY, [current]), path=db,
+        source_status={"cfpb": "observed", "ted": "unavailable"},
+    )
+    prior = result["prior_history_not_selected_in_current_idea_map"]
+    assert prior[0]["current_source_status"] == (
+        "not_selected_in_current_capped_idea_map"
+    )
+    assert "NOT proof of source absence" in "\n".join(
+        history.format_idea_history(result)
     )
 
 

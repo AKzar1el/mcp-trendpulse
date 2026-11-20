@@ -980,8 +980,24 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
                 record_idea_history as save_idea_history,
             )
 
+            status_by_source = {
+                row["source"]: (
+                    "observed" if row.get("status") == "observed"
+                    else "unavailable"
+                )
+                for row in response.get("source_coverage", [])
+                if isinstance(row, dict)
+                and row.get("source") in {"ted", "cfpb"}
+            }
+            # A successful focused TED page establishes source access even
+            # when the separate sector-neutral TED windows were unavailable.
+            focused = response.get("targeted_software_scan")
+            if (isinstance(focused, dict)
+                    and isinstance(focused.get("status"), str)
+                    and focused["status"].startswith("source_observed_")):
+                status_by_source["ted"] = "observed"
             response["idea_history"] = save_idea_history(
-                response["idea_map"]
+                response["idea_map"], source_status=status_by_source,
             )
     except (OSError, ValueError, TypeError) as exc:
         raise click.ClickException(str(exc)) from exc

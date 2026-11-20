@@ -78,8 +78,19 @@ def _source_identity(idea: dict[str, Any]) -> dict[str, str] | None:
 
 def record_idea_history(
     report: dict[str, Any], *, path: Path | None = None,
+    source_status: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Persist public source identity and one sighting per distinct local run day."""
+    if source_status is None:
+        source_status = {}
+    if (not isinstance(source_status, dict)
+            or any(
+                key not in {"ted", "cfpb"} or value not in {
+                    "observed", "unavailable",
+                }
+                for key, value in source_status.items()
+            )):
+        raise ValueError("Source status must be typed TED/CFPB observations")
     if (not isinstance(report, dict)
             or report.get("mode") != "source_grounded_project_idea_and_keyword_research_queue"
             or not isinstance(report.get("ideas"), list)
@@ -170,10 +181,25 @@ def record_idea_history(
         if key in selected:
             current.append(display)
         elif len(previous) < MAX_PREVIOUS_SHOWN:
+            family = (
+                "ted" if kind == "procurement_derived_software_hypothesis"
+                else "cfpb"
+            )
+            availability = source_status.get(family, "not_provided")
+            # The current Idea Map is capped, and the provider may be
+            # unavailable. A previous lead's disappearance from this list
+            # never proves that the public record or buyer disappeared.
+            disposition = (
+                "source_unavailable_not_revalidated"
+                if availability == "unavailable" else
+                "not_selected_in_current_capped_idea_map"
+                if availability == "observed" else
+                "source_status_not_provided_not_revalidated"
+            )
             previous.append({
-                **display, "current_source_status": (
-                    "not_seen_in_current_bounded_sample_requires_revalidation"
-                ),
+                **display,
+                "current_source_status": disposition,
+                "current_source_collection_status": availability,
                 "prior_deadline_or_scope_may_have_changed": True,
             })
     return {
@@ -185,6 +211,11 @@ def record_idea_history(
         "existing_same_day_sightings": max(0, len(observed) - newly_seen),
         "current_source_history": current,
         "previously_observed_but_not_in_current_sample": previous,
+        "prior_history_not_selected_in_current_idea_map": previous,
+        "source_collection_status": {
+            key: source_status.get(key, "not_provided")
+            for key in ("ted", "cfpb")
+        },
         "max_previous_shown": MAX_PREVIOUS_SHOWN,
         "all_previous_sources_not_guaranteed_listed": True,
         "source_revalidation_performed": False,
@@ -212,16 +243,33 @@ def format_idea_history(report: dict[str, Any]) -> list[str]:
             f"  Current: {row['source_label']} | first seen: {row['first_seen']}"
             f" | observed run-days: {row['distinct_days_seen_in_this_pipeline']}"
         )
-    if report["previously_observed_but_not_in_current_sample"]:
-        lines.append("  Prior leads NOT present in current sample; do not treat as active:")
-        for row in report["previously_observed_but_not_in_current_sample"]:
+    previous = report["previously_observed_but_not_in_current_sample"]
+    if previous:
+        lines.append(
+            "  Prior recorded leads not selected in this capped Idea Map;"
+            " source availability and source presence are separate:"
+        )
+        for row in previous:
+            disposition = row.get("current_source_status")
+            if disposition == "source_unavailable_not_revalidated":
+                label = (
+                    "source unavailable; current presence UNKNOWN,"
+                    " revalidate after quota reset"
+                )
+            elif disposition == "not_selected_in_current_capped_idea_map":
+                label = (
+                    "source observed; not selected for this capped Idea Map,"
+                    " NOT proof of source absence"
+                )
+            else:
+                label = "source status not supplied; current presence UNKNOWN"
             lines.append(
                 f"    {row['source_label']} | last seen: {row['last_seen']}"
-                " | status: requires original-source revalidation"
+                " | " + label
             )
             lines.append("    " + row["source_reference"])
     else:
-        lines.append("  No earlier separately observed sources found within retention.")
+        lines.append("  No earlier separately recorded leads within retention.")
     lines.append(
         "  Source title/category and official reference only. "
         "No full provider payloads or CFPB personal complaint narratives retained."

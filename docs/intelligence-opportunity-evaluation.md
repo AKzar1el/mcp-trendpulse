@@ -979,6 +979,33 @@ The no-network preview `--idea-map --keyword-probe` requires
 If rate-limited or blocked, prefer the offline `--idea-map` and
 manually supplied normalized series over repeated retries.
 
+### Availability-aware Idea Map and focused TED evidence (2026-11-20)
+
+A field run with `uvx` successfully installed 111 packages after
+a Windows PyYAML cache cleanup failed on an in-use `.pyd` file.
+TrendPulse then ran, but all three baseline TED date windows and the
+CPV-filtered focused scan were unavailable due to the shared
+**20/20 consumed local TED UTC-day request cap**.
+
+The focused scan previously printed "No eligible ... notices" and
+recorded a performed request even when local admission rejected the
+query before network I/O. It now detects the typed local cap, reports
+zero HTTP requests performed, preserves the safe UTC-day used/cap,
+and states **eligibility unknown** on unavailable/error responses.
+An observed empty sample remains distinct from an unavailable sample.
+
+The history previously called all prior leads "NOT present in current
+sample", including public TED records that were not queried because
+the daily allowance had been exhausted. Historical source entries
+are now labelled according to source availability: source unavailable
+means **current presence unknown**; a retrieved source that did not
+make the bounded top Idea Map means **not selected**, not disappeared.
+The CLI passes the observed/unavailable source coverage and focused
+scan status into history when recording. This does not overwrite prior
+entries, invent observations, query more sources or assert a current
+tender is open. The legacy history JSON key remains for compatibility,
+with a clearer `prior_history_not_selected_in_current_idea_map` alias.
+
 ### TED missing-window diagnostics, without unsafe retries (2026-11-20)
 
 A field run on November 20 had **2/3 TED date windows observed**, with
