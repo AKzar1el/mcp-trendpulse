@@ -118,8 +118,16 @@ def test_awards_non_it_or_invalid_links_not_promoted_to_vendor_briefs():
         tender(num="bad", title="BAD LINK"),
         tender(num="804744-2026", deadline="2026-10-01"),
     ], as_of=DAY)
-    assert data["brief_count"] == 1
-    assert data["briefs"][0]["published_lot_date_on_or_after_analysis"] is False
+    assert data["brief_count"] == 0
+    assert data["sampled_software_it_contract_notices"] == 1
+    assert data["sampled_software_it_notices_not_forward_qualified"] == 1
+    old = data["past_or_incomplete_tender_context"][0]
+    assert old["reason"] == "published_lot_date_before_analysis"
+    assert old["published_last_lot_date"] == "2026-10-01"
+    assert old["not_an_upcoming_procurement_lead"] is True
+    assert "Historical/incomplete TED context" in "\n".join(
+        workflow.format_workflow_briefs(data)
+    )
     assert "BAD LINK" not in repr(data)
 
 
@@ -222,3 +230,25 @@ def test_cli_workflow_briefs_option_executes_network_free_plan():
     assert plan["network_performed"] is False
     assert plan["request_count"] == 3
     assert plan["workflow_briefs"]["source_requests_added"] == 0
+
+
+def test_live_field_shape_keeps_two_future_date_tenders_not_past_vendor_license():
+    rows = [
+        tender("Greece IT employment portal", num="804742-2026",
+               deadline="2026-12-21"),
+        tender("Germany Finanzsoftware", num="781080-2026",
+               deadline="2026-12-14"),
+        tender("IBM Lizenzen fuer EntireX und webMethods", num="754533-2026",
+               deadline="2026-11-12"),
+    ]
+    result = workflow.build_workflow_briefs(rows, as_of=DAY)
+    assert result["brief_count"] == 2
+    assert result["sampled_software_it_contract_notices"] == 3
+    assert result["sampled_software_it_notices_with_future_or_today_published_lot_dates"] == 2
+    assert result["sampled_software_it_notices_not_forward_qualified"] == 1
+    assert all(row["published_lot_date_on_or_after_analysis"]
+               for row in result["briefs"])
+    assert "IBM Lizenzen" not in repr(result["briefs"])
+    assert result["past_or_incomplete_tender_context"][0]["reason"] == (
+        "published_lot_date_before_analysis"
+    )

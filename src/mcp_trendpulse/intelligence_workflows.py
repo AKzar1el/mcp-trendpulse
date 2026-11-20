@@ -188,7 +188,11 @@ def build_workflow_briefs(
     ]
     problem_groups.sort(key=lambda pair: (-len(pair[1]), pair[0].casefold()))
 
+    # Past or incomplete publication criteria are historical context, not
+    # forward-looking tenders. A future published deadline is NOT proof that
+    # a tender remains open, unamended or addressable by a new supplier.
     tender_rows = []
+    tender_context = []
     for row in records:
         if (row.get("source") != "ted"
                 or row.get("procurement_stage") != "contract_notice_not_award"
@@ -198,17 +202,37 @@ def build_workflow_briefs(
         if not isinstance(cpv, str) or not CPV.fullmatch(cpv) or cpv[:2] not in {"48", "72"}:
             continue
         last_day = _day(row.get("latest_lot_deadline_date"), date.max)
-        qualifies = bool(_clean(row.get("buyer_name"), 100)
-                         and last_day and last_day >= as_of.isoformat())
-        tender_rows.append((qualifies, row))
-    tender_rows.sort(key=lambda t: (
-        t[0], str(t[1].get("date", "")),
-        str(t[1].get("latest_lot_deadline_date", "")),
-        str(t[1].get("reference", "")),
+        buyer = _clean(row.get("buyer_name"), 100)
+        qualifies = bool(buyer and last_day and last_day >= as_of.isoformat())
+        if qualifies:
+            tender_rows.append(row)
+        else:
+            reason = (
+                "published_lot_date_before_analysis"
+                if last_day and last_day < as_of.isoformat()
+                else "published_buyer_label_missing" if not buyer
+                else "published_lot_date_missing_or_invalid"
+            )
+            tender_context.append({
+                "title": _clean(row.get("title"), 130),
+                "reference": _reference("ted", row.get("reference")),
+                "published_primary_cpv": cpv,
+                "published_last_lot_date": last_day,
+                "reason": reason,
+                "not_an_upcoming_procurement_lead": True,
+                "actual_tender_status_not_verified": True,
+            })
+    tender_rows.sort(key=lambda row: (
+        str(row.get("date", "")),
+        str(row.get("latest_lot_deadline_date", "")),
+        str(row.get("reference", "")),
+    ), reverse=True)
+    tender_context.sort(key=lambda row: (
+        row["published_last_lot_date"], row["reference"]
     ), reverse=True)
 
     briefs = []
-    for qualifies, row in tender_rows[:MAX_PROCUREMENT_BRIEFS]:
+    for row in tender_rows[:MAX_PROCUREMENT_BRIEFS]:
         label = _clean(row["title"], 130)
         brief = _base_brief("published_software_it_procurement_to_investigate",
                             label, [row], research=research, as_of=as_of)
@@ -225,8 +249,8 @@ def build_workflow_briefs(
             "published_buyer_label": _clean(row.get("buyer_name"), 100),
             "buyer_country_code": _clean(row.get("buyer_country_code"), 3),
             "published_primary_cpv": row["main_cpv_code"],
-            "published_last_lot_date": _clean(row.get("latest_lot_deadline_date"), 10),
-            "published_lot_date_on_or_after_analysis": qualifies,
+            "published_last_lot_date": _day(row.get("latest_lot_deadline_date"), date.max),
+            "published_lot_date_on_or_after_analysis": True,
             "tender_open_status_verified": False,
             "software_lot_scope_verified": False,
             "published_procedure_estimate": estimate,
@@ -271,7 +295,10 @@ def build_workflow_briefs(
         "mode": "source_grounded_workflow_briefs_not_validated_market_demand",
         "briefs": briefs, "brief_count": len(briefs),
         "max_briefs": MAX_BRIEFS,
-        "sampled_software_it_contract_notices": len(tender_rows),
+        "sampled_software_it_contract_notices": len(tender_rows) + len(tender_context),
+        "sampled_software_it_notices_with_future_or_today_published_lot_dates": len(tender_rows),
+        "sampled_software_it_notices_not_forward_qualified": len(tender_context),
+        "past_or_incomplete_tender_context": tender_context[:3],
         "sampled_repeated_consumer_issue_groups": len(problem_groups),
         "source_requests_added": 0,
         "no_predefined_industry_seeds": True,
@@ -333,6 +360,19 @@ def format_workflow_briefs(result: dict[str, Any]) -> list[str]:
     ]
     if not result["briefs"]:
         lines.append("  No qualifying workflow clues in the bounded source sample; this is NOT a market-wide negative finding.")
+    if result.get("sampled_software_it_notices_not_forward_qualified"):
+        lines.append(
+            "  Software/IT notices excluded from forward-looking briefs: "
+            f"{result['sampled_software_it_notices_not_forward_qualified']} "
+            "(past/missing published lot dates or missing buyer label; not an active-bid conclusion)."
+        )
+        for item in result.get("past_or_incomplete_tender_context", [])[:3]:
+            lines.append(
+                f"  - Historical/incomplete TED context: {item['title']} "
+                f"| reason: {item['reason']} "
+                f"| published last lot date: {item['published_last_lot_date'] or 'missing'}"
+            )
+            lines.append("    " + item["reference"])
     for index, item in enumerate(result["briefs"], 1):
         lines.append(f"  {index}. {item['source_published_workflow_clue']} [{item['kind']}]")
         lines.append(

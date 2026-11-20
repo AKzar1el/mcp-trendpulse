@@ -798,9 +798,13 @@ original published notice links, published buyer-name labels, CPVs,
 lot dates, paired procedure estimates (not spending), complaint-provider
 landing links (not individual complaint permalinks), evidence dates,
 unverified buyer identity and unanswered product-qualification work.
-The tender review order prefers published lot dates on/after analysis
-when usable; this is NOT proof the bid remains active. The output does
-not automatically assert a recurring software product from one tender.
+Forward-looking procurement briefs require published buyer labels and
+valid lot dates **on/after the analysis date**. Past/missing lot dates
+or missing buyer labels are separated into bounded original-notice-linked
+**historical/incomplete context** and cannot consume an automated
+source-check query slot. A future published lot date is NOT verification
+that a bid is still open, unamended, eligible or a software-only budget.
+The output does not assert a recurring software product from one tender.
 
 For each brief, research publication context is attached only when the
 published OpenAlex primary-topic wording and its source label share a
@@ -814,9 +818,14 @@ independent purchasing organizations, market size or SEO growth.
 
 A second, independently opt-in `--workflow-cross-check` mode
 requires `--workflow-briefs`. It derives up to **two distinct plain
-multiword source phrases** from actual TED/CFPB workflow clues, preferring
-one repeated CFPB issue category and one software/IT contract-notice
-scope. No academic topic name is substituted and no synonyms or fixed
+multiword source phrases** from actual TED/CFPB workflow clues. Original
+CFPB issue-detail wording takes precedence over broad product categories
+(e.g. exact published tokens 'incorrect information' or 'collect debt'),
+followed by a future-lot-date TED title only if it yields a safe,
+source-derived multiword phrase. Non-ASCII-only / single-word / generic
+tender titles stay available for manual review, without replacing them
+with a past-lot-date vendor-specific licensing notice. If no TED phrase
+qualifies, a second original CFPB issue can be investigated instead. No academic topic name is substituted and no synonyms or fixed
 sector seed lists are invented. It reuses existing GitHub Issues and
 USAspending collectors, local shared cache, quality screen, source
 budget and cooldown; **at most four extra free queries** (2 phrases
@@ -825,7 +834,10 @@ provider unavailability. GitHub issues are not paying customers; US
 awards' last-modified timestamps cannot become new purchasing events,
 and the USAspending landing page is not a record-specific permalink.
 Independent source records require explicit workflow and buyer checks
-before any product validation claim. No unattended work or new provider.
+before any product validation claim. The report shows accepted sample sizes
+and explicitly distinguishes **all providers observed with zero matching
+titles** from partial/unavailable provider coverage. Neither means zero
+market demand. No unattended work or new provider.
 
 The seedless discovery smoke additionally executes the opt-in brief
 projection with the existing three keyless collector responses, checks

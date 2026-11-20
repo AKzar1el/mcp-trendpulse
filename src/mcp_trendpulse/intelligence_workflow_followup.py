@@ -34,8 +34,40 @@ CONTEXT_REASONS = frozenset({
 })
 
 
-def _phrase_from_source_label(label: str) -> str:
+def _source_issue_phrase(label: str) -> str:
+    """Keep a short contiguous original CFPB issue expression.
+
+    Source-published issue wording is more diagnostic than its broad product
+    category. No synonym, translation, sector seed or research inference.
+    """
+    if " — " not in label:
+        return ""
+    words = re.findall(r"[a-z0-9]+", label.split(" — ", 1)[1].lower())
+    glue = frozenset({
+        "a", "an", "and", "as", "at", "by", "for", "from", "in", "is",
+        "not", "of", "on", "or", "the", "to", "with", "your",
+    })
+    candidates = []
+    for width in (2, 3):
+        for offset in range(len(words) - width + 1):
+            span = words[offset:offset + width]
+            phrase = " ".join(span)
+            if (any(len(word) < 3 or word in glue for word in span)
+                    or not any(len(word) >= 6 and word not in {
+                        "problem", "report", "reports", "information",
+                    } for word in span)
+                    or source_phrase(phrase) != phrase):
+                continue
+            candidates.append((offset, width, phrase))
+    return min(candidates)[2] if candidates else ""
+
+
+def _phrase_from_source_label(label: str, *, prefer_issue: bool = False) -> str:
     """Never generate synonyms, default hypotheses, provider query operators."""
+    if prefer_issue:
+        issue = _source_issue_phrase(label)
+        if issue:
+            return issue
     options = [
         phrase for phrase in _phrases(label)
         if len(phrase.split()) <= 3 and source_phrase(phrase) == phrase
@@ -70,7 +102,16 @@ def select_workflow_followups(briefs: dict[str, Any]) -> list[dict[str, str]]:
                 or not isinstance(ident, str)
                 or re.fullmatch(r"[a-f0-9]{14}", ident) is None):
             continue
-        phrase = _phrase_from_source_label(label)
+        if (kind == "published_software_it_procurement_to_investigate"
+                and row.get("published_lot_date_on_or_after_analysis") is not True):
+            # Do not spend the source budget on past/incomplete tender dates,
+            # even if a caller submits an older unfiltered brief object.
+            continue
+        issue_phrase = (_source_issue_phrase(label)
+                        if kind.startswith("recurring") else "")
+        phrase = _phrase_from_source_label(
+            label, prefer_issue=kind.startswith("recurring")
+        )
         if not phrase or phrase in seen:
             continue
         seen.add(phrase)
@@ -80,6 +121,11 @@ def select_workflow_followups(briefs: dict[str, Any]) -> list[dict[str, str]]:
             "source_derived_phrase": phrase,
             "origin": "observed_cfpb_problem_category" if kind.startswith("recurring")
                       else "observed_ted_software_it_notice_title",
+            "phrase_basis": (
+                "source_published_cfpb_issue_words" if issue_phrase
+                else "source_published_category_fallback" if kind.startswith("recurring")
+                else "source_published_ted_title_words"
+            ),
         })
     problems = [c for c in candidates if c["brief_kind"].startswith("recurring")]
     tenders = [c for c in candidates if c["brief_kind"].startswith("published")]
@@ -119,6 +165,15 @@ def investigate_workflow_briefs(
         "buying_intent_or_budget_verified": False,
         "trend_or_seo_growth_verified": False,
         "topics": [],
+        "total_title_matches_in_bounded_sources": 0,
+        "unqueryable_future_lot_tender_briefs": sum(
+            1 for row in briefs.get("briefs", [])[:6]
+            if isinstance(row, dict)
+            and row.get("kind") == "published_software_it_procurement_to_investigate"
+            and row.get("published_lot_date_on_or_after_analysis") is True
+            and isinstance(row.get("source_published_workflow_clue"), str)
+            and not _phrase_from_source_label(row["source_published_workflow_clue"])
+        ),
     }
     if not selected:
         return report
@@ -218,10 +273,17 @@ def investigate_workflow_briefs(
             "usaspending_context_not_recent_procurement_evidence": True,
             "same_workflow_or_buyer_independently_verified": False,
         })
+    total_matches = sum(
+        source["topic_title_matches_in_sample"]
+        for topic in report["topics"] for source in topic["source_coverage"]
+    )
+    report["total_title_matches_in_bounded_sources"] = total_matches
     report["status"] = (
-        "bounded_independent_source_checks_observed"
-        if observed == len(selected) * len(SOURCE_IDS)
-        else "partial_independent_source_coverage"
+        "partial_independent_source_coverage"
+        if observed != len(selected) * len(SOURCE_IDS)
+        else "observed_no_title_matches_in_bounded_sources"
+        if total_matches == 0
+        else "bounded_independent_source_checks_observed"
     )
     return report
 
@@ -236,9 +298,21 @@ def format_workflow_followup(result: dict[str, Any]) -> list[str]:
     ]
     if not result["topics"]:
         lines.append("  No safe multiword source phrase qualified. No fallback seeds or network requests substituted.")
+    if result.get("unqueryable_future_lot_tender_briefs"):
+        lines.append(
+            f"  {result['unqueryable_future_lot_tender_briefs']} future-lot-date TED brief(s)"
+            " had no safe multiword ASCII source-title phrase; retained for manual"
+            " scope review, not replaced with a past-date tender."
+        )
+    if result.get("status") == "observed_no_title_matches_in_bounded_sources":
+        lines.append(
+            "  All queried providers responded; no matching titles in the"
+            " bounded source samples. NOT evidence of zero demand."
+        )
     for item in result["topics"]:
         lines.append(
             f"  {item['source_derived_phrase']} | from {item['origin']}"
+            f" | phrase basis: {item['phrase_basis']}"
             " | NOT market-demand verified"
         )
         for cover in item["source_coverage"]:
@@ -249,6 +323,7 @@ def format_workflow_followup(result: dict[str, Any]) -> list[str]:
                 diagnostic = f" ({cover['reason']})"
             lines.append(
                 f"    {cover['source']}: {cover['status']}{diagnostic}"
+                f" | sampled records: {cover['sample_records_accepted']}"
                 f" | sample title overlap: {cover['topic_title_matches_in_sample']}"
                 f" | recent dated: {cover['recent_dated_matches_in_sample']}"
             )

@@ -12,7 +12,8 @@ ASOF = date(2026, 11, 20)
 
 
 def brief(ident, kind, title):
-    return {"brief_id": ident, "kind": kind, "source_published_workflow_clue": title}
+    return {"brief_id": ident, "kind": kind, "source_published_workflow_clue": title,
+            "published_lot_date_on_or_after_analysis": kind.startswith("published")}
 
 
 def two_briefs():
@@ -27,11 +28,16 @@ def two_briefs():
 def test_source_phrase_selection_prefers_problem_then_buyer_and_no_static_seeds():
     selection = followup.select_workflow_followups(two_briefs())
     assert [row["source_derived_phrase"] for row in selection] == [
-        "debt collection", "battery recycling",
+        "collect debt", "battery recycling",
     ]
     assert [r["origin"] for r in selection] == [
         "observed_cfpb_problem_category", "observed_ted_software_it_notice_title",
     ]
+    assert selection[0]["phrase_basis"] == "source_published_cfpb_issue_words"
+    assert followup._phrase_from_source_label(
+        "Credit reporting or other personal consumer reports — "
+        "Incorrect information on your report", prefer_issue=True
+    ) == "incorrect information"
     assert followup.select_workflow_followups({"briefs": []}) == []
     assert followup.select_workflow_followups({"briefs": [
         brief("abcdef12345678", "recurring_public_consumer_issue_to_investigate",
@@ -70,7 +76,7 @@ def test_existing_hunter_receives_only_source_phrases_and_preserves_honest_dates
                 ],
             },
             {
-                "topic": "debt collection",
+                "topic": "collect debt",
                 "status": "insufficient_topical_observation",
                 "source_coverage": [
                     {"source": "github_issues", "status": "observed",
@@ -86,7 +92,7 @@ def test_existing_hunter_receives_only_source_phrases_and_preserves_honest_dates
     report = followup.investigate_workflow_briefs(
         two_briefs(), as_of=ASOF, lookback_days=30, env={},
     )
-    assert calls[0][0] == ["debt collection", "battery recycling"]
+    assert calls[0][0] == ["collect debt", "battery recycling"]
     assert calls[0][1] == ["github_issues", "usaspending"]
     assert calls[0][2]["execute"] is True
     assert calls[0][2]["lookback_days"] == 30
@@ -104,10 +110,43 @@ def test_existing_hunter_receives_only_source_phrases_and_preserves_honest_dates
     assert "SECRET_DO_NOT_ECHO" not in shown
 
 
+def test_past_date_tender_is_not_auto_checked_and_observed_zeros_are_caveated(monkeypatch):
+    stale = brief(
+        "aabbccdd112233", "published_software_it_procurement_to_investigate",
+        "IBM Lizenzen fuer EntireX und webMethods",
+    )
+    stale["published_lot_date_on_or_after_analysis"] = False
+    actual = two_briefs()["briefs"][1]
+    chosen = followup.select_workflow_followups({"briefs": [stale, actual]})
+    assert len(chosen) == 1 and chosen[0]["source_derived_phrase"] == "collect debt"
+    assert chosen[0]["brief_id"] == actual["brief_id"]
+    def empty_hunter(topics, sources, **_kwargs):
+        return {"topics": [{
+            "topic": topics[0],
+            "source_coverage": [
+                {"source": "github_issues", "status": "observed",
+                 "records_accepted": 5, "topical_title_matches": 0},
+                {"source": "usaspending", "status": "observed",
+                 "records_accepted": 0, "topical_title_matches": 0},
+            ],
+            "evidence": [], "context_examples": [],
+        }]}
+    monkeypatch.setattr(followup, "hunt_current", empty_hunter)
+    out = followup.investigate_workflow_briefs(
+        {"briefs": [stale, actual]}, as_of=ASOF, lookback_days=30, env={},
+    )
+    assert out["source_requests_budgeted"] == 2
+    assert out["total_title_matches_in_bounded_sources"] == 0
+    assert out["status"] == "observed_no_title_matches_in_bounded_sources"
+    shown = "\n".join(followup.format_workflow_followup(out))
+    assert "sampled records: 5" in shown
+    assert "NOT evidence of zero demand" in shown
+
+
 def test_untrusted_urls_are_never_copied_from_public_result(monkeypatch):
     def fake_hunt(*_a, **_kw):
         return {"topics": [{
-            "topic": "debt collection",
+            "topic": "collect debt",
             "source_coverage": [
                 {"source": "github_issues", "status": "observed"},
                 {"source": "usaspending", "status": "observed"},
@@ -198,7 +237,7 @@ def test_workflow_cross_check_execute_reuses_existing_bounded_sources(monkeypatc
         workflow_cross_check=True, env={},
     )
     assert calls == ["openalex", "cfpb", "ted"]
-    assert observed[0][0] == ["debt collection"]
+    assert observed[0][0] == ["collect debt"]
     assert report["workflow_briefs"]["independent_source_checks"][
         "source_requests_budgeted"
     ] == 2
