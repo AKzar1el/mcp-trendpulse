@@ -1111,6 +1111,41 @@ def intelligence_wikimedia_pageviews(article, project, days, end_date, execute, 
         click.echo(format_pageviews(report))
 
 
+@intelligence.command("hn-discussions")
+@click.option("--query", required=True,
+              help="Explicit technical research phrase, not a URL or user profile.")
+@click.option("--tag", type=click.Choice(["story", "show_hn", "ask_hn", "comment"]),
+              default="story", show_default=True,
+              help="Search matching stories, Show HN, Ask HN or comments separately.")
+@click.option("--days", type=click.IntRange(1, 30), default=14, show_default=True,
+              help="Recent UTC lookback window, rounded to a two-hour anchor.")
+@click.option("--limit", type=click.IntRange(1, 20), default=10, show_default=True,
+              help="Maximum first-page results to request; no hidden pagination.")
+@click.option("--execute", is_flag=True,
+              help="Explicit opt-in to one cached or quota-reserved Algolia HN search.")
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]),
+              default="text", show_default=True)
+def intelligence_hn_discussions(query, tag, days, limit, execute, output_format):
+    """M07: bounded recent HN community activity, not verified market demand."""
+    from mcp_trendpulse.intelligence_hn_algolia import (
+        discover_hn_discussions, format_hn_report,
+    )
+
+    try:
+        report = discover_hn_discussions(
+            query=query, tag=tag, days=days,
+            limit=limit, execute=execute,
+        )
+    except (OSError, TypeError, ValueError):
+        raise click.ClickException(
+            "Invalid HN research phrase, tag, lookback or page limit"
+        ) from None
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_hn_report(report))
+
+
 @intelligence.command("sources")
 @click.option("--wave", type=click.IntRange(1, 3), default=None)
 def intelligence_sources(wave):

@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00–M03, M05–M06 COMPLETE (verified); M04 implemented/offline-verified, still pending live Explore gate after user-authorized deferral  | **Next task:** M04 when the operator reminds us; M07 untouched.
+**Created:** 2026-11-20  | **Status:** M00–M03, M05–M07 COMPLETE (verified); M04 implemented/offline-verified, still pending live Explore gate after user-authorized deferral  | **Next task:** M04 when the operator reminds us; otherwise M08 only if separately authorized.
 
 ## Mission and non-negotiable scope
 
@@ -384,7 +384,66 @@ test is permanently fixed. The PR stays OPEN/DRAFT/unmerged.
 - Map user-observed topics to unambiguous page titles with language/project metadata; compare normalized pageview windows; disambiguation and missing article are not zero interest.
 - **Acceptance:** daily series and same-length comparison periods for one known page, stable cache, HTTP/429 tests, article rename/disambiguation handling.
 
-#### [ ] M07 — Hacker News via Algolia
+#### [x] M07 — Hacker News via Algolia
+**LIVE VERIFIED — 2026-11-20 UTC.** The user explicitly authorized
+continuing beyond M06 while deferring M04. HN Search powered by
+Algolia offers a public keyless search_by_date API with stable numeric
+objectID, created_at_i, story/comment/show_hn/ask_hn tags, numericFilters,
+hitsPerPage and page. This is an indexed community search, not an HN
+Firebase census or a verified market-demand measurement.
+Implementation: src/mcp_trendpulse/intelligence_hn_algolia.py;
+opt-in CLI intelligence hn-discussions with query, tag, days, limit
+and --execute, tests/test_mjau_hn_algolia.py, and
+docs/hn-algolia-discussions.md.
+
+Strict fixed HTTPS hn.algolia.com origin, no redirects, proxies or
+retries, 5s connect/12s read timeout, 160 KiB decoded JSON response
+cap, descriptive User-Agent; zero-network preview by default.
+Lookback 1–30 days, a 2-hour UTC snapshot anchor, exactly **one
+first page of at most 20 source items**, never unbounded pagination.
+Original SQLite shared BudgetCache adds dedicated HN source budget
+**5 calls per UTC-day**, 2-hour validated cache and durable 429/503
+cooldown. No API key, website ownership, paid service or new dependency.
+
+Each accepted item validates stable HN ID, kind/tag, source UTC
+timestamp within the requested filter, and story/comment hierarchy.
+Duplicate/malformed records or unqueried source-index matches are
+marked observed_partial, not complete. Story/Show HN/Ask HN pages
+emit **partial daily story mention signals** by distinct story ID;
+comment pages count matching comment IDs and distinct parent
+story threads, with **no** story signals or invented buyer counts.
+Source-reported nbHits is NOT a full census and no sentiment or
+relevance judgment is implied. Raw comment bodies, author identities
+and unapproved external links are not returned. Missing engagement
+measures remain null rather than fabricated zero.
+
+**Bounded real-source acceptance:** A narrow manual query
+model context protocol returned valid no_data for 14 recent days.
+The manual, user-relevant phrase **AI agents** returned:
+story: **10 unique source records** first-page, 550 source-reported
+matches (540 outside the page); comment: **10 comments in 8
+distinct parent threads**, 1329 source-reported indexed matches
+(1319 outside page), **zero** story signals; show_hn: **8 unique
+launch posts**, 210 source-reported matches (202 outside page).
+All three first-page samples happened to be dated 2026-11-20 UTC,
+which is NOT a claim of one-day community momentum. Source item IDs
+included 50582844 and 50580804. Identical story/comment requests
+repeated from **validated cache with zero network**.
+Original source quota **4/5** for 2026-11-20 UTC and SQLite
+quick_check=ok. Independent M04 TrendSpy quota remains **2/2**
+unchanged. All data is partial, source-specific community evidence,
+not paid-customer validation or general search growth.
+
+Deterministic offline verification: **38 M07 tests passed**; combined
+M07/M06/M05/M04/source-contract **162 tests passed**, full Ruff clean.
+Full local Windows offline suite on M07 code: **1,866 passed,
+3 existing unrelated OpenAlex failures, 10 deselected, 3 warnings**.
+The failures are the same two OpenAlex local-calendar vs UTC date
+assertions around midnight and one plan-only assertion about the
+redacted Authorization header label; no M07 tests failed. Full local
+green is NOT claimed. Actual GitHub PR CI results are recorded against
+the pushed head separately.
+M04 stays unchecked until the user's reminder; M08+ untouched.
 - **Library:** existing `requests`; source public HN Algolia search.
 - Search genuine recent technical discussions and launches using observed topic phrases; dedupe repeated posts by stable ID, distinguish story and comment counts, count unique days/topics not raw repeated mentions.
 - **Acceptance:** one bounded query with timestamps and source IDs; handle deletion and pagination cap; no false customer demand.
@@ -460,7 +519,7 @@ test is permanently fixed. The PR stays OPEN/DRAFT/unmerged.
 | M04 | IMPLEMENTED/OFFLINE VERIFIED; LIVE PENDING — 2026-11-20 | PR #328; original feature 5e2d279a00f453c1521204fc4b6faa27da2d93f3; M04 adversarial source/cache hardening on feature branch; 70 focused tests, full Ruff clean, local full 1,747 passed / 1 existing unrelated failure / 10 deselected | Original SQLite quota directory accessible; historical shared TrendSpy provider daily budget 2/2 used on 2026-11-20; actual M04 CLI refused with zero provider operations; no live source observation until UTC reset; M04 remains unchecked |
 | M05 | COMPLETE — 2026-11-20 | PR #328; implementation c721e008dae1bc8dac4efd991957f4ebbb70d708; 88 focused pass, full Ruff clean, 1,783 full-local pass / 3 unrelated fails; CI at M05 implementation head 25 success / 2 expected skip; live Bing GET stats 24 history rows (6 emitted), related 100 rows (10 emitted), both HTTP 200; zero-call cache repeats | Arbitrary crochet patterns US/en-US (no siteUrl), Bing exact/broad impression semantics, original UTC-day local budget 3/3, no key leaks/paid fallback; M04 remains unchecked per user |
 | M06 | COMPLETE — 2026-11-20 | PR #328; implementation f61cd9ff1d49dc9bf4fec224775dacd021c4888c; 109 focused pass and full Ruff clean; 1,828 full-local pass / 3 unrelated existing fails / 10 deselected; GitHub CI 25 success / 2 expected skip after one unrelated Python 3.12 concurrency-test retry; 14 sourced daily views across 7+7 days, cache repeat 0 calls | Canonical en.wikipedia.org Python programming language page; prior 26,965 vs current 25,846 views (−4.15%, not search volume), original M06 daily quota 2/4, M04 deferred unchanged; no new dependencies/paid services |
-| M07 | ☐ NOT STARTED | — | — |
+| M07 | COMPLETE — 2026-11-20 | PR #328 M07 implementation commit pending; 38 focused M07 and 162 mixed tests pass; full local 1,866 pass / 3 existing OpenAlex fails / 10 deselected, Ruff clean; real HN story/comment/Show HN with zero-call cache repeats | AI agents source sample: 10 stories (provider 550 matches), 10 comments across 8 threads (provider 1329), 8 Show HN launches (provider 210); all first-page partial, HN budget 4/5 Nov20 UTC, M04 deferred unchanged |
 | M08 | ☐ NOT STARTED | — | — |
 | M09 | ☐ NOT STARTED | — | — |
 | M10 | ☐ NOT STARTED | — | — |
