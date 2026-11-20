@@ -1475,6 +1475,13 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             )
             lines.extend(format_keyword_probe(result["idea_map"]["keyword_probe"]))
         lines.append("")
+    if result.get("idea_history") is not None:
+        from mcp_trendpulse.intelligence_idea_history import (
+            format_idea_history,
+        )
+
+        lines.extend(format_idea_history(result["idea_history"]))
+        lines.append("")
         lines.append("")
     sample_audit = result.get("ted_sampling_audit", {})
     if sample_audit and result.get("ted_date_slices") == 3:

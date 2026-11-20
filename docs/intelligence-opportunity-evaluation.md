@@ -979,6 +979,30 @@ The no-network preview `--idea-map --keyword-probe` requires
 If rate-limited or blocked, prefer the offline `--idea-map` and
 manually supplied normalized series over repeated retries.
 
+### Persistent opportunity source sightings (explicit opt-in, 2026-11-20)
+
+`--record-idea-history` requires `--idea-map --execute` and adds
+**zero** source requests. It stores a 90-day, source-safe local SQLite
+ledger at `~/.mcp-trendpulse/intelligence/opportunity_history.sqlite3`
+by default, distinct from the preexisting hashed research-candidate
+history. Only source-validated TED publication URLs, source-published
+short notice labels, CFPB public product/issue categories and the
+tentative procurement-fit screen are saved. No raw TED payload,
+CFPB narratives, complaint IDs, private provider responses or API
+credentials are persisted by this feature.
+
+The stable key is SHA-256 over the TED notice URL or the exact published
+CFPB category, so repeated invocations on the same date count as
+**one observation day**, not a growth measurement. Results distinguish
+currently observed source items from up to five older entries
+**not present in the current bounded sample**. Older entries require
+fresh original-source validation before being treated as a current
+bid, viable buyer workflow or keyword opportunity. History provides
+continuity of investigation, not a market-growth trajectory, buyer
+count, active bid guarantee, reopening of expired tenders or a
+sampling correction. It does not inject unseen historical leads back
+into the live Idea Map or schedule background polling.
+
 ### Procurement-fit screening for candidate product ideas (2026-11-20)
 
 The live newest-first focused software/IT TED search recovered four

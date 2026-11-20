@@ -924,6 +924,10 @@ def intelligence_sources(wave):
               help="Explicitly fetch fixed public free sources; otherwise plan only.")
 @click.option("--record-history", is_flag=True,
               help="Store hashes of discovered candidates locally (requires --execute).")
+@click.option("--record-idea-history", is_flag=True,
+              help="With --execute and --idea-map, opt into a local 90-day source"
+                   " sighting ledger (official URLs/labels only); prior-only"
+                   " leads require revalidation, not active market claims.")
 @click.option("--format", "output_format", type=click.Choice(["json", "text"]),
               default="json", show_default=True)
 def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
@@ -932,7 +936,7 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
                           workflow_cross_check, ted_scope_details, ted_related_notices,
                           idea_map, keyword_probe,
                           keyword_evidence_file, execute, record_history,
-                          output_format):
+                          record_idea_history, output_format):
     """Discover current source themes without any predefined topic keywords."""
     from mcp_trendpulse.intelligence_discovery import (
         discover_current, format_discovery_report, record_discovery_history,
@@ -941,6 +945,8 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
     try:
         if record_history and not execute:
             raise ValueError("--record-history requires --execute")
+        if record_idea_history and (not execute or not idea_map):
+            raise ValueError("--record-idea-history requires --execute --idea-map")
         if keyword_evidence_file is not None and not idea_map:
             raise ValueError("--keyword-evidence-file requires --idea-map")
         parsed_keyword_evidence = None
@@ -969,6 +975,14 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
         )
         if record_history:
             response["history"] = record_discovery_history(response)
+        if record_idea_history:
+            from mcp_trendpulse.intelligence_idea_history import (
+                record_idea_history as save_idea_history,
+            )
+
+            response["idea_history"] = save_idea_history(
+                response["idea_map"]
+            )
     except (OSError, ValueError, TypeError) as exc:
         raise click.ClickException(str(exc)) from exc
     if output_format == "text" and execute:
