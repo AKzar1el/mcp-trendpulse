@@ -46,8 +46,7 @@ def test_two_official_exact_notice_queries_and_unmapped_multilot_source_excerpts
         if NOTICE_1 in plan.body["query"]:
             return observed(NOTICE_1, **{
                 "official-language": ["ELL"],
-                "description-proc": {"ell": ["Digital portal and public
-employment support \n with contact user@example.org"]},
+                "description-proc": {"ell": ["Digital portal and public employment support \n with contact user@example.org"]},
                 "title-lot": {"ell": ["Digital employment portal", "Publicity and outreach"]},
                 "description-lot": {"ell": ["Software operations", "Advertising campaign"]},
                 "unused": "SECRET_MUST_NOT_COPY",
