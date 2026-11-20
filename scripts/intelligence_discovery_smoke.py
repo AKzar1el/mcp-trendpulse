@@ -72,6 +72,16 @@ def main() -> int:
                 or issue_plan["trend_evidence"]["max_additional_github_issue_searches"] != 4
                 or not issue_plan["trend_evidence"]["corroborate_issues_opted_in"]):
             raise AssertionError("Issue corroboration plan is not bounded and offline")
+        keyword_plan = discover_current(
+            execute=False, workflow_briefs=True, idea_map=True,
+            keyword_probe=True, cache=cache, env={},
+        )
+        if (keyword_plan["network_performed"]
+                or keyword_plan["idea_map"]["keyword_probe"][
+                    "source_requests_performed"] != 0
+                or keyword_plan["idea_map"]["keyword_probe"][
+                    "max_provider_operations"] != 2):
+            raise AssertionError("No implicit Google Trends requests in plan-only preview")
         idea_plan = discover_current(
             execute=False, workflow_briefs=True, idea_map=True,
             ted_scope_details=True, cache=cache, env={},

@@ -904,6 +904,10 @@ def intelligence_sources(wave):
               help="With --workflow-briefs, synthesize source-backed product "
                    "hypotheses and keyword validation queues offline; no extra API "
                    "requests or invented search volumes.")
+@click.option("--keyword-probe", is_flag=True,
+              help="With --idea-map and --execute, opt in to at most two existing "
+                   "unofficial Google Trends related-query provider operations per "
+                   "local UTC day; rate limits and absence of volume caveats apply.")
 @click.option("--keyword-evidence-file", type=click.Path(
               exists=True, dir_okay=False, path_type=Path), default=None,
               help="Optional local normalized Google Trends-style series JSON "
@@ -917,8 +921,9 @@ def intelligence_sources(wave):
 def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
                           broad_topic_scan, corroborate_issues,
                           cross_source_hunt, workflow_briefs, workflow_cross_check,
-                          ted_scope_details, idea_map, keyword_evidence_file,
-                          execute, record_history, output_format):
+                          ted_scope_details, idea_map, keyword_probe,
+                          keyword_evidence_file, execute, record_history,
+                          output_format):
     """Discover current source themes without any predefined topic keywords."""
     from mcp_trendpulse.intelligence_discovery import (
         discover_current, format_discovery_report, record_discovery_history,
@@ -948,6 +953,7 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
             workflow_cross_check=workflow_cross_check,
             ted_scope_details=ted_scope_details,
             idea_map=idea_map,
+            keyword_probe=keyword_probe,
             keyword_evidence=parsed_keyword_evidence,
         )
         if record_history:

@@ -859,6 +859,40 @@ $env:UV_LINK_MODE = "copy"
 uvx --from "git+https://github.com/AKzar1el/mcp-trendpulse.git@<tested-commit>" mcp-trendpulse-cli intelligence discover --execute --workflow-briefs --workflow-cross-check --ted-date-slices 3 --limit 20 --lookback-days 30 --format text
 ```
 
+### Explicit bounded related-query investigation (2026-11-20)
+
+With `--workflow-briefs --idea-map --keyword-probe --execute`, the
+Idea Map selects at most **one published-source procurement phrase and
+one original CFPB problem term** with an applicable source-market ISO
+country. It checks Google Trends related **Top** and **Rising** searches
+using the **existing unofficial community TrendsPy provider**. This is
+not Google's limited-access official Trends API. It is fully opt-in,
+has no new packages/providers or background polling, and uses the
+existing provider pacing and cooldown system.
+
+A separate shared local SQLite guard permits **two related-query
+provider operations per UTC day** for this feature, with safe cached
+results (6-hour TTL) so a repeated run normally does not re-query the
+provider. A provider-level operation may make multiple HTTP requests;
+the code **does not** claim a two-HTTP-request guarantee or count the
+community MCP server's unrelated requests against this quota.
+Provider 429, unavailable, malformed responses and daily quota exhaustion
+remain distinct from an observed empty related-query result. Original
+source-derived keywords are not considered real observed searches until
+the provider returns those or related terms.
+
+The output retains the original source market; rising query values
+represent **provider-reported % growth or Breakout**, while Top scores
+are relative interest values. Neither is absolute monthly keyword volume,
+CPC, SEO difficulty, customer demand, TAM, product-market fit or
+willingness to pay. Never compare these values across countries/terms
+without a valid shared normalization.
+
+The no-network preview `--idea-map --keyword-probe` requires
+`--workflow-briefs`. Actual requests require explicit `--execute`.
+If rate-limited or blocked, prefer the offline `--idea-map` and
+manually supplied normalized series over repeated retries.
+
 ### Integrated project-idea and SEO keyword investigation map (2026-11-20)
 
 The opt-in `--idea-map` switch requires `--workflow-briefs`, and

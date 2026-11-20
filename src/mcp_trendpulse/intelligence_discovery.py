@@ -937,6 +937,7 @@ def discover_current(
     workflow_cross_check: bool = False,
     ted_scope_details: bool = False,
     idea_map: bool = False,
+    keyword_probe: bool = False,
     keyword_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Free, read-only discovery; optional source-count trend measurement."""
@@ -980,6 +981,10 @@ def discover_current(
         raise ValueError("--idea-map requires --workflow-briefs")
     if keyword_evidence is not None and not idea_map:
         raise ValueError("Keyword evidence requires --idea-map")
+    if not isinstance(keyword_probe, bool):
+        raise ValueError("keyword_probe must be a boolean")
+    if keyword_probe and not idea_map:
+        raise ValueError("--keyword-probe requires --idea-map")
     now = date.today()
     first = now - timedelta(days=lookback_days - 1)
     plans = [
@@ -1041,6 +1046,15 @@ def discover_current(
                 "keyword_evidence_attached_only_when_executed": bool(keyword_evidence),
                 "keyword_search_volume_verified": False,
             }
+            if keyword_probe:
+                planned["idea_map"]["keyword_probe"] = {
+                    "status": "planned_unofficial_provider_keyword_probe",
+                    "source_requests_performed": 0,
+                    "max_provider_operations": 2,
+                    "local_utc_day_max_operations": 2,
+                    "physical_http_requests_not_measured": True,
+                    "requires_execute": True,
+                }
         if measure_trends:
             from mcp_trendpulse.intelligence_trends import (
                 MAX_ADDITIONAL_REQUESTS, MAX_TOPICS, PUBLICATION_LAG_DAYS,
@@ -1300,6 +1314,21 @@ def discover_current(
         result["idea_map"] = build_idea_map(
             result, keyword_evidence=keyword_evidence,
         )
+        if keyword_probe:
+            from mcp_trendpulse.intelligence_keyword_probe import (
+                probe_idea_keywords,
+            )
+
+            result["idea_map"]["keyword_probe"] = probe_idea_keywords(
+                result["idea_map"], cache=cache,
+            )
+            result["limits"] += (
+                " Google Trends related-query observations come from the"
+                " existing unofficial paced community provider, are quota"
+                " bounded by two local UTC-day provider operations, and may"
+                " involve multiple actual upstream HTTP calls. Provider"
+                " relative search values are not absolute search volume."
+            )
     return result
 
 
@@ -1363,6 +1392,11 @@ def format_discovery_report(result: dict[str, Any]) -> str:
         from mcp_trendpulse.intelligence_idea_map import format_idea_map
 
         lines.extend(format_idea_map(result["idea_map"]))
+        if result["idea_map"].get("keyword_probe") is not None:
+            from mcp_trendpulse.intelligence_keyword_probe import (
+                format_keyword_probe,
+            )
+            lines.extend(format_keyword_probe(result["idea_map"]["keyword_probe"]))
         lines.append("")
         lines.append("")
     sample_audit = result.get("ted_sampling_audit", {})
