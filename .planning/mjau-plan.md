@@ -367,6 +367,19 @@ atomic cap with only one leftover operation, cooldown, malformed
 or secret-bearing cached payloads, one-call cache repeat, and offline
 CLI preview. User expressly deferred M04 and allowed M06 without
 M04 acceptance, so M04 remains unchecked. M07+ untouched.
+
+**GitHub CI, M06 implementation commit
+f61cd9ff1d49dc9bf4fec224775dacd021c4888c:**
+**25 SUCCESS / 2 intentionally SKIPPED publication checks** at the
+final verification, no pending or failed checks. One Python 3.12 job
+initially failed in the **pre-existing unrelated**
+test_intelligence_singleflight::test_different_queries_still_fetch_in_parallel
+timing assertion: two independent calls had each succeeded but the
+runner observed peak concurrency 1 rather than 2. The same GitHub
+Actions run 44837365393 was retried **once** with --failed; attempt
+2 passed with no source changes. All M06 tests passed in CI before and
+after. This is a flaky timing condition, not proof that the unrelated
+test is permanently fixed. The PR stays OPEN/DRAFT/unmerged.
 - **Library:** existing `requests`; source Wikimedia Analytics API.
 - Map user-observed topics to unambiguous page titles with language/project metadata; compare normalized pageview windows; disambiguation and missing article are not zero interest.
 - **Acceptance:** daily series and same-length comparison periods for one known page, stable cache, HTTP/429 tests, article rename/disambiguation handling.
@@ -446,7 +459,7 @@ M04 acceptance, so M04 remains unchecked. M07+ untouched.
 | M03 | COMPLETE — 2026-11-20 | PR #328; implementation df41073; focused 39 passed and full Ruff clean; real US rising Top 5, 2026-11-18, 61,072,200 dry-run bytes <=104,857,600 maximum; five source rows, zero rejected | Project trendpulse-new ACTIVE with billing disabled and no attached account; GB 2026-11-19 no data, GB 2026-11-18 >100 MiB refused; local budget 3/3 UTC day; source ranks not absolute volumes |
 | M04 | IMPLEMENTED/OFFLINE VERIFIED; LIVE PENDING — 2026-11-20 | PR #328; original feature 5e2d279a00f453c1521204fc4b6faa27da2d93f3; M04 adversarial source/cache hardening on feature branch; 70 focused tests, full Ruff clean, local full 1,747 passed / 1 existing unrelated failure / 10 deselected | Original SQLite quota directory accessible; historical shared TrendSpy provider daily budget 2/2 used on 2026-11-20; actual M04 CLI refused with zero provider operations; no live source observation until UTC reset; M04 remains unchecked |
 | M05 | COMPLETE — 2026-11-20 | PR #328; implementation c721e008dae1bc8dac4efd991957f4ebbb70d708; 88 focused pass, full Ruff clean, 1,783 full-local pass / 3 unrelated fails; CI at M05 implementation head 25 success / 2 expected skip; live Bing GET stats 24 history rows (6 emitted), related 100 rows (10 emitted), both HTTP 200; zero-call cache repeats | Arbitrary crochet patterns US/en-US (no siteUrl), Bing exact/broad impression semantics, original UTC-day local budget 3/3, no key leaks/paid fallback; M04 remains unchecked per user |
-| M06 | COMPLETE — 2026-11-20 | PR #328 M06 commit pending; 109 focused pass and full Ruff clean; 1,828 full-local pass / 3 unrelated existing fails / 10 deselected; canonical en.wikipedia.org Python programming language page, 14 sourced daily views across 7+7 equal-length days, zero missing, cache repeat 0 calls | Previous 26,965 vs current 25,846 views (−4.15% article views, not search volume), original SQLite M06 budget 2/4, M04 explicitly deferred unchanged, no new dependencies/paid services |
+| M06 | COMPLETE — 2026-11-20 | PR #328; implementation f61cd9ff1d49dc9bf4fec224775dacd021c4888c; 109 focused pass and full Ruff clean; 1,828 full-local pass / 3 unrelated existing fails / 10 deselected; GitHub CI 25 success / 2 expected skip after one unrelated Python 3.12 concurrency-test retry; 14 sourced daily views across 7+7 days, cache repeat 0 calls | Canonical en.wikipedia.org Python programming language page; prior 26,965 vs current 25,846 views (−4.15%, not search volume), original M06 daily quota 2/4, M04 deferred unchanged; no new dependencies/paid services |
 | M07 | ☐ NOT STARTED | — | — |
 | M08 | ☐ NOT STARTED | — | — |
 | M09 | ☐ NOT STARTED | — | — |
