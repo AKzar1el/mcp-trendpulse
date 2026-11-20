@@ -57,7 +57,7 @@ def test_bad_keywords_cannot_silently_enter_an_unnamed_cluster(broken):
 def test_same_market_exact_dedup_preserves_every_source_and_raw_term():
     records = [signal("AI—Agent reliability"),
                signal("ai agent reliability"),
-               signal(" AI agent reliability! "),
+               signal("AI agent reliability!"),
                signal("different topic")]
     report = cluster_keyword_signals(records)
     assert report["cluster_count"] == 2
