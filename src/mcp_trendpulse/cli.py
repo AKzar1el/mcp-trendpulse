@@ -1032,6 +1032,51 @@ def intelligence_explore_evidence(term, country, source_file, timeframe, execute
         click.echo(format_explore_report(report))
 
 
+@intelligence.command("bing-keywords")
+@click.option("--term", required=True,
+              help="Keyword research term; never a website/property URL.")
+@click.option("--country", required=True,
+              help="Uppercase ISO two-letter Bing market, e.g. US, GB, SI.")
+@click.option("--language", required=True,
+              help="IETF Bing language, e.g. en-US, en-GB, sl-SI.")
+@click.option("--kind", type=click.Choice(["stats", "related"]),
+              default="stats", show_default=True,
+              help="Historical weekly stats or related queries in a specified period.")
+@click.option("--start-date", default=None,
+              help="YYYY-MM-DD; only for related queries (up to 90 days).")
+@click.option("--end-date", default=None,
+              help="YYYY-MM-DD; only for related queries.")
+@click.option("--limit", type=click.IntRange(1, 20),
+              default=20, show_default=True,
+              help="Maximum sourced rows to emit; does not change upstream paging.")
+@click.option("--execute", is_flag=True,
+              help="Explicit opt-in to one authenticated, capped Bing REST/JSON request.")
+@click.option("--format", "output_format", type=click.Choice(["json", "text"]),
+              default="text", show_default=True)
+def intelligence_bing_keywords(term, country, language, kind, start_date, end_date,
+                               limit, execute, output_format):
+    """M05: market-wide Bing keyword impressions, never website performance."""
+    from mcp_trendpulse.intelligence_bing_keywords import (
+        discover_bing_keyword, format_bing_report,
+    )
+
+    try:
+        result = discover_bing_keyword(
+            query=term, country=country, language=language, kind=kind,
+            start_date=start_date, end_date=end_date, limit=limit,
+            execute=execute,
+        )
+    except (OSError, ValueError, TypeError):
+        # No upstream exceptions, authenticated request URLs or API keys.
+        raise click.ClickException(
+            "Invalid Bing keyword query, market, language or date window"
+        ) from None
+    if output_format == "json":
+        click.echo(json.dumps(result, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_bing_report(result))
+
+
 @intelligence.command("sources")
 @click.option("--wave", type=click.IntRange(1, 3), default=None)
 def intelligence_sources(wave):

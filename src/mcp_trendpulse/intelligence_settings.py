@@ -45,6 +45,12 @@ PROVIDERS: dict[str, dict[str, Any]] = {
         "docs": "https://changedetection.io/docs/api_v1/",
         "free": "Only your self-hosted loopback instance, no hosted subscription",
     },
+    "bing_webmaster": {
+        "fields": ("BING_WEBMASTER_API_KEY",),
+        "docs": "https://learn.microsoft.com/en-us/bingwebmaster/getting-access",
+        "free": "Free Bing Webmaster API key from a verified-site account; "
+                "global keyword research methods do not take a siteUrl",
+    },
 }
 
 _TARGET_PREFIX = "mcp-trendpulse:intelligence:"
@@ -215,6 +221,12 @@ def setup_instructions(provider: str) -> dict[str, Any]:
         "windows_command": f"mcp-trendpulse-cli intelligence settings set-key {provider}",
         "all_platforms": "Use your MCP client's secure environment-variable injection.",
         "safety": (
+            "Only the human user should enter keys in a trusted terminal or "
+            "credential manager. Bing's official GET API requires apikey as an "
+            "HTTPS request parameter, so the fixed-host transport uses it only "
+            "in flight; never echo the authenticated URL or key into logs, "
+            "prompts, MCP arguments, GitHub files or chat."
+            if provider == "bing_webmaster" else
             "Only the human user should enter keys in a trusted local terminal or "
             "credential manager. Never put secrets in prompts, MCP tool arguments, "
             "GitHub files, URL query parameters or chat messages."

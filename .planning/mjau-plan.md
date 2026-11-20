@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00–M03 COMPLETE (verified); M04 implemented/offline-verified but live pending local UTC-day provider budget  | **Next task:** M04 bounded live Explore acceptance after the shared daily budget resets; M05 untouched.
+**Created:** 2026-11-20  | **Status:** M00–M03 and M05 COMPLETE (verified); M04 implemented/offline-verified, still pending live Explore gate after user-authorized deferral  | **Next task:** M04 when the operator reminds us; M06 untouched.
 
 ## Mission and non-negotiable scope
 
@@ -221,7 +221,76 @@ bounded, source-attributed Explore result is observed.
 - Seed with genuinely observed M01/M03 terms and user-supplied market/topic. Retrieve top/rising related queries and normalized interest where supported; retain timeframe, country and comparative-series basis. Do not derive exact search volume.
 - **Acceptance:** one small permitted live request or explicit upstream restriction, cached repeat, 429/cooldown/quota test, correct 'breakout' semantics, no infinite retries/proxies, no website property.
 
-#### [ ] M05 — Bing **global keyword research** through REST/JSON (access-gated, conditional)
+#### [x] M05 — Bing **global keyword research** through REST/JSON (access-gated, conditional)
+**VERIFIED COMPLETE — 2026-11-20 UTC (operator explicitly deferred M04).**
+Microsoft's documentation confirms that GetKeywordStats accepts q, country,
+language; GetRelatedKeywords also accepts startDate and endDate; **neither**
+method requires siteUrl or returns a verified site's search-performance
+rows. Adding/verifying a site is the **credential issuance** prerequisite,
+not a filter on arbitrary market keyword research. JSON/HTTP REST is
+supported; SOAP/POX were retired on 2026-08-31. An existing user-managed
+BING_WEBMASTER_API_KEY was already securely configured in the Windows
+operator environment; no credentials were generated, exposed or stored
+in the repository. The official Bing GET interface requires a query
+apikey in flight, so the new adapter uses a fixed allowlisted TLS
+endpoint, no redirects, proxies, or logged/persisted authenticated URLs.
+
+**Implementation:** src/mcp_trendpulse/intelligence_bing_keywords.py,
+the opt-in CLI intelligence bing-keywords (--term, --country, --language,
+--kind stats|related, optional bounded related date window, --execute),
+and a secure bing_webmaster provider profile in intelligence_settings.
+Strictly offline preview by default; a single bounded read-only GET per
+executed command, 128 KiB response limit, timeouts, no retries/fallback,
+original SQLite source budget **3 requests/UTC day shared** across both
+methods, 3-hour credential-isolated cache, 429/503 cooldown and
+redacted errors. KeywordStats are normalized as separately sourced
+weekly **exact** and **broad** Bing impressions TrendSignals, with
+Microsoft /Date(milliseconds+offset)/ timestamp handling. Related
+keyword counts are explicitly period-wide aggregates, **not** inferred
+weekly observations. Empty provider rows are unknown/no_data rather
+than fabricated zero impressions or buyer demand. See
+docs/bing-keyword-research.md and tests/test_mjau_bing_keywords.py.
+
+**Independent real-source acceptance:** A deliberately non-site-related
+keyword, **crochet patterns**, US/en-US, was queried against the
+operator's official REST/JSON GetKeywordStats: **HTTP 200**, 24 sourced
+weekly records, all with Query, Date, Impressions and BroadImpressions.
+The new CLI repeated that fixed official call, normalized **6 most
+recent weekly records and 12 distinct exact/broad source signals**.
+Bing-reported week 2026-11-14: exact impressions **742**; broad **3475**.
+GetRelatedKeywords on the same unrelated term and US/en-US market,
+2026-10-20 through 2026-11-19, returned **100** source records; the
+CLI emitted **10** bounded results, including crochet (5367 exact,
+72888 broad), free crochet patterns (1990 exact, 4420 broad) and
+crocheting (1232 exact, 1894 broad). Both capped outputs are correctly
+reported observed_partial because earlier/lower-ranked source rows
+were omitted. Exact repeat requests hit validated caches with
+**requests_attempted=0**, **network_performed=false**.
+The original Bing local UTC-day budget is **3/3** including the initial
+live schema/access probe, SQLite quick_check=ok. M04's separate
+unofficial Google Trends provider budget remained **2/2**, unchanged
+and unbypassed. Bing does **not** provide global-all-engine or Google
+search volume and these impression counts do **not** prove customers.
+A separate authenticated Bing Webmaster GUI comparison was not made;
+live source API results and independent documented response fields
+were verified instead.
+
+**Validation:** 88 focused M05/M04/M03, secure-settings and legacy
+provider tests passed; full Ruff clean. Full local Windows suite:
+**1,783 passed, 3 unrelated failures, 10 deselected, 3 warnings**.
+Two pre-existing OpenAlex freshness tests compare local calendar day
+with UTC source dates across the 2026-11-20/21 midnight boundary;
+another pre-existing OpenAlex CLI assertion rejects a *redacted*
+Authorization header label in plan-only output. None fail within M05
+or its direct compatibility tests. Do not claim full green or silently
+change unrelated discovery behavior. GitHub CI evidence belongs to
+the actual final PR head and is recorded separately.
+
+**Priority and handoff:** user explicitly requested M05 while deferring
+M04's live Google Trends source acceptance until they remind us.
+M04 remains [ ] unchecked; M05's successful Bing REST validation
+neither resolves nor bypasses it. Do not start M06 until separately
+authorized or M04 is completed.
 - **Purpose:** Bing-wide (not the verified site's) keyword histories, related terms, arbitrary queries, markets/languages, possibly search-volume impressions. No GSC, Bing property performance or any domain-filtered report.
 - **Access:** free Bing Webmaster login. Microsoft says a website must be added/verified to create an API key. **This verification is to obtain credentials; not a keyword restriction.** The keyword methods accept `q`, `country`, `language` (and dates for related terms), with **no `siteUrl`**. Must verify this with an unrelated keyword using the live REST API before building a full adapter.
 - **REST only:** `GET https://ssl.bing.com/webmaster/api.svc/json/GetKeywordStats` and `/GetRelatedKeywords` with documented parameters; legacy SOAP/POX retired 2026-08-31. Use secure credentials from env/settings; never expose API key in reports, exceptions, trace/log output or persisted URLs. Verify current authentication requirements, response form, provider limits and terms first.
@@ -309,7 +378,7 @@ bounded, source-attributed Explore result is observed.
 | M02 | COMPLETE — 2026-11-20 | PR #328; `0c29f7ccb9f7677622e6e3922b1646b0cf8e9a8e`; RapidFuzz 3.14.6 locked; 1,937 tests and Ruff clean; 14/14 CI | Offline 200-signal lexical clusters, market/language isolation, branded/polarity safeguards; M03 next |
 | M03 | COMPLETE — 2026-11-20 | PR #328; implementation df41073; focused 39 passed and full Ruff clean; real US rising Top 5, 2026-11-18, 61,072,200 dry-run bytes <=104,857,600 maximum; five source rows, zero rejected | Project trendpulse-new ACTIVE with billing disabled and no attached account; GB 2026-11-19 no data, GB 2026-11-18 >100 MiB refused; local budget 3/3 UTC day; source ranks not absolute volumes |
 | M04 | IMPLEMENTED/OFFLINE VERIFIED; LIVE PENDING — 2026-11-20 | PR #328; original feature 5e2d279a00f453c1521204fc4b6faa27da2d93f3; M04 adversarial source/cache hardening on feature branch; 70 focused tests, full Ruff clean, local full 1,747 passed / 1 existing unrelated failure / 10 deselected | Original SQLite quota directory accessible; historical shared TrendSpy provider daily budget 2/2 used on 2026-11-20; actual M04 CLI refused with zero provider operations; no live source observation until UTC reset; M04 remains unchecked |
-| M05 | ☐ NOT STARTED | — | — |
+| M05 | COMPLETE — 2026-11-20 | PR #328 pending M05 commit; 88 focused pass, full Ruff clean; 1,783 full-local pass / 3 unrelated fails; real Bing GET stats 24 history rows (6 emitted), related 100 rows (10 emitted), both HTTP 200; zero-call cache repeats | Arbitrary crochet patterns US/en-US (no siteUrl), Bing exact/broad impression semantics, original UTC-day local budget 3/3, no key leaks/paid fallback; M04 remains unchecked per user |
 | M06 | ☐ NOT STARTED | — | — |
 | M07 | ☐ NOT STARTED | — | — |
 | M08 | ☐ NOT STARTED | — | — |

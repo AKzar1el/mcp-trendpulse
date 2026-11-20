@@ -28,6 +28,22 @@ def test_settings_are_read_only_and_redact_key_material():
     ] is True
 
 
+def test_bing_settings_are_credential_guarded_without_echoing_key():
+    key = "NEVER_EXPOSE_TEST_BING_WEBMASTER_API_KEY"
+    rows = settings.provider_status(
+        provider="bing_webmaster", env={"BING_WEBMASTER_API_KEY": key},
+    )
+    assert len(rows) == 1
+    assert rows[0]["fields"] == [{
+        "env_name": "BING_WEBMASTER_API_KEY", "configured": True,
+    }]
+    assert rows[0]["ready_for_live_auth_test"] is True
+    guidance = settings.setup_instructions("bing_webmaster")
+    assert "set-key bing_webmaster" in guidance["windows_command"]
+    assert "fixed-host" in guidance["safety"]
+    assert key not in repr(rows) + repr(guidance)
+
+
 def test_explicit_env_disables_native_key_lookup(monkeypatch):
     monkeypatch.setattr(settings, "_supports_native_store", lambda: True)
     def forbidden(_):
