@@ -993,6 +993,45 @@ def intelligence_trending_now(geo, execute, output_format):
         click.echo(format_rss_report(result))
 
 
+@intelligence.command("explore-evidence")
+@click.option("--term", default=None,
+              help="Explicit search topic; requires --country, no site property.")
+@click.option("--country", default=None,
+              help="Uppercase ISO alpha-2 market; use with --term.")
+@click.option("--source-file", type=click.Path(
+              exists=True, dir_okay=False, path_type=Path), default=None,
+              help="Bounded local JSON observed M01 RSS or M03 BigQuery report.")
+@click.option("--timeframe", type=click.Choice(["today 3-m", "today 12-m"]),
+              default="today 3-m", show_default=True)
+@click.option("--execute", is_flag=True,
+              help="Opt in to up to two existing paced Google Trends provider operations.")
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]),
+              default="text", show_default=True)
+def intelligence_explore_evidence(term, country, source_file, timeframe, execute, output_format):
+    """M04: related searches and normalized interest without exact search volume."""
+    from mcp_trendpulse.intelligence_explore import (
+        discover_explore, format_explore_report, select_seed,
+    )
+
+    try:
+        if source_file is not None:
+            if source_file.stat().st_size > 128 * 1024:
+                raise ValueError("Source input too large")
+            source_data = json.loads(source_file.read_text(encoding="utf-8"))
+            seed = select_seed(term=term, country=country, source=source_data)
+        else:
+            seed = select_seed(term=term, country=country)
+        report = asyncio.run(discover_explore(seed, execute=execute, timeframe=timeframe))
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError, json.JSONDecodeError):
+        raise click.ClickException(
+            "Invalid source/term/market for bounded Google Trends Explore"
+        ) from None
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_explore_report(report))
+
+
 @intelligence.command("sources")
 @click.option("--wave", type=click.IntRange(1, 3), default=None)
 def intelligence_sources(wave):
