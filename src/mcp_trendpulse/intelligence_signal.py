@@ -7,7 +7,6 @@ into this contract. Missing, not-measured and zero are distinct states.
 from __future__ import annotations
 
 import math
-import re
 from datetime import date, datetime, timezone
 from typing import Literal
 from urllib.parse import parse_qsl, urlsplit
