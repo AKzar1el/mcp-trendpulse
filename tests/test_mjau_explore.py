@@ -46,8 +46,7 @@ class Provider:
     def __init__(self, *, related=None, interest=None):
         self.calls = []
         self.related = related if related is not None else {
-            "top": [{"query": "umetna inteligenca novice", "value": 92},
-                    {"query": "Umetna inteligenca novice", "value": 88}],
+            "top": [{"query": "umetna inteligenca novice", "value": 92}],
             "rising": [{"query": "umetna inteligenca video", "value": None,
                         "is_breakout": True},
                        {"query": "AI agenti", "value": 85.0}],
@@ -317,6 +316,134 @@ async def test_bad_related_shape_is_distinct_from_empty_with_no_fake_demand(tmp_
         cache=BudgetCache(tmp_path / "missing"), execute=True,
     )
     assert missing["related"]["status"] == "invalid_provider_shape"
+
+
+@pytest.mark.asyncio
+async def test_nonempty_malformed_related_rows_are_not_reported_as_observed_empty(tmp_path):
+    seed = explore.select_seed(term="Umetna inteligenca", country="SI")
+    provider = Provider(
+        related={"top": [{"query": "out of range", "value": 500}],
+                 "rising": [{"query": "secret", "value": float("nan")}]},
+        interest=[],
+    )
+    out = await explore.discover_explore(
+        seed, provider=provider, cache=BudgetCache(tmp_path), execute=True,
+    )
+    assert out["related"]["status"] == "invalid_provider_shape"
+    assert out["related"]["source_rows_received"] == 2
+    assert out["related"]["source_rows_omitted"] == 2
+    assert out["related"]["top"] == [] and out["related"]["rising"] == []
+    assert out["status"] == "unavailable"
+    assert out["exact_search_volume_available"] is False
+    assert len(provider.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_partial_related_source_is_disclosed_and_cached_without_refetch(tmp_path):
+    seed = explore.select_seed(term="Umetna inteligenca", country="SI")
+    provider = Provider(
+        related={"top": [
+            {"query": "valid related keyword", "value": 85},
+            {"query": "INVALID VALUE", "value": 700},
+            {"query": "valid related keyword", "value": 85},
+        ], "rising": [
+            {"query": "rapidly rising keyword", "is_breakout": True, "value": None},
+        ]},
+        interest=[],
+    )
+    cache = BudgetCache(tmp_path)
+    first = await explore.discover_explore(
+        seed, provider=provider, cache=cache, execute=True,
+    )
+    assert first["related"]["status"] == "observed_partial"
+    assert first["status"] == "observed_partial"
+    assert first["related"]["source_rows_received"] == 4
+    assert first["related"]["source_rows_omitted"] == 2
+    assert len(first["related"]["top"]) == 1
+    assert first["related"]["rising"][0]["breakout_meaning"] == "greater_than_5000_percent"
+    assert first["provider_operations_attempted"] == 2
+    repeat = await explore.discover_explore(
+        seed, provider=provider, cache=BudgetCache(tmp_path), execute=True,
+    )
+    assert repeat["related"]["status"] == "observed_partial"
+    assert repeat["related"]["cache_hit"] is True
+    assert repeat["interest"]["cache_hit"] is True
+    assert repeat["related"]["source_rows_omitted"] == 2
+    assert repeat["provider_operations_attempted"] == 0
+    assert len(provider.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_related_provider_capped_series_discloses_omitted_candidates(tmp_path):
+    seed = explore.select_seed(term="Umetna inteligenca", country="SI")
+    provider = Provider(
+        related={"top": [
+            {"query": f"software interest {i}", "value": i}
+            for i in range(12)
+        ], "rising": []},
+        interest=[],
+    )
+    first = await explore.discover_explore(
+        seed, provider=provider, cache=BudgetCache(tmp_path), execute=True,
+    )
+    assert first["related"]["status"] == "observed_partial"
+    assert len(first["related"]["top"]) == 3
+    assert first["related"]["source_rows_received"] == 12
+    assert first["related"]["source_rows_omitted"] == 9
+    assert first["related"]["rows_truncated"] is True
+
+
+@pytest.mark.asyncio
+async def test_corrupt_cached_related_rows_fail_closed_without_leaking_or_refetch(tmp_path):
+    seed = explore.select_seed(term="Umetna inteligenca", country="SI")
+    store = BudgetCache(tmp_path)
+    for _ in range(legacy.UTC_DAILY_PROVIDER_CAP):
+        store.reserve(legacy.PROVIDER_BUDGET_ID, legacy.UTC_DAILY_PROVIDER_CAP)
+    store.save(
+        explore._cache_key(seed, "today 3-m", "related"),
+        {"operation": "related", "seed": seed, "timeframe": "today 3-m",
+         "result": {"status": "observed",
+                    "top": ["SECRET_INVALID_CACHED_ROW"], "rising": [],
+                    "source_rows_received": 1, "source_rows_omitted": 0,
+                    "rows_truncated": False}},
+        explore.CACHE_TTL_SECONDS,
+    )
+    provider = Provider()
+    out = await explore.discover_explore(
+        seed, provider=provider, cache=store, execute=True,
+    )
+    assert out["related"]["status"] == "local_daily_budget_exhausted"
+    assert out["related"]["cache_hit"] is False
+    assert out["provider_operations_attempted"] == 0
+    assert provider.calls == []
+    assert "SECRET_INVALID_CACHED_ROW" not in repr(out)
+
+
+@pytest.mark.asyncio
+async def test_cached_interest_does_not_echo_arbitrary_storage_metadata(tmp_path):
+    seed = explore.select_seed(term="Umetna inteligenca", country="SI")
+    store = BudgetCache(tmp_path)
+    provider = Provider()
+    first = await explore.discover_explore(
+        seed, provider=provider, cache=store, execute=True,
+    )
+    assert first["status"] == "observed"
+    store.save(
+        explore._cache_key(seed, "today 3-m", "interest"),
+        {"operation": "interest", "seed": seed, "timeframe": "today 3-m",
+         "result": {**first["interest"],
+                    "private_access_token": "DANGEROUS_CACHED_SECRET"}},
+        explore.CACHE_TTL_SECONDS,
+    )
+    cached = await explore.discover_explore(
+        seed, provider=provider, cache=store, execute=True,
+    )
+    assert cached["interest"]["status"] == "observed"
+    assert cached["interest"]["cache_hit"] is True
+    assert len(cached["interest"]["signals"]) == 3
+    assert cached["provider_operations_attempted"] == 0
+    assert len(provider.calls) == 2
+    assert "DANGEROUS_CACHED_SECRET" not in repr(cached)
 
 
 def test_cli_preview_offline_and_source_file_input(tmp_path, monkeypatch):

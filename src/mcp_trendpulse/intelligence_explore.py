@@ -36,6 +36,7 @@ BIGQUERY_SOURCE_URL = (
     "international-google-trends-datasets-in-bigquery"
 )
 VALID_STATUSES = frozenset(("observed", "observed_partial", "observed_empty"))
+INTEREST_BASIS = "single_keyword_normalized_0_to_100_within_selected_country_timeframe"
 _GOOD_COUNTRY = re.compile(r"[A-Z]{2}\Z")
 
 
@@ -131,11 +132,18 @@ def _cache_key(seed: dict[str, Any], timeframe: str, operation: str) -> str:
 
 def _related(raw: Any) -> dict[str, Any]:
     if (not isinstance(raw, dict)
-            or "top" not in raw or "rising" not in raw):
+            or any(not isinstance(raw.get(kind), list)
+                   for kind in ("top", "rising"))):
         return {"status": "invalid_provider_shape", "top": [], "rising": []}
+    source_count = sum(len(raw[kind]) for kind in ("top", "rising"))
     tested = _related_status(raw)
     if tested["status"] == "invalid_provider_shape":
-        return {"status": "invalid_provider_shape", "top": [], "rising": []}
+        return {
+            "status": "invalid_provider_shape", "top": [], "rising": [],
+            "source_rows_received": source_count,
+            "source_rows_omitted": source_count,
+            "rows_truncated": False,
+        }
     rows: dict[str, list[dict[str, Any]]] = {}
     for kind in ("top", "rising"):
         rows[kind] = []
@@ -149,8 +157,20 @@ def _related(raw: Any) -> dict[str, Any]:
                     "previous_comparable_period_percentage_growth_not_absolute_volume"
                 )
             rows[kind].append(row)
+    retained = sum(len(rows[kind]) for kind in ("top", "rising"))
+    omitted = source_count - retained
     return {
-        "status": "observed" if rows["top"] or rows["rising"] else "observed_empty",
+        "status": (
+            "observed_partial" if retained and omitted
+            else "observed" if retained
+            else "invalid_provider_shape" if omitted
+            else "observed_empty"
+        ),
+        "source_rows_received": source_count,
+        "source_rows_omitted": omitted,  # Invalid, duplicate or cap-excluded rows.
+        "rows_truncated": any(len(raw[kind]) > len(rows[kind])
+                              and len(rows[kind]) >= 3
+                              for kind in ("top", "rising")),
         **rows,
     }
 
@@ -224,7 +244,7 @@ def _interest(
         "source_points_received": len(raw),
         "source_points_rejected": rejected,
         "points_truncated": clipped or len(raw) > MAX_INTEREST_INPUT_POINTS,
-        "basis": "single_keyword_normalized_0_to_100_within_selected_country_timeframe",
+        "basis": INTEREST_BASIS,
     }
 
 
@@ -240,19 +260,43 @@ def _cached_operation(
         return None
     if operation == "related":
         # Cached derived rows must be rechecked as original provider values.
+        if any(not isinstance(output.get(kind), list)
+               or len(output[kind]) > 3
+               or any(not isinstance(item, dict) for item in output[kind])
+               for kind in ("top", "rising")):
+            return None
         payload = {
             kind: [
                 {
                     "query": item.get("query"), "value": item.get("provider_value"),
                     "is_breakout": item.get("is_breakout", False),
                 }
-                for item in output.get(kind, [])[:3]
-            ] if isinstance(output.get(kind), list) and len(output[kind]) <= 3
-            else None
+                for item in output[kind]
+            ]
             for kind in ("top", "rising")
         }
         candidate = _related(payload)
-        return candidate if candidate["status"] == output["status"] else None
+        # A partial result cannot be reconstructed from the retained rows
+        # alone: preserve, but verify, the omitted-row count from the cache.
+        source_count = output.get("source_rows_received")
+        omitted = output.get("source_rows_omitted")
+        truncated = output.get("rows_truncated")
+        retained = len(candidate["top"]) + len(candidate["rising"])
+        if (type(source_count) is not int or type(omitted) is not int
+                or type(truncated) is not bool or omitted < 0
+                or source_count != retained + omitted):
+            return None
+        if output["status"] == "observed_partial":
+            if candidate["status"] != "observed" or omitted == 0:
+                return None
+            return {
+                **candidate, "status": "observed_partial",
+                "source_rows_received": source_count,
+                "source_rows_omitted": omitted,
+                "rows_truncated": truncated,
+            }
+        return candidate if (candidate["status"] == output["status"]
+                             and omitted == 0 and not truncated) else None
     if not isinstance(output.get("signals"), list) or len(output["signals"]) > MAX_INTEREST_OUTPUT_POINTS:
         return None
     checked = []
@@ -265,10 +309,16 @@ def _cached_operation(
                 or signal.language is not None
                 or signal.source_url != SOURCE_URL
                 or signal.raw_term != seed["term"]
+                or signal.normalized_term != seed["term"].casefold()
                 or signal.metric_type != "google_trends_normalized_interest"
                 or signal.observed_at > observed
                 or signal.provenance.method != "community_provider"
+                or signal.provenance.is_observed_search_query
+                or signal.provenance.sampling_basis
+                   != "within_query_geography_and_timeframe_normalized_interest"
                 or signal.period.start_date > observed.date()
+                or signal.period.start_date != signal.period.end_date
+                or signal.period.granularity != "point_in_time"
             ):
                 return None
             checked.append(signal.model_dump(mode="json"))
@@ -277,7 +327,27 @@ def _cached_operation(
     if (output["status"] in {"observed", "observed_partial"} and not checked
             or output["status"] == "observed_empty" and checked):
         return None
-    return {**output, "signals": checked}
+    received = output.get("source_points_received")
+    rejected = output.get("source_points_rejected")
+    truncated = output.get("points_truncated")
+    if (type(received) is not int or type(rejected) is not int
+            or type(truncated) is not bool or received < 0
+            or rejected < 0 or received < rejected + len(checked)
+            or output.get("basis") != INTEREST_BASIS
+            or (output["status"] == "observed" and (rejected or truncated))
+            or (output["status"] == "observed_partial" and not (rejected or truncated))
+            or (output["status"] == "observed_empty" and received)):
+        return None
+    # Never return unknown SQLite JSON fields, even when their associated
+    # signals validate: arbitrary storage metadata may include secrets.
+    return {
+        "status": output["status"],
+        "signals": checked,
+        "source_points_received": received,
+        "source_points_rejected": rejected,
+        "points_truncated": truncated,
+        "basis": INTEREST_BASIS,
+    }
 
 
 async def discover_explore(
@@ -417,7 +487,7 @@ async def discover_explore(
         report["status"] = "local_daily_budget_exhausted"
     elif statuses == {"local_budget_store_unavailable"}:
         report["status"] = "local_budget_store_unavailable"
-    elif "observed" in statuses or "observed_partial" in statuses or "observed_empty" in statuses:
+    elif "observed" in statuses or "observed_partial" in statuses:
         report["status"] = "observed_partial"
     else:
         report["status"] = "unavailable"

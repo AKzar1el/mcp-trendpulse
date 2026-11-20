@@ -49,6 +49,10 @@ keyword expansion, proxies, or background jobs are added.
   unknown unless source metadata actually provides it.
 - Malformed/missing values, provider failures, cooldown, and quota
   exhaustion are explicitly distinguished from a valid empty result.
+  Related-query rows that are rejected, duplicated or excluded by the
+  three-per-series output cap produce an explicit **observed_partial**
+  status (when other usable rows remain), with source/omission counts.
+  A nonempty result where every row is invalid is **not** observed_empty.
 
 References: [Google Trends Find related searches](https://support.google.com/trends/answer/4355000),
 [Google Trends FAQ](https://support.google.com/trends/answer/4365533).
@@ -65,6 +69,10 @@ holds successful responses for six hours. The existing process-wide
 Trends request pacing and 429 cooldown remain active, with an additional
 durable local cooldown. **An operation may involve multiple HTTP
 requests inside TrendSpy; physical request count is not measured.**
+Cached source rows are structurally revalidated, and only whitelisted,
+source-labeled evidence metadata is returned; malformed or unexpected
+local SQLite JSON must never be emitted verbatim or trigger an unbudgeted
+refetch.
 The existing related-query wrapper can make one retry on a transient
 unavailability; there is no unbounded retry, alternative endpoint, or
 proxy rotation. Source failure and quota exhaustion do not trigger
@@ -74,9 +82,11 @@ Only a genuinely observed live provider response can satisfy the M04
 live acceptance gate. When Google rate limits or the provider fails,
 report M04 as live blocked even if all deterministic tests pass.
 
-## M03 is independent and still unresolved
+## M03 is independent and verified
 
-M03's optional official public BigQuery sandbox needs a no-billing
-Google Cloud project and an actual bounded live result; the M04
-unofficial provider does not verify or replace it. Do not mark M03
-complete on the basis of M04 evidence.
+M03's optional official public BigQuery sandbox was verified on
+2026-11-20 with a **billing-unattached** Google Cloud project, a
+61,072,200-byte dry run under the 100 MiB maximum, and five US
+2026-11-18 source-ranked observations. It is **not** a Google Trends
+Explore API and does not verify M04. See bigquery-trends.md.
+M04's own live source acceptance remains independent of the M03 result.

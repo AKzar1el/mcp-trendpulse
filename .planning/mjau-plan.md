@@ -178,6 +178,35 @@ local OpenAlex Authorization header label, even though its value
 is redacted; no M04 tests failed. GitHub CI for the M04 head must be
 recorded separately.
 
+**Additional M04 validation, 2026-11-20 (same existing draft PR):**
+Checked the persisted local shared quota SQLite directly: quick_check=ok,
+Google Trends related-query operations **2/2** for this UTC day.
+No source-provider request was made. Offline adversarial tests exposed
+three issues in the newly implemented M04 adapter: nonempty malformed
+related-query rows were misclassified as observed_empty; dropped,
+deduplicated and series-capped related rows could be reported as fully
+observed; corrupted SQLite cached related list items could crash the
+command or arbitrary extra cached interest fields could leak into
+output. Changes now explicitly report observed_partial with original
+row/omission counts, fail closed for invalid-only inputs, validate cache
+containers before reading, and reconstruct cache results from strictly
+validated/whitelisted evidence fields only. The focused M04/M01/M03
+compatibility suite reached **70 passed**, Ruff clean; later full
+suite/PR checks are recorded separately. Neither the 2/day quota,
+unofficial provider behavior nor the privacy/source limitations changed.
+
+**Broader recheck:** repository-wide offline pytest completed with
+**1,747 passed, 1 failed, 10 deselected and 3 warnings**. The sole
+failure is the same unchanged OpenAlex plan-only Authorization-header
+assertion against a redacted, locally configured source header;
+no new M04 test failed and full green is not claimed. An opt-in
+M04 CLI invocation for the explicitly named test seed
+agent reliability / SI returned
+local_daily_budget_exhausted for both operations with
+**provider_operations_attempted=0** and **network_performed=false**;
+the existing shared SQLite counter remained **2/2** for
+2026-11-20 UTC. No source observation was manufactured or simulated.
+
 **Live gate:** The earlier bounded M01 GB RSS seed attempt returned
 local_budget_store_unavailable before any provider call because of
 Windows ACLs. The operator subsequently granted Modify access on that
@@ -279,7 +308,7 @@ bounded, source-attributed Explore result is observed.
 | M01 | COMPLETE — 2026-11-20 | PR #328; `5337ea8f10f68fb83d46e8341342fe94de5b0832`; 1,912 tests, Ruff clean, 14/14 CI; US+GB 10 labels each, one RSS call per market | Existing TrendSpy RSS reused; offline/opt-in CLI; M00 signal provenance, 15-min cache, 12/day local budget, safe related news. Next M02 |
 | M02 | COMPLETE — 2026-11-20 | PR #328; `0c29f7ccb9f7677622e6e3922b1646b0cf8e9a8e`; RapidFuzz 3.14.6 locked; 1,937 tests and Ruff clean; 14/14 CI | Offline 200-signal lexical clusters, market/language isolation, branded/polarity safeguards; M03 next |
 | M03 | COMPLETE — 2026-11-20 | PR #328; implementation df41073; focused 39 passed and full Ruff clean; real US rising Top 5, 2026-11-18, 61,072,200 dry-run bytes <=104,857,600 maximum; five source rows, zero rejected | Project trendpulse-new ACTIVE with billing disabled and no attached account; GB 2026-11-19 no data, GB 2026-11-18 >100 MiB refused; local budget 3/3 UTC day; source ranks not absolute volumes |
-| M04 | IMPLEMENTED/OFFLINE VERIFIED; LIVE PENDING — 2026-11-20 | PR #328; 5e2d279a00f453c1521204fc4b6faa27da2d93f3; 65 focused tests pass, full Ruff clean, local full 1,742 pass / 1 pre-existing failure / 10 deselected; prior head 25 CI success / 2 expected skip | Original SQLite quota directory accessible; historical shared TrendSpy provider daily budget 2/2 already used on 2026-11-20; no new provider call permitted until UTC reset; M04 remains unchecked |
+| M04 | IMPLEMENTED/OFFLINE VERIFIED; LIVE PENDING — 2026-11-20 | PR #328; original feature 5e2d279a00f453c1521204fc4b6faa27da2d93f3; M04 adversarial source/cache hardening on feature branch; 70 focused tests, full Ruff clean, local full 1,747 passed / 1 existing unrelated failure / 10 deselected | Original SQLite quota directory accessible; historical shared TrendSpy provider daily budget 2/2 used on 2026-11-20; actual M04 CLI refused with zero provider operations; no live source observation until UTC reset; M04 remains unchecked |
 | M05 | ☐ NOT STARTED | — | — |
 | M06 | ☐ NOT STARTED | — | — |
 | M07 | ☐ NOT STARTED | — | — |
