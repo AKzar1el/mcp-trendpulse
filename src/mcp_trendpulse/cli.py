@@ -601,7 +601,7 @@ def brief_audit(evidence_paths, audit_format, output_file, as_of, max_age_days):
 @cli.command("rss-review", help="Audit saved headline-only Google News RSS JSON without provider calls.")
 @click.option("--evidence", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True,
               help="Explicit JSON file saved with --headlines-only --format json.")
-@click.option("--format", "review_format", type=click.Choice(["markdown", "json"]),
+@click.option("--format", "review_format", type=click.Choice(["markdown", "json", "csv"]),
               default="markdown", show_default=True)
 @click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
               help="Save the report to a new UTF-8 file without overwriting.")
