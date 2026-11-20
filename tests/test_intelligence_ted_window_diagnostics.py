@@ -6,7 +6,6 @@ imputation from a separate CPV-filtered procurement population.
 from __future__ import annotations
 
 import re
-from datetime import date
 
 import pytest
 
