@@ -31,7 +31,36 @@ def _date(value):
     return value
 
 
-def review_saved_rss_headlines(raw, *, output_format="markdown", contains=None):
+def _publisher_breakdown(headlines, *, scope):
+    """Count unverified publisher labels on the visible, exact-URL-deduped rows."""
+    publishers = {}
+    unknown = 0
+    for headline in headlines:
+        publisher = headline["publisher"]
+        if publisher is None:
+            unknown += 1
+            continue
+        label = publisher.strip()
+        key = label.casefold()
+        if key not in publishers:
+            publishers[key] = {"publisher": label, "headlines": 0}
+        publishers[key]["headlines"] += 1
+    ordered = sorted(publishers.values(), key=lambda item: (-item["headlines"],
+                                                           item["publisher"].casefold()))
+    total = len(headlines)
+    largest = ordered[0]["headlines"] if ordered else 0
+    return {
+        "scope": scope,
+        "total_unique_urls": total,
+        "unknown_publisher_count": unknown,
+        "distinct_named_publisher_labels": len(ordered),
+        "largest_named_label_share_pct": round(100 * largest / total, 1) if total else None,
+        "publishers": ordered,
+    }
+
+
+def review_saved_rss_headlines(raw, *, output_format="markdown", contains=None,
+                               publisher_breakdown=False):
     """Return a validated offline report and whether manual review is needed."""
     if output_format not in ("markdown", "json"):
         raise ValueError("Unsupported RSS review format")
@@ -111,6 +140,13 @@ def review_saved_rss_headlines(raw, *, output_format="markdown", contains=None):
         result["caveats"].append(
             "No matching saved headline is not evidence of absent articles or market demand.")
         needs_attention = needs_attention or not matches
+    if publisher_breakdown:
+        result["publisher_breakdown"] = _publisher_breakdown(
+            result["headlines"],
+            scope="matched_headlines" if contains is not None else "all_unique_urls",
+        )
+        result["caveats"].append(
+            "Saved publisher labels are unverified and not independent corroboration or demand evidence.")
     if output_format == "json":
         return json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n", needs_attention
     lines = ["# Saved Google News RSS headline review (offline)", "",
@@ -126,6 +162,20 @@ def review_saved_rss_headlines(raw, *, output_format="markdown", contains=None):
         cells = [item["title"], item["publisher"] or "unknown",
                  item["publish_date"] or "unknown", item["url"]]
         lines.append("| " + " | ".join(_markdown_safe(value) for value in cells) + " |")
+    if publisher_breakdown:
+        breakdown = result["publisher_breakdown"]
+        lines.extend([
+            "", "## Saved publisher label concentration",
+            f"**Scope:** {breakdown['scope']}; **unique URLs in scope:** {breakdown['total_unique_urls']}; "
+            f"**unknown publisher labels:** {breakdown['unknown_publisher_count']}",
+            f"**Largest named label share of all unique URLs in scope:** "
+            f"{breakdown['largest_named_label_share_pct']}%"
+            if breakdown["largest_named_label_share_pct"] is not None
+            else "**Largest named label share:** unavailable (no headlines)",
+            "", "| Unverified publisher label | Headlines |", "| --- | ---: |",
+        ])
+        for entry in breakdown["publishers"]:
+            lines.append(f"| {_markdown_safe(entry['publisher'])} | {entry['headlines']} |")
     lines.extend(["", "## Evidence limitations",
                   *[f"- {caveat}" for caveat in result["caveats"]]])
     return "\n".join(lines) + "\n", needs_attention

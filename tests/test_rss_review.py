@@ -132,3 +132,66 @@ def test_rss_review_without_contains_keeps_existing_shape(tmp_path):
     result = _run(tmp_path, _capture([_headline()]), "--format", "json")
     assert result.exit_code == 0, result.output
     assert "filter" not in json.loads(result.output)
+    assert "publisher_breakdown" not in json.loads(result.output)
+
+
+def test_rss_review_publisher_breakdown_deduplicates_and_groups_labels_offline(tmp_path):
+    entries = [
+        _headline(url="https://news.google.com/rss/articles/a", publisher="Example News"),
+        _headline(url="https://news.google.com/rss/articles/a", publisher="OTHER LABEL"),
+        _headline(url="https://news.google.com/rss/articles/b", publisher=" example news "),
+        _headline(url="https://news.google.com/rss/articles/c", publisher="Other News"),
+        _headline(url="https://news.google.com/rss/articles/d", publisher=None),
+    ]
+    result = _run(tmp_path, _capture(entries), "--format", "json", "--publisher-breakdown")
+    assert result.exit_code == 2, result.output
+    report = json.loads(result.output)
+    assert report["summary"]["headlines"] == 5
+    assert report["summary"]["duplicate_urls"] == 1
+    assert report["publisher_breakdown"] == {
+        "scope": "all_unique_urls",
+        "total_unique_urls": 4,
+        "unknown_publisher_count": 1,
+        "distinct_named_publisher_labels": 2,
+        "largest_named_label_share_pct": 50.0,
+        "publishers": [
+            {"publisher": "Example News", "headlines": 2},
+            {"publisher": "Other News", "headlines": 1},
+        ],
+    }
+    assert any("not independent" in caveat.lower() for caveat in report["caveats"])
+
+
+def test_rss_review_publisher_breakdown_respects_title_filter_scope(tmp_path):
+    entries = [
+        _headline(title="Agent launch", url="https://news.google.com/rss/articles/a", publisher="Wire"),
+        _headline(title="Energy update", url="https://news.google.com/rss/articles/b", publisher="Wire"),
+        _headline(title="Agent systems", url="https://news.google.com/rss/articles/c", publisher="Other"),
+    ]
+    result = _run(tmp_path, _capture(entries), "--format", "json", "--contains", "agent",
+                  "--publisher-breakdown")
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report["summary"]["unique_urls"] == 3
+    assert report["publisher_breakdown"]["scope"] == "matched_headlines"
+    assert report["publisher_breakdown"]["total_unique_urls"] == 2
+    assert report["publisher_breakdown"]["largest_named_label_share_pct"] == 50.0
+    assert [entry["publisher"] for entry in report["publisher_breakdown"]["publishers"]] == ["Other", "Wire"]
+
+
+def test_rss_review_publisher_breakdown_empty_capture_is_not_divided_by_zero(tmp_path):
+    result = _run(tmp_path, _capture([]), "--format", "json", "--publisher-breakdown")
+    assert result.exit_code == 2, result.output
+    breakdown = json.loads(result.output)["publisher_breakdown"]
+    assert breakdown["total_unique_urls"] == 0
+    assert breakdown["largest_named_label_share_pct"] is None
+    assert breakdown["publishers"] == []
+
+
+def test_rss_review_publisher_breakdown_markdown_escapes_untrusted_labels(tmp_path):
+    result = _run(tmp_path, _capture([_headline(publisher="A | [x](https://invalid.test)")]),
+                  "--publisher-breakdown")
+    assert result.exit_code == 0, result.output
+    assert "## Saved publisher label concentration" in result.output
+    assert "A \\| \\[x\\]" in result.output
+    assert "unverified" in result.output.lower()
