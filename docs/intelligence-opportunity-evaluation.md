@@ -812,6 +812,21 @@ problem context. Mere word overlap, research interest and published
 tenders cannot prove the same workflow, adoption, paying customers,
 independent purchasing organizations, market size or SEO growth.
 
+A second, independently opt-in `--workflow-cross-check` mode
+requires `--workflow-briefs`. It derives up to **two distinct plain
+multiword source phrases** from actual TED/CFPB workflow clues, preferring
+one repeated CFPB issue category and one software/IT contract-notice
+scope. No academic topic name is substituted and no synonyms or fixed
+sector seed lists are invented. It reuses existing GitHub Issues and
+USAspending collectors, local shared cache, quality screen, source
+budget and cooldown; **at most four extra free queries** (2 phrases
+x 2 providers). An observed zero matching title is different from
+provider unavailability. GitHub issues are not paying customers; US
+awards' last-modified timestamps cannot become new purchasing events,
+and the USAspending landing page is not a record-specific permalink.
+Independent source records require explicit workflow and buyer checks
+before any product validation claim. No unattended work or new provider.
+
 The seedless discovery smoke additionally executes the opt-in brief
 projection with the existing three keyless collector responses, checks
 that every reported opportunity remains explicitly unverified, and saves
@@ -829,7 +844,7 @@ Example, after installing the latest draft commit:
 
 ```powershell
 $env:UV_LINK_MODE = "copy"
-uvx --from "git+https://github.com/AKzar1el/mcp-trendpulse.git@<tested-commit>" mcp-trendpulse-cli intelligence discover --execute --workflow-briefs --ted-date-slices 3 --limit 20 --lookback-days 30 --format text
+uvx --from "git+https://github.com/AKzar1el/mcp-trendpulse.git@<tested-commit>" mcp-trendpulse-cli intelligence discover --execute --workflow-briefs --workflow-cross-check --ted-date-slices 3 --limit 20 --lookback-days 30 --format text
 ```
 
 ### Source availability diagnosis without unsafe error disclosure (2026-11-20)

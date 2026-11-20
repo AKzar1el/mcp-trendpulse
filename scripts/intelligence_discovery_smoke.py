@@ -72,6 +72,16 @@ def main() -> int:
                 or issue_plan["trend_evidence"]["max_additional_github_issue_searches"] != 4
                 or not issue_plan["trend_evidence"]["corroborate_issues_opted_in"]):
             raise AssertionError("Issue corroboration plan is not bounded and offline")
+        source_plan = discover_current(
+            execute=False, workflow_briefs=True, workflow_cross_check=True,
+            cache=cache, env={},
+        )
+        if (source_plan["network_performed"]
+                or source_plan["request_count"] != 3
+                or source_plan["max_requests_with_workflow_cross_check"] != 7
+                or source_plan["workflow_briefs"]["independent_source_checks"][
+                    "source_requests_performed"] != 0):
+            raise AssertionError("Workflow cross-check must remain opt-in, bounded and plan-only offline")
         cross_plan = discover_current(
             execute=False, limit=20, lookback_days=30, ted_date_slices=3,
             measure_trends=True, broad_topic_scan=True,
@@ -192,6 +202,7 @@ def main() -> int:
         "sample_recent_records": result["recent_observations"],
         "research_candidates_in_sample": result["candidate_count"],
         "workflow_brief_projection_checked": True,
+        "workflow_cross_source_plan_only_safety_verified": True,
         "workflow_brief_count_in_bounded_sample": workflow["brief_count"],
         "workflow_brief_procurement_count_in_sample": sum(
             b["kind"] == "published_software_it_procurement_to_investigate"

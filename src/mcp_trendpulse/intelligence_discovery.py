@@ -934,6 +934,7 @@ def discover_current(
     corroborate_issues: bool = False,
     cross_source_hunt: bool = False,
     workflow_briefs: bool = False,
+    workflow_cross_check: bool = False,
 ) -> dict[str, Any]:
     """Free, read-only discovery; optional source-count trend measurement."""
     if isinstance(lookback_days, bool) or not isinstance(lookback_days, int) or not 7 <= lookback_days <= 90:
@@ -962,6 +963,10 @@ def discover_current(
         raise ValueError("--cross-source-hunt requires --measure-trends")
     if not isinstance(workflow_briefs, bool):
         raise ValueError("workflow_briefs must be a boolean")
+    if not isinstance(workflow_cross_check, bool):
+        raise ValueError("workflow_cross_check must be a boolean")
+    if workflow_cross_check and not workflow_briefs:
+        raise ValueError("--workflow-cross-check requires --workflow-briefs")
     now = date.today()
     first = now - timedelta(days=lookback_days - 1)
     plans = [
@@ -999,6 +1004,14 @@ def discover_current(
                 "requires_execute_for_evidence": True,
                 "no_predefined_industry_seeds": True,
             }
+            if workflow_cross_check:
+                planned["workflow_briefs"]["independent_source_checks"] = {
+                    "status": "planned_source_derived_phrase_queries",
+                    "requires_execute_for_source_derived_phrases": True,
+                    "max_additional_source_requests": 4,
+                    "source_requests_performed": 0,
+                    "no_predefined_topic_seeds": True,
+                }
         if measure_trends:
             from mcp_trendpulse.intelligence_trends import (
                 MAX_ADDITIONAL_REQUESTS, MAX_TOPICS, PUBLICATION_LAG_DAYS,
@@ -1049,6 +1062,10 @@ def discover_current(
                 "note": "Candidates are chosen from current seedless source results; "
                         "actual count queries cannot be planned before observing topics.",
             }
+        if workflow_cross_check:
+            planned["max_requests_with_workflow_cross_check"] = (
+                planned.get("max_requests_with_trend_measurement", len(plans)) + 4
+            )
         return planned
 
     sources: list[dict[str, Any]] = []
@@ -1216,6 +1233,22 @@ def discover_current(
             "frequency; provider topic assignments and indexing may change. "
             "No overall market-growth or purchasing claim follows."
         )
+    if workflow_cross_check:
+        from mcp_trendpulse.intelligence_workflow_followup import (
+            investigate_workflow_briefs,
+        )
+
+        cross_checks = investigate_workflow_briefs(
+            result["workflow_briefs"], as_of=now,
+            lookback_days=lookback_days, cache=cache, env=env,
+        )
+        result["workflow_briefs"]["independent_source_checks"] = cross_checks
+        result["queries_budgeted"] += cross_checks["source_requests_budgeted"]
+        result["limits"] += (
+            " Source-derived GitHub issue and USAspending phrase matches "
+            "are not independently validated customers, awards or shared "
+            "buying workflows."
+        )
     return result
 
 
@@ -1260,6 +1293,13 @@ def format_discovery_report(result: dict[str, Any]) -> str:
         from mcp_trendpulse.intelligence_workflows import format_workflow_briefs
 
         lines.extend(format_workflow_briefs(result["workflow_briefs"]))
+        if result["workflow_briefs"].get("independent_source_checks") is not None:
+            from mcp_trendpulse.intelligence_workflow_followup import (
+                format_workflow_followup,
+            )
+            lines.extend(format_workflow_followup(
+                result["workflow_briefs"]["independent_source_checks"]
+            ))
         lines.append("")
         lines.append("")
     sample_audit = result.get("ted_sampling_audit", {})
