@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** PLANNED; no roadmap implementation started  | **Next task:** M00.
+**Created:** 2026-11-20  | **Status:** M00 IN VALIDATION; roadmap implementation started  | **Next task:** M00 until release gates pass.
 
 ## Mission and non-negotiable scope
 
@@ -47,6 +47,18 @@ Build a **global, domain-independent**, free-only trend/keyword discovery engine
 | `statsmodels` | Optional extra, only with adequate history | STL seasonality decomposition after multiple comparable cycles; not a core dependency | M13 |
 | Extra RSS parser | Avoid initially | Existing provider/stdlib is enough if RSS source shape can be parsed safely | M01 |
 | `pytrends`, `trendspyg`, scikit-learn, KeyBERT, DuckDB, `ruptures` | **Do not add by default** | Archived/overlapping or heavier than demonstrated needs; revisit only after profiling and documented justification | Future only |
+
+## M00 baseline inventory — 2026-11-20 (implementation review)
+
+- Baseline branch at start: `392a9c2fffc0a45e0be79f87378023f90300bcd1` (draft PR #328), **14/14 successful GitHub Actions workflows**.
+- Locked Python dependencies: `trendspy 0.1.6`, `requests 2.34.2`, `pandas 3.0.5`, `nltk 3.10.4`, `pydantic 2.13.4`, `fastmcp 3.4.11`, `pytest 9.1.1`, `ruff 0.12.1`; supported Python >=3.11.
+- **RSS M01 already partly exists**: `news.get_trending_terms` invokes `trendspy.Trends.trending_now_by_rss`; community `TrendsProvider.get_trending_terms` and CLI `trending-terms` already expose it. M01 should harden and map the existing RSS results, **not add a duplicate RSS client or provider**.
+- **BigQuery M03 already partly exists**: `bigquery_trends.build_discovery_sql` supports US/international top/rising public datasets using allowlisted tables, snapshot partition predicates and capped query SQL; CLI `bigquery-sql` prints SQL **only** and does not execute or spend. M03 adds optional authenticated sandbox execution, not a second SQL builder.
+- Existing Google Trends community provider exposes normalized interest, related queries/topics, ranked trends, region interest, and suggestions. Current `intelligence_keyword_probe` is explicit opt-in and locally capped at **two provider operations per UTC day**; `trends_rate_control` shares pacing/429 cooldown.
+- Existing intelligence collectors: **25 catalogued adapters**, source-specific local free daily request budgets and caching; baseline discovery uses OpenAlex, CFPB and TED only, not all 25. Existing GitHub Issues adapter is shared with future M08.
+- Existing historical source sightings and normalized Trends watch evidence live in SQLite; these are separate from global keyword signal metrics.
+- Actual live-source baseline: existing Actions `Free intelligence live contract smoke` run **44729613503**, job **136265700670**, recorded **15/15 sources passed** on 2026-11-20 (including GDELT, Eurostat, TED, CFPB, GitHub Issues). It confirms live public-source access, **not** a new Google Trends RSS live test. M01 still needs its own bounded live RSS confirmation.
+- M00 creates only a typed Pydantic `TrendSignal` contract and offline CLI schema inspection; no paid providers, network requests, new system scheduler, new MCP tools or background automation.
 
 ## Sequential implementation checklist
 

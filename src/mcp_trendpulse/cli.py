@@ -850,6 +850,28 @@ def intelligence():
     """Bounded public-source discovery and offline opportunity research."""
 
 
+@intelligence.command("signal-schema")
+@click.option("--format", "output_format",
+              type=click.Choice(["text", "json"]), default="text",
+              show_default=True)
+def intelligence_signal_schema(output_format):
+    """Show the no-network, site-independent M00 evidence schema."""
+    from mcp_trendpulse.intelligence_signal import signal_contract_spec
+
+    contract = signal_contract_spec()
+    if output_format == "json":
+        click.echo(json.dumps(contract, ensure_ascii=False, sort_keys=True))
+        return
+    click.echo("TrendPulse signal contract v1 (offline; no provider request)")
+    click.echo("Site property required: no | New providers: no")
+    click.echo("Country null means unknown source scope, NOT global coverage.")
+    click.echo("Missing/unavailable or generated-keyword values stay null, NOT zero.")
+    click.echo("Source metric types and units:")
+    for metric, props in contract["metric_types"].items():
+        click.echo(f"  {metric}: {props['unit']} [{props['evidence_class']}]")
+    click.echo("Use --format json to inspect the versioned Pydantic JSON Schema.")
+
+
 @intelligence.command("sources")
 @click.option("--wave", type=click.IntRange(1, 3), default=None)
 def intelligence_sources(wave):
