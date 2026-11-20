@@ -38,7 +38,8 @@ GENERIC = frozenset((
 def _clean(value: Any, length: int = 125) -> str:
     if not isinstance(value, str):
         return ""
-    return " ".join(ch if ch.isprintable() else " " for ch in value).strip()[:length]
+    clean = "".join(ch if ch.isprintable() else " " for ch in value)
+    return " ".join(clean.split())[:length]
 
 
 def _day(value: Any, as_of: date) -> str:
