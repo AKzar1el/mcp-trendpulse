@@ -196,6 +196,78 @@ def watch_evaluate(rule_id, evidence, dry_run):
         click.echo(result.as_json())
 
 
+@watch.command("preview-all")
+@click.option("--evidence", "evidence_files", type=click.Path(exists=True, dir_okay=False, path_type=Path),
+              multiple=True, required=True, help="Repeat for up to 12 saved keyword/market series JSON files.")
+@click.option("--format", "output_format", type=click.Choice(["json", "csv"]), default="json",
+              show_default=True, help="Offline multi-rule preview; never records alerts or cooldowns.")
+def watch_preview_all(evidence_files, output_format):
+    """Preview all saved watches against supplied matching series without network calls."""
+    from mcp_trendpulse.trend_watch import MAX_EVIDENCE_BYTES, WatchStore, evaluate_watch, parse_evidence
+
+    try:
+        if len(evidence_files) > 12:
+            raise ValueError("At most 12 evidence files may be reviewed at once")
+        rules = WatchStore().list_rules()
+        if not rules:
+            raise ValueError("No saved watch rules to preview")
+        if len(rules) > 100:
+            raise ValueError("At most 100 saved watch rules may be previewed at once")
+        known = {(rule.keyword, rule.market) for rule in rules}
+        series = {}
+        for path in evidence_files:
+            if path.stat().st_size > MAX_EVIDENCE_BYTES:
+                raise ValueError("Evidence file exceeds 256 KiB")
+            payload = path.read_bytes()
+            if len(payload) > MAX_EVIDENCE_BYTES:
+                raise ValueError("Evidence file exceeds 256 KiB")
+            try:
+                envelope = json.loads(payload.decode("utf-8"))
+            except (UnicodeError, json.JSONDecodeError) as exc:
+                raise ValueError("Evidence must be valid UTF-8 JSON") from exc
+            if not isinstance(envelope, dict):
+                raise ValueError("Evidence must include keyword, market and points")
+            key = (envelope.get("keyword"), envelope.get("market"))
+            if not all(isinstance(part, str) for part in key):
+                raise ValueError("Evidence must declare a string keyword and market")
+            if key in series:
+                raise ValueError("Duplicate evidence keyword/market series")
+            if key not in known:
+                raise ValueError("Evidence has no matching saved watch rule")
+            series[key] = parse_evidence(payload, keyword=key[0], market=key[1])
+        results = []
+        status_counts = {}
+        for rule in rules:
+            rows = series.get((rule.keyword, rule.market))
+            if rows is None:
+                decision = {"rule_id": rule.id, "status": "missing_evidence", "evidence_date": None,
+                            "baseline_interest": None, "current_interest": None, "growth_pct": None,
+                            "note": "No matching saved series supplied; not evaluated."}
+            else:
+                decision = asdict(evaluate_watch(rule, rows))
+            status_counts[decision["status"]] = status_counts.get(decision["status"], 0) + 1
+            results.append({**decision, "keyword": rule.keyword, "market": rule.market,
+                            "evidence_present": rows is not None})
+    except (OSError, ValueError, TypeError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    note = ("User-supplied normalized Trends-style series are not independently verified. "
+            "This dry-run does not record alerts, consume cooldowns, or fetch providers.")
+    if output_format == "json":
+        click.echo(json.dumps({"dry_run": True, "source_verified": False, "note": note,
+                               "status_counts": status_counts, "rules": results}, sort_keys=True))
+    else:
+        fields = ("rule_id", "keyword", "market", "status", "evidence_present", "evidence_date",
+                  "baseline_interest", "current_interest", "growth_pct", "dry_run", "source_verified", "note")
+        output = io.StringIO(newline="")
+        writer = csv.DictWriter(output, fieldnames=fields, lineterminator="\n")
+        writer.writeheader()
+        for item in results:
+            row = {**item, "dry_run": True, "source_verified": False, "note": item["note"] + " " + note}
+            writer.writerow({field: _brief_csv_cell(row.get(field)) for field in fields})
+        click.echo(output.getvalue(), nl=False)
+
+
 @watch.command("backtest")
 @click.option("--id", "rule_id", required=True, help="Existing watch rule ID.")
 @click.option("--evidence", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True)
