@@ -888,6 +888,10 @@ def intelligence_sources(wave):
                    "to two source-measured research topics, including strictly "
                    "qualified inconclusive signals (max 4 extra free "
                    "requests); not verified market demand.")
+@click.option("--workflow-briefs", is_flag=True,
+              help="Offline source-attributed IT procurement and repeated consumer "
+                   "problem investigations; exact lexical research links only, "
+                   "no new API calls or invented commercial demand.")
 @click.option("--execute", is_flag=True,
               help="Explicitly fetch fixed public free sources; otherwise plan only.")
 @click.option("--record-history", is_flag=True,
@@ -896,7 +900,7 @@ def intelligence_sources(wave):
               default="json", show_default=True)
 def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
                           broad_topic_scan, corroborate_issues,
-                          cross_source_hunt, execute,
+                          cross_source_hunt, workflow_briefs, execute,
                           record_history, output_format):
     """Discover current source themes without any predefined topic keywords."""
     from mcp_trendpulse.intelligence_discovery import (
@@ -912,6 +916,7 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
             broad_topic_scan=broad_topic_scan,
             corroborate_issues=corroborate_issues,
             cross_source_hunt=cross_source_hunt,
+            workflow_briefs=workflow_briefs,
         )
         if record_history:
             response["history"] = record_discovery_history(response)

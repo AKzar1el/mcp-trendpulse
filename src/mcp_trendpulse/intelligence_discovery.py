@@ -252,10 +252,13 @@ def summarize_discovery(
     snapshots: list[dict[str, Any]], *, as_of: str | None = None,
     lookback_days: int = 30,
     ted_date_windows: list[tuple[date, date, int]] | None = None,
+    workflow_briefs: bool = False,
 ) -> dict[str, Any]:
     """Offline, deterministic, source-backed discovery from <=3 prior results."""
     if isinstance(lookback_days, bool) or not isinstance(lookback_days, int) or not 7 <= lookback_days <= 90:
         raise ValueError("lookback_days must be 7-90")
+    if not isinstance(workflow_briefs, bool):
+        raise ValueError("workflow_briefs must be a boolean")
     if not isinstance(snapshots, list) or not 1 <= len(snapshots) <= len(SOURCES):
         raise ValueError("Provide 1-3 bounded discovery snapshots")
     try:
@@ -778,7 +781,7 @@ def summarize_discovery(
             "title": r["title"], "date": r["date"], "reference": r["reference"],
             "theme": r["theme"], "date_semantics": r["date_semantics"],
         } for r in sorted(rows, key=lambda x: (x["date"], x["id"]), reverse=True)[:2]]
-    return {
+    result = {
         "mode": "seedless_public_source_discovery_not_market_growth",
         "as_of": today.isoformat(), "lookback_days": lookback_days,
         "discovery_query_mode": "no_seed_topics_or_sector_keywords",
@@ -811,6 +814,11 @@ def summarize_discovery(
             "interest rather than awards or verified software budgets."
         ),
     }
+    if workflow_briefs:
+        from mcp_trendpulse.intelligence_workflows import build_workflow_briefs
+
+        result["workflow_briefs"] = build_workflow_briefs(records, as_of=today)
+    return result
 
 
 def _ted_date_windows(today: date, days: int, limit: int) -> list[tuple[date, date, int]]:
@@ -925,6 +933,7 @@ def discover_current(
     broad_topic_scan: bool = False,
     corroborate_issues: bool = False,
     cross_source_hunt: bool = False,
+    workflow_briefs: bool = False,
 ) -> dict[str, Any]:
     """Free, read-only discovery; optional source-count trend measurement."""
     if isinstance(lookback_days, bool) or not isinstance(lookback_days, int) or not 7 <= lookback_days <= 90:
@@ -951,6 +960,8 @@ def discover_current(
         raise ValueError("cross_source_hunt must be a boolean")
     if cross_source_hunt and not measure_trends:
         raise ValueError("--cross-source-hunt requires --measure-trends")
+    if not isinstance(workflow_briefs, bool):
+        raise ValueError("workflow_briefs must be a boolean")
     now = date.today()
     first = now - timedelta(days=lookback_days - 1)
     plans = [
@@ -981,6 +992,13 @@ def discover_current(
             "plans": [p.public() for p in plans],
             "budget_excludes_paid_api_tiers": True,
         }
+        if workflow_briefs:
+            planned["workflow_briefs"] = {
+                "status": "planned_offline_source_projection",
+                "source_requests_added": 0,
+                "requires_execute_for_evidence": True,
+                "no_predefined_industry_seeds": True,
+            }
         if measure_trends:
             from mcp_trendpulse.intelligence_trends import (
                 MAX_ADDITIONAL_REQUESTS, MAX_TOPICS, PUBLICATION_LAG_DAYS,
@@ -1063,6 +1081,7 @@ def discover_current(
     result = summarize_discovery(
         sources, as_of=now.isoformat(), lookback_days=lookback_days,
         ted_date_windows=windows if ted_date_slices == 3 else None,
+        workflow_briefs=workflow_briefs,
     )
     result["network_performed"] = True
     result["queries_budgeted"] = len(plans)
@@ -1187,6 +1206,10 @@ def discover_current(
             )
         result["trend_evidence"] = trend_evidence
         result["queries_budgeted"] += trend_evidence["additional_source_requests"]
+        if workflow_briefs:
+            from mcp_trendpulse.intelligence_workflows import attach_measured_research
+
+            attach_measured_research(result["workflow_briefs"], trend_evidence)
         result["limits"] += (
             " OpenAlex trend direction is measured using source-wide counts "
             "over three same-width completed windows, not sampled record "
@@ -1233,6 +1256,11 @@ def format_discovery_report(result: dict[str, Any]) -> str:
         from mcp_trendpulse.intelligence_trends import format_research_trends
 
         lines.extend(format_research_trends(result["trend_evidence"]))
+    if result.get("workflow_briefs") is not None:
+        from mcp_trendpulse.intelligence_workflows import format_workflow_briefs
+
+        lines.extend(format_workflow_briefs(result["workflow_briefs"]))
+        lines.append("")
         lines.append("")
     sample_audit = result.get("ted_sampling_audit", {})
     if sample_audit and result.get("ted_date_slices") == 3:

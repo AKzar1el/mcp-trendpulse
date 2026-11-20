@@ -781,6 +781,52 @@ additional network query. Real commercial opportunity detection
 will require recent dated independent buyer/problem evidence in
 comparable source populations, not these historic context matches.
 
+### Source-attributed commercial workflow investigations (2026-11-20)
+
+The optional `--workflow-briefs` switch uses only already normalized
+OpenAlex, CFPB and TED discovery observations, with **zero additional
+requests**, new providers, keys, LLM calls or predefined topic seeds.
+Normal discovery behavior, 25-adapter catalog, 16-tool community MCP
+and hourly agents are unchanged.
+
+The offline candidate builder keeps at most six source-auditable briefs:
+up to four published TED contract notices with **primary CPV 48/72**
+(software/IT-category scope, not software-only work or an awarded
+purchase), and two CFPB product/issue categories with at least **two
+distinct complaint IDs** in the bounded sample. It explicitly preserves
+original published notice links, published buyer-name labels, CPVs,
+lot dates, paired procedure estimates (not spending), complaint-provider
+landing links (not individual complaint permalinks), evidence dates,
+unverified buyer identity and unanswered product-qualification work.
+The tender review order prefers published lot dates on/after analysis
+when usable; this is NOT proof the bid remains active. The output does
+not automatically assert a recurring software product from one tender.
+
+For each brief, research publication context is attached only when the
+published OpenAlex primary-topic wording and its source label share a
+contiguous **two-to-four word** meaningful phrase. With `--measure-trends`,
+already measured rising research watchlist topics can be attached via
+the same strict phrase gate, using official OpenAlex topic IDs. A CFPB
+category can be attached to a TED notice only as **lexical** operational
+problem context. Mere word overlap, research interest and published
+tenders cannot prove the same workflow, adoption, paying customers,
+independent purchasing organizations, market size or SEO growth.
+
+A report with zero qualifying briefs means the small capped sample
+contained no qualifying observed workflows, NOT that none exist in the
+market. Research topics without documented lexical connections remain
+unlinked rather than receiving invented synonyms. Output is capped,
+read-only, not recorded as raw source history, and preserves provider
+reference whitelists. The workflow briefs are explicitly about follow-up
+investigations, not validated product ideas.
+
+Example, after installing the latest draft commit:
+
+```powershell
+$env:UV_LINK_MODE = "copy"
+uvx --from "git+https://github.com/AKzar1el/mcp-trendpulse.git@<tested-commit>" mcp-trendpulse-cli intelligence discover --execute --workflow-briefs --ted-date-slices 3 --limit 20 --lookback-days 30 --format text
+```
+
 ### Source availability diagnosis without unsafe error disclosure (2026-11-20)
 
 The complete owner field test returned one exploratory research watchlist
