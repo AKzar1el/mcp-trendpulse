@@ -892,6 +892,10 @@ def intelligence_sources(wave):
               help="Offline source-attributed IT procurement and repeated consumer "
                    "problem investigations; exact lexical research links only, "
                    "no new API calls or invented commercial demand.")
+@click.option("--ted-software-scan", is_flag=True,
+              help="With --workflow-briefs, opt in to one CPV 48/72-filtered"
+                   " official TED search (12-row cap); independent of the"
+                   " unbiased baseline and not market prevalence.")
 @click.option("--workflow-cross-check", is_flag=True,
               help="With --workflow-briefs, query existing free GitHub Issues and "
                    "USAspending for up to two phrases extracted from published "
@@ -924,8 +928,8 @@ def intelligence_sources(wave):
               default="json", show_default=True)
 def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
                           broad_topic_scan, corroborate_issues,
-                          cross_source_hunt, workflow_briefs, workflow_cross_check,
-                          ted_scope_details, ted_related_notices,
+                          cross_source_hunt, workflow_briefs, ted_software_scan,
+                          workflow_cross_check, ted_scope_details, ted_related_notices,
                           idea_map, keyword_probe,
                           keyword_evidence_file, execute, record_history,
                           output_format):
@@ -955,6 +959,7 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
             corroborate_issues=corroborate_issues,
             cross_source_hunt=cross_source_hunt,
             workflow_briefs=workflow_briefs,
+            ted_software_scan=ted_software_scan,
             workflow_cross_check=workflow_cross_check,
             ted_scope_details=ted_scope_details,
             ted_related_notices=ted_related_notices,

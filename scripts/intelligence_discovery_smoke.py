@@ -72,6 +72,14 @@ def main() -> int:
                 or issue_plan["trend_evidence"]["max_additional_github_issue_searches"] != 4
                 or not issue_plan["trend_evidence"]["corroborate_issues_opted_in"]):
             raise AssertionError("Issue corroboration plan is not bounded and offline")
+        software_plan = discover_current(
+            execute=False, workflow_briefs=True, ted_software_scan=True,
+            idea_map=True, cache=cache, env={},
+        )
+        if (software_plan["network_performed"]
+                or software_plan["max_requests_with_ted_software_scan"] != 4
+                or software_plan["targeted_software_scan"]["source_requests_performed"] != 0):
+            raise AssertionError("Focused TED software scan must remain offline until execute")
         keyword_plan = discover_current(
             execute=False, workflow_briefs=True, idea_map=True,
             keyword_probe=True, cache=cache, env={},

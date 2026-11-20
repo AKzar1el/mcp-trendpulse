@@ -934,6 +934,7 @@ def discover_current(
     corroborate_issues: bool = False,
     cross_source_hunt: bool = False,
     workflow_briefs: bool = False,
+    ted_software_scan: bool = False,
     workflow_cross_check: bool = False,
     ted_scope_details: bool = False,
     ted_related_notices: bool = False,
@@ -968,6 +969,10 @@ def discover_current(
         raise ValueError("--cross-source-hunt requires --measure-trends")
     if not isinstance(workflow_briefs, bool):
         raise ValueError("workflow_briefs must be a boolean")
+    if not isinstance(ted_software_scan, bool):
+        raise ValueError("ted_software_scan must be a boolean")
+    if ted_software_scan and not workflow_briefs:
+        raise ValueError("--ted-software-scan requires --workflow-briefs")
     if not isinstance(workflow_cross_check, bool):
         raise ValueError("workflow_cross_check must be a boolean")
     if workflow_cross_check and not workflow_briefs:
@@ -1051,6 +1056,14 @@ def discover_current(
                         "requires_source_published_procedure_uuid": True,
                         "newest_notice_supersession_verified": False,
                     }
+        if ted_software_scan:
+            planned["targeted_software_scan"] = {
+                "status": "planned_explicit_cpv_filter_source_query",
+                "source": "ted", "max_additional_source_requests": 1,
+                "source_requests_performed": 0,
+                "targeted_sector_population_not_baseline_sample": True,
+                "requires_execute": True,
+            }
         if idea_map:
             planned["idea_map"] = {
                 "status": "planned_offline_source_backed_hypotheses",
@@ -1121,6 +1134,9 @@ def discover_current(
         planned_total = planned.get(
             "max_requests_with_trend_measurement", len(plans)
         )
+        if ted_software_scan:
+            planned_total += 1
+            planned["max_requests_with_ted_software_scan"] = planned_total
         if workflow_cross_check:
             planned_total += 4
             planned["max_requests_with_workflow_cross_check"] = planned_total
@@ -1197,6 +1213,22 @@ def discover_current(
         result["limits"] += (
             " Three TED windows improve time spread but still return"
             " bounded newest-first pages, not representative market data."
+        )
+    if ted_software_scan:
+        from mcp_trendpulse.intelligence_ted_software_scan import (
+            merge_focused_briefs, scan_software_procurements,
+        )
+
+        focus = scan_software_procurements(
+            as_of=now, lookback_days=lookback_days, cache=cache, env=env,
+        )
+        merge_focused_briefs(result["workflow_briefs"], focus)
+        result["targeted_software_scan"] = focus
+        result["queries_budgeted"] += focus["source_requests_budgeted"]
+        result["limits"] += (
+            " One separately CPV-filtered TED software/IT page may add"
+            " source-attributed briefs, but is NOT a representative"
+            " sector share, market growth estimate or new buyer proof."
         )
     if measure_trends:
         from mcp_trendpulse.intelligence_trends import (
@@ -1400,6 +1432,13 @@ def format_discovery_report(result: dict[str, Any]) -> str:
         from mcp_trendpulse.intelligence_trends import format_research_trends
 
         lines.extend(format_research_trends(result["trend_evidence"]))
+    if result.get("targeted_software_scan") is not None:
+        from mcp_trendpulse.intelligence_ted_software_scan import (
+            format_software_scan,
+        )
+
+        lines.extend(format_software_scan(result["targeted_software_scan"]))
+        lines.append("")
     if result.get("workflow_briefs") is not None:
         from mcp_trendpulse.intelligence_workflows import format_workflow_briefs
 

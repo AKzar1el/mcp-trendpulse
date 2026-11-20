@@ -859,6 +859,35 @@ $env:UV_LINK_MODE = "copy"
 uvx --from "git+https://github.com/AKzar1el/mcp-trendpulse.git@<tested-commit>" mcp-trendpulse-cli intelligence discover --execute --workflow-briefs --workflow-cross-check --ted-date-slices 3 --limit 20 --lookback-days 30 --format text
 ```
 
+### Targeted software/IT TED coverage, separate from unbiased discovery (2026-11-20)
+
+Field tests of the three newest-first 30-day TED windows show that a 20-notice
+sector-neutral sample may contain software/IT notices in one run and none
+in the next. The later 0/20 sample is **not evidence that the software
+market disappeared**: the window pages are capped and not representative.
+This cannot be fixed by pretending missing records were re-observed.
+
+The opt-in `--ted-software-scan` adds **one** existing keyless official
+TED search using `classification-cpv=48*` or `72*` and source-published
+contract notice types in the same lookback. The query is bounded to
+12 returned notices and processed with the exact same source, date,
+buyer, deadline and **primary-CPV** gates. Secondary-only IT-class
+CPVs never automatically become primary IT software products.
+Qualified official links may supply up to four independent software
+briefs, deduplicated with neutral-source briefs within the existing
+**six-total/four-procurement** cap. The neutral sampling counts and
+trend directions are not mutated; focused evidence is explicitly
+marked with a different sampling population.
+
+The focused scan runs only with `--workflow-briefs --execute`.
+It is **not** a rotating hardcoded niche/topic list; CPV classes
+are explicit procurement categories. Its coverage is still
+newest-page limited; no accumulated opportunity history or guarantee
+that previously observed tenders appear again. TED date/published
+deadline statuses and documents require source revalidation.
+Subsequent opt-in TED scope, same-procedure checks and Idea Map
+can operate on the newly found focused briefs.
+
 ### Same-procedure TED notices and amendment awareness (2026-11-20)
 
 With `--workflow-briefs --ted-scope-details --ted-related-notices`,

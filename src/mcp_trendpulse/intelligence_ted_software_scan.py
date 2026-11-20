@@ -1,0 +1,205 @@
+"""Opt-in TED software opportunity coverage, independent of unbiased 20-row page.
+
+A single explicitly CPV-filtered, bounded official TED search may recover
+IT/software primary-classification procurements absent from a sector-neutral
+page. Query inclusion is NOT market growth or representative sector frequency.
+"""
+from __future__ import annotations
+
+import re
+from datetime import date, timedelta
+from typing import Any
+
+from mcp_trendpulse.intelligence_core import (
+    BudgetCache, IntelligenceError, collect, plan_source,
+)
+
+MAX_FOCUS_ROWS = 12
+MAX_FOCUS_ADDITIONAL_REQUESTS = 1
+FOCUS_PREFIXES = ("48", "72")
+
+
+def software_scan_query(as_of: date, lookback_days: int) -> str:
+    if (not isinstance(as_of, date) or isinstance(lookback_days, bool)
+            or not isinstance(lookback_days, int)
+            or not 7 <= lookback_days <= 90):
+        raise ValueError("Invalid date or lookback for bounded TED software scan")
+    start = as_of - timedelta(days=lookback_days - 1)
+    # Documented TED expert-search fields; no topic, vendor or product seed.
+    # Keep under the trusted source builder's 140-character query limit.
+    query = (
+        f"PD = ({start:%Y%m%d} <> {as_of:%Y%m%d}) "
+        "AND notice-type IN (cn-standard cn-social cn-desg) "
+        "AND (classification-cpv=48* OR classification-cpv=72*)"
+    )
+    if len(query) > 140:
+        raise ValueError("Unexpected TED query size")
+    return query
+
+
+def scan_software_procurements(
+    *, as_of: date, lookback_days: int = 30,
+    cache: BudgetCache | None = None, env: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """One free official source request; no loss of the neutral baseline."""
+    query = software_scan_query(as_of, lookback_days)
+    plan = plan_source(
+        "ted", keyword=query, limit=MAX_FOCUS_ROWS, env=env,
+    )
+    result = {
+        "mode": "ted_primary_software_it_focused_sample_not_market_prevalence",
+        "status": "unavailable",
+        "source": "ted",
+        "query_classification": "cpv_48_or_72_any_classification_search",
+        "qualification_classification": "main_cpv_48_or_72_only",
+        "source_requests_budgeted": MAX_FOCUS_ADDITIONAL_REQUESTS,
+        "max_additional_source_requests": MAX_FOCUS_ADDITIONAL_REQUESTS,
+        "source_requests_performed": 0,
+        "sampled_records": 0,
+        "qualified_primary_software_briefs": 0,
+        "added_to_combined_briefs": 0,
+        "sample_hit_cap": False,
+        "keyword_seed_list_used": False,
+        "searched_publication_date_not_bid_status": True,
+        "buyer_willingness_to_pay_verified": False,
+        "recurring_market_growth_verified": False,
+        "population_prevalence_verifiable": False,
+        "independent_baseline_preserved": True,
+        "briefs": [],
+    }
+    try:
+        outcome = collect(plan, fetch=True, cache=cache, env=env, timeout=20)
+    except (OSError, ValueError, IntelligenceError):
+        outcome = {"status": "unavailable", "reason": "collection_failed"}
+    result["cache_hit"] = outcome.get("cache_hit") is True
+    result["source_requests_performed"] = (
+        0 if result["cache_hit"] or outcome.get("reason") == "provider_cooldown"
+        else 1
+    )
+    state = outcome.get("status")
+    if state != "observed":
+        result["status"] = (state if state in {
+            "unavailable", "rate_limited", "invalid_source_shape",
+        } else "unavailable")
+        http = outcome.get("http_status")
+        if isinstance(http, int) and not isinstance(http, bool) and 400 <= http <= 599:
+            result["http_status"] = http
+        return result
+    observations = outcome.get("observations")
+    rows = observations.get("sample") if isinstance(observations, dict) else None
+    if (not isinstance(rows, list) or len(rows) > MAX_FOCUS_ROWS
+            or any(not isinstance(r, dict) for r in rows)):
+        result["status"] = "invalid_source_shape"
+        return result
+    # Summarize independently: a source-filtered page never inflates the
+    # unbiased baseline's prevalence counts, date-window audit or candidates.
+    from mcp_trendpulse.intelligence_discovery import (
+        _compact_ted_discovery, summarize_discovery,
+    )
+
+    sanitized = [_compact_ted_discovery(r) for r in rows]
+    summary = summarize_discovery([{
+        "source": "ted", "status": "observed",
+        "observations": {"sample": sanitized, "record_count": len(sanitized)},
+    }], as_of=as_of.isoformat(), lookback_days=lookback_days,
+        workflow_briefs=True)
+    focus = summary["workflow_briefs"]
+    eligible = [
+        {**brief, "observation_sampling_basis": (
+            "cpv_filtered_ted_page_not_neutral_baseline_or_market_population"
+        )}
+        for brief in focus["briefs"]
+        if brief.get("kind") == "published_software_it_procurement_to_investigate"
+        and brief.get("published_lot_date_on_or_after_analysis") is True
+    ]
+    result.update({
+        "status": "source_observed_with_qualified_briefs"
+                  if eligible else "source_observed_without_qualified_primary_it_briefs",
+        "sampled_records": len(sanitized),
+        "qualified_primary_software_briefs": len(eligible),
+        "sample_hit_cap": len(sanitized) == MAX_FOCUS_ROWS,
+        "source_recent_valid_records": summary["source_coverage"][0][
+            "recent_valid_records"
+        ],
+        "sampled_primary_it_records": summary["ted_sampling_audit"][
+            "main_cpv_48_or_72_observed"
+        ],
+        "briefs": eligible,
+    })
+    return result
+
+
+def merge_focused_briefs(
+    workflow: dict[str, Any], focused: dict[str, Any],
+) -> int:
+    """Add distinct tender proofs within existing six-brief/four-tender limits.
+
+    Focusing never promotes source observations to market trends, alters
+    the neutral baseline counters or creates a new customer identity.
+    """
+    if (workflow.get("mode") != "source_grounded_workflow_briefs_not_validated_market_demand"
+            or focused.get("mode") !=
+            "ted_primary_software_it_focused_sample_not_market_prevalence"):
+        raise ValueError("Unexpected typed source evidence for focused merge")
+    rows = workflow.get("briefs")
+    if not isinstance(rows, list) or len(rows) > 6:
+        raise ValueError("Expected bounded original workflow briefs")
+    existing_refs = {
+        b["evidence"][0]["reference"]
+        for b in rows if isinstance(b, dict)
+        and isinstance(b.get("evidence"), list)
+        and b["evidence"] and isinstance(b["evidence"][0], dict)
+        and isinstance(b["evidence"][0].get("reference"), str)
+    }
+    it_count = sum(
+        isinstance(row, dict)
+        and row.get("kind") == "published_software_it_procurement_to_investigate"
+        for row in rows
+    )
+    count = 0
+    for brief in focused.get("briefs", [])[:4]:
+        if len(rows) == 6 or it_count == 4:
+            break
+        proof = brief.get("evidence")
+        ref = proof[0].get("reference") if isinstance(proof, list) and proof else None
+        if (not isinstance(ref, str) or not re.fullmatch(
+            r"https://ted\.europa\.eu/en/notice/-/detail/[0-9]{1,7}-20[0-9]{2}",
+            ref,
+        ) or ref in existing_refs):
+            continue
+        rows.append(brief)
+        existing_refs.add(ref)
+        it_count += 1
+        count += 1
+    workflow["brief_count"] = len(rows)
+    workflow["targeted_ted_software_briefs_added"] = count
+    workflow["targeted_evidence_cannot_change_neutral_baseline_sector_counts"] = True
+    focused["added_to_combined_briefs"] = count
+    return count
+
+
+def format_software_scan(report: dict[str, Any]) -> list[str]:
+    if report.get("mode") != "ted_primary_software_it_focused_sample_not_market_prevalence":
+        raise ValueError("Expected focused TED evidence")
+    lines = [
+        "FOCUSED TED SOFTWARE/IT PROCUREMENT DISCOVERY (explicit opt-in, 1 extra free query):",
+        "  Separate CPV 48/72-filtered sample; does NOT revise neutral 20-notice coverage or prove market growth.",
+        f"  TED source: {report['status']} | sampled: {report['sampled_records']}/{MAX_FOCUS_ROWS} "
+        f"| qualifying primary-CPV briefs: {report['qualified_primary_software_briefs']}"
+        f" | added: {report['added_to_combined_briefs']}"
+        + (" (cached)" if report.get("cache_hit") else ""),
+    ]
+    if report.get("sample_hit_cap"):
+        lines.append("  Filtered first page hit 12-row cap; not exhaustive for the sector.")
+    if report.get("http_status"):
+        lines.append(f"  Source HTTP {report['http_status']} (unavailable; NOT no demand)")
+    if not report["briefs"]:
+        lines.append(
+            "  No eligible primary-CPV software notices in this bounded page;"
+            " NOT a market-wide negative finding."
+        )
+    for item in report["briefs"][:4]:
+        evidence = item["evidence"][0]
+        lines.append("  - " + item["source_published_workflow_clue"])
+        lines.append("    " + evidence["reference"])
+    return lines
