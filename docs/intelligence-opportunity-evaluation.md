@@ -812,6 +812,11 @@ problem context. Mere word overlap, research interest and published
 tenders cannot prove the same workflow, adoption, paying customers,
 independent purchasing organizations, market size or SEO growth.
 
+The seedless discovery smoke additionally executes the opt-in brief
+projection with the existing three keyless collector responses, checks
+that every reported opportunity remains explicitly unverified, and saves
+only provider status and aggregate brief counts to the CI artifact.
+
 A report with zero qualifying briefs means the small capped sample
 contained no qualifying observed workflows, NOT that none exist in the
 market. Research topics without documented lexical connections remain

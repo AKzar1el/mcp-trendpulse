@@ -18,7 +18,12 @@ from mcp_trendpulse.intelligence_discovery import discover_current
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="trendpulse-seedless-") as temp:
         cache = BudgetCache(Path(temp))
-        plan = discover_current(execute=False, cache=cache, env={})
+        plan = discover_current(
+            execute=False, workflow_briefs=True, cache=cache, env={},
+        )
+        if (plan["workflow_briefs"]["source_requests_added"] != 0
+                or plan["workflow_briefs"]["status"] != "planned_offline_source_projection"):
+            raise AssertionError("Workflow brief planning spent provider quota")
         if (plan["status"] != "planned"
                 or plan["network_performed"] is not False
                 or plan["source_count"] != 3):
@@ -83,8 +88,24 @@ def main() -> int:
             raise AssertionError("Existing-source hunter must be opt-in and bounded")
         result = discover_current(
             execute=True, limit=20, lookback_days=30,
-            cache=cache, env={},
+            workflow_briefs=True, cache=cache, env={},
         )
+    workflow = result["workflow_briefs"]
+    if (workflow["source_requests_added"] != 0
+            or workflow["brief_count"] > 6
+            or workflow["brief_count"] != len(workflow["briefs"])
+            or workflow["product_market_fit_verified"]
+            or workflow["source_populations_or_trend_growth_verified"]
+            or any(
+                row["buyer_legal_identity_verified"]
+                or row["repeatable_software_product_verified"]
+                or row["independent_paying_customers_verified"]
+                or row["market_growth_verified"]
+                or row["seo_demand_verified"]
+                or len(row["research_context"]) > 2
+                for row in workflow["briefs"]
+            )):
+        raise AssertionError("Workflow brief output inflated unverified market evidence")
     if (result["growth_rate_verified"]
             or result["paid_buyers_verified"]
             or result["population_coverage_verified"]):
@@ -170,6 +191,18 @@ def main() -> int:
         ],
         "sample_recent_records": result["recent_observations"],
         "research_candidates_in_sample": result["candidate_count"],
+        "workflow_brief_projection_checked": True,
+        "workflow_brief_count_in_bounded_sample": workflow["brief_count"],
+        "workflow_brief_procurement_count_in_sample": sum(
+            b["kind"] == "published_software_it_procurement_to_investigate"
+            for b in workflow["briefs"]
+        ),
+        "workflow_brief_problem_count_in_sample": sum(
+            b["kind"] == "recurring_public_consumer_issue_to_investigate"
+            for b in workflow["briefs"]
+        ),
+        "workflow_briefs_added_network_requests": workflow["source_requests_added"],
+        "workflow_briefs_no_commercial_proof_inferred": True,
         "procurement_titles_available": len(result["procurement_observations"]),
         "buyer_side_review_qualified_in_sample": review[
             "qualified_notices_in_bounded_sample"

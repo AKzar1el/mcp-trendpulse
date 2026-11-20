@@ -205,3 +205,20 @@ def test_workflow_briefs_flag_is_explicit_opt_in_and_type_safe():
          "observations": {"sample": [], "record_count": 0}},
     ], as_of=DAY.isoformat())
     assert "workflow_briefs" not in report
+
+
+def test_cli_workflow_briefs_option_executes_network_free_plan():
+    import json
+
+    from click.testing import CliRunner
+    from mcp_trendpulse.cli import cli
+
+    run = CliRunner().invoke(cli, [
+        "intelligence", "discover", "--workflow-briefs", "--format", "json",
+    ])
+    assert run.exit_code == 0, run.output
+    plan = json.loads(run.output)
+    assert plan["status"] == "planned"
+    assert plan["network_performed"] is False
+    assert plan["request_count"] == 3
+    assert plan["workflow_briefs"]["source_requests_added"] == 0
