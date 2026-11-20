@@ -11,9 +11,12 @@ import hashlib
 import json
 import math
 import re
+import sqlite3
 from typing import Any
 
-from mcp_trendpulse.intelligence_core import BudgetCache, IntelligenceError
+from mcp_trendpulse.intelligence_core import (
+    BudgetCache, DailyBudgetExceeded, IntelligenceError,
+)
 
 PROVIDER_BUDGET_ID = "google_trends_idea_related_queries"
 MAX_PROVIDER_OPERATIONS = 2
@@ -175,7 +178,16 @@ async def probe_idea_keywords_async(
     }
     if not selected:
         return summary
-    store = cache if cache is not None else BudgetCache()
+    try:
+        store = cache if cache is not None else BudgetCache()
+    except (OSError, ValueError, sqlite3.Error):
+        summary["status"] = "local_budget_store_unavailable"
+        summary["results"] = [{
+            "idea_id": row["idea_id"], "keyword": row["keyword"],
+            "market": row["market"], "status": "local_budget_store_unavailable",
+            "top": [], "rising": [], "cache_hit": False,
+        } for row in selected]
+        return summary
     if provider is None:
         from mcp_trendpulse.providers import get_provider_set
 
@@ -196,8 +208,10 @@ async def probe_idea_keywords_async(
         }
         try:
             cached = store.cached(key)
-        except (OSError, ValueError):
-            cached = None
+        except (OSError, ValueError, sqlite3.Error):
+            output["status"] = "local_budget_store_unavailable"
+            summary["results"].append(output)
+            continue
         if isinstance(cached, dict) and cached.get("status") in {
             "observed_related_queries", "observed_empty_related_queries"
         }:
@@ -211,8 +225,17 @@ async def probe_idea_keywords_async(
             continue
         try:
             store.reserve(PROVIDER_BUDGET_ID, UTC_DAILY_PROVIDER_CAP)
-        except (OSError, ValueError, IntelligenceError):
-            output["status"] = "local_daily_budget_exhausted_or_unavailable"
+        except DailyBudgetExceeded as exc:
+            output["status"] = "local_daily_budget_exhausted"
+            output["local_quota_utc_day"] = exc.utc_day
+            output["local_quota_used"] = exc.used
+            output["local_quota_limit"] = exc.cap
+            summary["results"].append(output)
+            continue
+        except (OSError, ValueError, sqlite3.Error):
+            # A quota decision was NOT established. Never mislabel SQLite
+            # permission, disk or lock failures as exhausted allowances.
+            output["status"] = "local_budget_store_unavailable"
             summary["results"].append(output)
             continue
         summary["provider_operations_attempted"] += 1
@@ -276,6 +299,17 @@ def format_keyword_probe(report: dict[str, Any]) -> list[str]:
         )
         if item.get("reason_code"):
             lines.append(f"    Reason class: {item['reason_code']}")
+        if item["status"] == "local_daily_budget_exhausted":
+            lines.append(
+                f"    UTC {item['local_quota_utc_day']}: "
+                f"{item['local_quota_used']}/{item['local_quota_limit']} "
+                "local provider operations already reserved; no bypass attempted."
+            )
+        if item["status"] == "local_budget_store_unavailable":
+            lines.append(
+                "    Local budget SQLite storage could not be verified; no "
+                "unbudgeted Google request attempted."
+            )
         for kind in ("top", "rising"):
             for query in item[kind]:
                 val = ("Breakout" if query["is_breakout"] else query["provider_value"])

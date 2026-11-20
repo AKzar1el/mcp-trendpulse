@@ -42,9 +42,9 @@ class Cache:
     def reserve(self, source, cap):
         assert source == probes.PROVIDER_BUDGET_ID and cap == 2
         if self.used >= cap:
-            from mcp_trendpulse.intelligence_core import IntelligenceError
+            from mcp_trendpulse.intelligence_core import DailyBudgetExceeded
 
-            raise IntelligenceError("quota blocked")
+            raise DailyBudgetExceeded(source, "2026-11-20", cap, self.used)
         self.used += 1
 
     def save(self, key, body, ttl):
@@ -133,8 +133,36 @@ def test_daily_quota_refusal_skips_network_and_reports_partial():
         source(), provider=NoCalls(), cache=cache,
     ))
     assert out["provider_operations_attempted"] == 0
-    assert all(r["status"] == "local_daily_budget_exhausted_or_unavailable"
+    assert all(r["status"] == "local_daily_budget_exhausted"
                for r in out["results"])
+    assert all(r["local_quota_used"] == 2
+               and r["local_quota_limit"] == 2 for r in out["results"])
+    assert "already reserved" in "\n".join(probes.format_keyword_probe(out))
+
+
+def test_storage_errors_are_not_exhausted_quota_and_no_requests_are_sent():
+    class BrokenCache(Cache):
+        def cached(self, _key):
+            raise OSError("CREDENTIAL_MUST_NOT_BE_EXPOSED")
+    class NoCalls:
+        async def get_related_queries(self, **_kw):
+            raise AssertionError("A failed cache must never trigger the provider")
+    out = asyncio.run(probes.probe_idea_keywords_async(
+        source(), provider=NoCalls(), cache=BrokenCache(),
+    ))
+    assert all(r["status"] == "local_budget_store_unavailable"
+               for r in out["results"])
+    assert out["provider_operations_attempted"] == 0
+    assert "CREDENTIAL_MUST_NOT_BE_EXPOSED" not in repr(out)
+    class UnwriteableCache(Cache):
+        def reserve(self, source, cap):
+            raise OSError("disk restricted and password")
+    out2 = asyncio.run(probes.probe_idea_keywords_async(
+        source(), provider=NoCalls(), cache=UnwriteableCache(),
+    ))
+    assert all(r["status"] == "local_budget_store_unavailable"
+               for r in out2["results"])
+    assert "password" not in repr(out2)
 
 
 def test_explicit_opt_in_required_and_execute_false_stays_offline(monkeypatch):

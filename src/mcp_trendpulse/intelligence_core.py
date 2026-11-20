@@ -36,6 +36,17 @@ class IntelligenceError(ValueError):
     """Invalid input, exhausted budget, or explicitly unavailable source."""
 
 
+class DailyBudgetExceeded(IntelligenceError):
+    """Typed, safe indication of a real UTC-day cap, not a storage failure."""
+
+    def __init__(self, source: str, utc_day: str, cap: int, used: int):
+        self.source = source
+        self.utc_day = utc_day
+        self.cap = cap
+        self.used = used
+        super().__init__(f"{source} free-only daily request cap reached")
+
+
 @dataclass(frozen=True)
 class Plan:
     source: str
@@ -244,7 +255,7 @@ class BudgetCache:
             row = conn.execute("SELECT used FROM budget WHERE source=? AND day=?", (source, day)).fetchone()
             if row and row[0] >= cap:
                 conn.rollback()
-                raise IntelligenceError(f"{source} free-only daily request cap reached")
+                raise DailyBudgetExceeded(source, day, cap, int(row[0]))
             conn.execute("INSERT INTO budget(source, day, used) VALUES (?, ?, 1) ON CONFLICT(source, day) DO UPDATE SET used=used+1", (source, day))
             conn.commit()
 

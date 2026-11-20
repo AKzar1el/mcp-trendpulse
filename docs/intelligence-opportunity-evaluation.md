@@ -894,7 +894,14 @@ has no new packages/providers or background polling, and uses the
 existing provider pacing and cooldown system.
 
 A separate shared local SQLite guard permits **two related-query
-provider operations per UTC day** for this feature, with safe cached
+provider operations per UTC day** for this feature. A typed
+`DailyBudgetExceeded` error reports the actual UTC day and already
+reserved operation count, while a missing/locked/unwritable SQLite
+cache reports `local_budget_store_unavailable`. Neither condition
+causes an unbudgeted provider retry or resets the quota. If a previous
+provider attempt exhausted the allowance, a repeat within the same UTC
+day cannot automatically retry until the next UTC day or cache reuse.
+Successful responses have safe cached
 results (6-hour TTL) so a repeated run normally does not re-query the
 provider. A provider-level operation may make multiple HTTP requests;
 the code **does not** claim a two-HTTP-request guarantee or count the
