@@ -781,6 +781,24 @@ additional network query. Real commercial opportunity detection
 will require recent dated independent buyer/problem evidence in
 comparable source populations, not these historic context matches.
 
+### Source availability diagnosis without unsafe error disclosure (2026-11-20)
+
+The complete owner field test returned one exploratory research watchlist
+topic, while CORDIS reported unavailable/incomplete and USAspending returned
+zero bounded matches. The previous source-follow-up wrapper dropped the
+already-sanctioned provider error metadata from its report, making it
+impossible to distinguish a timeout, HTTP failure or local cooldown from
+an intentionally empty observed sample.
+
+The opt-in cross-source output now preserves only the hunter's normalized
+status, valid numeric HTTP status or a strictly allowlisted exception type.
+Unknown upstream error text, response bodies and credential-bearing strings
+are never copied into user-facing output. The original provider budget,
+cache, requests, research classification and candidate ranking are unchanged.
+A failed or incomplete source is NOT evidence of zero underlying demand.
+The observed CORDIS failure's exact cause remains unverified until a fresh
+safe diagnostic is available.
+
 ### Independent follow-up must not depend on promotion to the growth watchlist (2026-11-20)
 
 The owner's first Windows run with both

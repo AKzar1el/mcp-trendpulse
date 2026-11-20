@@ -232,6 +232,39 @@ def test_partial_source_coverage_not_reported_as_no_demand(monkeypatch):
     assert "NOT zero market interest" in report
 
 
+def test_source_unavailability_preserves_safe_reason_not_arbitrary_provider_text(
+    monkeypatch,
+):
+    checked = stub("Explainable Artificial Intelligence")
+    checked["source_coverage"][0].update({
+        "status": "rate_limited", "http_status": 429,
+        "reason": "Bearer-secret-value-NEVER-ECHO",
+    })
+    checked["source_coverage"][1].update({
+        "status": "unavailable", "http_status": "bad-status",
+        "reason": "TimeoutError",
+    })
+    monkeypatch.setattr(context, "hunt_current", lambda *_a, **_kw: {
+        "topics": [checked],
+    })
+    result = context.investigate_discovered_topics(
+        [idea()], as_of=AS_OF, lookback_days=30, env={},
+    )
+    providers = result["topics"][0]["source_coverage"]
+    assert result["status"] == "partially_available_source_context"
+    assert providers[0]["http_status"] == 429
+    assert "reason" not in providers[0]
+    assert providers[1]["reason"] == "TimeoutError"
+    assert "http_status" not in providers[1]
+    report = "\n".join(context.format_discovered_source_context(result))
+    assert "cordis: rate_limited (HTTP 429)" in report
+    assert "usaspending: unavailable (TimeoutError)" in report
+    assert "NOT zero market interest" in report
+    assert "Bearer-secret-value" not in report
+    assert "Bearer-secret-value" not in repr(result)
+    assert result["product_or_market_growth_verified"] is False
+
+
 def test_plan_only_is_zero_network_with_added_source_budget(monkeypatch):
     def forbidden(*_a, **_kwargs):
         raise AssertionError("Plan-only must never fetch source data")

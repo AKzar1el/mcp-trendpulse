@@ -91,7 +91,7 @@ def investigate_discovered_topics(
             status = provider.get("status", "unavailable")
             if status == "observed":
                 observed += 1
-            coverage.append({
+            summary = {
                 "source": provider["source"],
                 "status": status,
                 "sample_records_accepted": int(
@@ -107,7 +107,24 @@ def investigate_discovered_topics(
                     provider.get("context_only_matches") or 0
                 ),
                 "not_exhaustive": True,
-            })
+            }
+            # The hunter has already allowlisted these diagnostics. Keep
+            # only known status metadata; never pass through provider text,
+            # credentials, redirect URLs or arbitrary transport errors.
+            if status != "observed":
+                code = provider.get("http_status")
+                reason = provider.get("reason")
+                if (isinstance(code, int) and not isinstance(code, bool)
+                        and 100 <= code <= 599):
+                    summary["http_status"] = code
+                elif isinstance(reason, str) and reason in {
+                    "HTTPError", "URLError", "TimeoutError",
+                    "provider_cooldown", "not_configured",
+                    "source_setup_required_or_invalid_plan",
+                    "collection_failed", "invalid_source_shape",
+                }:
+                    summary["reason"] = reason
+            coverage.append(summary)
         examples = []
         for row in checked.get("evidence", [])[:3]:
             if row.get("source") not in SOURCE_IDS:
@@ -241,9 +258,14 @@ def format_discovered_source_context(result: dict[str, Any]) -> list[str]:
                     f"recent dated evidence row(s)"
                 )
             else:
+                detail = ""
+                if "http_status" in provider:
+                    detail = f" (HTTP {provider['http_status']})"
+                elif provider.get("reason"):
+                    detail = f" ({provider['reason']})"
                 lines.append(
-                    f"    {provider['source']}: unavailable/incomplete "
-                    "source evidence — NOT zero market interest."
+                    f"    {provider['source']}: {provider['status']}{detail}; "
+                    "source evidence incomplete — NOT zero market interest."
                 )
         for item in topic["source_examples"]:
             lines.append(
