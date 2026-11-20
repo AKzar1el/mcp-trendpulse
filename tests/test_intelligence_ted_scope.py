@@ -1,8 +1,6 @@
 """Scope descriptions must stay TED-attributed without inventing lot joins."""
 from __future__ import annotations
 
-from dataclasses import replace
-
 import pytest
 
 from mcp_trendpulse import intelligence_discovery as discovery
