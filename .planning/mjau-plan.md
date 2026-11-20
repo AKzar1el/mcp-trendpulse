@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00 IN VALIDATION; roadmap implementation started  | **Next task:** M00 until release gates pass.
+**Created:** 2026-11-20  | **Status:** M00 COMPLETE (verified)  | **Next task:** M01 — harden existing Trending Now RSS; do not duplicate its adapter.
 
 ## Mission and non-negotiable scope
 
@@ -64,11 +64,14 @@ Build a **global, domain-independent**, free-only trend/keyword discovery engine
 
 ### Phase A — search-demand foundation (highest priority)
 
-#### [ ] M00 — Baseline and interface contract (no new source)
+#### [x] M00 — Baseline and interface contract (no new source)
 - **Reuse:** current `trendspy` / `pandas` / `nltk` / `requests`, SQLite quotas and existing Google Trends tools.
 - Inventory present features, duplicate implementations, dependencies, existing tests/CI and source caps. Define a typed `TrendSignal` contract: `source_id`, `source_url`, `observed_at`, `published_at?`, `country?`, `language?`, `raw_term`, `normalized_term`, `metric_type`, `metric_unit`, `period`, `value?`, `sampling_scope`, `coverage_status`, `provenance`.
 - Preserve named types for absolute Bing impressions, normalized Google Trends interest, topic mentions, pageviews, downloads and merely generated keyword candidates. `null` for missing values; no common numeric growth score without calibrated evidence.
 - **Acceptance:** existing tests pass; no duplicate adapter created; contract tests verify missingness/region/source attribution; small CLI output demonstration. Record actual versions and observed capabilities.
+- **COMPLETE 2026-11-20.** Implementation commits: `fa7a7e4c7ed5a3befdb2de4ec1dda4c543e58def` (new contract, offline CLI and tests), `e27bcd803391ed6a28dd64ed83f520ab30f4fc66` (Ruff cleanup). Delivered `src/mcp_trendpulse/intelligence_signal.py`, `tests/test_intelligence_signal_contract.py` and `intelligence signal-schema --format text|json`. The immutable Pydantic model enforces source/metric unit and class, provenance and country/language, explicit time windows, normalized vs absolute data, search-query vs keyword-hypothesis distinction, missingness and secret-safe public URLs.
+- **Verification:** GitHub Actions for implementation SHA `e27bcd803391ed6a28dd64ed83f520ab30f4fc66`: **14/14 workflows successful**, Python 3.11/3.12/3.13/3.14 CI matrix successful; release validation **1,888 tests passed, 10 deselected, 3 existing warnings**, Ruff clean. `Free intelligence live contract smoke` run `44731831297`, job `136273284756`: **15/15 existing free sources observed** (not a Google Trends RSS measurement). Package publish correctly skipped because PR remains draft. CLI deterministic tests cover JSON schema and human-readable text with network collector forbidden.
+- **No changes:** no added package, source adapter, network fetch in schema CLI, new MCP tool, schedule, credentials, merged branch or release. M01 still requires its own two-country bounded RSS live verification.
 
 #### [ ] M01 — Google Trending Now via public RSS
 - **Source:** Google Trending Now RSS (public); no auth, no browser, no site association.
@@ -175,7 +178,7 @@ Build a **global, domain-independent**, free-only trend/keyword discovery engine
 
 | Milestone | State | Verification and commit | Notes |
 | --- | --- | --- | --- |
-| M00 | ☐ NOT STARTED | — | — |
+| M00 | COMPLETE — 2026-11-20 | PR #328; `e27bcd803391ed6a28dd64ed83f520ab30f4fc66`; 1,888 tests, Ruff clean, 14/14 CI, live smoke 15/15 | Offline signal contract/CLI and source inventory verified; existing RSS and BigQuery must be reused |
 | M01 | ☐ NOT STARTED | — | — |
 | M02 | ☐ NOT STARTED | — | — |
 | M03 | ☐ NOT STARTED | — | — |
