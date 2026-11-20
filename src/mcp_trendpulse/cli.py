@@ -104,6 +104,53 @@ def bigquery_sql(country, kind, limit, snapshot_date, region_code, dma_id):
     click.echo(sql)
 
 
+@cli.command(
+    "bigquery-discover",
+    help="Preview public Trends rankings; opt in to capped jobs on a verified no-billing sandbox.",
+)
+@click.option("--country", required=True, help="Source-supported ISO country code, e.g. US or GB.")
+@click.option("--kind", type=click.Choice(["top", "rising"]), default="top", show_default=True)
+@click.option("--limit", type=click.IntRange(1, 25), default=10, show_default=True)
+@click.option("--snapshot-date", default=None, help="YYYY-MM-DD from the last 30 days; defaults to yesterday.")
+@click.option("--region-code", default=None, help="International ISO 3166-2 subdivision.")
+@click.option("--dma-id", default=None, help="US three-digit Designated Market Area.")
+@click.option("--project-id", default=None,
+              help="Operator-owned Google Cloud sandbox project; never used without --execute.")
+@click.option("--execute", is_flag=True,
+              help="Allow dry run and one bounded public query only if project has NO billing account.")
+@click.option("--format", "output_format", type=click.Choice(["json", "text"]),
+              default="json", show_default=True)
+def bigquery_discover(country, kind, limit, snapshot_date, region_code, dma_id,
+                      project_id, execute, output_format):
+    """Discover public source terms without a site property or paid fallback."""
+    from mcp_trendpulse.bigquery_trends import discover_sandbox_trends
+
+    try:
+        result = discover_sandbox_trends(
+            country=country.strip().upper(), kind=kind, limit=limit,
+            snapshot_date=snapshot_date, region_code=region_code, dma_id=dma_id,
+            project_id=project_id, execute=execute,
+        )
+    except ValueError as exc:
+        raise click.BadParameter(str(exc)) from exc
+    if output_format == "json":
+        click.echo(json.dumps(result, ensure_ascii=False, allow_nan=False, sort_keys=True))
+        return
+    click.echo(
+        f"Google Trends BigQuery {result['kind']} {result['country']} / "
+        f"{result['snapshot_date']}: {result['status']}"
+    )
+    click.echo(f"Preview only: {not execute}; no billing account allowed.")
+    if result.get("reason"):
+        click.echo(f"Unavailable: {result['reason']}")
+    if result["dry_run_estimated_bytes"] is not None:
+        click.echo(f"Dry-run bytes: {result['dry_run_estimated_bytes']}")
+    for signal in result["signals"]:
+        click.echo(f"  {signal['raw_term']} (rank {int(signal['value'])})")
+    if not execute:
+        click.echo("No Google credentials used. Use --execute and --project-id only on a billing-free sandbox.")
+
+
 @cli.group("watch", help="Manage local manual Trend Watch rules; no polling or external alerts.")
 def watch():
     """Trend Watch operates on user-supplied JSON evidence only."""

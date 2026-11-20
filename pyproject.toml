@@ -42,6 +42,11 @@ dependencies = [
 mcp-trendpulse = "mcp_trendpulse.server:main"
 mcp-trendpulse-cli = "mcp_trendpulse.cli:cli"
 
+[project.optional-dependencies]
+bigquery = [
+    "google-cloud-bigquery>=3.38,<4",
+]
+
 
 [build-system]
 requires = ["setuptools"]
