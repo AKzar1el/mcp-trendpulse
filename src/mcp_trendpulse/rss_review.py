@@ -1,9 +1,12 @@
 """Offline provenance and completeness review of saved RSS headline-only JSON."""
 
+import csv
+import io
 import json
 from datetime import datetime
 from urllib.parse import urlsplit
 
+from mcp_trendpulse.brief_audit import _csv_safe
 from mcp_trendpulse.brief_review import _invalid_constant, _markdown_safe, _unique_keys
 
 MAX_RSS_EVIDENCE_BYTES = 1024 * 1024
@@ -62,7 +65,7 @@ def _publisher_breakdown(headlines, *, scope):
 def review_saved_rss_headlines(raw, *, output_format="markdown", contains=None,
                                publisher_breakdown=False):
     """Return a validated offline report and whether manual review is needed."""
-    if output_format not in ("markdown", "json"):
+    if output_format not in ("markdown", "json", "csv"):
         raise ValueError("Unsupported RSS review format")
     if contains is not None:
         if not isinstance(contains, str) or not contains.strip() or len(contains) > 120 or not contains.isprintable():
@@ -149,6 +152,40 @@ def review_saved_rss_headlines(raw, *, output_format="markdown", contains=None,
             "Saved publisher labels are unverified and not independent corroboration or demand evidence.")
     if output_format == "json":
         return json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n", needs_attention
+    if output_format == "csv":
+        buffer = io.StringIO(newline="")
+        fields = [
+            "record_type", "scope", "filter_contains", "title", "publisher", "publish_date",
+            "url", "publisher_headline_count", "headlines", "unique_urls", "duplicate_urls",
+            "missing_publishers", "missing_dates", "matched_headlines",
+            "unknown_publisher_count", "distinct_named_publisher_labels",
+            "largest_named_label_share_pct", "source_authenticated", "limitations",
+        ]
+        writer = csv.DictWriter(buffer, fieldnames=fields, lineterminator="\n")
+        writer.writeheader()
+        scope = "matched_headlines" if contains is not None else "all_unique_urls"
+        summary = {"record_type": "summary", "scope": scope, "source_authenticated": "false",
+                   "filter_contains": _csv_safe(contains) if contains is not None else "",
+                   "matched_headlines": len(result["headlines"]) if contains is not None else "",
+                   "limitations": " ".join(result["caveats"]), **result["summary"]}
+        if publisher_breakdown:
+            summary.update({key: result["publisher_breakdown"][key] for key in (
+                "unknown_publisher_count", "distinct_named_publisher_labels",
+                "largest_named_label_share_pct")})
+        writer.writerow(summary)
+        for item in result["headlines"]:
+            writer.writerow({"record_type": "headline", "scope": scope,
+                             "title": _csv_safe(item["title"]),
+                             "publisher": _csv_safe(item["publisher"] or ""),
+                             "publish_date": _csv_safe(item["publish_date"] or ""),
+                             "url": _csv_safe(item["url"]), "source_authenticated": "false"})
+        if publisher_breakdown:
+            for item in result["publisher_breakdown"]["publishers"]:
+                writer.writerow({"record_type": "publisher", "scope": scope,
+                                 "publisher": _csv_safe(item["publisher"]),
+                                 "publisher_headline_count": item["headlines"],
+                                 "source_authenticated": "false"})
+        return buffer.getvalue(), needs_attention
     lines = ["# Saved Google News RSS headline review (offline)", "",
              f"**Headlines:** {len(headlines)}; **unique URLs:** {len(unique)}; "
              f"**exact URL duplicates:** {duplicate_urls}",

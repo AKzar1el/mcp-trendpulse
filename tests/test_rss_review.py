@@ -1,5 +1,7 @@
 """Provider-free acceptance tests for reviewing saved headline-only RSS JSON."""
 
+import csv
+import io
 import json
 from unittest.mock import patch
 
@@ -195,3 +197,63 @@ def test_rss_review_publisher_breakdown_markdown_escapes_untrusted_labels(tmp_pa
     assert "## Saved publisher label concentration" in result.output
     assert "A \\| \\[x\\]" in result.output
     assert "unverified" in result.output.lower()
+
+
+def test_rss_review_csv_exports_summary_and_safe_unique_headlines_offline(tmp_path):
+    entries = [
+        _headline(title="=1+1", publisher="@News", url="https://news.google.com/rss/articles/a"),
+        _headline(title="Duplicate", publisher="Different", url="https://news.google.com/rss/articles/a"),
+        _headline(title="Valid", publisher=None, publish_date=None,
+                  url="https://news.google.com/rss/articles/b"),
+    ]
+    result = _run(tmp_path, _capture(entries), "--format", "csv")
+    assert result.exit_code == 2, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert [row["record_type"] for row in rows] == ["summary", "headline", "headline"]
+    assert rows[0]["headlines"] == "3"
+    assert rows[0]["unique_urls"] == "2"
+    assert rows[0]["duplicate_urls"] == "1"
+    assert rows[0]["source_authenticated"] == "false"
+    assert "not verified full articles" in rows[0]["limitations"]
+    assert rows[1]["title"].startswith("'=1+1")
+    assert rows[1]["publisher"] == "'@News"
+    assert rows[2]["publisher"] == ""
+
+
+def test_rss_review_csv_filter_and_optional_publisher_rows_have_scoped_counts(tmp_path):
+    entries = [
+        _headline(title="Agent tool", publisher="+Wire",
+                  url="https://news.google.com/rss/articles/a"),
+        _headline(title="Energy tool", publisher="+Wire",
+                  url="https://news.google.com/rss/articles/b"),
+        _headline(title="Agent kit", publisher=None,
+                  url="https://news.google.com/rss/articles/c"),
+    ]
+    result = _run(tmp_path, _capture(entries), "--format", "csv", "--contains", "agent",
+                  "--publisher-breakdown")
+    assert result.exit_code == 2, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert [row["record_type"] for row in rows] == ["summary", "headline", "headline", "publisher"]
+    assert rows[0]["headlines"] == "3"
+    assert rows[0]["matched_headlines"] == "2"
+    assert rows[0]["scope"] == "matched_headlines"
+    assert rows[0]["unknown_publisher_count"] == "1"
+    assert rows[0]["largest_named_label_share_pct"] == "50.0"
+    assert rows[0]["filter_contains"] == "agent"
+    assert rows[3]["publisher"] == "'+Wire"
+    assert rows[3]["publisher_headline_count"] == "1"
+
+
+def test_rss_review_csv_empty_evidence_and_no_overwrite(tmp_path):
+    destination = tmp_path / "review.csv"
+    result = _run(tmp_path, _capture([]), "--format", "csv", "--output-file", str(destination))
+    assert result.exit_code == 2, result.output
+    rows = list(csv.DictReader(io.StringIO(destination.read_text(encoding="utf-8"))))
+    assert len(rows) == 1
+    assert rows[0]["record_type"] == "summary"
+    assert rows[0]["headlines"] == "0"
+    original = destination.read_text(encoding="utf-8")
+    blocked = _run(tmp_path, _capture([_headline()]), "--format", "csv", "--output-file",
+                   str(destination))
+    assert blocked.exit_code != 0
+    assert destination.read_text(encoding="utf-8") == original
