@@ -201,11 +201,15 @@ def watch_evaluate(rule_id, evidence, dry_run):
               multiple=True, required=True, help="Repeat for up to 12 saved keyword/market series JSON files.")
 @click.option("--format", "output_format", type=click.Choice(["json", "csv", "markdown"]), default="json",
               show_default=True, help="Offline multi-rule preview; never records alerts or cooldowns.")
-def watch_preview_all(evidence_files, output_format):
+@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
+              help="Save a new UTF-8 preview file without overwriting an existing report.")
+def watch_preview_all(evidence_files, output_format, output_file):
     """Preview all saved watches against supplied matching series without network calls."""
     from mcp_trendpulse.trend_watch import MAX_EVIDENCE_BYTES, WatchStore, evaluate_watch, parse_evidence
 
     try:
+        if output_file is not None and (output_file.exists() or not output_file.parent.is_dir()):
+            raise ValueError("Preview destination must be a new file in an existing directory")
         if len(evidence_files) > 12:
             raise ValueError("At most 12 evidence files may be reviewed at once")
         rules = WatchStore().list_rules()
@@ -254,8 +258,8 @@ def watch_preview_all(evidence_files, output_format):
     note = ("User-supplied normalized Trends-style series are not independently verified. "
             "This dry-run does not record alerts, consume cooldowns, or fetch providers.")
     if output_format == "json":
-        click.echo(json.dumps({"dry_run": True, "source_verified": False, "note": note,
-                               "status_counts": status_counts, "rules": results}, sort_keys=True))
+        report = json.dumps({"dry_run": True, "source_verified": False, "note": note,
+                             "status_counts": status_counts, "rules": results}, sort_keys=True)
     elif output_format == "markdown":
         from mcp_trendpulse.brief_review import _markdown_safe
 
@@ -306,7 +310,7 @@ def watch_preview_all(evidence_files, output_format):
         lines.extend(["", "Below-threshold, stale, irregular, insufficient, duplicate, or cooldown "
                       "outcomes are not negative market forecasts. Do not compare normalized "
                       "indices across separately collected series."])
-        click.echo("\n".join(lines))
+        report = "\n".join(lines)
     else:
         fields = ("rule_id", "keyword", "market", "status", "evidence_present", "evidence_date",
                   "baseline_interest", "current_interest", "growth_pct", "dry_run", "source_verified", "note")
@@ -316,7 +320,13 @@ def watch_preview_all(evidence_files, output_format):
         for item in results:
             row = {**item, "dry_run": True, "source_verified": False, "note": item["note"] + " " + note}
             writer.writerow({field: _brief_csv_cell(row.get(field)) for field in fields})
-        click.echo(output.getvalue(), nl=False)
+        report = output.getvalue()
+
+    if output_file is None:
+        click.echo(report, nl=output_format != "csv")
+    else:
+        saved_report = report if output_format == "csv" else report + "\n"
+        _save_new_brief_report(output_file, saved_report, kind="preview", label="Trend Watch")
 
 
 @watch.command("backtest")

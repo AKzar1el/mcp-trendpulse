@@ -92,6 +92,22 @@ This preview is a read-only snapshot of the saved rule, not an atomic
 reservation; a concurrent real evaluation can change the subsequent decision.
 Without the flag, recording and the original JSON output are unchanged.
 
+To review several existing Watch rules at once without fetching data, supply
+up to twelve saved series and use `watch preview-all`. The JSON default, CSV
+and human-readable Markdown outputs include unmatched rules as missing
+evidence, never zero demand. Save a review to a **new** file with `--output-file`:
+
+```bash
+uv run mcp-trendpulse-cli watch preview-all --evidence ./us-ai.json --evidence ./gb-cloud.json --format markdown --output-file ./watch-triage.md
+```
+
+The saved UTF-8 report contains the same content as stdout, with untrusted
+Markdown and spreadsheet-formula text escaped in their respective formats.
+An existing destination, invalid source, or missing destination directory
+fails without overwriting a report. The preview never creates alerts, changes
+cooldowns, compares separately normalized series as absolute demand, or
+contacts any provider.
+
 For a retrospective, non-recording **walk-forward simulation** across one
 supplied series, run `watch backtest`. It evaluates each complete two-window
 prefix in date order, simulates cooldown from the first candidate observation,

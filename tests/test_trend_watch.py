@@ -179,6 +179,58 @@ def test_watch_preview_all_markdown_escapes_untrusted_labels_and_marks_insuffici
     assert store.get(rule.id).last_alert_date is None
 
 
+@pytest.mark.parametrize("format_name", ["json", "csv", "markdown"])
+def test_watch_preview_all_can_save_exact_offline_report_without_recording(tmp_path, monkeypatch, format_name):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI | research", market="US", growth_pct=30, window=2)
+    evidence_file = tmp_path / "series.json"
+    evidence_file.write_bytes(evidence(rule.keyword, "US", [10, 10, 40, 60]))
+    target = tmp_path / f"watch-report.{format_name}"
+    args = ["watch", "preview-all", "--evidence", str(evidence_file), "--format", format_name]
+    runner = CliRunner()
+    expected = runner.invoke(cli, args)
+    assert expected.exit_code == 0, expected.output
+
+    saved = runner.invoke(cli, [*args, "--output-file", str(target)])
+    assert saved.exit_code == 0, saved.output
+    assert target.read_bytes() == expected.output.encode("utf-8")
+    assert "Wrote Trend Watch preview" in saved.output
+    assert store.get(rule.id).last_alert_date is None
+
+
+def test_watch_preview_all_output_file_refuses_overwrite_or_bad_directory(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2)
+    path = tmp_path / "series.json"
+    path.write_bytes(evidence("AI", "US", [10, 10, 50, 60]))
+    report = tmp_path / "existing.md"
+    report.write_text("owner report", encoding="utf-8")
+    args = ["watch", "preview-all", "--evidence", str(path), "--format", "markdown", "--output-file"]
+    runner = CliRunner()
+    existing = runner.invoke(cli, [*args, str(report)])
+    assert existing.exit_code != 0 and "new file" in existing.output
+    assert report.read_text(encoding="utf-8") == "owner report"
+    invalid = runner.invoke(cli, [*args, str(tmp_path / "absent" / "report.md")])
+    assert invalid.exit_code != 0 and "existing directory" in invalid.output
+    assert store.get(rule.id).last_alert_date is None
+
+
+def test_watch_preview_all_invalid_evidence_never_creates_output_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2)
+    bad = tmp_path / "bad.json"
+    bad.write_bytes(b"not json")
+    target = tmp_path / "report.csv"
+    result = CliRunner().invoke(cli, [
+        "watch", "preview-all", "--evidence", str(bad), "--format", "csv", "--output-file", str(target),
+    ])
+    assert result.exit_code != 0 and not target.exists()
+    assert store.get(rule.id).last_alert_date is None
+
+
 def test_watch_preview_all_csv_escapes_formula_labels(tmp_path, monkeypatch):
     monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
     store = WatchStore(tmp_path)
