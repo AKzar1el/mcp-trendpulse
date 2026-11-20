@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00 COMPLETE (verified)  | **Next task:** M01 — harden existing Trending Now RSS; do not duplicate its adapter.
+**Created:** 2026-11-20  | **Status:** M00 COMPLETE; M01 IMPLEMENTED — LIVE VALIDATION PENDING  | **Next task:** M01 until two real country feeds and CI pass.
 
 ## Mission and non-negotiable scope
 
@@ -78,6 +78,8 @@ Build a **global, domain-independent**, free-only trend/keyword discovery engine
 - **Reuse:** `trendspy` if it actually provides a stable RSS method. Only fall back to existing HTTP/XML parser if the available version lacks safe RSS handling.
 - **Output:** observed trending terms, publication time, source location, related news when supplied, source market. Optional traffic buckets must retain their original semantics; no invented exact volume.
 - **Acceptance:** two permitted countries where supported, live RSS parsing, duplicate removal, empty/malformed XML/429 tests, daily cache, no Chrome or auth.
+- **M01 implementation note (2026-11-20):** reuse the `get_provider_set().trends.get_trending_terms(..., full_data=True)` adapter, which already calls `trendspy.trending_now_by_rss`. New `intelligence trending-now --geo US --execute` CLI is explicitly opt-in. Source-attributed `TrendSignal` records retain source RSS country, approximate *bucket* (never exact count), feed start date when available, source news references, and grouped-label provenance; language remains unknown unless the source provides it. Offline mode requires no cache or network. Local persistent `BudgetCache` provides 15-minute TTL and hard 12/UTC-day source-call cap; repeated queries are cached, and 429 shares a local cooldown. Limited RSS list is not complete Google searches.
+- **Verification gate:** deterministic offline tests plus existing CI; bounded source verification for **US and GB** is executed by the existing free-source smoke workflow using `scripts/mjau_rss_live_smoke.py` (two provider operations maximum; no browser or proxy). Do **not** check M01 until the script reports both countries observed with source date/traffic/news and all relevant CI checks pass. No GSC/GA4/paid source.
 
 #### [ ] M02 — RapidFuzz keyword normalization, dedup and lexical clusters
 - **Library:** add `rapidfuzz` to core only after reviewing binary wheels/lockfile and Windows Python 3.11–3.14 support.

@@ -872,6 +872,29 @@ def intelligence_signal_schema(output_format):
     click.echo("Use --format json to inspect the versioned Pydantic JSON Schema.")
 
 
+@intelligence.command("trending-now")
+@click.option("--geo", type=str, default="US", show_default=True,
+              help="Source-supported uppercase country code, e.g. US, GB, SI.")
+@click.option("--execute", is_flag=True,
+              help="Opt in to one capped live Google Trending Now RSS request, or cached result.")
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]),
+              default="text", show_default=True)
+def intelligence_trending_now(geo, execute, output_format):
+    """Country-scoped public Trending Now RSS using the existing TrendSpy provider."""
+    from mcp_trendpulse.intelligence_rss import (
+        discover_trending_rss, format_rss_report,
+    )
+
+    try:
+        result = asyncio.run(discover_trending_rss(geo, execute=execute))
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    if output_format == "json":
+        click.echo(json.dumps(result, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_rss_report(result))
+
+
 @intelligence.command("sources")
 @click.option("--wave", type=click.IntRange(1, 3), default=None)
 def intelligence_sources(wave):
