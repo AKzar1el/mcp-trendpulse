@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00–M02 COMPLETE (verified); M03 implementation offline-verified, LIVE BLOCKED  | **Next task:** M03 — verify actual billing-free sandbox evidence before M04.
+**Created:** 2026-11-20  | **Status:** M00–M02 COMPLETE; M03 implemented/live blocked; M04 implemented/live blocked (operator-authorized deferral)  | **Next task:** Finish M03/M04 live acceptance after their independent prerequisites; M05 untouched.
 
 ## Mission and non-negotiable scope
 
@@ -122,12 +122,56 @@ claimed.
 BigQuery sandbox with billing unattached and ADC, with source ranks, selected
 country/snapshot and dry-run byte estimate. M03 stays unchecked and M04 must
 not start until the live gate is met or the user explicitly changes priority.
+**Operator update, 2026-11-20:** Google Cloud CLI 594.0.0 and Application
+Default Credentials are now installed/authenticated on Windows, but the user
+is deferring selection of a no-billing BigQuery sandbox project until they
+return. This does **not** satisfy M03's required live query. The user
+explicitly authorized working on exactly one additional milestone, M04,
+without changing cloud accounts or billing in their absence.
 - **Source:** public `bigquery-public-data.google_trends` international/US top and rising terms; daily snapshots, source-covered countries only; generally **Top 25** daily, **30-day publication partitions**, historical metric backfills for included terms. This is **not every keyword or exact search-volume data**.
 - **Library:** optional `google-cloud-bigquery` with operator-managed sandbox auth; do not require Google Cloud credentials for normal TrendPulse operation.
 - **Hard rule:** allow only Google BigQuery **sandbox/no billing account**, query dry run, source/table/partition allowlist, explicit `maximumBytesBilled`, small row limit, date/country partition predicates, local query budget. Sandbox free query tier does not authorize enabling billing.
 - **Acceptance:** one bounded public-data query with recorded bytes estimate, a supported country and dates, original source metric semantics; graceful `no_sandbox_credentials` or unsupported geography without paid fallback.
 
 #### [ ] M04 — Google Trends Explore and related search evidence
+**IMPLEMENTED/OFFLINE VERIFIED 2026-11-20; NOT COMPLETE — LIVE LOCAL BUDGET BLOCKED.**
+The user explicitly deferred only M03 live verification and permitted
+implementation of M04 while away. New opt-in CLI:
+intelligence explore-evidence --term "AI agents" --country SI
+--timeframe "today 3-m" [--execute] --format json,
+or --source-file observed-m01-or-m03.json to select one fresh, validated
+source-backed M01/M03 term. Default remains strictly offline; no credentials,
+site property, browser or billing needed. Reuses existing TrendSpy related
+queries and interest-over-time adapter, **the same shared 2/UTC-day local
+provider-operation budget** as the earlier idea keyword probe, six-hour
+cached repeats, the existing paced worker and cooldown, and 429 local
+circuit breaker. Top and rising values remain within-query relative
+scores and prior comparable-period percentages. Google's Breakout is
+**greater than 5000%**, not 5000 searches or an exact volume. Interest
+points are validated original date-scoped 0–100 normalized TrendSignals;
+no cross-request calibration, invented absolute volume, or keyword-demand
+verification. See src/mcp_trendpulse/intelligence_explore.py,
+tests/test_mjau_explore.py, and docs/google-trends-explore.md.
+
+**Verification:** 65 scoped M00–M04/legacy probe tests passed including
+the final cache-hardening rerun; full Ruff checks passed. Full local repository run after the
+initial implementation: **1,742 passed, 1 failed, 10 deselected, 3
+warnings** in 75 seconds. Failure is the same pre-existing
+test_discover_cli_plan_only_and_history_gate assertion against the
+local OpenAlex Authorization header label, even though its value
+is redacted; no M04 tests failed. GitHub CI for the M04 head must be
+recorded separately.
+
+**Live gate:** A bounded opt-in attempt to get an M01 GB RSS source seed
+returned local_budget_store_unavailable, **zero RSS operations and
+zero Google Explore operations**, because the existing user-local
+.mcp-trendpulse/intelligence budget directory denied access to
+the current Windows account (PermissionError WinError 5).
+We did **not** replace the shared quota database with a different path,
+change ACLs, scrape, proxy, or bypass the quota. M04 is unchecked until
+this existing store's owner/ACLs can be reconciled and one bounded,
+source-attributed live Explore query succeeds.
+
 - **Reuse:** existing `trendspy` and current optional Google Trends `intelligence_keyword_probe` quota/cooldown implementation, not a second client.
 - Seed with genuinely observed M01/M03 terms and user-supplied market/topic. Retrieve top/rising related queries and normalized interest where supported; retain timeframe, country and comparative-series basis. Do not derive exact search volume.
 - **Acceptance:** one small permitted live request or explicit upstream restriction, cached repeat, 429/cooldown/quota test, correct 'breakout' semantics, no infinite retries/proxies, no website property.
@@ -218,8 +262,8 @@ not start until the live gate is met or the user explicitly changes priority.
 | M00 | COMPLETE — 2026-11-20 | PR #328; `e27bcd803391ed6a28dd64ed83f520ab30f4fc66`; 1,888 tests, Ruff clean, 14/14 CI, live smoke 15/15 | Offline signal contract/CLI and source inventory verified; existing RSS and BigQuery must be reused |
 | M01 | COMPLETE — 2026-11-20 | PR #328; `5337ea8f10f68fb83d46e8341342fe94de5b0832`; 1,912 tests, Ruff clean, 14/14 CI; US+GB 10 labels each, one RSS call per market | Existing TrendSpy RSS reused; offline/opt-in CLI; M00 signal provenance, 15-min cache, 12/day local budget, safe related news. Next M02 |
 | M02 | COMPLETE — 2026-11-20 | PR #328; `0c29f7ccb9f7677622e6e3922b1646b0cf8e9a8e`; RapidFuzz 3.14.6 locked; 1,937 tests and Ruff clean; 14/14 CI | Offline 200-signal lexical clusters, market/language isolation, branded/polarity safeguards; M03 next |
-| M03 | IMPLEMENTED/OFFLINE VERIFIED; LIVE BLOCKED — 2026-11-20 | PR #328; implementation df41073; 39 focused tests and full Ruff pass; 1,729 full-suite pass / 2 unrelated fails / 10 deselected; SDK 3.47.0 checked | No sandbox project/ADC on host; no live source query, so M03 remains unchecked |
-| M04 | ☐ NOT STARTED | — | — |
+| M03 | IMPLEMENTED/OFFLINE VERIFIED; LIVE BLOCKED — 2026-11-20 | PR #328; implementation df41073; 39 focused tests and full Ruff pass; 1,729 full-suite pass / 2 unrelated fails / 10 deselected; SDK 3.47.0 checked | ADC now authenticated, but no verified unbilled BigQuery sandbox project or source query; M03 remains unchecked |
+| M04 | IMPLEMENTED/OFFLINE VERIFIED; LIVE BLOCKED — 2026-11-20 | PR #328; 5e2d279a00f453c1521204fc4b6faa27da2d93f3; 65 focused tests pass, full Ruff clean, local full 1,742 pass / 1 pre-existing failure / 10 deselected | Shared quota SQLite directory denies access (WinError 5), so zero provider operations; M04 stays unchecked; no ACL/quota bypass |
 | M05 | ☐ NOT STARTED | — | — |
 | M06 | ☐ NOT STARTED | — | — |
 | M07 | ☐ NOT STARTED | — | — |
