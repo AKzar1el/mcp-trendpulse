@@ -859,6 +859,47 @@ $env:UV_LINK_MODE = "copy"
 uvx --from "git+https://github.com/AKzar1el/mcp-trendpulse.git@<tested-commit>" mcp-trendpulse-cli intelligence discover --execute --workflow-briefs --workflow-cross-check --ted-date-slices 3 --limit 20 --lookback-days 30 --format text
 ```
 
+### Opt-in source-published procurement scope excerpts (2026-11-20)
+
+The user field test found two forward-lot-date TED IT/software leads but
+neither could safely yield an original two-word phrase for GitHub/USAspending
+follow-up. The publication titles hid the actual implementation scopes:
+German `Finanzsoftware` relates to an integrated finance/budget plus
+building/property management (CAFM) implementation; the Greek employment
+digital portal tender contains a separate communications/publicity lot.
+A generic original title, broad CPV or overall procedure estimate does
+not identify a product niche, lot budget or active bid.
+
+Use the **optional** `--ted-scope-details` flag with `--workflow-briefs`
+to inspect up to two official TED publication numbers selected from the
+source-backed future-lot-date briefs. Every request is built through the
+existing TED adapter with a strict `publication-number = NNNNNN-YYYY`
+query, `limit=1`, and adds only official `description-proc`,
+`title-lot`, and `description-lot` projection fields. These fields
+are documented by the TED Search API; the option consumes **at most
+two additional free source requests**, uses the existing UTC-day cap,
+cache, no-redirect policy, timeout and 256-KiB per-request limit,
+and does not add any provider or automated task.
+
+The result includes up to one procedure description and two source
+excerpts each for lot titles and lot descriptions. The text is short,
+control/URL/email sanitized, and original-language only. TED Search
+projections can flatten multiple lots and languages. The module
+**never assigns** a specific description to a lot identifier, budget,
+deadline, buyer or award; corresponding official documents remain
+necessary before any product concept, bidder eligibility or financial
+opportunity can be confirmed. If notice ID verification fails or the
+provider is unavailable, the output clearly shows that status without
+exposing raw provider content, secrets or redirect URLs. No method
+estimates market demand, sales opportunity or keyword search volume.
+
+Example focused field test:
+
+```powershell
+$env:UV_LINK_MODE = "copy"
+uvx --from "git+https://github.com/AKzar1el/mcp-trendpulse.git@<tested-commit>" mcp-trendpulse-cli intelligence discover --execute --workflow-briefs --ted-scope-details --ted-date-slices 3 --lookback-days 30 --limit 20 --format text
+```
+
 ### Source availability diagnosis without unsafe error disclosure (2026-11-20)
 
 The complete owner field test returned one exploratory research watchlist
