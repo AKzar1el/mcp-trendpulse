@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00–M02 COMPLETE (verified)  | **Next task:** M03 — official Google Trends BigQuery sandbox.
+**Created:** 2026-11-20  | **Status:** M00–M02 COMPLETE (verified); M03 implementation offline-verified, LIVE BLOCKED  | **Next task:** M03 — verify actual billing-free sandbox evidence before M04.
 
 ## Mission and non-negotiable scope
 
@@ -92,6 +92,36 @@ Build a **global, domain-independent**, free-only trend/keyword discovery engine
 - **Output semantics:** all individual raw source measurements and source references remain separate; fuzzy similarity is lexical only, never evidence of demand or semantic equivalence. No GSC/GA4, browsing, scheduler or new infrastructure.
 
 #### [ ] M03 — Google Trends official BigQuery dataset (no billing)
+**IMPLEMENTED LOCALLY 2026-11-20; NOT COMPLETE — LIVE AUTH BLOCKED.** The
+existing SQL-only preview remains unchanged. M03 adds a separate operator-only,
+opt-in discovery path with an optional official Google BigQuery Python SDK;
+it never loads cloud credentials in the normal/offline path. Before any query
+job it checks the Cloud Billing projects.getBillingInfo response and requires
+no attached billing account. Missing/ambiguous verification fails closed.
+It reserves from a persistent local three-per-UTC-day source budget, dry-runs,
+rejects byte estimates above 100 MiB, and sets maximum_bytes_billed on the
+actual job. No job retries, paid fallback, separate worker, GSC, GA4 or site
+property. Results preserve source, geography, snapshot date, rank semantics,
+unknown language and lack of measured total search volume. See
+docs/bigquery-trends.md and tests/test_mjau_bigquery_sandbox.py.
+
+**Verification:** 39 focused existing+new BigQuery tests passed; full repo
+Ruff passed. google-cloud-bigquery 3.47.0 installed as an optional extra;
+actual query/dry-run/job-config interfaces checked. An explicitly opted-in
+CLI attempt returned no_sandbox_credentials with **zero jobs started**.
+No Google Cloud project, ADC, gcloud or bq executable is configured.
+The full offline suite: **1,729 pass, 10 deselected, 2 failures and 3
+warnings**. Existing intelligence discovery planning emits a redacted
+Authorization header when the local OpenAlex credential is configured;
+unrelated singleflight thread timing expected concurrent fetches on a busy
+Windows host (its isolated rerun passed). The discovery test still fails in
+isolation. Neither failing test is in the M03 code, but full green is **not**
+claimed.
+
+**Outstanding acceptance:** one genuine, bounded query in an operator-owned
+BigQuery sandbox with billing unattached and ADC, with source ranks, selected
+country/snapshot and dry-run byte estimate. M03 stays unchecked and M04 must
+not start until the live gate is met or the user explicitly changes priority.
 - **Source:** public `bigquery-public-data.google_trends` international/US top and rising terms; daily snapshots, source-covered countries only; generally **Top 25** daily, **30-day publication partitions**, historical metric backfills for included terms. This is **not every keyword or exact search-volume data**.
 - **Library:** optional `google-cloud-bigquery` with operator-managed sandbox auth; do not require Google Cloud credentials for normal TrendPulse operation.
 - **Hard rule:** allow only Google BigQuery **sandbox/no billing account**, query dry run, source/table/partition allowlist, explicit `maximumBytesBilled`, small row limit, date/country partition predicates, local query budget. Sandbox free query tier does not authorize enabling billing.
@@ -188,7 +218,7 @@ Build a **global, domain-independent**, free-only trend/keyword discovery engine
 | M00 | COMPLETE — 2026-11-20 | PR #328; `e27bcd803391ed6a28dd64ed83f520ab30f4fc66`; 1,888 tests, Ruff clean, 14/14 CI, live smoke 15/15 | Offline signal contract/CLI and source inventory verified; existing RSS and BigQuery must be reused |
 | M01 | COMPLETE — 2026-11-20 | PR #328; `5337ea8f10f68fb83d46e8341342fe94de5b0832`; 1,912 tests, Ruff clean, 14/14 CI; US+GB 10 labels each, one RSS call per market | Existing TrendSpy RSS reused; offline/opt-in CLI; M00 signal provenance, 15-min cache, 12/day local budget, safe related news. Next M02 |
 | M02 | COMPLETE — 2026-11-20 | PR #328; `0c29f7ccb9f7677622e6e3922b1646b0cf8e9a8e`; RapidFuzz 3.14.6 locked; 1,937 tests and Ruff clean; 14/14 CI | Offline 200-signal lexical clusters, market/language isolation, branded/polarity safeguards; M03 next |
-| M03 | ☐ NOT STARTED | — | — |
+| M03 | IMPLEMENTED/OFFLINE VERIFIED; LIVE BLOCKED — 2026-11-20 | PR #328; implementation df41073; 39 focused tests and full Ruff pass; 1,729 full-suite pass / 2 unrelated fails / 10 deselected; SDK 3.47.0 checked | No sandbox project/ADC on host; no live source query, so M03 remains unchecked |
 | M04 | ☐ NOT STARTED | — | — |
 | M05 | ☐ NOT STARTED | — | — |
 | M06 | ☐ NOT STARTED | — | — |
