@@ -96,7 +96,8 @@ def scan_software_procurements(
         "provider_cooldown", "HTTPError", "URLError", "TimeoutError",
         "collection_failed",
     }
-    reason = outcome.get("reason")
+    raw_reason = outcome.get("reason")
+    reason = raw_reason if isinstance(raw_reason, str) else ""
     if outcome.get("status") != "observed":
         result["source_failure_reason"] = (
             reason if reason in safe_reasons else "source_failure_unclassified"
