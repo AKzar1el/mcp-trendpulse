@@ -11,7 +11,6 @@ import hashlib
 import json
 import math
 import re
-from datetime import date
 from typing import Any
 
 from mcp_trendpulse.intelligence_core import BudgetCache, IntelligenceError
@@ -234,8 +233,13 @@ async def probe_idea_keywords_async(
         }:
             observed += 1
             try:
-                store.save(key, {"status": output["status"], "top": output["top"],
-                                 "rising": output["rising"]}, CACHE_TTL_SECONDS)
+                store.save(key, {
+                    "status": output["status"],
+                    "top": [{"query": r["query"], "value": r["provider_value"],
+                             "is_breakout": r["is_breakout"]} for r in output["top"]],
+                    "rising": [{"query": r["query"], "value": r["provider_value"],
+                                "is_breakout": r["is_breakout"]} for r in output["rising"]],
+                }, CACHE_TTL_SECONDS)
             except (OSError, ValueError):
                 pass  # Shared cache is best effort, not evidence.
         summary["results"].append(output)
