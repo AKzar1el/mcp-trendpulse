@@ -101,6 +101,17 @@ def test_market_language_and_unknown_scope_never_cross_merge():
     assert {x["country"] for x in report["clusters"]} == {"US", "GB", None}
 
 
+def test_brand_suffixes_and_negated_terms_must_never_fuzzy_merge():
+    candidates = [
+        ("OpenAI Codex", "OpenAI Code"),
+        ("Google Ads", "Google Ad"),
+        ("agent reliability checker", "agent unreliability checker"),
+    ]
+    for left, right in candidates:
+        result = cluster_keyword_signals([signal(left), signal(right)])
+        assert result["cluster_count"] == 2, (left, right)
+
+
 def test_diacritic_only_variants_and_distinct_programming_languages_preserved():
     result = cluster_keyword_signals([
         signal("slovenski šolski sistem", language="sl"),

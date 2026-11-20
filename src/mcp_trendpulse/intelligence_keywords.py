@@ -90,6 +90,17 @@ def _safe_near_duplicate(left: str, right: str, threshold: float) -> float | Non
     # let token-set/subsequence matchers collapse entirely different queries.
     if len(set(lt) ^ set(rt)) > 2:
         return None
+    # Preserve meaningful product names and polarities: 'OpenAI Code' is not
+    # 'OpenAI Codex'; 'reliability' must not merge with 'unreliability'.
+    changed_left = [token for token in lt if token not in shared]
+    changed_right = [token for token in rt if token not in shared]
+    if len(changed_left) == len(changed_right) == 1:
+        first, second = changed_left[0], changed_right[0]
+        if first.startswith(second) or second.startswith(first):
+            return None
+        for prefix in ("un", "non", "anti", "dis", "in", "im", "ir", "il"):
+            if first == prefix + second or second == prefix + first:
+                return None
     score = fuzz.ratio(left, right, score_cutoff=threshold)
     if score < threshold:
         return None
