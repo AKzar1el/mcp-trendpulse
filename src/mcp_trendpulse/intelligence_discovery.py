@@ -936,6 +936,8 @@ def discover_current(
     workflow_briefs: bool = False,
     workflow_cross_check: bool = False,
     ted_scope_details: bool = False,
+    idea_map: bool = False,
+    keyword_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Free, read-only discovery; optional source-count trend measurement."""
     if isinstance(lookback_days, bool) or not isinstance(lookback_days, int) or not 7 <= lookback_days <= 90:
@@ -972,6 +974,12 @@ def discover_current(
         raise ValueError("ted_scope_details must be a boolean")
     if ted_scope_details and not workflow_briefs:
         raise ValueError("--ted-scope-details requires --workflow-briefs")
+    if not isinstance(idea_map, bool):
+        raise ValueError("idea_map must be a boolean")
+    if idea_map and not workflow_briefs:
+        raise ValueError("--idea-map requires --workflow-briefs")
+    if keyword_evidence is not None and not idea_map:
+        raise ValueError("Keyword evidence requires --idea-map")
     now = date.today()
     first = now - timedelta(days=lookback_days - 1)
     plans = [
@@ -1025,6 +1033,14 @@ def discover_current(
                     "requires_execute_for_source_notice_identifiers": True,
                     "lot_scope_and_budget_join_verified": False,
                 }
+        if idea_map:
+            planned["idea_map"] = {
+                "status": "planned_offline_source_backed_hypotheses",
+                "source_requests_added": 0,
+                "requires_execute_for_source_records": True,
+                "keyword_evidence_attached_only_when_executed": bool(keyword_evidence),
+                "keyword_search_volume_verified": False,
+            }
         if measure_trends:
             from mcp_trendpulse.intelligence_trends import (
                 MAX_ADDITIONAL_REQUESTS, MAX_TOPICS, PUBLICATION_LAG_DAYS,
@@ -1278,6 +1294,12 @@ def discover_current(
             " multilingual arrays; individual lots, deadlines, budgets and"
             " software-only spending are not linked or verified."
         )
+    if idea_map:
+        from mcp_trendpulse.intelligence_idea_map import build_idea_map
+
+        result["idea_map"] = build_idea_map(
+            result, keyword_evidence=keyword_evidence,
+        )
     return result
 
 
@@ -1336,6 +1358,11 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             lines.extend(format_workflow_followup(
                 result["workflow_briefs"]["independent_source_checks"]
             ))
+        lines.append("")
+    if result.get("idea_map") is not None:
+        from mcp_trendpulse.intelligence_idea_map import format_idea_map
+
+        lines.extend(format_idea_map(result["idea_map"]))
         lines.append("")
         lines.append("")
     sample_audit = result.get("ted_sampling_audit", {})

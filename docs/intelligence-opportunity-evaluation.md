@@ -859,6 +859,57 @@ $env:UV_LINK_MODE = "copy"
 uvx --from "git+https://github.com/AKzar1el/mcp-trendpulse.git@<tested-commit>" mcp-trendpulse-cli intelligence discover --execute --workflow-briefs --workflow-cross-check --ted-date-slices 3 --limit 20 --lookback-days 30 --format text
 ```
 
+### Integrated project-idea and SEO keyword investigation map (2026-11-20)
+
+The opt-in `--idea-map` switch requires `--workflow-briefs`, and
+synthesizes **bounded, explicitly unverified product hypotheses** from
+the same source-backed TED procurement and CFPB consumer-problem
+investigations. When `--ted-scope-details` is also set, the published
+procedure and unassigned lot excerpts inform project scope. Optional
+`--measure-trends` still measures **OpenAlex publication momentum**,
+not Google keyword interest or search traffic. No new provider is
+queried by `--idea-map`, no automatic polling is enabled, no LLM
+generates untraceable industry ideas, and no scheduled fleet is modified.
+
+Each item has its source reference, origin geography and target-buyer
+hypothesis, tentative minimal software direction, available scope,
+and validation gaps for **repeat buyers, incumbents, budget,
+product-market fit and monetization**. Keyword candidates use only
+original published source words (or a visibly labeled combination
+of published consumer product/issue categories) in the source
+language. They are **not** known search queries, Google search volumes,
+CPC or SEO difficulty. An original German/Greek term is not silently
+translated into English and its source geography is not proof that
+Google searches are occurring in that country.
+
+An optional `--keyword-evidence-file` (<=64 KiB) accepts exactly the
+existing Trend Watch JSON contract: one `keyword`, one two-letter
+uppercase `market`, and a dated `points` series containing 0–100
+normalized, complete trend observations. It uses Trend Watch's existing
+offline validation and freshness/cadence checks. Results attach only
+when the term **and country** exactly match a proposed keyword. The
+series is operator-supplied and provider provenance is **not**
+independently verified; normalized Google Trends interest is not
+absolute keyword search volume and cannot by itself establish a paid
+software market. A missing or stale series stays inconclusive rather
+than being imputed. There is no Google Trends scraping or alpha-only
+API dependency. Google's public Trends API remains restricted to
+accepted alpha participants.
+
+Example combined read-only run:
+
+```powershell
+$env:UV_LINK_MODE = "copy"
+uvx --from "git+https://github.com/AKzar1el/mcp-trendpulse.git@<tested-commit>" mcp-trendpulse-cli intelligence discover --execute --workflow-briefs --ted-scope-details --idea-map --ted-date-slices 3 --lookback-days 30 --limit 20 --format text
+```
+
+After reviewing candidate terms in Google Trends Explore for
+the appropriate language and country, an operator may supply a
+normalized series via `--keyword-evidence-file .\source-series.json`.
+Google Search Console gives **site-specific** impressions/clicks,
+not market-wide keyword demand. Do not apply keyword-volume, click
+or conversion estimates without corresponding direct measurements.
+
 ### Opt-in source-published procurement scope excerpts (2026-11-20)
 
 The user field test found two forward-lot-date TED IT/software leads but

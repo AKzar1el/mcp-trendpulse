@@ -72,6 +72,14 @@ def main() -> int:
                 or issue_plan["trend_evidence"]["max_additional_github_issue_searches"] != 4
                 or not issue_plan["trend_evidence"]["corroborate_issues_opted_in"]):
             raise AssertionError("Issue corroboration plan is not bounded and offline")
+        idea_plan = discover_current(
+            execute=False, workflow_briefs=True, idea_map=True,
+            ted_scope_details=True, cache=cache, env={},
+        )
+        if (idea_plan["network_performed"]
+                or idea_plan["idea_map"]["source_requests_added"] != 0
+                or idea_plan["max_requests_with_ted_scope_details"] != 5):
+            raise AssertionError("Idea map planning must be offline and share TED scope bounds")
         scope_plan = discover_current(
             execute=False, workflow_briefs=True, ted_scope_details=True,
             cache=cache, env={},
