@@ -979,6 +979,27 @@ The no-network preview `--idea-map --keyword-probe` requires
 If rate-limited or blocked, prefer the offline `--idea-map` and
 manually supplied normalized series over repeated retries.
 
+### TED missing-window diagnostics, without unsafe retries (2026-11-20)
+
+A field run on November 20 had **2/3 TED date windows observed**, with
+the oldest date window unavailable; the snapshot alone could not show
+whether TED had rate-limited the request or the local 20/day budget
+had been exhausted. Existing collection correctly treats this as
+partial, not zero-source market activity, but stripped the failure
+reason before the report.
+
+The TED three-window diagnostics now preserve **only fixed, explicitly
+allowlisted reason codes, HTTP status and typed local UTC-day quota
+counters**. A real `DailyBudgetExceeded` prints the UTC date,
+used/cap limit and that no bypass is attempted. A cooldown, HTTP 429,
+storage error or malformed source shape remains distinct and cannot
+leak response bodies, provider error strings or credentials. This
+change adds **no** API calls or retries, never resets a provider
+allowance, does not fill missing windows with fabricated zeros, and
+does not merge the separate focused CPV data into the neutral sample.
+The status remains unknown until a subsequent permissible source
+observation returns valid rows.
+
 ### Persistent opportunity source sightings (explicit opt-in, 2026-11-20)
 
 `--record-idea-history` requires `--idea-map --execute` and adds
@@ -993,7 +1014,9 @@ credentials are persisted by this feature.
 
 The stable key is SHA-256 over the TED notice URL or the exact published
 CFPB category, so repeated invocations on the same date count as
-**one observation day**, not a growth measurement. Results distinguish
+**one observation day**, not a growth measurement. The report explicitly
+counts previously recorded same-day sightings; a repeat producing
+`0 new` is normal idempotency, not a collection failure. Results distinguish
 currently observed source items from up to five older entries
 **not present in the current bounded sample**. Older entries require
 fresh original-source validation before being treated as a current

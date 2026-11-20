@@ -46,6 +46,10 @@ def test_unique_source_day_idempotence_and_visible_prior_tender(tmp_path):
                for item in first["current_source_history"])
     same = history.record_idea_history(bundle(DAY, [one, complain]), path=db)
     assert same["new_distinct_day_sightings"] == 0
+    assert same["existing_same_day_sightings"] == 2
+    assert "already recorded on this analysis day: 2" in "\n".join(
+        history.format_idea_history(same)
+    )
     assert all(item["distinct_days_seen_in_this_pipeline"] == 1
                for item in same["current_source_history"])
     second = history.record_idea_history(

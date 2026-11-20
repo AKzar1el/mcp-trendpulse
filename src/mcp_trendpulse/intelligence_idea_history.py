@@ -182,6 +182,7 @@ def record_idea_history(
         "retention_days": MAX_DAYS,
         "current_source_items_recorded": len(observed),
         "new_distinct_day_sightings": newly_seen,
+        "existing_same_day_sightings": max(0, len(observed) - newly_seen),
         "current_source_history": current,
         "previously_observed_but_not_in_current_sample": previous,
         "max_previous_shown": MAX_PREVIOUS_SHOWN,
@@ -201,7 +202,8 @@ def format_idea_history(report: dict[str, Any]) -> list[str]:
     lines = [
         "OPPORTUNITY SOURCE HISTORY (opt-in local SQLite, 90-day retention):",
         f"  Current source leads: {report['current_source_items_recorded']} "
-        f"| new unique source/day observations: {report['new_distinct_day_sightings']}",
+        f"| new unique source/day observations: {report['new_distinct_day_sightings']}"
+        f" | already recorded on this analysis day: {report['existing_same_day_sightings']}",
         "  A sighting means this bounded pipeline saw a published source; "
         "not rising demand, new customers, or a currently open tender.",
     ]

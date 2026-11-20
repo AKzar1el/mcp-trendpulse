@@ -17,7 +17,8 @@ from pathlib import Path
 from typing import Any
 
 from mcp_trendpulse.intelligence_core import (
-    MAX_RESPONSE_BYTES, BudgetCache, IntelligenceError, collect, plan_source,
+    MAX_RESPONSE_BYTES, BudgetCache, DailyBudgetExceeded, IntelligenceError,
+    collect, plan_source,
 )
 from mcp_trendpulse.intelligence_hunter import _words
 from mcp_trendpulse.intelligence_observations import _entry
@@ -40,6 +41,13 @@ _CUTOFF_WORDS = frozenset({
     "market", "growth", "forecast", "reach", "billion", "million",
     "study", "paper", "review", "overview", "approach", "method",
     "effect", "impact", "toward", "towards", "evaluation",
+})
+# Provider error strings may embed URLs, tokens or arbitrary text. The
+# discovery surface carries only explicitly safe, fixed diagnostic codes.
+_PUBLIC_COLLECTOR_FAILURE_REASONS = frozenset({
+    "HTTPError", "URLError", "TimeoutError", "provider_cooldown",
+    "collection_failed", "invalid_source_shape", "OSError",
+    "UnicodeDecodeError", "JSONDecodeError",
 })
 
 
@@ -893,6 +901,37 @@ def _merge_ted_date_windows(
             "duplicate_notices_excluded": 0,
             "cache_hit": snapshot.get("cache_hit") is True,
         }
+        if status != "observed":
+            failure = snapshot.get("reason_code")
+            info["failure_reason_code"] = (
+                failure if isinstance(failure, str)
+                and failure in _PUBLIC_COLLECTOR_FAILURE_REASONS.union({
+                    "daily_source_budget_exhausted",
+                    "local_cache_storage_error",
+                    "collection_failed_unclassified",
+                    "source_failure_unclassified",
+                    "provider_rate_limited",
+                    "invalid_source_shape",
+                })
+                else "source_failure_unclassified"
+            )
+            code = snapshot.get("http_status")
+            if isinstance(code, int) and not isinstance(code, bool) and 400 <= code <= 599:
+                info["http_status"] = code
+            if info["failure_reason_code"] == "daily_source_budget_exhausted":
+                used = snapshot.get("quota_used")
+                cap_daily = snapshot.get("quota_limit")
+                utc = snapshot.get("quota_utc_day")
+                if (
+                    isinstance(used, int) and not isinstance(used, bool)
+                    and isinstance(cap_daily, int) and not isinstance(cap_daily, bool)
+                    and 0 <= used <= 10000 and 1 <= cap_daily <= 10000
+                    and isinstance(utc, str)
+                    and re.fullmatch(r"\d{4}-\d{2}-\d{2}", utc)
+                ):
+                    info["local_quota_used"] = used
+                    info["local_quota_limit"] = cap_daily
+                    info["local_quota_utc_day"] = utc
         if status == "observed":
             observed += 1
             info["sampled_rows"] = len(rows)
@@ -1161,10 +1200,36 @@ def discover_current(
             snapshot = {key: outcome[key] for key in (
                 "source", "status", "observations", "cache_hit", "http_status"
             ) if key in outcome}
+            if snapshot["status"] != "observed":
+                reason = outcome.get("reason")
+                snapshot["reason_code"] = (
+                    reason if isinstance(reason, str)
+                    and reason in _PUBLIC_COLLECTOR_FAILURE_REASONS
+                    else "provider_rate_limited"
+                    if snapshot["status"] == "rate_limited"
+                    else "source_failure_unclassified"
+                )
+        except DailyBudgetExceeded as exc:
+            snapshot = {
+                "source": plan.source, "status": "unavailable",
+                "reason_code": "daily_source_budget_exhausted",
+                "quota_used": exc.used,
+                "quota_limit": exc.cap,
+                "quota_utc_day": exc.utc_day,
+            }
+        except sqlite3.Error:
+            snapshot = {
+                "source": plan.source, "status": "unavailable",
+                "reason_code": "local_cache_storage_error",
+            }
         except (OSError, ValueError, IntelligenceError) as exc:
             snapshot = {
                 "source": plan.source, "status": "unavailable",
-                "reason_code": type(exc).__name__,
+                "reason_code": (
+                    type(exc).__name__
+                    if type(exc).__name__ in _PUBLIC_COLLECTOR_FAILURE_REASONS
+                    else "collection_failed_unclassified"
+                ),
             }
         if ted_date_slices == 3 and plan.source == "ted":
             ted_snapshots.append(snapshot)
@@ -1510,6 +1575,18 @@ def format_discovery_report(result: dict[str, Any]) -> str:
                 line += " | window page cap reached"
             if window["dropped_outside_window"]:
                 line += f" | wrong-date excluded: {window['dropped_outside_window']}"
+            if window["status"] != "observed":
+                line += " | reason: " + window.get(
+                    "failure_reason_code", "source_failure_unclassified"
+                )
+                if window.get("http_status"):
+                    line += f" | HTTP {window['http_status']}"
+                if window.get("local_quota_utc_day"):
+                    line += (
+                        f" | UTC {window['local_quota_utc_day']} local TED quota "
+                        f"{window['local_quota_used']}/{window['local_quota_limit']}"
+                        " exhausted; no bypass"
+                    )
             lines.append(line)
         lines.append(
             "Time windows are not exhaustive or random samples; "
@@ -1518,6 +1595,7 @@ def format_discovery_report(result: dict[str, Any]) -> str:
         if sample_audit["failed_date_windows"]:
             lines.append(
                 "PARTIAL COVERAGE: failed windows are unknown, not zero activity."
+                " Do not infer a market trend or automatically retry past source limits."
             )
         lines.append("")
     if sample_audit and sample_audit["status"] == "observed":
