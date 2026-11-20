@@ -88,6 +88,123 @@ def test_cli_watch_preview_is_opt_in_and_never_records(tmp_path, monkeypatch):
     assert store.get(rule.id).last_alert_date == date.today().isoformat()
 
 
+def test_watch_preview_all_evaluates_multiple_saved_series_without_recording(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    first = store.create(keyword="AI", market="US", growth_pct=30, window=2)
+    second = store.create(keyword="Cloud", market="GB", growth_pct=300, window=2)
+    first_path = tmp_path / "first.json"
+    second_path = tmp_path / "second.json"
+    first_path.write_bytes(evidence("AI", "US", [10, 10, 40, 60]))
+    second_path.write_bytes(evidence("Cloud", "GB", [20, 20, 30, 35]))
+
+    args = ["watch", "preview-all", "--evidence", str(first_path), "--evidence", str(second_path)]
+    result = CliRunner().invoke(cli, args)
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report["dry_run"] is True and report["source_verified"] is False
+    assert {item["rule_id"]: item["status"] for item in report["rules"]} == {
+        first.id: "triggered", second.id: "below_threshold",
+    }
+    assert report["status_counts"] == {"triggered": 1, "below_threshold": 1}
+    assert all(item["evidence_present"] for item in report["rules"])
+    assert store.get(first.id).last_alert_date is None
+    assert store.get(second.id).last_alert_date is None
+
+
+def test_watch_preview_all_reuses_series_for_distinct_policies_and_marks_missing(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    easy = store.create(keyword="AI", market="US", growth_pct=30, window=2)
+    hard = store.create(keyword="AI", market="US", growth_pct=600, window=2)
+    missing = store.create(keyword="Cloud", market="GB", window=2)
+    path = tmp_path / "ai.json"
+    path.write_bytes(evidence("AI", "US", [10, 10, 40, 60]))
+
+    result = CliRunner().invoke(cli, ["watch", "preview-all", "--evidence", str(path)])
+    assert result.exit_code == 0, result.output
+    by_id = {item["rule_id"]: item for item in json.loads(result.output)["rules"]}
+    assert by_id[easy.id]["status"] == "triggered"
+    assert by_id[hard.id]["status"] == "below_threshold"
+    assert by_id[missing.id]["status"] == "missing_evidence"
+    assert by_id[missing.id]["evidence_date"] is None
+    assert by_id[missing.id]["evidence_present"] is False
+
+
+def test_watch_preview_all_csv_escapes_formula_labels(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    keyword = '=HYPERLINK("https://example.test","x")'
+    store.create(keyword=keyword, market="US", window=2)
+    path = tmp_path / "formula.json"
+    path.write_bytes(evidence(keyword, "US", [10, 10, 50, 60]))
+    result = CliRunner().invoke(cli, ["watch", "preview-all", "--evidence", str(path), "--format", "csv"])
+    assert result.exit_code == 0, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert len(rows) == 1 and rows[0]["keyword"].startswith("'=")
+    assert rows[0]["status"] == "triggered"
+
+
+def test_watch_preview_all_rejects_duplicate_or_unmatched_evidence_without_output(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    watch = store.create(keyword="AI", market="US", window=2)
+    path = tmp_path / "ai.json"
+    path.write_bytes(evidence("AI", "US", [10, 10, 50, 60]))
+    runner = CliRunner()
+    duplicate = runner.invoke(cli, ["watch", "preview-all", "--evidence", str(path), "--evidence", str(path)])
+    assert duplicate.exit_code != 0 and "Duplicate" in duplicate.output
+    path.write_bytes(evidence("AI", "GB", [10, 10, 50, 60]))
+    unmatched = runner.invoke(cli, ["watch", "preview-all", "--evidence", str(path)])
+    assert unmatched.exit_code != 0 and "matching" in unmatched.output
+    assert store.get(watch.id).last_alert_date is None
+
+
+def test_watch_preview_all_enforces_evidence_count_and_size_limits(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    store.create(keyword="AI", market="US", window=2)
+    path = tmp_path / "ai.json"
+    path.write_bytes(evidence("AI", "US", [10, 10, 50, 60]))
+    runner = CliRunner()
+
+    too_many = runner.invoke(cli, ["watch", "preview-all", *sum((["--evidence", str(path)] for _ in range(13)), [])])
+    assert too_many.exit_code != 0 and "At most 12" in too_many.output
+
+    path.write_bytes(b"x" * (256 * 1024 + 1))
+    oversized = runner.invoke(cli, ["watch", "preview-all", "--evidence", str(path)])
+    assert oversized.exit_code != 0 and "256 KiB" in oversized.output
+
+
+@pytest.mark.parametrize("payload", [
+    b"\xff",
+    b"[]",
+    json.dumps({"keyword": "AI", "market": "US", "points": [{"date": "not-a-date", "value": 50}]}).encode(),
+    json.dumps({"keyword": "AI", "market": "US", "points": [{"date": "2026-01-01", "value": 101}]}).encode(),
+])
+def test_watch_preview_all_rejects_malformed_evidence_without_partial_report(tmp_path, monkeypatch, payload):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    rule = store.create(keyword="AI", market="US", window=2)
+    path = tmp_path / "broken.json"
+    path.write_bytes(payload)
+    result = CliRunner().invoke(cli, ["watch", "preview-all", "--evidence", str(path)])
+    assert result.exit_code != 0
+    assert not result.output.lstrip().startswith("{")
+    assert store.get(rule.id).last_alert_date is None
+
+
+def test_watch_preview_all_enforces_saved_rule_count_limit(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    for number in range(101):
+        store.create(keyword=f"AI {number}", market="US", window=2)
+    path = tmp_path / "ai.json"
+    path.write_bytes(evidence("AI 0", "US", [10, 10, 50, 60]))
+    result = CliRunner().invoke(cli, ["watch", "preview-all", "--evidence", str(path)])
+    assert result.exit_code != 0 and "At most 100" in result.output
+
+
 def test_watch_preview_invalid_evidence_preserves_alert_history(tmp_path):
     store = WatchStore(tmp_path)
     rule = store.create(keyword="AI", market="US", window=2)
