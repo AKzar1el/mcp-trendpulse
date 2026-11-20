@@ -900,6 +900,10 @@ def intelligence_sources(wave):
               help="With --workflow-briefs, explicitly inspect published procedure "
                    "and lot text for at most two original TED notices (max 2 extra "
                    "free requests); no lot-to-budget inference.")
+@click.option("--ted-related-notices", is_flag=True,
+              help="With --ted-scope-details, find related TED notices using exact "
+                   "source-published procedure UUIDs (max 2 more free searches); "
+                   "newer notices trigger manual scope revalidation.")
 @click.option("--idea-map", is_flag=True,
               help="With --workflow-briefs, synthesize source-backed product "
                    "hypotheses and keyword validation queues offline; no extra API "
@@ -921,7 +925,8 @@ def intelligence_sources(wave):
 def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
                           broad_topic_scan, corroborate_issues,
                           cross_source_hunt, workflow_briefs, workflow_cross_check,
-                          ted_scope_details, idea_map, keyword_probe,
+                          ted_scope_details, ted_related_notices,
+                          idea_map, keyword_probe,
                           keyword_evidence_file, execute, record_history,
                           output_format):
     """Discover current source themes without any predefined topic keywords."""
@@ -952,6 +957,7 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
             workflow_briefs=workflow_briefs,
             workflow_cross_check=workflow_cross_check,
             ted_scope_details=ted_scope_details,
+            ted_related_notices=ted_related_notices,
             idea_map=idea_map,
             keyword_probe=keyword_probe,
             keyword_evidence=parsed_keyword_evidence,

@@ -936,6 +936,7 @@ def discover_current(
     workflow_briefs: bool = False,
     workflow_cross_check: bool = False,
     ted_scope_details: bool = False,
+    ted_related_notices: bool = False,
     idea_map: bool = False,
     keyword_probe: bool = False,
     keyword_evidence: dict[str, Any] | None = None,
@@ -975,6 +976,10 @@ def discover_current(
         raise ValueError("ted_scope_details must be a boolean")
     if ted_scope_details and not workflow_briefs:
         raise ValueError("--ted-scope-details requires --workflow-briefs")
+    if not isinstance(ted_related_notices, bool):
+        raise ValueError("ted_related_notices must be a boolean")
+    if ted_related_notices and not ted_scope_details:
+        raise ValueError("--ted-related-notices requires --ted-scope-details")
     if not isinstance(idea_map, bool):
         raise ValueError("idea_map must be a boolean")
     if idea_map and not workflow_briefs:
@@ -1038,6 +1043,14 @@ def discover_current(
                     "requires_execute_for_source_notice_identifiers": True,
                     "lot_scope_and_budget_join_verified": False,
                 }
+                if ted_related_notices:
+                    planned["workflow_briefs"]["ted_related_notices"] = {
+                        "status": "planned_exact_same_procedure_ted_search",
+                        "max_additional_source_requests": 2,
+                        "source_requests_performed": 0,
+                        "requires_source_published_procedure_uuid": True,
+                        "newest_notice_supersession_verified": False,
+                    }
         if idea_map:
             planned["idea_map"] = {
                 "status": "planned_offline_source_backed_hypotheses",
@@ -1114,6 +1127,9 @@ def discover_current(
         if ted_scope_details:
             planned_total += 2
             planned["max_requests_with_ted_scope_details"] = planned_total
+            if ted_related_notices:
+                planned_total += 2
+                planned["max_requests_with_ted_related_notices"] = planned_total
         return planned
 
     sources: list[dict[str, Any]] = []
@@ -1308,6 +1324,21 @@ def discover_current(
             " multilingual arrays; individual lots, deadlines, budgets and"
             " software-only spending are not linked or verified."
         )
+        if ted_related_notices:
+            from mcp_trendpulse.intelligence_ted_lineage import (
+                inspect_related_ted_notices,
+            )
+
+            lineage = inspect_related_ted_notices(
+                result["workflow_briefs"], as_of=now, cache=cache, env=env,
+            )
+            result["workflow_briefs"]["ted_related_notices"] = lineage
+            result["queries_budgeted"] += lineage["source_requests_budgeted"]
+            result["limits"] += (
+                " Same published TED procedure identifiers can join newer notices"
+                " but never prove amendment supersession, current open status,"
+                " lot-specific budget, or verified software opportunity."
+            )
     if idea_map:
         from mcp_trendpulse.intelligence_idea_map import build_idea_map
 
@@ -1379,6 +1410,13 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             lines.extend(format_ted_scopes(
                 result["workflow_briefs"]["ted_scope_details"],
                 result["workflow_briefs"],
+            ))
+        if result["workflow_briefs"].get("ted_related_notices") is not None:
+            from mcp_trendpulse.intelligence_ted_lineage import (
+                format_related_ted_notices,
+            )
+            lines.extend(format_related_ted_notices(
+                result["workflow_briefs"]["ted_related_notices"]
             ))
         if result["workflow_briefs"].get("independent_source_checks") is not None:
             from mcp_trendpulse.intelligence_workflow_followup import (

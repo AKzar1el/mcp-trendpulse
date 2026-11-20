@@ -859,6 +859,29 @@ $env:UV_LINK_MODE = "copy"
 uvx --from "git+https://github.com/AKzar1el/mcp-trendpulse.git@<tested-commit>" mcp-trendpulse-cli intelligence discover --execute --workflow-briefs --workflow-cross-check --ted-date-slices 3 --limit 20 --lookback-days 30 --format text
 ```
 
+### Same-procedure TED notices and amendment awareness (2026-11-20)
+
+With `--workflow-briefs --ted-scope-details --ted-related-notices`,
+TrendPulse preserves the validated **published procedure identifier UUIDv4**
+from a source-exact TED notice scope response, then makes at most one
+extra keyless official TED Search API request per shortlisted procurement
+(max **two additional requests**). Query terms are an exact, source-
+published `procedure-identifier`, never fuzzy title/organisation matches.
+The response is validated again against the original identifier; only
+bounded dated official publication-number references are returned.
+
+When the same procedure has a newer published notice, the Idea Map marks
+the prior scope as needing revalidation. It does **not** assume that a
+same-procedure notice supersedes the previous version, changes a
+specific lot, cancels a competition, constitutes an award or confirms
+that a deadline is still active. Competition, change and result notice
+types are shown as published; a definitive amendment relationship
+requires the appropriate explicit change notice reference and reading
+the original official documents. The query is opt-in, cached under
+existing TED free-only daily caps, and never scheduled automatically.
+A missing/multivalued/unverified procedure UUID results in zero added
+requests rather than a guessed join.
+
 ### Explicit bounded related-query investigation (2026-11-20)
 
 With `--workflow-briefs --idea-map --keyword-probe --execute`, the

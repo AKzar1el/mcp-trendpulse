@@ -194,6 +194,11 @@ def inspect_ted_scopes(
             "source_language_not_translated": True,
             "full_tender_documents_not_read": True,
         }
+        from mcp_trendpulse.intelligence_ted_lineage import _source_uuid
+
+        values["published_procedure_identifier"] = _source_uuid(
+            row.get("procedure-identifier")
+        )
         # Mutate only the opt-in brief projection; no change to the source
         # candidate scoring, baseline normalization, or persisted history.
         brief["published_scope_context"] = values

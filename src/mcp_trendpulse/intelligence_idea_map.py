@@ -251,6 +251,11 @@ def build_idea_map(
             continue
         scope = brief.get("published_scope_context")
         scope_available = isinstance(scope, dict) and scope.get("status") == "observed_scope_excerpts"
+        lineage = brief.get("related_notice_context")
+        newer_related = bool(
+            isinstance(lineage, dict)
+            and lineage.get("newer_source_publication_requires_scope_revalidation") is True
+        )
         kind_is_ted = kind.startswith("published")
         project_direction = (
             "Prototype a small component of the published implementation workflow; "
@@ -296,6 +301,8 @@ def build_idea_map(
             } for r in brief.get("measured_research_context", [])[:1]
                 if isinstance(r, dict)],
             "scope_excerpt_present": scope_available,
+            "newer_ted_notice_requires_scope_revalidation": newer_related,
+            "current_version_of_scope_verified": False,
             "scope_specificity": (
                 "published_procedure_and_unassigned_lot_excerpts"
                 if scope_available else
@@ -307,8 +314,11 @@ def build_idea_map(
                 "same_buyer_verified": False,
             } if ident in followup else None,
             "next_verification": (
-                "Check related TED amendments, current tender documents, lot scope, "
-                "suppliers, and similar buyers; then test a narrow reusable module."
+                "A newer same-procedure TED publication exists: check the newest"
+                " official notice and documents before using the prior scope."
+                if newer_related else
+                "Check related TED notices, current tender documents, lot scope,"
+                " suppliers, and similar buyers; then test a reusable module."
                 if kind_is_ted else
                 "Interview actual users/operators; measure repeat occurrence "
                 "in comparable periods and test an explicit paying customer."

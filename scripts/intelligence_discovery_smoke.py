@@ -90,6 +90,15 @@ def main() -> int:
                 or idea_plan["idea_map"]["source_requests_added"] != 0
                 or idea_plan["max_requests_with_ted_scope_details"] != 5):
             raise AssertionError("Idea map planning must be offline and share TED scope bounds")
+        lineage_plan = discover_current(
+            execute=False, workflow_briefs=True, ted_scope_details=True,
+            ted_related_notices=True, idea_map=True, cache=cache, env={},
+        )
+        if (lineage_plan["network_performed"]
+                or lineage_plan["max_requests_with_ted_related_notices"] != 7
+                or lineage_plan["workflow_briefs"]["ted_related_notices"][
+                    "source_requests_performed"] != 0):
+            raise AssertionError("Same-procedure TED plan must not query until opt-in execution")
         scope_plan = discover_current(
             execute=False, workflow_briefs=True, ted_scope_details=True,
             cache=cache, env={},
