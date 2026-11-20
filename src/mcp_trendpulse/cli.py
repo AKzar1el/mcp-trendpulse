@@ -199,7 +199,7 @@ def watch_evaluate(rule_id, evidence, dry_run):
 @watch.command("preview-all")
 @click.option("--evidence", "evidence_files", type=click.Path(exists=True, dir_okay=False, path_type=Path),
               multiple=True, required=True, help="Repeat for up to 12 saved keyword/market series JSON files.")
-@click.option("--format", "output_format", type=click.Choice(["json", "csv"]), default="json",
+@click.option("--format", "output_format", type=click.Choice(["json", "csv", "markdown"]), default="json",
               show_default=True, help="Offline multi-rule preview; never records alerts or cooldowns.")
 def watch_preview_all(evidence_files, output_format):
     """Preview all saved watches against supplied matching series without network calls."""
@@ -256,6 +256,57 @@ def watch_preview_all(evidence_files, output_format):
     if output_format == "json":
         click.echo(json.dumps({"dry_run": True, "source_verified": False, "note": note,
                                "status_counts": status_counts, "rules": results}, sort_keys=True))
+    elif output_format == "markdown":
+        from mcp_trendpulse.brief_review import _markdown_safe
+
+        def render_group(title, items):
+            lines.extend(["", f"## {title}", ""])
+            if not items:
+                lines.append("None in the supplied evidence.")
+                return
+            lines.extend([
+                "| Rule | Keyword | Market | Decision | Evidence date | Current index | Growth |",
+                "| --- | --- | --- | --- | --- | ---: | ---: |",
+            ])
+            for item in items:
+                date_text = item["evidence_date"] or "not available"
+                interest = item["current_interest"]
+                growth = item["growth_pct"]
+                lines.append(
+                    f"| {_markdown_safe(item['rule_id'])} | {_markdown_safe(item['keyword'])} | "
+                    f"{_markdown_safe(item['market'])} | {_markdown_safe(item['status'])} | "
+                    f"{_markdown_safe(date_text)} | "
+                    f"{interest if interest is not None else 'not available'} | "
+                    f"{str(growth) + '%' if growth is not None else 'not available'} |"
+                )
+
+        lines = [
+            "# Trend Watch batch preview (offline)",
+            "",
+            f"**Rules:** {len(results)}; **{status_counts.get('triggered', 0)} triggered**; "
+            f"**{status_counts.get('missing_evidence', 0)} missing evidence**",
+            "",
+            "This is a dry run using user-supplied normalized Trends-style series that are "
+            "not independently verified. It does not record alerts, consume cooldowns, "
+            "fetch providers, or establish actual market demand.",
+        ]
+        render_group("Manual follow-up candidates", [
+            item for item in results if item["status"] == "triggered"
+        ])
+        lines.extend(["", "Review these apparent threshold matches against independently "
+                      "obtained source evidence and actual user needs before choosing a product."])
+        render_group("Evidence gaps", [
+            item for item in results if item["status"] == "missing_evidence"
+        ])
+        lines.extend(["", "Supply a matching saved keyword/market series before drawing conclusions; "
+                      "missing evidence is not zero interest."])
+        render_group("Other evaluated rules", [
+            item for item in results if item["status"] not in ("triggered", "missing_evidence")
+        ])
+        lines.extend(["", "Below-threshold, stale, irregular, insufficient, duplicate, or cooldown "
+                      "outcomes are not negative market forecasts. Do not compare normalized "
+                      "indices across separately collected series."])
+        click.echo("\n".join(lines))
     else:
         fields = ("rule_id", "keyword", "market", "status", "evidence_present", "evidence_date",
                   "baseline_interest", "current_interest", "growth_pct", "dry_run", "source_verified", "note")

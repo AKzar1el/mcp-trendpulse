@@ -131,6 +131,54 @@ def test_watch_preview_all_reuses_series_for_distinct_policies_and_marks_missing
     assert by_id[missing.id]["evidence_present"] is False
 
 
+def test_watch_preview_all_markdown_triages_rules_without_alerts(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    triggered = store.create(keyword="AI", market="US", growth_pct=30, window=2)
+    below = store.create(keyword="Cloud", market="GB", growth_pct=300, window=2)
+    missing = store.create(keyword="Robots", market="DE", window=2)
+    first = tmp_path / "ai.json"
+    second = tmp_path / "cloud.json"
+    first.write_bytes(evidence("AI", "US", [10, 10, 40, 60]))
+    second.write_bytes(evidence("Cloud", "GB", [20, 20, 30, 35]))
+
+    result = CliRunner().invoke(cli, [
+        "watch", "preview-all", "--format", "markdown",
+        "--evidence", str(first), "--evidence", str(second),
+    ])
+    assert result.exit_code == 0, result.output
+    assert "# Trend Watch batch preview (offline)" in result.output
+    assert "## Manual follow-up candidates" in result.output
+    assert "## Evidence gaps" in result.output
+    assert "## Other evaluated rules" in result.output
+    assert "1 triggered" in result.output and "1 missing evidence" in result.output
+    assert triggered.id in result.output and below.id in result.output and missing.id in result.output
+    assert r"below\_threshold" in result.output
+    assert "not independently verified" in result.output
+    assert "does not record alerts" in result.output
+    assert all(store.get(item.id).last_alert_date is None for item in (triggered, below, missing))
+
+
+def test_watch_preview_all_markdown_escapes_untrusted_labels_and_marks_insufficient(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
+    store = WatchStore(tmp_path)
+    keyword = "**research** | <script>alert(1)</script>"
+    rule = store.create(keyword=keyword, market="US", window=2)
+    path = tmp_path / "short.json"
+    path.write_bytes(evidence(keyword, "US", [20, 30]))
+    result = CliRunner().invoke(cli, [
+        "watch", "preview-all", "--format", "markdown", "--evidence", str(path),
+    ])
+    assert result.exit_code == 0, result.output
+    assert rule.id in result.output and r"insufficient\_data" in result.output
+    assert "**research**" not in result.output
+    assert "<script>" not in result.output
+    assert "&lt;script&gt;" in result.output
+    assert "\\|" in result.output
+    assert "not available" in result.output
+    assert store.get(rule.id).last_alert_date is None
+
+
 def test_watch_preview_all_csv_escapes_formula_labels(tmp_path, monkeypatch):
     monkeypatch.setenv("TRENDPULSE_WATCH_DIR", str(tmp_path))
     store = WatchStore(tmp_path)
