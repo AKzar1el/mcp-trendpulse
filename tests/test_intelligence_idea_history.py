@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-import pytest
 from click.testing import CliRunner
 
 from mcp_trendpulse import intelligence_idea_history as history
