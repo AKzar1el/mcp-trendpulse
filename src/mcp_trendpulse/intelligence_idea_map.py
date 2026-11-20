@@ -25,7 +25,22 @@ GENERIC_WORDS = frozenset((
     " systems system platform portal project projects other personal"
     " consumer consumers problem report your information on"
 ).split())
-COUNTRY_BY_ISO3 = {"DEU": "DE", "GRC": "GR"}
+# Official TED buyer-country is ISO-3166 alpha-3. Provider keyword geos
+# use alpha-2; map known European market codes explicitly and fail closed
+# on unknown values (never silently treat a source country as US).
+COUNTRY_BY_ISO3 = {
+    "ALB": "AL", "AND": "AD", "AUT": "AT", "BEL": "BE",
+    "BGR": "BG", "BIH": "BA", "CHE": "CH", "CYP": "CY",
+    "CZE": "CZ", "DEU": "DE", "DNK": "DK", "ESP": "ES",
+    "EST": "EE", "FIN": "FI", "FRA": "FR", "GBR": "GB",
+    "GRC": "GR", "HRV": "HR", "HUN": "HU", "IRL": "IE",
+    "ISL": "IS", "ITA": "IT", "LIE": "LI", "LTU": "LT",
+    "LUX": "LU", "LVA": "LV", "MCO": "MC", "MDA": "MD",
+    "MKD": "MK", "MLT": "MT", "MNE": "ME", "NLD": "NL",
+    "NOR": "NO", "POL": "PL", "PRT": "PT", "ROU": "RO",
+    "SRB": "RS", "SVK": "SK", "SVN": "SI", "SWE": "SE",
+    "TUR": "TR", "UKR": "UA",
+}
 
 
 def _clean(value: Any, maximum: int = 140) -> str:
@@ -126,6 +141,14 @@ def _market(brief: dict[str, Any]) -> dict[str, str]:
     code = brief.get("buyer_country_code", "")
     return {
         "country_code": COUNTRY_BY_ISO3.get(code, ""),
+        "source_buyer_country_iso3": (
+            code if isinstance(code, str)
+            and re.fullmatch(r"[A-Z]{3}", code) else ""
+        ),
+        "source_market_geo_mapping": (
+            "known_iso3_to_iso2" if code in COUNTRY_BY_ISO3
+            else "unknown_source_country_not_guessed"
+        ),
         "basis": "source_published_ted_buyer_country_not_market_size",
     }
 

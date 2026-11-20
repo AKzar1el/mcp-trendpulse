@@ -38,10 +38,23 @@ def _source_uuid(value: Any) -> str:
 
 
 def _date(value: Any, *, as_of: date) -> str:
-    if not isinstance(value, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) is None:
+    """Accept official TED date values with optional ISO timestamp or offset.
+
+    API examples expose dates like YYYY-MM-DD+00:00. Previously requiring
+    exactly ten characters silently discarded even the source notice itself.
+    Parse only an anchored, recognized date/time shape; reject future days.
+    """
+    if not isinstance(value, str) or len(value) > 48:
+        return ""
+    match = re.fullmatch(
+        r"(\d{4}-\d{2}-\d{2})(?:[+-]\d{2}:\d{2}|"
+        r"T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})?)?",
+        value,
+    )
+    if match is None:
         return ""
     try:
-        day = date.fromisoformat(value)
+        day = date.fromisoformat(match.group(1))
     except ValueError:
         return ""
     return day.isoformat() if day <= as_of else ""
@@ -128,6 +141,9 @@ def inspect_related_ted_notices(
             "source": "ted", "status": "unavailable",
             "related_notice_count_in_bounded_sample": 0,
             "result_sample_hit_cap": False,
+            "provider_sample_rows": 0,
+            "rows_excluded_for_unmatched_procedure_identifier": 0,
+            "rows_excluded_for_invalid_or_future_publication": 0,
             "newer_same_procedure_publication_present": False,
             "newest_related_notice": None,
             "related_notice_references": [],
@@ -159,14 +175,19 @@ def inspect_related_ted_notices(
             result["related_notice_results"].append(row)
             continue
         unique = {}
+        wrong_procedure = 0
+        invalid_publication = 0
         for item in sample:
             if not isinstance(item, dict):
+                invalid_publication += 1
                 continue
             if _source_uuid(item.get("procedure-identifier")) != procedure_id:
+                wrong_procedure += 1
                 continue
             notice = item.get("publication-number")
             published = _date(item.get("publication-date"), as_of=as_of)
             if not isinstance(notice, str) or TED_ID.fullmatch(notice) is None or not published:
+                invalid_publication += 1
                 continue
             unique[notice] = {
                 "publication_number": notice,
@@ -193,6 +214,9 @@ def inspect_related_ted_notices(
         row.update({
             "status": "observed_related_notice_sample" if notices else "observed_no_valid_same_procedure_notices_in_sample",
             "related_notice_count_in_bounded_sample": len(notices),
+            "provider_sample_rows": len(sample),
+            "rows_excluded_for_unmatched_procedure_identifier": wrong_procedure,
+            "rows_excluded_for_invalid_or_future_publication": invalid_publication,
             "result_sample_hit_cap": len(sample) >= MAX_RESULTS_PER_PROCEDURE,
             "newer_same_procedure_publication_present": newer,
             "newest_related_notice": notices[0] if notices else None,
@@ -231,6 +255,21 @@ def format_related_ted_notices(report: dict[str, Any]) -> list[str]:
         )
         if item["newer_same_procedure_publication_present"]:
             lines.append("    NEWER SAME-PROCEDURE PUBLICATION: recheck scope, amendments, deadlines and outcome")
+        if item.get("status", "").startswith("observed_"):
+            lines.append(
+                f"    TED sample: {item['provider_sample_rows']} rows; "
+                f"valid same-procedure notices: "
+                f"{item['related_notice_count_in_bounded_sample']}; "
+                f"unmatched UUID: "
+                f"{item['rows_excluded_for_unmatched_procedure_identifier']}; "
+                f"invalid/future publications: "
+                f"{item['rows_excluded_for_invalid_or_future_publication']}."
+            )
+            if not item["related_notice_count_in_bounded_sample"]:
+                lines.append(
+                    "    No valid same-procedure notices in the bounded response;"
+                    " not proof that no amendments exist."
+                )
         newest = item["newest_related_notice"]
         if newest:
             lines.append(

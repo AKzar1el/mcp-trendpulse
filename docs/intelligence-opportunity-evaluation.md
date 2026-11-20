@@ -885,6 +885,33 @@ are explicit procurement categories. Its coverage is still
 newest-page limited; no accumulated opportunity history or guarantee
 that previously observed tenders appear again. TED date/published
 deadline statuses and documents require source revalidation.
+
+The November 20 field test returned **12/12 items from October 22**
+despite the 30-day period, because the focused expert query did not
+explicitly sort. The updated query uses TED's officially documented
+`PC` alias for `classification-cpv` and appends
+`SORT BY publication-date DESC` while retaining the 30-day date
+bounds, competition notice types and two software/IT CPV branches
+inside the source builder's 140-character safety limit. The provider's
+returned page is audited for publication order and date span;
+a sort clause does not prove the first page is exhaustive or that the
+tender remains open.
+
+The previous Idea Map recognized only DEU and GRC buyer codes and
+displayed **unknown** for CHE, EST, HUN and LTU. It now uses a bounded
+explicit ISO-3166 alpha-3 to alpha-2 map for European country codes,
+including CHE→CH, EST→EE, HUN→HU and LTU→LT. Unknown codes remain
+unknown rather than silently defaulting to a geography. Buyer location
+is source context, not evidence of local keyword popularity.
+
+The same field test showed zero same-procedure notice matches even
+for source-exact scope notices. TED can project publication dates as
+ISO dates with an offset or timestamp, which the previous ten-character-
+only parser rejected. Related-notice screening now accepts strictly
+anchored official date or timestamp shapes (still excluding future and
+malformed dates) and reports safe counts of returned, unmatched-UUID
+and invalid-dated rows. This improves diagnosis without claiming any
+amendment exists unless a validated same-procedure notice is found.
 Subsequent opt-in TED scope, same-procedure checks and Idea Map
 can operate on the newly found focused briefs.
 

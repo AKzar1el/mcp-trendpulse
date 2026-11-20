@@ -70,6 +70,9 @@ def test_exact_related_procedure_notices_with_newer_publication_require_review(m
     assert result["status"] == "source_joined_related_notices_observed"
     item = result["related_notice_results"][0]
     assert item["related_notice_count_in_bounded_sample"] == 2
+    assert item["provider_sample_rows"] == 4
+    assert item["rows_excluded_for_unmatched_procedure_identifier"] == 1
+    assert item["rows_excluded_for_invalid_or_future_publication"] == 1
     assert item["newest_related_notice"]["publication_number"] == "785157-2026"
     assert item["newer_same_procedure_publication_present"] is True
     assert briefs["briefs"][0]["related_notice_context"][
@@ -78,6 +81,40 @@ def test_exact_related_procedure_notices_with_newer_publication_require_review(m
     shown = "\n".join(lineage.format_related_ted_notices(result))
     assert "NEWER SAME-PROCEDURE PUBLICATION" in shown
     assert "999998-2026" not in repr(result)
+
+
+def test_ted_timezone_suffixed_publication_dates_survive_procedure_join(monkeypatch):
+    assert lineage._date("2026-11-11+01:00", as_of=ASOF) == "2026-11-11"
+    assert lineage._date("2026-11-11T10:30:00+01:00", as_of=ASOF) == "2026-11-11"
+    assert lineage._date("2026-11-11T10:30:00.123Z", as_of=ASOF) == "2026-11-11"
+    assert lineage._date("2026-11-21+01:00", as_of=ASOF) == ""
+    assert lineage._date("2026-11-11 garbage", as_of=ASOF) == ""
+    assert lineage._date("2026-02-30+01:00", as_of=ASOF) == ""
+    monkeypatch.setattr(lineage, "collect", lambda *a, **kw: observed([
+        notice("781080-2026", "2026-11-10+01:00"),
+        notice("785157-2026", "2026-11-11T00:00:00+01:00"),
+    ]))
+    briefs = {"briefs": [brief()]}
+    result = lineage.inspect_related_ted_notices(briefs, as_of=ASOF, env={})
+    item = result["related_notice_results"][0]
+    assert item["status"] == "observed_related_notice_sample"
+    assert item["newest_related_notice"]["publication_number"] == "785157-2026"
+    assert item["newer_same_procedure_publication_present"] is True
+    assert item["rows_excluded_for_invalid_or_future_publication"] == 0
+
+
+def test_no_ted_related_notice_rows_remain_inconclusive(monkeypatch):
+    monkeypatch.setattr(lineage, "collect", lambda *a, **kw: observed([]))
+    result = lineage.inspect_related_ted_notices(
+        {"briefs": [brief()]}, as_of=ASOF, env={},
+    )
+    item = result["related_notice_results"][0]
+    assert item["related_notice_count_in_bounded_sample"] == 0
+    assert item["provider_sample_rows"] == 0
+    assert item["actual_current_lot_or_bid_status_verified"] is False
+    assert "not proof that no amendments exist" in "\n".join(
+        lineage.format_related_ted_notices(result)
+    )
 
 
 def test_ambiguous_uuid_rejects_queries_and_does_not_infer_title_matches(monkeypatch):

@@ -81,6 +81,26 @@ def test_idea_dossiers_honor_source_geography_lexical_and_unknown_market_metrics
     assert "keyword hypothesis" in "\n".join(ideas.format_idea_map(result)).lower()
 
 
+@pytest.mark.parametrize(("source_iso3", "expected_iso2"), [
+    ("CHE", "CH"), ("EST", "EE"), ("HUN", "HU"), ("LTU", "LT"),
+    ("DEU", "DE"), ("GRC", "GR"), ("SVN", "SI"), ("ZZZ", ""),
+])
+def test_ted_buyer_country_mapping_is_explicit_not_search_demand(
+    source_iso3, expected_iso2,
+):
+    proof = tender()
+    proof["buyer_country_code"] = source_iso3
+    result = ideas.build_idea_map(source([proof]))
+    geography = result["ideas"][0]["geography"]
+    assert geography["country_code"] == expected_iso2
+    assert geography["source_buyer_country_iso3"] == source_iso3
+    assert geography["source_market_geo_mapping"] == (
+        "known_iso3_to_iso2" if expected_iso2
+        else "unknown_source_country_not_guessed"
+    )
+    assert result["ideas"][0]["keyword_search_volume_verified"] is False
+
+
 def test_no_buyer_invention_no_secret_raw_source_reuse_or_stale_tender():
     stale = tender()
     stale["published_lot_date_on_or_after_analysis"] = False

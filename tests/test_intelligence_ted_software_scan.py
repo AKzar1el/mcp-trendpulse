@@ -34,9 +34,11 @@ def snapshot(source, rows):
 
 def test_filtered_source_query_capped_and_exact_cpv_expression():
     query = focused.software_scan_query(DAY, 30)
-    assert "(classification-cpv=48* OR classification-cpv=72*)" in query
+    assert "(PC=48* OR PC=72*)" in query
     assert query.startswith("PD = (")
     assert "notice-type IN (cn-standard cn-social cn-desg)" in query
+    assert query.endswith("SORT BY publication-date DESC")
+    assert f"{DAY:%Y%m%d}" in query
     assert len(query) <= 140
     with pytest.raises(ValueError):
         focused.software_scan_query(DAY, 91)
@@ -61,6 +63,10 @@ def test_focused_software_tenders_are_not_conflated_with_base_sector_sample(monk
     assert result["qualified_primary_software_briefs"] == 2
     assert result["sampled_primary_it_records"] == 2
     assert result["source_requests_budgeted"] == 1
+    assert result["source_query_requests_publication_date_desc"] is True
+    assert result["source_ordering_verified_by_observation"] is True
+    assert result["sample_date_order"] == "sample_descending_or_same_day"
+    assert result["earliest_sampled_publication"] == NOW
     assert all(x["observation_sampling_basis"].startswith("cpv_filtered_")
                for x in result["briefs"])
     main = discovery.summarize_discovery([
@@ -72,6 +78,23 @@ def test_focused_software_tenders_are_not_conflated_with_base_sector_sample(monk
     assert original == 0
     assert main["ted_sampling_audit"]["main_cpv_48_or_72_observed"] == 0
     assert "FOCUSED TED SOFTWARE" in "\\n".join(focused.format_software_scan(result))
+
+
+def test_focused_unsorted_provider_rows_report_warning_without_false_recency(monkeypatch):
+    early = (DAY - timedelta(days=20)).isoformat()
+    late = (DAY - timedelta(days=1)).isoformat()
+    def provider(*_a, **_kw):
+        return snapshot("ted", [
+            ted("804742-2026", when=early),
+            ted("804743-2026", when=late),
+        ])
+    monkeypatch.setattr(focused, "collect", provider)
+    result = focused.scan_software_procurements(
+        as_of=DAY, lookback_days=30, env={},
+    )
+    assert result["sample_date_order"] == "sample_unordered_or_dated_rows_missing"
+    assert result["source_ordering_verified_by_observation"] is False
+    assert "recency guarantee" in "\n".join(focused.format_software_scan(result))
 
 
 def test_focused_api_unavailable_keeps_buyer_claims_unknown(monkeypatch):

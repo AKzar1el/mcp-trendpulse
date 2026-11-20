@@ -25,12 +25,15 @@ def software_scan_query(as_of: date, lookback_days: int) -> str:
             or not 7 <= lookback_days <= 90):
         raise ValueError("Invalid date or lookback for bounded TED software scan")
     start = as_of - timedelta(days=lookback_days - 1)
-    # Documented TED expert-search fields; no topic, vendor or product seed.
-    # Keep under the trusted source builder's 140-character query limit.
+    # TED expert-search field alias PC = classification-cpv; PD = publication-date.
+    # The short official aliases leave room for the ORDER BY expression in the
+    # source builder's conservative 140-character budget. Without SORT BY,
+    # the first page can contain only the oldest publications in the window.
+    # No topic, vendor or product term is supplied.
     query = (
         f"PD = ({start:%Y%m%d} <> {as_of:%Y%m%d}) "
         "AND notice-type IN (cn-standard cn-social cn-desg) "
-        "AND (classification-cpv=48* OR classification-cpv=72*)"
+        "AND (PC=48* OR PC=72*) SORT BY publication-date DESC"
     )
     if len(query) > 140:
         raise ValueError("Unexpected TED query size")
@@ -52,6 +55,9 @@ def scan_software_procurements(
         "source": "ted",
         "query_classification": "cpv_48_or_72_any_classification_search",
         "qualification_classification": "main_cpv_48_or_72_only",
+        "source_query_requests_publication_date_desc": True,
+        "source_ordering_verified_by_observation": False,
+        "sample_date_order": "not_observed",
         "source_requests_budgeted": MAX_FOCUS_ADDITIONAL_REQUESTS,
         "max_additional_source_requests": MAX_FOCUS_ADDITIONAL_REQUESTS,
         "source_requests_performed": 0,
@@ -98,6 +104,24 @@ def scan_software_procurements(
     )
 
     sanitized = [_compact_ted_discovery(r) for r in rows]
+    # Validate and report the order of the *returned* page separately from
+    # the sort requested in the expert query. Equal-day ties are expected.
+    observed_dates = []
+    for raw in sanitized:
+        published = raw.get("publication-date")
+        if not isinstance(published, str) or len(published) < 10:
+            continue
+        try:
+            observed_dates.append(date.fromisoformat(published[:10]))
+        except ValueError:
+            continue
+    observed_order = (
+        "not_observed" if not observed_dates
+        else "sample_descending_or_same_day"
+        if len(observed_dates) == len(rows)
+        and observed_dates == sorted(observed_dates, reverse=True)
+        else "sample_unordered_or_dated_rows_missing"
+    )
     summary = summarize_discovery([{
         "source": "ted", "status": "observed",
         "observations": {"sample": sanitized, "record_count": len(sanitized)},
@@ -116,6 +140,16 @@ def scan_software_procurements(
         "status": "source_observed_with_qualified_briefs"
                   if eligible else "source_observed_without_qualified_primary_it_briefs",
         "sampled_records": len(sanitized),
+        "sample_date_order": observed_order,
+        "source_ordering_verified_by_observation": (
+            observed_order == "sample_descending_or_same_day"
+        ),
+        "earliest_sampled_publication": (
+            min(observed_dates).isoformat() if observed_dates else ""
+        ),
+        "latest_sampled_publication": (
+            max(observed_dates).isoformat() if observed_dates else ""
+        ),
         "qualified_primary_software_briefs": len(eligible),
         "sample_hit_cap": len(sanitized) == MAX_FOCUS_ROWS,
         "source_recent_valid_records": summary["source_coverage"][0][
@@ -191,6 +225,20 @@ def format_software_scan(report: dict[str, Any]) -> list[str]:
     ]
     if report.get("sample_hit_cap"):
         lines.append("  Filtered first page hit 12-row cap; not exhaustive for the sector.")
+    if report.get("sampled_records"):
+        lines.append(
+            "  Requested newest-first TED ordering | returned sample: "
+            + report["sample_date_order"]
+            + " | sampled publication span: "
+            + (report["earliest_sampled_publication"] or "unknown")
+            + " to "
+            + (report["latest_sampled_publication"] or "unknown")
+        )
+        if not report.get("source_ordering_verified_by_observation"):
+            lines.append(
+                "  Warning: published-date order cannot be established from"
+                " this bounded provider sample; no recency guarantee."
+            )
     if report.get("http_status"):
         lines.append(f"  Source HTTP {report['http_status']} (unavailable; NOT no demand)")
     if not report["briefs"]:
