@@ -6,10 +6,8 @@ normalized Google Trends evidence. It makes no network requests.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import re
-from datetime import date
 from typing import Any
 
 MAX_IDEAS = 6
