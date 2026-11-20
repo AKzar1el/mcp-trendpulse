@@ -979,6 +979,42 @@ The no-network preview `--idea-map --keyword-probe` requires
 If rate-limited or blocked, prefer the offline `--idea-map` and
 manually supplied normalized series over repeated retries.
 
+### Procurement-fit screening for candidate product ideas (2026-11-20)
+
+The live newest-first focused software/IT TED search recovered four
+notices from November 19 (Slovenian software-license renewal, Lithuanian
+electronic messaging repository maintenance, Lithuanian graphics server
+purchase, and Polish software license delivery). **These are procurement
+leads, not automatically greenfield product opportunities.** The earlier
+Idea Map had assigned the same "prototype a small component" direction
+to all of them, which could mislead a product entrepreneur.
+
+The Idea Map now uses a **no-network, conservatively source-lexical
+contract-type screen**. It reads only the source-published original-language
+notice title, the optional bounded TED procedure/lot excerpts, and the
+source-published **primary CPV**. It recognizes a *limited* set of
+literal original-language license, renewal, maintenance, hardware,
+development and support terms (including the terms observed in the
+live Slovenian, Lithuanian, Polish, Hungarian and Estonian notices).
+Missing or ambiguous source evidence remains **unclassified**, not
+"new SaaS verified". It labels:
+- license or entitlement purchase;
+- hardware or equipment purchase;
+- maintenance/support service;
+- mixed development and support;
+- custom development/implementation; or
+- unclassified software/IT procurement.
+
+Each report states matched lexical categories, the source CPV,
+the classification's tentative status, and a concrete next research
+question appropriate to the procurement type. Commodity purchases
+are retained as evidence but are **not promoted** to validated
+standalone software product ideas. No buyer willingness, competitor
+gap, recurring workflow, customer identity, original specifications
+or market-growth claim is established by these screens.
+No new source requests, provider libraries, secrets or background jobs
+are required.
+
 ### Integrated project-idea and SEO keyword investigation map (2026-11-20)
 
 The opt-in `--idea-map` switch requires `--workflow-briefs`, and

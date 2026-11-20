@@ -280,10 +280,16 @@ def build_idea_map(
             and lineage.get("newer_source_publication_requires_scope_revalidation") is True
         )
         kind_is_ted = kind.startswith("published")
+        procurement_fit = None
+        if kind_is_ted:
+            from mcp_trendpulse.intelligence_product_fit import (
+                screen_procurement,
+            )
+
+            procurement_fit = screen_procurement(brief)
         project_direction = (
-            "Prototype a small component of the published implementation workflow; "
-            "check for repeated independent buyers and incumbent software first."
-            if kind_is_ted else
+            procurement_fit["next_research"]
+            if procurement_fit is not None else
             "Prototype evidence collection and resolution tracking for this "
             "reported consumer problem; verify who would pay before building."
         )
@@ -301,6 +307,7 @@ def build_idea_map(
             "product_direction_hypothesis": project_direction,
             "buyer_or_operator_hypothesis": buyer,
             "published_buyer_label": _clean(brief.get("published_buyer_label"), 100),
+            "procurement_fit_screen": procurement_fit,
             "geography": _market(brief),
             "source_reference": ref,
             "original_record_dates": [
@@ -349,6 +356,15 @@ def build_idea_map(
         }
         output.append(idea)
     interest_status = _attach_keyword_interest(output, valid_evidence)
+    screened_non_greenfield = sum(
+        row["procurement_fit_screen"] is not None
+        and row["procurement_fit_screen"]["category"] in {
+            "license_or_entitlement_purchase",
+            "hardware_or_equipment_purchase",
+            "maintenance_or_support_service",
+        }
+        for row in output
+    )
     if not isinstance(discovery.get("as_of"), str):
         raise ValueError("Discovery analysis date is required")
     return {
@@ -357,6 +373,8 @@ def build_idea_map(
         "as_of": discovery["as_of"],
         "idea_count": len(output), "ideas": output,
         "max_ideas": MAX_IDEAS,
+        "screened_non_greenfield_purchase_lead_count": screened_non_greenfield,
+        "screening_does_not_validate_or_disprove_market_demand": True,
         "source_requests_added": 0,
         "keyword_evidence": interest_status,
         "source_and_market_populations_are_not_comparable": True,
@@ -386,6 +404,12 @@ def format_idea_map(report: dict[str, Any]) -> list[str]:
     for i, idea in enumerate(report["ideas"], 1):
         lines.append(f"  {i}. {idea['title']} [{idea['kind']}]")
         lines.append(f"     Build hypothesis: {idea['product_direction_hypothesis']}")
+        if idea.get("procurement_fit_screen") is not None:
+            screen = idea["procurement_fit_screen"]
+            lines.append(
+                f"     Fit screen: {screen['category']}"
+                " (source-lexical contract category, NOT validated SaaS demand)"
+            )
         lines.append(f"     Buyer hypothesis: {idea['buyer_or_operator_hypothesis']}")
         lines.append(f"     Market of source (NOT where search demand was measured): {idea['geography']['country_code'] or 'unknown'}")
         lines.append(f"     Original evidence: {idea['source_reference']}")
