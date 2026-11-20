@@ -36,7 +36,33 @@ jobs:
           TRENDPULSE_INTEL_SMOKE_REPORT: intelligence-live.json
           TRENDPULSE_INTEL_SEC_USER_AGENT: "TrendPulse public research (contact: info@tomiseregi.si)"
         run: uv run --locked python scripts/intelligence_live_smoke.py
+      - name: Check if this PR commit changes the M01 RSS integration
+        id: mjau_rss_changed
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            git fetch --no-tags --depth=2 origin "refs/pull/${{ github.event.pull_request.number }}/head"
+            if git diff --name-only "FETCH_HEAD^" "FETCH_HEAD" | grep -Eq '^(src/mcp_trendpulse/intelligence_rss.py|scripts/mjau_rss_live_smoke.py|tests/test_intelligence_rss.py)
+          TRENDPULSE_INTEL_CACHE_DIR: ${{ runner.temp }}/trendpulse-intelligence-mjau-rss
+        run: timeout 75s uv run --locked python scripts/mjau_rss_live_smoke.py
+      - name: Upload diagnostics even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: intelligence-live-contract-${{ github.run_id }}
+          path: intelligence-live.json
+          if-no-files-found: warn
+          retention-days: 7
+; then
+              echo "run=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "run=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
       - name: Verify two countries on Google Trending Now RSS (M01)
+        if: steps.mjau_rss_changed.outputs.run == 'true'
         env:
           TRENDPULSE_INTEL_CACHE_DIR: ${{ runner.temp }}/trendpulse-intelligence-mjau-rss
         run: timeout 75s uv run --locked python scripts/mjau_rss_live_smoke.py

@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00 COMPLETE; M01 IMPLEMENTED — LIVE VALIDATION PENDING  | **Next task:** M01 until two real country feeds and CI pass.
+**Created:** 2026-11-20  | **Status:** M00, M01 COMPLETE (verified)  | **Next task:** M02 — RapidFuzz lexical deduplication.
 
 ## Mission and non-negotiable scope
 
@@ -73,13 +73,13 @@ Build a **global, domain-independent**, free-only trend/keyword discovery engine
 - **Verification:** GitHub Actions for implementation SHA `e27bcd803391ed6a28dd64ed83f520ab30f4fc66`: **14/14 workflows successful**, Python 3.11/3.12/3.13/3.14 CI matrix successful; release validation **1,888 tests passed, 10 deselected, 3 existing warnings**, Ruff clean. `Free intelligence live contract smoke` run `44731831297`, job `136273284756`: **15/15 existing free sources observed** (not a Google Trends RSS measurement). Package publish correctly skipped because PR remains draft. CLI deterministic tests cover JSON schema and human-readable text with network collector forbidden.
 - **No changes:** no added package, source adapter, network fetch in schema CLI, new MCP tool, schedule, credentials, merged branch or release. M01 still requires its own two-country bounded RSS live verification.
 
-#### [ ] M01 — Google Trending Now via public RSS
+#### [x] M01 — Google Trending Now via public RSS
 - **Source:** Google Trending Now RSS (public); no auth, no browser, no site association.
 - **Reuse:** `trendspy` if it actually provides a stable RSS method. Only fall back to existing HTTP/XML parser if the available version lacks safe RSS handling.
 - **Output:** observed trending terms, publication time, source location, related news when supplied, source market. Optional traffic buckets must retain their original semantics; no invented exact volume.
 - **Acceptance:** two permitted countries where supported, live RSS parsing, duplicate removal, empty/malformed XML/429 tests, daily cache, no Chrome or auth.
 - **M01 implementation note (2026-11-20):** reuse the `get_provider_set().trends.get_trending_terms(..., full_data=True)` adapter, which already calls `trendspy.trending_now_by_rss`. New `intelligence trending-now --geo US --execute` CLI is explicitly opt-in. Source-attributed `TrendSignal` records retain source RSS country, approximate *bucket* (never exact count), feed start date when available, source news references, and grouped-label provenance; language remains unknown unless the source provides it. Offline mode requires no cache or network. Local persistent `BudgetCache` provides 15-minute TTL and hard 12/UTC-day source-call cap; repeated queries are cached, and 429 shares a local cooldown. Limited RSS list is not complete Google searches.
-- **Verification gate:** deterministic offline tests plus existing CI; bounded source verification for **US and GB** is executed by the existing free-source smoke workflow using `scripts/mjau_rss_live_smoke.py` (two provider operations maximum; no browser or proxy). Do **not** check M01 until the script reports both countries observed with source date/traffic/news and all relevant CI checks pass. No GSC/GA4/paid source.
+- **VERIFIED COMPLETE on 2026-11-20.** Implementation commit: `5337ea8f10f68fb83d46e8341342fe94de5b0832`, draft PR #328. GitHub Actions **14/14 successful**; release package validation **1,912 tests passed, 10 deselected, 3 warnings, Ruff clean**; existing free-provider smoke **15/15**. New bounded live RSS smoke run `44736869005`, job `136290351240`: **US 10/10** and **GB 10/10** observed labels, source-published UTC start dates, approximate traffic buckets and three related news items per displayed sample; one provider operation per country, neither cached. No property registration, browser or paid requests. RSS lists are capped and do **not** represent full market keyword volume. Two-country live smoke is gated to M01 integration changes (or explicit manual dispatch) so unrelated future PR commits don't repeatedly poll the feed. CLI: `mcp-trendpulse-cli intelligence trending-now --geo US --execute --format json`; without `--execute` it only plans and never fetches.
 
 #### [ ] M02 — RapidFuzz keyword normalization, dedup and lexical clusters
 - **Library:** add `rapidfuzz` to core only after reviewing binary wheels/lockfile and Windows Python 3.11–3.14 support.
@@ -181,7 +181,7 @@ Build a **global, domain-independent**, free-only trend/keyword discovery engine
 | Milestone | State | Verification and commit | Notes |
 | --- | --- | --- | --- |
 | M00 | COMPLETE — 2026-11-20 | PR #328; `e27bcd803391ed6a28dd64ed83f520ab30f4fc66`; 1,888 tests, Ruff clean, 14/14 CI, live smoke 15/15 | Offline signal contract/CLI and source inventory verified; existing RSS and BigQuery must be reused |
-| M01 | ☐ NOT STARTED | — | — |
+| M01 | COMPLETE — 2026-11-20 | PR #328; `5337ea8f10f68fb83d46e8341342fe94de5b0832`; 1,912 tests, Ruff clean, 14/14 CI; US+GB 10 labels each, one RSS call per market | Existing TrendSpy RSS reused; offline/opt-in CLI; M00 signal provenance, 15-min cache, 12/day local budget, safe related news. Next M02 |
 | M02 | ☐ NOT STARTED | — | — |
 | M03 | ☐ NOT STARTED | — | — |
 | M04 | ☐ NOT STARTED | — | — |
