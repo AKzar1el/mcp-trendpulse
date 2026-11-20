@@ -1077,6 +1077,40 @@ def intelligence_bing_keywords(term, country, language, kind, start_date, end_da
         click.echo(format_bing_report(result))
 
 
+@intelligence.command("wikimedia-pageviews")
+@click.option("--article", required=True,
+              help="Exact article title, not a URL, redirect or disambiguation page.")
+@click.option("--project", default="en.wikipedia.org", show_default=True,
+              help="Language Wikipedia hostname such as en.wikipedia.org or sl.wikipedia.org.")
+@click.option("--days", type=click.IntRange(1, 30), default=7, show_default=True,
+              help="Days per window; compare two contiguous equal-length windows.")
+@click.option("--end-date", default=None,
+              help="Last current-period day YYYY-MM-DD, at least two UTC days old.")
+@click.option("--execute", is_flag=True,
+              help="Opt in to up to two quota-reserved Wikimedia read-only requests.")
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]),
+              default="text", show_default=True)
+def intelligence_wikimedia_pageviews(article, project, days, end_date, execute, output_format):
+    """M06: daily user pageviews; never site analytics or search volume."""
+    from mcp_trendpulse.intelligence_wikimedia import (
+        discover_pageviews, format_pageviews,
+    )
+
+    try:
+        report = discover_pageviews(
+            article_title=article, project=project, days=days,
+            end_date=end_date, execute=execute,
+        )
+    except (OSError, TypeError, ValueError):
+        raise click.ClickException(
+            "Invalid Wikimedia project, exact article title, or comparison period"
+        ) from None
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_pageviews(report))
+
+
 @intelligence.command("sources")
 @click.option("--wave", type=click.IntRange(1, 3), default=None)
 def intelligence_sources(wave):

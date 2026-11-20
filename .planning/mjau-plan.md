@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00–M03 and M05 COMPLETE (verified); M04 implemented/offline-verified, still pending live Explore gate after user-authorized deferral  | **Next task:** M04 when the operator reminds us; M06 untouched.
+**Created:** 2026-11-20  | **Status:** M00–M03, M05–M06 COMPLETE (verified); M04 implemented/offline-verified, still pending live Explore gate after user-authorized deferral  | **Next task:** M04 when the operator reminds us; M07 untouched.
 
 ## Mission and non-negotiable scope
 
@@ -301,7 +301,72 @@ authorized or M04 is completed.
 
 ### Phase B — independent attention and developer adoption
 
-#### [ ] M06 — Wikimedia Pageviews
+#### [x] M06 — Wikimedia Pageviews
+**LIVE VERIFIED — 2026-11-20 UTC (operator separately authorized M06 while M04 remains deferred).**
+The official Wikimedia Analytics per-article daily Pageviews API is free,
+no user credentials or paid plan required, data CC0 1.0. A meaningful
+contact User-Agent is mandatory; 2026 provider rate limits apply. Use
+only the official read-only mediawiki Action API metadata and Analytics
+API endpoints, one language-specific Wikipedia project and one manually
+specified exact article at a time. No inferred country of readers,
+search volume, customer demand, bot counts or unique visitors.
+API HTTP 404 can mean zero or not-yet-loaded and omitted dates can
+mean missing/zero; NEVER replace these unknowns with fabricated zeros.
+
+**Implementation:** src/mcp_trendpulse/intelligence_wikimedia.py and
+opt-in CLI intelligence wikimedia-pageviews --article "Python
+(programming language)" --project en.wikipedia.org --days 7
+--end-date 2026-11-17 [--execute] --format json.
+Default preview never opens SQLite or uses network. Fixed-host HTTPS
+allowlist with no redirects, proxies or retries; 5s connect/12s read
+timeout; 96 KiB limit; user-agent contains repository contact link.
+One bounded read-only Action API canonical-title/pageprops check
+refuses missing pages, namespace mismatches, redirects, disambiguation
+and title mismatches without automatic resolution. Then one bounded
+per-article daily source fetch for exactly two contiguous equal-length
+periods (1–30 days each), with source-attributed daily TrendSignals.
+Added atomic reserve_many to the existing BudgetCache, with a **shared
+4 provider operations per UTC-day** cap for M06; both possible source
+requests are reserved atomically before any network request. 6-hour
+validated cache and 429/503 shared cooldown, no fallbacks, no dependency
+additions. For incomplete source periods, totals and percent change
+remain unknown; compare sums only with all daily observations present,
+and percent difference only when the prior total is positive.
+See docs/wikimedia-pageviews.md and tests/test_mjau_wikimedia.py.
+
+**Live acceptance:** The operator explicitly selected the known canonical
+English Wikipedia article Python (programming language) with requested
+windows **2026-11-04..2026-11-10** and **2026-11-11..2026-11-17**.
+First read-only Action query verified the exact canonical article was
+neither a redirect nor a disambiguation page. One AQS per-article request
+returned **14/14** real daily *all-access/user* pageview observations,
+zero rejected/missing, with distinct source dates, article project,
+language and access/agent provenance. Prior seven-day total **26,965**;
+current seven-day total **25,846**; normalized comparison **−4.15%**
+(−1,119 pageview requests between equal-length periods). These are
+not unique readers, geographic user shares or keyword popularity.
+The identical second CLI invocation hit validated SQLite cache with
+**requests_attempted=0**, **network_performed=false**, 14 reconstructed
+signals and unchanged sums. Original local M06 quota **2/4** for
+2026-11-20 UTC; M04 separate Google Trends budget remains **2/2**
+and M05 Bing budget **3/3** for that UTC day; SQLite quick_check=ok.
+
+**Validation:** 109 focused M06/M05/M04/security compatibility tests
+passed, full Ruff clean. Full Windows offline suite after M06:
+**1,828 passed, 3 unrelated failures, 10 deselected, 3 warnings**.
+The failures are the same pre-existing OpenAlex CLI-plan label assertion
+(the word Authorization remains visible although the value is redacted)
+and two local-calendar-date vs UTC-source-date freshness assertions
+around the midnight boundary; no M06 test failed. Do not claim
+the full Windows suite is green. GitHub CI evidence is tracked
+separately at the exact pushed PR head. Tests include title/redirect/disambiguation
+refusal, nonexistent page, canonical mismatch, date bounds/locale,
+source project contamination, daily gaps, 404 unknown, successful
+empty result, transport timeout/size/redirect/proxy restrictions,
+atomic cap with only one leftover operation, cooldown, malformed
+or secret-bearing cached payloads, one-call cache repeat, and offline
+CLI preview. User expressly deferred M04 and allowed M06 without
+M04 acceptance, so M04 remains unchecked. M07+ untouched.
 - **Library:** existing `requests`; source Wikimedia Analytics API.
 - Map user-observed topics to unambiguous page titles with language/project metadata; compare normalized pageview windows; disambiguation and missing article are not zero interest.
 - **Acceptance:** daily series and same-length comparison periods for one known page, stable cache, HTTP/429 tests, article rename/disambiguation handling.
@@ -381,7 +446,7 @@ authorized or M04 is completed.
 | M03 | COMPLETE — 2026-11-20 | PR #328; implementation df41073; focused 39 passed and full Ruff clean; real US rising Top 5, 2026-11-18, 61,072,200 dry-run bytes <=104,857,600 maximum; five source rows, zero rejected | Project trendpulse-new ACTIVE with billing disabled and no attached account; GB 2026-11-19 no data, GB 2026-11-18 >100 MiB refused; local budget 3/3 UTC day; source ranks not absolute volumes |
 | M04 | IMPLEMENTED/OFFLINE VERIFIED; LIVE PENDING — 2026-11-20 | PR #328; original feature 5e2d279a00f453c1521204fc4b6faa27da2d93f3; M04 adversarial source/cache hardening on feature branch; 70 focused tests, full Ruff clean, local full 1,747 passed / 1 existing unrelated failure / 10 deselected | Original SQLite quota directory accessible; historical shared TrendSpy provider daily budget 2/2 used on 2026-11-20; actual M04 CLI refused with zero provider operations; no live source observation until UTC reset; M04 remains unchecked |
 | M05 | COMPLETE — 2026-11-20 | PR #328; implementation c721e008dae1bc8dac4efd991957f4ebbb70d708; 88 focused pass, full Ruff clean, 1,783 full-local pass / 3 unrelated fails; CI at M05 implementation head 25 success / 2 expected skip; live Bing GET stats 24 history rows (6 emitted), related 100 rows (10 emitted), both HTTP 200; zero-call cache repeats | Arbitrary crochet patterns US/en-US (no siteUrl), Bing exact/broad impression semantics, original UTC-day local budget 3/3, no key leaks/paid fallback; M04 remains unchecked per user |
-| M06 | ☐ NOT STARTED | — | — |
+| M06 | COMPLETE — 2026-11-20 | PR #328 M06 commit pending; 109 focused pass and full Ruff clean; 1,828 full-local pass / 3 unrelated existing fails / 10 deselected; canonical en.wikipedia.org Python programming language page, 14 sourced daily views across 7+7 equal-length days, zero missing, cache repeat 0 calls | Previous 26,965 vs current 25,846 views (−4.15% article views, not search volume), original SQLite M06 budget 2/4, M04 explicitly deferred unchanged, no new dependencies/paid services |
 | M07 | ☐ NOT STARTED | — | — |
 | M08 | ☐ NOT STARTED | — | — |
 | M09 | ☐ NOT STARTED | — | — |

@@ -259,6 +259,34 @@ class BudgetCache:
             conn.execute("INSERT INTO budget(source, day, used) VALUES (?, ?, 1) ON CONFLICT(source, day) DO UPDATE SET used=used+1", (source, day))
             conn.commit()
 
+    def reserve_many(self, source: str, cap: int, count: int) -> None:
+        """Atomically reserve a fixed number of provider operations.
+
+        A multi-call research workflow must never launch a first request if
+        the durable daily budget cannot cover its entire bounded batch.
+        Does not change the existing single-operation reserve behavior.
+        """
+        if (type(count) is not int or type(cap) is not int
+                or not 1 <= count <= cap):
+            raise IntelligenceError("Invalid bounded provider reservation")
+        day = datetime.now(timezone.utc).date().isoformat()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT used FROM budget WHERE source=? AND day=?",
+                (source, day),
+            ).fetchone()
+            used = int(row[0]) if row else 0
+            if used + count > cap:
+                conn.rollback()
+                raise DailyBudgetExceeded(source, day, cap, used)
+            conn.execute(
+                "INSERT INTO budget(source, day, used) VALUES (?, ?, ?) "
+                "ON CONFLICT(source, day) DO UPDATE SET used=used+excluded.used",
+                (source, day, count),
+            )
+            conn.commit()
+
     def save(self, key: str, output: dict[str, Any], ttl: int) -> None:
         with self._connect() as conn:
             conn.execute("INSERT OR REPLACE INTO cache(id, until, body) VALUES (?, ?, ?)",
