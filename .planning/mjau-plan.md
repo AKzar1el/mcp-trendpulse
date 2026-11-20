@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00, M01 COMPLETE (verified)  | **Next task:** M02 — RapidFuzz lexical deduplication.
+**Created:** 2026-11-20  | **Status:** M00/M01 complete; M02 IN VALIDATION  | **Next task:** M02 until locked RapidFuzz wheels and CI pass.
 
 ## Mission and non-negotiable scope
 
@@ -85,6 +85,9 @@ Build a **global, domain-independent**, free-only trend/keyword discovery engine
 - **Library:** add `rapidfuzz` to core only after reviewing binary wheels/lockfile and Windows Python 3.11–3.14 support.
 - Normalize Unicode, whitespace and punctuation carefully; preserve diacritics, original phrase, market and language. Exact duplicates first, conservative RapidFuzz near-duplicates second. Do not merge semantic synonyms or translations merely because strings look related.
 - **Acceptance:** multilingual regression cases (Slovenian/English and accents), brand names, unrelated lookalikes, stable representative terms, lightweight CPU profiling, no merge across incompatible markets.
+- **M02 implementation in validation:** `intelligence_keywords.py` uses RapidFuzz `fuzz.ratio` only after exact Unicode NFC/casefold and scope grouping. It is strictly offline and capped at 200 validated `TrendSignal` inputs. Strict country/language partitioning, accent-sensitive text, protected programming symbols/negations and all-member matching prevent unsafe merges. Every source's original raw term, source reference and original metric survive; never sum traffic buckets or invent keyword volumes.
+- **CLI:** `intelligence cluster-keywords --input existing-m01-rss.json --format json` (or an array of M00 signals). No API call. Tests include multilingual variants, typos, negation/intent differences, M01 payload, 200-signal CPU benchmark and bounded input sizes.
+- **Dependency gate:** RapidFuzz 3.14.6 (MIT; Python >=3.11) pinned via project constraint and generated `uv.lock` by one-off GitHub CI. Remove temporary lock preparation workflow after the lockfile has been committed; do not mark complete until locked Python matrix, wheel availability and all relevant checks pass.
 
 #### [ ] M03 — Google Trends official BigQuery dataset (no billing)
 - **Source:** public `bigquery-public-data.google_trends` international/US top and rising terms; daily snapshots, source-covered countries only; generally **Top 25** daily, **30-day publication partitions**, historical metric backfills for included terms. This is **not every keyword or exact search-volume data**.

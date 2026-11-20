@@ -872,6 +872,57 @@ def intelligence_signal_schema(output_format):
     click.echo("Use --format json to inspect the versioned Pydantic JSON Schema.")
 
 
+@intelligence.command("cluster-keywords")
+@click.option("--input", "input_file", type=click.Path(
+    exists=True, dir_okay=False, path_type=Path), required=True,
+    help="Local JSON with signal list or M01 RSS result; strictly offline.")
+@click.option("--threshold", type=click.FloatRange(90, 100),
+              default=95.0, show_default=True)
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]),
+              default="text", show_default=True)
+def intelligence_cluster_keywords(input_file, threshold, output_format):
+    """Lexically cluster up to 200 existing sourced keyword signals offline."""
+    from mcp_trendpulse.intelligence_keywords import cluster_keyword_signals
+
+    try:
+        if input_file.stat().st_size > 128 * 1024:
+            raise ValueError("Input JSON cannot exceed 128 KiB")
+        payload = json.loads(input_file.read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and payload.get("mode") == (
+            "google_trending_now_public_rss_source_attributed"
+        ):
+            signals = [row["signal"] for row in payload["trends"]]
+        elif isinstance(payload, list):
+            signals = payload
+        else:
+            raise ValueError("Expected a list of TrendSignals or M01 RSS result")
+        report = cluster_keyword_signals(signals, similarity_threshold=threshold)
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError,
+            json.JSONDecodeError) as exc:
+        # Never echo arbitrary JSON payloads or file contents in CLI errors.
+        raise click.ClickException(
+            "Keyword clustering input is invalid, unsupported or too large"
+            if not isinstance(exc, ValueError) or "Expected a list" not in str(exc)
+            else "Expected a list of TrendSignals or M01 RSS result"
+        ) from None
+
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(
+            f"Offline lexical keyword clusters: {report['cluster_count']} "
+            f"from {report['input_records']} sourced records"
+        )
+        click.echo("No network; no semantic-equivalence or search-volume aggregation.")
+        for group in report["clusters"]:
+            click.echo(
+                f"- {group['representative']} "
+                f"[{group['country'] or 'unknown'}/"
+                f"{group['language'] or 'unknown language'}] "
+                f"({len(group['members'])} source terms)"
+            )
+
+
 @intelligence.command("trending-now")
 @click.option("--geo", type=str, default="US", show_default=True,
               help="Source-supported uppercase country code, e.g. US, GB, SI.")

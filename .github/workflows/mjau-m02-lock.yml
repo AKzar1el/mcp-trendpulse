@@ -1,0 +1,42 @@
+name: M02 one-time RapidFuzz lockfile preparation
+on:
+  push:
+    paths:
+      - "pyproject.toml"
+      - ".github/workflows/mjau-m02-lock.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.5"
+      - name: Resolve only RapidFuzz in the existing lockfile
+        run: |
+          uv lock --upgrade-package rapidfuzz
+          uv lock --check
+      - name: Publish generated lockfile to the same branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- uv.lock; then
+            git add uv.lock
+            git commit -m "build(lock): resolve M02 RapidFuzz Python 3.11-3.14"
+            git push origin "HEAD:refs/heads/${{ github.ref_name }}"
+          fi
+      - name: Export generated lockfile for audit
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mjau-m02-uv-lock-${{ github.run_id }}
+          path: uv.lock
+          retention-days: 3
+          if-no-files-found: warn
