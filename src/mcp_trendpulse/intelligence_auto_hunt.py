@@ -112,11 +112,12 @@ def investigate_discovered_topics(
             # only known status metadata; never pass through provider text,
             # credentials, redirect URLs or arbitrary transport errors.
             if status != "observed":
-                code = provider.get("http_status")
+                http_code = provider.get("http_status")
                 reason = provider.get("reason")
-                if (isinstance(code, int) and not isinstance(code, bool)
-                        and 100 <= code <= 599):
-                    summary["http_status"] = code
+                if (isinstance(http_code, int)
+                        and not isinstance(http_code, bool)
+                        and 100 <= http_code <= 599):
+                    summary["http_status"] = http_code
                 elif isinstance(reason, str) and reason in {
                     "HTTPError", "URLError", "TimeoutError",
                     "provider_cooldown", "not_configured",

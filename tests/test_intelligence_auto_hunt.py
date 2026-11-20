@@ -251,6 +251,10 @@ def test_source_unavailability_preserves_safe_reason_not_arbitrary_provider_text
         [idea()], as_of=AS_OF, lookback_days=30, env={},
     )
     providers = result["topics"][0]["source_coverage"]
+    assert result["topics"][0]["topic_id"] == "T12026"
+    assert result["topics"][0]["research_direction"] == (
+        "early_rising_research_watchlist"
+    )
     assert result["status"] == "partially_available_source_context"
     assert providers[0]["http_status"] == 429
     assert "reason" not in providers[0]
