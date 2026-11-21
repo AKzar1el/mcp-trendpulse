@@ -104,6 +104,11 @@ def test_source_result_preserves_checks_and_inconclusive():
     ]
     assert not out["verified_exploits"] and not out["revenue_or_customer_demand_verified"]
     assert out["repo_commit_scanned"] == "a"*40
+    assert out["source_scan_precision"] == "timestamp"
+    assert out["source_scan_date"] == "2026-11-20"
+    assert out["source_scan_at"].startswith("2026-11-20T12:00:00")
+    assert not out["full_check_coverage_verified"]
+    assert out["unreported_checks_are_unknown"]
     assert len(called) == 1 and store.used == 1
     assert "UNTRUSTED_DETAIL" not in json.dumps(out)
     assert "SHOULD_NOT_APPEAR" not in json.dumps(store.items)
@@ -142,7 +147,9 @@ def test_unscored_repo_is_not_scored_zero():
     dict(payload(), score=11),
     dict(payload(), date="2027-01-01T00:00:00Z"),
     dict(payload(), date="invalid"),
-    dict(payload(), date="2026-11-20"),
+    dict(payload(), date="2026-11-32"),
+    dict(payload(), date="2026-11-20T12:00:00"),
+    dict(payload(), date="2026-11-22"),
     dict(payload(), checks=[{"name":"!!","score":5}]),
     dict(payload(), checks=[{"name":"A","score":5},{"name":"A","score":9}]),
 ])
@@ -271,3 +278,46 @@ def test_scan_fractional_second_before_observed_not_falsely_future():
     out, _, _ = run(now=moment, obj=payload(scan="2026-11-21T04:30:00.500000Z"))
     assert out["status"] == "observed"
     assert out["scan_age_days"] == 0
+
+def test_date_only_scorecard_source_accepted_without_fabricated_time():
+    out, store, _ = run(obj=payload(scan="2026-11-09"))
+    assert out["status"] == "observed"
+    assert out["source_scan_date"] == "2026-11-09"
+    assert out["source_scan_at"] is None
+    assert out["source_scan_precision"] == "date"
+    assert out["scan_age_days"] == 12
+    assert out["source_data_license"] == "CDLA-Permissive-2.0"
+    assert store.items
+
+
+def test_date_only_cached_replay_preserves_precision_and_skips_network():
+    store = Store()
+    first, _, called = run(store=store, obj=payload(scan="2026-11-09"))
+    second, _, after = run(store=store, obj=payload(scan="2026-11-09"), code=503)
+    assert first["status"] == second["status"] == "observed"
+    assert second["source_scan_date"] == first["source_scan_date"]
+    assert second["source_scan_at"] is None
+    assert second["source_scan_precision"] == "date"
+    assert second["cache_hit"] and not second["network_performed"]
+    assert len(called) == 1 and not after
+
+
+def test_utc_conversion_preserves_source_day_of_scan():
+    out, _, _ = run(obj=payload(scan="2026-11-20T23:30:00-02:00"))
+    assert out["status"] == "observed"
+    assert out["source_scan_date"] == "2026-11-21"
+    assert out["source_scan_at"] == "2026-11-21T01:30:00+00:00"
+    assert out["source_scan_precision"] == "timestamp"
+
+
+def test_invalid_calendar_date_fails_closed():
+    out, store, _ = run(obj=payload(scan="2026-02-30"))
+    assert out["status"] == "invalid_source_shape"
+    assert not store.items
+
+
+def test_source_not_comprehensive_security_grade():
+    out, _, _ = run()
+    assert out["full_check_coverage_verified"] is False
+    assert out["unreported_checks_are_unknown"] is True
+    assert out["not_a_security_audit_or_vulnerability_guarantee"] is True
