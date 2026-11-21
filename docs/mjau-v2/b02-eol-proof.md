@@ -43,3 +43,11 @@ Source version \`1.2.1\`, generated \`2026-11-21T00:08:00+00:00\`; source links 
 ## Stop/discard rule
 
 Do not add B02 as a global tool merely because it returns dates. Benchmark whether release-cycle questions become more accurate and actionable than v1 while avoiding misleading migration urgency. Verify one case with primary vendor documentation, run full tests, check large-product response limits and correct interpretation of support phases. A feature that cannot pass those gates is **DISCARDED**, not retained as an unused endpoint.
+
+## Authentic v2 pytest/Ruff verification — 2026-11-21 (supersedes older “not run” lines)
+
+- **Actual project toolchain**, not a mocked pytest shim: venv **pytest 9.1.1**, **Ruff 0.12.1**, Windows, focused source and test staged in a separately scoped temporary directory; production and active v1 tree were untouched. The tested isolated source commit was `523252f3d357f9bdbda2bcf909571c09f9373cb7`.
+- **Focused tests:** **54/54 PASSED**, no focused failures. **Ruff:** **ALL CHECKS PASSED** for the source and its committed tests.
+- **Test note:** Real pytest 54/54 and Ruff clean after fixing E701 in the test helper (commit d20e970abf0149dc3ae8f310b6073d4f859a67f1).
+- **Existing v1 compatibility baseline** (unchanged checkout `b88b0a974b5dcdb480e4fd8c4da5f7bbca68e98e`): 11 selected MJAU/evidence test modules produced **258 passed and 1 timing-sensitive failure** in `tests/test_intelligence_singleflight.py::test_different_queries_still_fetch_in_parallel` under concurrent machine load. That exact unchanged failing assertion **passed** on an isolated rerun. The result is NOT a single fully green broad regression and NOT the full repository suite. The 15 async tests failed on an earlier runner with `pytest-asyncio` disabled; all passed after the installed plugin was explicitly loaded. No source code regression was attributed to the new v2 adapters, because they have **not** been wired into v1.
+- **Still required for inclusion:** a single integration-owner review on current v1 contracts, correct free-source license/attribution, independent decision usefulness and false-positive comparison, no material CPU/RAM/latency regression, and a successful combined regression on the *final merged commit*. **Strict prove-or-discard still applies.**
