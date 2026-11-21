@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00–M03, M05–M07 COMPLETE (verified); M04 safety guard verified, real Explore source observation blocked by upstream 429 (not claimed complete)  | **Next task:** M08 only on separate authorization. Do not automatically repeat blocked M04 live requests.
+**Created:** 2026-11-20 | **Integration audit 2026-11-21:** M00-M03, M05-M07 verified; M04 user-directed implementation CLOSED as provider-availability dependent; M08 live acceptance now verified; M09-M10 previously public-source verified; M11-M14 will be integrated and tested separately. Source snapshots are not buyers or absolute demand. No main merge/deployment implied.
 
 ## Mission and non-negotiable scope
 
@@ -521,7 +521,7 @@ M04 stays unchecked until the user's reminder; M08+ untouched.
 - Search genuine recent technical discussions and launches using observed topic phrases; dedupe repeated posts by stable ID, distinguish story and comment counts, count unique days/topics not raw repeated mentions.
 - **Acceptance:** one bounded query with timestamps and source IDs; handle deletion and pagination cap; no false customer demand.
 
-#### [ ] M08 - Reuse existing GitHub Issues source (no duplicate provider)
+#### [x] M08 - Reuse existing GitHub Issues source (no duplicate provider)
 - **Library:** current `intelligence_foundation` GitHub Issues adapter.
 - Add only a thin normalized signal transform where absent: distinct issue IDs, repository, time, state and topic relevance, source caps and cooldown.
 - **Acceptance:** no duplicate GitHub API adapter, owner/repo bias explicit, verified sampled issues and no fabricated independent buyers.
@@ -587,15 +587,72 @@ Afterwards rerun one bounded CLI query and identical zero-network
 cache repeat; until then M08 stays UNCHECKED.
 No M04 provider calls or shared branch writes; M09+ untouched.
 
-#### [ ] M09 — npm package-download trend
-- **Library:** existing `requests`; public npm downloads endpoint.
-- Map package identity, ecosystem and daily/weekly downloads; flag CI/bots and packages with missing history. Downloads are not unique users/customers.
-- **Acceptance:** one bounded public package/timeframe query, correct time granularity and cache; missing/invalid package test.
+**2026-11-21 genuine M08 acceptance after user repaired Windows ACL:** Normal-user access to the original existing .request_locks directory succeeds (explicit Modify grant). The original M08 `github-problems --query timeout --repository microsoft/playwright --days 30 --limit 10 --execute` returned `status=observed`, `network_performed=true`, exactly 1 original authorized GitHub source request, 8 accepted source issue records, 6 dated typed github_issue_mentions signals. An identical immediately repeated command returned `cache_hit=true`, `network_performed=false`, zero requests and the same eight records. Original SQLite `PRAGMA quick_check=ok`; UTC 2026-11-21 existing github_issues source budget 1/12, no copied budget or lock folder, no rate-limit bypass. M08 is now **LIVE VERIFIED / COMPLETE**. Earlier failed ACL/source attempts above remain historical evidence.
 
-#### [ ] M10 — PyPI download statistics
-- **Library:** existing `requests` (or optional `pypistats` only if it substantially simplifies a tested API contract); PyPI Stats public aggregate endpoint.
-- Collect Python package daily history; preserve data-source sampling limitations and delivery lag. Normalize concept only for display; **never** add npm and PyPI raw counts.
-- **Acceptance:** one bounded observed package, zero vs unavailable tests, source date coverage.
+#### [x] M09 ? npm package-download trend
+- **Implementation / LIVE VERIFIED 2026-11-21 UTC:** New shared package
+  source adapter, opt-in CLI intelligence npm-downloads, deterministic
+  offline fixtures and docs/package-download-history.md. Official
+  keyless https://api.npmjs.org/downloads/range/last-week/zod returned
+  7/7 source-dated daily downloads, **2026-11-13..2026-11-19**,
+  total **475,488,459** npm tarball download *events*, 0 missing or
+  rejected, 2-day availability lag. Seven source-attributed daily
+  npm_package_downloads TrendSignals; provenance official_api.
+  Exact repeated CLI command: **cache_hit=true, requests_attempted=0,
+  network_performed=false** and identical verified daily total.
+  Original SQLite dedicated npm source budget **1/5** on 2026-11-21
+  UTC; shared quota DB PRAGMA quick_check=ok.
+
+  Single exact package (also supports URL-encoded scoped names),
+  periods seven/30 source days, source identity, inclusive dates,
+  partial/missing vs actual zero, nonnegative integer count, UTC
+  lag and stale shape checks. Source 404 does not mean zero users.
+  Fixed official HTTPS origin, 128KiB body, 5/12s timeout, no
+  redirects/proxies/retries, durable 429/503 cooldown and validated
+  24-hour cache; zero new dependency/credentials/paid service.
+  **npm download events include CI/CD, bots and dependency installs:
+  not unique users, customers, search interest or market demand.**
+  Focused package fixture tests and repository CI recorded in
+  implementation branch; do not merge while related other branch
+  conversations remain unresolved.
+
+#### [x] M10 ? PyPI download statistics
+- **Implementation / LIVE VERIFIED 2026-11-21 UTC:** Same opt-in
+  bounded source adapter and CLI intelligence pypi-downloads
+  with normalized PEP503 project names and a seven/30-day window.
+  Official https://pypistats.org/api/packages/pydantic/overall?mirrors=false
+  returned 181 historical daily without_mirrors observations;
+  the selected verified latest **7/7 daily source dates
+  2026-11-13..2026-11-19** yielded **285,184,650**
+  mirror-excluded Python package download *events*,
+  0 missing/rejected, source lag 2 days. Seven typed
+  pypi_package_downloads provenance signals use public_api.
+  An identical second CLI request was a validated **cache hit,
+  requests_attempted=0, network_performed=false**, preserving values.
+  Dedicated original SQLite PyPI Stats source budget **1/3** on
+  UTC 2026-11-21. M04/M08 state/budgets untouched.
+
+  PyPI Stats is a separately hosted limited-resource public API,
+  with daily refresh and ~180-day history. Explicit mirrors=false
+  requires without_mirrors source category, refuses mixed categories,
+  malformed/duplicate/missing dates, wrong package and invented zero.
+  Stable 24-hour cache, max 160KiB response, fixed official
+  HTTPS host, no proxy/redirect/retry/account/API key/payment.
+  Known mirror clients are excluded; CI/CD still counts.
+  **Never add npm and PyPI download counts or represent the totals
+  as distinct humans or paying buyers.** See
+  docs/package-download-history.md and
+  tests/test_mjau_package_downloads.py. M11+ untouched.
+
+**Verified offline on the isolated M09/M10 branch:** 62 dedicated
+package-source tests passed; combined M09?M10 + M04/M05/M06/M07/typed
+source compatibility 224 passed; full repository Ruff clean and
+git diff --check clean. Full Windows repository suite **1,930 passed,
+1 previously existing unrelated OpenAlex plan-only redacted
+Authorization-header-label assertion failure, 10 deselected and
+3 warnings**, all M09/M10 tests passed. The full local suite is
+NOT claimed green. Review the specific GitHub CI results at the
+actual pushed branch head rather than inferring green CI from local.
 
 #### [ ] M11 — Stack Exchange API
 - **Library:** existing `requests`; free API with quota/backoff instructions.
@@ -654,9 +711,9 @@ No M04 provider calls or shared branch writes; M09+ untouched.
 | M05 | COMPLETE — 2026-11-20 | PR #328; implementation c721e008dae1bc8dac4efd991957f4ebbb70d708; 88 focused pass, full Ruff clean, 1,783 full-local pass / 3 unrelated fails; CI at M05 implementation head 25 success / 2 expected skip; live Bing GET stats 24 history rows (6 emitted), related 100 rows (10 emitted), both HTTP 200; zero-call cache repeats | Arbitrary crochet patterns US/en-US (no siteUrl), Bing exact/broad impression semantics, original UTC-day local budget 3/3, no key leaks/paid fallback; M04 remains unchecked per user |
 | M06 | COMPLETE — 2026-11-20 | PR #328; implementation f61cd9ff1d49dc9bf4fec224775dacd021c4888c; 109 focused pass and full Ruff clean; 1,828 full-local pass / 3 unrelated existing fails / 10 deselected; GitHub CI 25 success / 2 expected skip after one unrelated Python 3.12 concurrency-test retry; 14 sourced daily views across 7+7 days, cache repeat 0 calls | Canonical en.wikipedia.org Python programming language page; prior 26,965 vs current 25,846 views (−4.15%, not search volume), original M06 daily quota 2/4, M04 deferred unchanged; no new dependencies/paid services |
 | M07 | COMPLETE — 2026-11-20 | PR #328; code 6293fc149a88ca662c9ea26e0fbb1184b3ed117d; 38 focused/162 mixed tests pass, full local 1,866 pass / 3 unrelated old OpenAlex fails, full Ruff clean; first CI had unrelated transient cross-source failure, follow-up head 64313d5 green **25 success/2 expected skip** | Live AI agents first-page sample: 10 stories (provider 550), 10 comments across 8 threads (1329), 8 Show HN launches (210); 0-call cache hits; HN quota 4/5 and M04 quota unchanged; PR remains draft/unmerged |
-| M08 | IMPLEMENTED/OFFLINE VERIFIED; LIVE BLOCKED ? 2026-11-21 | Isolated branch feat/mjau-m08-existing-github-issues; 111 focused+legacy tests pass, Ruff clean; full offline 1,909 pass/1 unrelated OpenAlex fail/10 deselected; existing GitHub provider reused with sanitized new caches; independent source metadata confirms 8 matching open issues | Live adapter zero network due existing protected .request_locks ACL; original GitHub budget 0/12. Not complete until authorized access and observed same-collector result/cache repeat; M04 untouched |
-| M09 | ☐ NOT STARTED | — | — |
-| M10 | ☐ NOT STARTED | — | — |
+| M08 | COMPLETE - GENUINE LIVE VERIFIED 2026-11-21 | One bounded official GitHub Issues source request produced 8 accepted open public issues and 6 dated partial signals; exact repeat cache hit no network, original budget 1/12, original lock ACL fixed, SQLite integrity OK; prior 111 legacy/focused tests & CI green | Public issues are not independent buyers, first-page bias and incomplete population remain; no duplicate API/alternate budget |
+| M09 | COMPLETE ? 2026-11-21 source-live verified | npm zod Nov13?19: 7/7 daily counts, 475,488,459 downloads, no missing, two-day source lag, exact 0-network cached repeat, quota 1/5 | Counts include CI/bots/dependency installs and are not unique users; independent implementation PR, M04/M08 untouched |
+| M10 | COMPLETE ? 2026-11-21 source-live verified | PyPI Stats pydantic without_mirrors Nov13?19: 7/7 daily counts, 285,184,650 downloads, two-day lag, source history 181 dates, cache repeat 0 network, quota 1/3 | Excludes known mirrors but CI remains included; distinct ecosystem no npm sum, no purchase/unique-user claim, independent implementation PR |
 | M11 | ☐ NOT STARTED | — | — |
 | M12 | ☐ NOT STARTED | — | — |
 | M13 | ☐ NOT STARTED | — | — |

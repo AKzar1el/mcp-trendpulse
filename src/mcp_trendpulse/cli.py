@@ -1192,6 +1192,64 @@ def intelligence_github_problems(query, repository, days, limit, execute, output
         click.echo(format_github_problems(report))
 
 
+@intelligence.command("npm-downloads")
+@click.option("--package", "package_name", required=True,
+              help="Exact npm name; supports @scope/name, no bulk or version query.")
+@click.option("--days", type=click.Choice(["7", "30"]), default="7",
+              show_default=True, help="Last 7 or last 30 published UTC days.")
+@click.option("--execute", is_flag=True,
+              help="Opt in to one public npm downloads API request, or validated cache.")
+@click.option("--format", "output_format",
+              type=click.Choice(["text", "json"]), default="text", show_default=True)
+def intelligence_npm_downloads(package_name, days, execute, output_format):
+    """M09: npm package tarball requests, not users or purchase demand."""
+    from mcp_trendpulse.intelligence_package_downloads import (
+        discover_package_downloads, format_package_downloads,
+    )
+    try:
+        report = discover_package_downloads(
+            ecosystem="npm", package=package_name,
+            days=int(days), execute=execute,
+        )
+    except (OSError, TypeError, ValueError):
+        raise click.ClickException(
+            "Invalid npm package name or daily history window"
+        ) from None
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_package_downloads(report))
+
+
+@intelligence.command("pypi-downloads")
+@click.option("--package", "package_name", required=True,
+              help="Exact PyPI distribution, PEP 503 normalized.")
+@click.option("--days", type=click.Choice(["7", "30"]), default="7",
+              show_default=True, help="Last 7 or 30 available daily observations.")
+@click.option("--execute", is_flag=True,
+              help="Opt in to one public PyPI Stats request or validated cache.")
+@click.option("--format", "output_format",
+              type=click.Choice(["text", "json"]), default="text", show_default=True)
+def intelligence_pypi_downloads(package_name, days, execute, output_format):
+    """M10: PyPI Stats downloads excluding known mirrors, not unique users."""
+    from mcp_trendpulse.intelligence_package_downloads import (
+        discover_package_downloads, format_package_downloads,
+    )
+    try:
+        report = discover_package_downloads(
+            ecosystem="pypi", package=package_name,
+            days=int(days), execute=execute,
+        )
+    except (OSError, TypeError, ValueError):
+        raise click.ClickException(
+            "Invalid PyPI package name or daily history window"
+        ) from None
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_package_downloads(report))
+
+
 @intelligence.command("sources")
 @click.option("--wave", type=click.IntRange(1, 3), default=None)
 def intelligence_sources(wave):
