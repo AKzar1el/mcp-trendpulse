@@ -9,18 +9,21 @@ from mcp_trendpulse.intelligence_mcp import (
     intel_mcp,
     intelligence_dependency_graph,
     intelligence_repository_scorecard,
+    intelligence_repository_star_history,
 )
 
 
-def test_two_new_tools_registered_only_in_opt_in_intelligence_mcp():
+def test_three_new_tools_registered_only_in_opt_in_intelligence_mcp():
     tools = asyncio.run(intel_mcp.list_tools())
     names = {tool.name for tool in tools}
     assert "intelligence_dependency_graph" in names
     assert "intelligence_repository_scorecard" in names
-    assert len(names) == 14
+    assert "intelligence_repository_star_history" in names
+    assert len(names) == 15
     for tool in tools:
         if tool.name in {"intelligence_dependency_graph",
-                         "intelligence_repository_scorecard"}:
+                         "intelligence_repository_scorecard",
+                         "intelligence_repository_star_history"}:
             assert tool.annotations.readOnlyHint is True
             assert tool.annotations.destructiveHint is False
 
@@ -42,7 +45,8 @@ def test_dependency_and_scorecard_plan_never_touch_sqlite_or_network(monkeypatch
     monkeypatch.setattr(requests.Session, "get", forbid)
     dependency = intelligence_dependency_graph("npm", "is-odd", "3.0.1")
     score = intelligence_repository_scorecard("pallets", "flask")
-    for result in (dependency, score):
+    stars = intelligence_repository_star_history("fastapi", "fastapi")
+    for result in (dependency, score, stars):
         assert result["status"] == "planned"
         assert result["requests_attempted"] == 0
         assert result["network_performed"] is False
@@ -65,6 +69,8 @@ def test_execute_requires_real_boolean():
         intelligence_dependency_graph("npm", "is-odd", "3.0.1", execute="yes")
     with pytest.raises(ValueError):
         intelligence_repository_scorecard("pallets", "flask", execute="yes")
+    with pytest.raises(ValueError):
+        intelligence_repository_star_history("fastapi", "fastapi", execute="yes")
 
 
 def test_explicit_execute_uses_original_isolated_sqlite_cache(monkeypatch, tmp_path):

@@ -309,6 +309,33 @@ def intelligence_repository_scorecard(
     )
 
 
+
+@intel_mcp.tool(
+    description=(
+        "Read FREE GitHub repository star-history aggregate cohorts, NOT "
+        "individual stargazers. GitHub reports stars still active today "
+        "grouped by their original star dates, with provider-defined week/day "
+        "boundaries that are NOT guaranteed UTC. Plan-only unless execute=True, "
+        "with fixed-host HTTPS, local quotas and a validated cache. "
+        "Only descriptive within-repository comparisons are permitted. "
+        "This is NOT net historical star growth, user count, installations, "
+        "commercial demand, market share or a growth forecast."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_repository_star_history(
+    owner: str,
+    repo: str,
+    limit: int = 10,
+    execute: bool = False,
+) -> dict[str, Any]:
+    from mcp_trendpulse.mjau_v2.github_stars import github_star_history
+
+    return github_star_history(
+        owner=owner, repo=repo, limit=limit, execute=execute,
+    )
+
+
 def main() -> None:
     intel_mcp.run()
 
