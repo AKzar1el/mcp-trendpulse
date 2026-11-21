@@ -23,6 +23,8 @@ ADVISORY = re.compile(r"(?:OSV-\d{4}-\d+|GHSA-[a-z0-9-]{10,40}|CVE-\d{4}-\d{4,}|
 MAX_BYTES = 192_000
 MAX_ADVISORIES = 12
 MAX_LINKS = 4
+MAX_SOURCE_REFERENCES = 30
+MAX_COMPACT_IDS = 100
 OSV_LICENSE_SOURCES = "https://google.github.io/osv.dev/data/"
 CC_BY_4_LICENSE = "https://creativecommons.org/licenses/by/4.0/"
 
@@ -71,6 +73,24 @@ def plan_package_query(ecosystem: str, package: str, version: str) -> dict[str, 
         "execution": "PLAN_ONLY", "max_requests_if_approved": 1,
         "max_response_bytes": MAX_BYTES, "timeout_seconds_if_approved": 8,
         "requires_existing_trendpulse_budget_and_cache": True,
+        "zero_network_calls": True,
+    }
+
+
+def plan_compact_package_query(ecosystem: str, package: str, version: str) -> dict[str, Any]:
+    """One ID-only OSV querybatch request; avoids large advisory body downloads."""
+    _query_inputs(ecosystem, package, version)
+    return {
+        "source": "osv_public_api", "method": "POST",
+        "url": f"{ORIGIN}/v1/querybatch",
+        "json_body": {"queries": [{
+            "package": {"name": package, "ecosystem": ecosystem},
+            "version": version,
+        }]},
+        "execution": "PLAN_ONLY", "max_requests_if_approved": 1,
+        "max_response_bytes": MAX_BYTES, "timeout_seconds_if_approved": 8,
+        "requires_existing_trendpulse_budget_and_cache": True,
+        "returns_identifiers_and_modified_only": True,
         "zero_network_calls": True,
     }
 
@@ -153,10 +173,10 @@ def _advisory(item: Any) -> dict[str, Any]:
     if published is not None and modified is not None and published > modified:
         raise ValueError("Advisory modified before publication")
     refs = item.get("references", [])
-    if not isinstance(refs, list) or len(refs) > 30:
+    if not isinstance(refs, list):
         raise ValueError("Invalid OSV reference list")
     links = []
-    for row in refs:
+    for row in refs[:MAX_SOURCE_REFERENCES]:
         if not isinstance(row, dict):
             raise ValueError("Invalid OSV reference")
         url = _safe_ref(row.get("url"))
@@ -171,6 +191,8 @@ def _advisory(item: Any) -> dict[str, Any]:
             else "incomplete_advisory_dates"
         ),
         "advisory_links": links[:MAX_LINKS],
+        "source_reference_count": len(refs),
+        "references_truncated": len(refs) > MAX_SOURCE_REFERENCES,
         **_attribution_hint(ident),
         "copyright_review_required_per_original_feed": True,
         "is_not_exploitation_evidence": True,
@@ -210,6 +232,93 @@ def parse_package_query(payload: Any, *, ecosystem: str, package: str, version: 
         "no_advisory_not_equivalent_to_safe_package": True,
         "no_auto_remediation": True, "zero_network_calls": True,
     }
+
+
+def parse_compact_package_query(
+    payload: Any, *, ecosystem: str, package: str, version: str,
+) -> dict[str, Any]:
+    """Project one original /v1/querybatch response, without advisory bodies.
+
+    OSV guarantees query ordering. Exactly one input query is allowed here;
+    never silently infer an all-clear from pagination, truncation or errors.
+    """
+    _query_inputs(ecosystem, package, version)
+    _size(payload)
+    if (not isinstance(payload, dict) or set(payload) != {"results"}
+            or not isinstance(payload["results"], list)
+            or len(payload["results"]) != 1):
+        raise ValueError("Invalid one-query OSV querybatch envelope")
+    page = payload["results"][0]
+    if not isinstance(page, dict) or any(
+        key not in {"vulns", "next_page_token"} for key in page
+    ):
+        raise ValueError("Invalid OSV compact result")
+    more = page.get("next_page_token")
+    if more is not None and (
+        not isinstance(more, str) or not 1 <= len(more) <= 2048
+    ):
+        raise ValueError("Invalid compact pagination token")
+    rows = page.get("vulns", [])
+    if not isinstance(rows, list):
+        raise ValueError("Invalid OSV compact advisory list")
+    observed_ids: set[str] = set()
+    records: list[dict[str, Any]] = []
+    for row in rows:
+        if (not isinstance(row, dict) or set(row) != {"id", "modified"}
+                or not isinstance(row["id"], str)
+                or ADVISORY.fullmatch(row["id"]) is None):
+            raise ValueError("Invalid ID-only OSV record")
+        ident = row["id"]
+        modified = _date(row["modified"], "modified")
+        if modified is None or ident in observed_ids:
+            raise ValueError("Missing modification date or duplicate OSV ID")
+        observed_ids.add(ident)
+        if len(records) < MAX_COMPACT_IDS:
+            records.append({
+                "advisory_id": ident,
+                "source_url": f"https://osv.dev/vulnerability/{ident}",
+                "modified_at": modified,
+                "published_at": None,
+                "advisory_links": [],
+                **_attribution_hint(ident),
+                "source_specific_license_review_required": True,
+                "is_not_exploitation_evidence": True,
+                "is_not_commercial_demand_evidence": True,
+            })
+    truncated = len(rows) > MAX_COMPACT_IDS
+    partial = more is not None
+    return {
+        "source": "osv_public_api", "ecosystem": ecosystem,
+        "package": package, "version": version,
+        "status": (
+            "incomplete_paged_response" if partial else (
+                "incomplete_truncated_response" if truncated else (
+                    "source_advisories_returned" if rows else "no_returned_advisories"
+                )
+            )
+        ),
+        "compact_id_only_no_full_advisory_bodies": True,
+        "query_is_source_match_not_local_version_range_recomputation": True,
+        "source_population_complete": not partial and not truncated,
+        "provider_ids_in_this_page": len(rows),
+        "advisory_count_projected": len(records),
+        "records": records,
+        "no_advisory_not_equivalent_to_safe_package": True,
+        "no_auto_remediation": True,
+        "zero_network_calls": True,
+    }
+
+
+def parse_compact_http_result(
+    status: int, payload: Any, *, ecosystem: str, package: str, version: str,
+) -> dict[str, Any]:
+    if status != 200:
+        return parse_http_result(
+            status, payload, ecosystem=ecosystem, package=package, version=version,
+        )
+    return parse_compact_package_query(
+        payload, ecosystem=ecosystem, package=package, version=version,
+    )
 
 
 def parse_advisory_lookup(payload: Any, advisory_id: str) -> dict[str, Any]:
