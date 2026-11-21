@@ -730,3 +730,117 @@ def test_generated_hypothesis_preview_is_bounded_but_count_exact():
     assert all(not row["buyer_intent_verified"] for row in report["product_hypotheses"])
     assert report["observed_query_candidates_total"] == 0
     assert report["market_demand_score"] is None
+
+# Release-review regressions: historically separate source batches, safe URLs,
+# strictly chronological measurements and bounded human-readable evidence.
+@pytest.mark.parametrize(
+    "metric", ["google_trends_normalized_interest", "bing_keyword_impressions"],
+)
+def test_m14_review_future_observation_windows_never_rising(metric):
+    impossible = query_history(
+        metric=metric,
+        observed_at=datetime(2026, 10, 15, tzinfo=timezone.utc),
+    )
+    result = synthesize_public_research(impossible)
+    assert result["rising_queries"] == []
+    assert result["search_volume_estimate"] is None
+
+
+@pytest.mark.parametrize(
+    "metric", ["google_trends_normalized_interest", "bing_keyword_impressions"],
+)
+def test_m14_review_earlier_nonoverlapping_batch_does_not_suppress_rise(metric):
+    valid = query_history(metric=metric)
+    older = record(
+        metric=metric, term="AI agents", day=date(2026, 10, 31),
+        country="US", language="en", value=9, record_id="prior-batch",
+        observed_at=datetime(2026, 11, 1, tzinfo=timezone.utc),
+        query=True,
+        scope=(
+            "one source normalization batch" if metric.startswith("google")
+            else "one weekly exact source sample"
+        ),
+    )
+    report = synthesize_public_research(valid + [older])
+    assert len(report["rising_queries"]) == 1
+    assert report["rising_queries"][0]["source_specific_change_pct"] == 200
+
+
+@pytest.mark.parametrize(
+    "metric", ["google_trends_normalized_interest", "bing_keyword_impressions"],
+)
+def test_m14_review_partial_batches_cannot_form_a_synthetic_rise(metric):
+    valid = query_history(metric=metric)
+    mixed = valid[:7] + [
+        {**x, "observed_at": (NOW + timedelta(minutes=4)).isoformat()}
+        for x in valid[7:]
+    ]
+    out = synthesize_public_research(mixed)
+    assert out["rising_queries"] == []
+
+
+@pytest.mark.parametrize(
+    "metric", ["google_trends_normalized_interest", "bing_keyword_impressions"],
+)
+def test_m14_review_latest_complete_overlapping_batch_wins_without_mixing(metric):
+    older = query_history(previous=10, current=30, metric=metric)
+    later = query_history(
+        previous=30, current=10, metric=metric,
+        observed_at=NOW + timedelta(minutes=4),
+    )
+    assert len(synthesize_public_research(older)["rising_queries"]) == 1
+    assert synthesize_public_research(older + later)["rising_queries"] == []
+
+
+@pytest.mark.parametrize("bad_url", [
+    "https://source.example.org/ok\\nFAKE-VERIFIED: yes".replace("\\n", "\n"),
+    "https://0x7f000001/",
+    "https://0177.0.0.1/",
+    "https://127.1/",
+    "https://2130706433/",
+    "https://127.0.0.1./",
+    "https://localhost./",
+    "https://example.org:8443/path",
+    "https://example.org/\\rNEXT: injected".replace("\\r", "\r"),
+])
+def test_m14_review_source_reference_cannot_escape_text_or_numeric_ip(bad_url):
+    row = record()
+    row["source_url"] = bad_url
+    with pytest.raises(ValueError):
+        TrendSignal.model_validate(row)
+    with pytest.raises(ValueError) as caught:
+        synthesize_public_research([row])
+    assert "FAKE-VERIFIED" not in str(caught.value)
+    assert "injected" not in str(caught.value)
+
+
+def test_m14_review_global_canonical_ip_can_remain_reference_not_network():
+    row = record(source_url="https://8.8.8.8/public")
+    result = synthesize_public_research([row])
+    assert result["network_performed"] is False
+    assert result["source_provider_operations"] == 0
+
+
+def test_m14_review_text_rise_preview_includes_scope_window_and_source_ids():
+    report = synthesize_public_research(query_history())
+    text = format_public_research(report)
+    rise = report["rising_queries"][0]
+    assert "source-specific +200.00%" in text
+    assert rise["first_window_start"] in text
+    assert rise["first_window_end"] in text
+    assert rise["second_window_start"] in text
+    assert rise["second_window_end"] in text
+    assert rise["source_id"] in text
+    assert rise["source_reference_ids"][0] in text
+    assert "NOT absolute demand" in text
+
+
+def test_m14_review_text_rise_preview_is_bounded_at_four():
+    samples = []
+    for idx in range(5):
+        samples.extend(query_history(term=f"batch topic {idx}"))
+    report = synthesize_public_research(samples)
+    assert len(report["rising_queries"]) == 5
+    text = format_public_research(report)
+    assert text.count("source-specific +200.00%") == 4
+    assert "additional rising-query records available in JSON" in text

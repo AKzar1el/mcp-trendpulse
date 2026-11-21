@@ -6,7 +6,9 @@ into this contract. Missing, not-measured and zero are distinct states.
 """
 from __future__ import annotations
 
+import ipaddress
 import math
+import re
 from datetime import date, datetime, timezone
 from typing import Literal
 from urllib.parse import parse_qsl, urlsplit
@@ -61,6 +63,63 @@ _SECRET_QUERY_KEYS = {
     "authorization", "password", "secret", "client_secret",
     "subscription-key", "subscription_key",
 }
+
+
+def validate_public_source_url(value: str) -> None:
+    """Validate a citation, not a fetch target; never resolve DNS.
+
+    Forbid control-line injection and legacy numeric IPv4 forms such as
+    0x7f000001, 0177.0.0.1, 127.1 or 2130706433. Public canonical IPs
+    and normal ASCII DNS names remain permissible source references.
+    """
+    if not isinstance(value, str) or any(
+        ord(ch) <= 32 or ord(ch) == 127 for ch in value
+    ):
+        raise ValueError("Unsafe public source URL")
+    try:
+        parsed = urlsplit(value)
+        host = parsed.hostname or ""
+        port = parsed.port
+        query_keys = {
+            key.casefold()
+            for key, _ in parse_qsl(parsed.query, keep_blank_values=True)
+        }
+    except ValueError as exc:
+        raise ValueError("Unsafe public source URL") from exc
+    if (
+        parsed.scheme != "https"
+        or not host
+        or port not in (None, 443)
+        or parsed.username is not None or parsed.password is not None
+        or parsed.fragment
+        or _SECRET_QUERY_KEYS.intersection(query_keys)
+    ):
+        raise ValueError("Unsafe public source URL")
+    # Trailing dots and Unicode host ambiguities can bypass suffix checks.
+    if host != host.rstrip(".") or not host.isascii() or len(host) > 253:
+        raise ValueError("Unsafe public source URL")
+    canonical = host.casefold()
+    if canonical == "localhost" or canonical.endswith(
+        (".localhost", ".local", ".internal")
+    ):
+        raise ValueError("Unsafe public source URL")
+    try:
+        address = ipaddress.ip_address(canonical)
+    except ValueError:
+        if ":" in canonical:
+            raise ValueError("Unsafe public source URL")
+        labels = canonical.split(".")
+        if len(labels) < 2 or any(not re.fullmatch(
+            r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label
+        ) for label in labels):
+            raise ValueError("Unsafe public source URL")
+        # Browsers and network stacks may interpret *any* numeric/hex/octal
+        # label tuple as an address even though ipaddress rejects the syntax.
+        if all(re.fullmatch(r"(?:0x[0-9a-f]+|[0-9]+)", x) for x in labels):
+            raise ValueError("Unsafe public source URL")
+    else:
+        if not address.is_global:
+            raise ValueError("Unsafe public source URL")
 
 
 class SignalPeriod(BaseModel):
@@ -128,22 +187,7 @@ class TrendSignal(BaseModel):
     @field_validator("source_url")
     @classmethod
     def validate_url(cls, value: str) -> str:
-        try:
-            parsed = urlsplit(value)
-            query_keys = {k.casefold() for k, _ in parse_qsl(
-                parsed.query, keep_blank_values=True,
-            )}
-            safe = (
-                parsed.scheme == "https"
-                and bool(parsed.hostname)
-                and not parsed.username and not parsed.password
-                and not parsed.fragment
-                and not (_SECRET_QUERY_KEYS & query_keys)
-            )
-        except ValueError:
-            safe = False
-        if not safe:
-            raise ValueError("Source URL must be a public HTTPS reference without credentials")
+        validate_public_source_url(value)
         return value
 
     @field_validator("raw_term", "normalized_term", "sampling_scope", "value_label")

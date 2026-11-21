@@ -6,15 +6,12 @@ aggregation, fabricated demand scores, forecasting, billing or network I/O.
 from __future__ import annotations
 
 import hashlib
-import ipaddress
 import json
 import re
 from collections import Counter, defaultdict
 from datetime import timedelta
 from statistics import mean
 from typing import Any
-from urllib.parse import urlsplit
-
 from pydantic import ValidationError
 
 from mcp_trendpulse.intelligence_keywords import (
@@ -23,6 +20,7 @@ from mcp_trendpulse.intelligence_keywords import (
 from mcp_trendpulse.intelligence_signal import (
     METRIC_DEFINITIONS,
     TrendSignal,
+    validate_public_source_url,
 )
 
 MAX_INPUT_BYTES = 128 * 1024
@@ -61,27 +59,9 @@ _SECRET = re.compile(
 
 
 def _checked_url(value: str) -> None:
-    try:
-        parts = urlsplit(value)
-        host = parts.hostname or ""
-        if (
-            parts.scheme != "https"
-            or not host or parts.port not in (None, 443)
-            or parts.username or parts.password or parts.fragment
-            or host == "localhost"
-            or host.endswith((".local", ".internal", ".localhost"))
-            or _SECRET.search(value)
-        ):
-            raise ValueError
-        try:
-            if not ipaddress.ip_address(host).is_global:
-                raise ValueError
-        except ValueError as exc:
-            # The host can be a DNS name, or it can be a non-public IP.
-            if re.fullmatch(r"[0-9.]+", host) or ":" in host:
-                raise ValueError("Unsafe or private source reference") from exc
-    except ValueError as exc:
-        raise ValueError("Unsafe or private source reference") from exc
+    validate_public_source_url(value)
+    if _SECRET.search(value):
+        raise ValueError("Unsafe or private source reference")
 
 
 def _checked_signal(raw: Any) -> TrendSignal:
@@ -318,12 +298,15 @@ def _keyword_families(
 def _rising_queries(
     candidates: list[TrendSignal],
 ) -> list[dict[str, Any]]:
-    """Only 14 fully observed contiguous daily source query points.
+    """Compare completed, source-attested 7-day windows from *one* batch.
 
-    This is a narrow two-window source-specific change, not M13's
-    acceleration/seasonality, absolute market query count or forecast.
+    A provider observation batch is identified by its exact UTC observed_at
+    timestamp. Never assemble a normalized trend from different batches.
+    Valid but older unrelated batches may coexist with newer complete ones.
     """
-    grouped: dict[tuple[Any, ...], list[TrendSignal]] = defaultdict(list)
+    grouped: dict[
+        tuple[Any, ...], dict[Any, list[TrendSignal]]
+    ] = defaultdict(lambda: defaultdict(list))
     for s in candidates:
         if _level(s) != "source_attested_query":
             continue
@@ -332,65 +315,64 @@ def _rising_queries(
             s.language, s.metric_type, s.metric_unit, s.sampling_scope,
             s.provenance.method, s.provenance.sampling_basis,
         )
-        grouped[key].append(s)
+        grouped[key][s.observed_at].append(s)
+
     outputs = []
     for key in sorted(grouped, key=lambda k: tuple(str(x or "") for x in k)):
-        rows = grouped[key]
-        if any(
-            s.coverage_status != "observed" or s.value is None
-            or s.period.granularity != "daily"
-            or s.period.start_date != s.period.end_date
-            for s in rows
-        ):
-            continue
-        # The normalized Google 0-100 scale is ONLY comparable within
-        # one exact provider observation batch (same UTC timestamp).
-        if (
-            key[5] == "google_trends_normalized_interest"
-            and len({s.observed_at for s in rows}) != 1
-        ):
-            continue
-        by_day: dict[Any, list[TrendSignal]] = defaultdict(list)
-        for row in rows:
-            by_day[row.period.start_date].append(row)
-        if any(
-            len({(s.value, s.observed_at) for s in matches}) > 1
-            for matches in by_day.values()
-        ):
-            continue
-        unique = sorted(
-            (
-                min(matches, key=_sortkey)
+        complete: list[tuple[Any, Any, list[TrendSignal]]] = []
+        for batch_at, rows in grouped[key].items():
+            if any(
+                s.coverage_status != "observed" or s.value is None
+                or s.period.granularity != "daily"
+                or s.period.start_date != s.period.end_date
+                or s.period.end_date > s.observed_at.date()
+                for s in rows
+            ):
+                continue
+            by_day: dict[Any, list[TrendSignal]] = defaultdict(list)
+            for row in rows:
+                by_day[row.period.start_date].append(row)
+            if any(
+                len({s.value for s in matches}) > 1
                 for matches in by_day.values()
-            ),
-            key=lambda s: s.period.start_date,
-        )
-        if len(unique) < 14:
+            ):
+                # Conflicting daily values within one normalization batch.
+                continue
+            unique = sorted(
+                (min(matches, key=_sortkey) for matches in by_day.values()),
+                key=lambda s: s.period.start_date,
+            )
+            if len(unique) < 14:
+                continue
+            window = unique[-14:]
+            if any(
+                b.period.start_date - a.period.start_date != timedelta(days=1)
+                for a, b in zip(window, window[1:])
+            ):
+                continue
+            complete.append((window[-1].period.end_date, batch_at, window))
+        if not complete:
             continue
-        window = unique[-14:]
-        if any(
-            b.period.start_date-a.period.start_date != timedelta(days=1)
-            for a, b in zip(window, window[1:])
-        ):
-            continue
+        _, batch_at, window = max(complete, key=lambda item: (item[0], item[1]))
         previous = [float(s.value) for s in window[:7]]
         recent = [float(s.value) for s in window[7:]]
         older_mean = mean(previous)
         newer_mean = mean(recent)
         if older_mean <= 0 or newer_mean < older_mean * 1.25:
             continue
-        # Do not promote a single explosive outlier as sustained rise.
+        # Do not promote one explosive outlier as a sustained rise.
         peak = max(recent)
-        if peak >= 4*older_mean:
+        if peak >= 4 * older_mean:
             remaining = list(recent)
             remaining.remove(peak)
-            if abs(mean(remaining)-older_mean) / older_mean <= .3:
+            if abs(mean(remaining) - older_mean) / older_mean <= .3:
                 continue
         outputs.append({
             "term": key[2], "country": key[3], "language": key[4],
             "source_id": key[0], "source_url": key[1],
             "metric_type": key[5], "metric_unit": key[6],
             "comparison_type": "two_complete_source_specific_7day_windows",
+            "source_observation_batch_at": batch_at.isoformat(),
             "first_window_start": window[0].period.start_date.isoformat(),
             "first_window_end": window[6].period.start_date.isoformat(),
             "second_window_start": window[7].period.start_date.isoformat(),
@@ -398,7 +380,7 @@ def _rising_queries(
             "previous_window_mean_in_original_unit": round(older_mean, 4),
             "recent_window_mean_in_original_unit": round(newer_mean, 4),
             "source_specific_change_pct": round(
-                (newer_mean/older_mean-1)*100, 2,
+                (newer_mean / older_mean - 1) * 100, 2,
             ),
             "source_reference_ids": [
                 _ref_id(_identity(s)) for s in window
@@ -764,6 +746,19 @@ def format_public_research(report: dict[str, Any]) -> str:
         f" ({len(report['observed_query_candidates'])} previewed)",
         f"Lexical keyword families: {len(report['keyword_families'])}",
     ]
+    for rise in report["rising_queries"][:4]:
+        first = f"{rise['first_window_start']}..{rise['first_window_end']}"
+        second = f"{rise['second_window_start']}..{rise['second_window_end']}"
+        reference_sample = ", ".join(rise["source_reference_ids"][:2])
+        lines.append(
+            f"- {rise['term']} | {rise['source_id']}: {rise['metric_type']} "
+            f"({rise['metric_unit']}) | {first} vs {second} "
+            f"| source-specific {rise['source_specific_change_pct']:+.2f}% "
+            f"| sampled evidence IDs: {reference_sample} "
+            "| NOT absolute demand"
+        )
+    if len(report["rising_queries"]) > 4:
+        lines.append("  ...additional rising-query records available in JSON")
     for key, title in (
         ("country_language_interest", "Search interest / source query metrics"),
         ("independent_attention", "Public attention proxies"),
