@@ -7,6 +7,8 @@ unlabeled to avoid inventing geographic/UTC date semantics.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import hashlib
 import json
 import re
@@ -166,7 +168,7 @@ def github_star_history(
     try:
         if cache is None:
             from mcp_trendpulse.intelligence_core import BudgetCache
-            cache = BudgetCache()
+            cache = BudgetCache(root=Path.home() / ".mcp-trendpulse" / "mjau-v2-intelligence")
         key = _key(owner, repo, limit)
         saved = cache.cached(key)
         if (isinstance(saved, dict) and saved.get("source") == SOURCE
