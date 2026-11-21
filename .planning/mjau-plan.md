@@ -521,10 +521,71 @@ M04 stays unchecked until the user's reminder; M08+ untouched.
 - Search genuine recent technical discussions and launches using observed topic phrases; dedupe repeated posts by stable ID, distinguish story and comment counts, count unique days/topics not raw repeated mentions.
 - **Acceptance:** one bounded query with timestamps and source IDs; handle deletion and pagination cap; no false customer demand.
 
-#### [ ] M08 — Reuse existing GitHub Issues source (no duplicate provider)
+#### [ ] M08 - Reuse existing GitHub Issues source (no duplicate provider)
 - **Library:** current `intelligence_foundation` GitHub Issues adapter.
 - Add only a thin normalized signal transform where absent: distinct issue IDs, repository, time, state and topic relevance, source caps and cooldown.
 - **Acceptance:** no duplicate GitHub API adapter, owner/repo bias explicit, verified sampled issues and no fabricated independent buyers.
+
+**2026-11-21 STATUS: IMPLEMENTED / OFFLINE VERIFIED; LIVE BLOCKED, NOT COMPLETE.**
+User explicitly authorized M08 while a separate fresh chat attempts M04
+on draft PR #328; M08 was built in a separate ordinary shallow Git clone,
+branch feat/mjau-m08-existing-github-issues. The original checkout and
+original PR head were left unchanged.
+
+Implementation: src/mcp_trendpulse/intelligence_github_issues.py,
+opt-in CLI intelligence github-problems, tests/test_mjau_github_issues.py,
+and docs/github-issue-problems.md. Reuses EXISTING foundation
+plan_source("github_issues") and core collect HTTP transport, cache,
+existing shared per-query lock and 12/day UTC provider budget;
+no duplicate client, source token, alternate cache or new dependency.
+Input requires one literal phrase, optional public owner/repo filter,
+creation lookback 7`90 UTC days and <=10 returned issues.
+Each record validates stable global issue ID, canonical GitHub issue
+and repository URL, state=open, no pull_request marker,
+created/updated UTC dates and duplicate global or repo/number ID.
+The report clearly labels first-page sampling, owner/repo concentration,
+unfetched records, incomplete provider results and malformed exclusions.
+Only the existing conservative issue_evidence_type classification and
+partial daily typed github_issue_mentions signals are emitted,
+never verified independent buyers, exact search volume or market size.
+
+The existing collector now caches only sanitized aggregate metadata
+and the safe issue projection for NEW GitHub source requests; it no
+longer persists raw issue bodies, author emails or labels for those
+new snapshots. Prior quota/cache history was not deleted or rewritten.
+GitHub recent-creation cutoff now consistently uses UTC instead
+of local Windows date. Offline targeted and legacy
+foundation/issue-quality/hunter tests: **111 PASSED; Ruff clean**.
+Full offline Windows suite in the M08 isolated checkout:
+**1,909 PASSED, 1 FAILED, 10 DESELECTED, 3 WARNINGS**.
+The only failure is the pre-existing, unrelated OpenAlex plan-only test
+which rejects the visible Authorization header label even though its
+value is redacted. No M08 test failed, and full-local green is NOT
+claimed. GitHub CI status is documented for its exact PR head.
+
+**Official source metadata, separate from collector:** One bounded
+authenticated, read-only GitHub API lookup for open public
+microsoft/playwright issues mentioning timeout and created since
+2026-10-22 returned total_count=8, incomplete_results=false,
+including global IDs 6370513287 (#44096), 6449982165 (#44180),
+6154854553 (#43842), all with matching GitHub canonical URLs,
+repo URL and source timestamps. This verifies the upstream contract
+but NOT end-to-end M08 CLI acceptance or independent customer demand.
+
+**Live gate blocked:** The actual M08 opt-in CLI returned
+local_budget_unavailable, requests_attempted=0, network_performed=false
+before any provider request; the existing GitHub daily budget remained
+**0/12** for 2026-11-21 UTC. Read-only Windows ACL inspection showed
+the parent ~/.mcp-trendpulse/intelligence SQLite store is accessible,
+but the existing .request_locks child denied Get-Acl and creating the
+per-query lock. An additive non-elevated icacls grant on precisely that
+child failed (exit 5, Access denied). No lock-folder replacement,
+permission reset, new quota database, source retry or bypass.
+Only an authorized Windows administrator's additive grant on the
+same original child (details in docs) can restore M08 live validation.
+Afterwards rerun one bounded CLI query and identical zero-network
+cache repeat; until then M08 stays UNCHECKED.
+No M04 provider calls or shared branch writes; M09+ untouched.
 
 #### [ ] M09 — npm package-download trend
 - **Library:** existing `requests`; public npm downloads endpoint.
@@ -593,7 +654,7 @@ M04 stays unchecked until the user's reminder; M08+ untouched.
 | M05 | COMPLETE — 2026-11-20 | PR #328; implementation c721e008dae1bc8dac4efd991957f4ebbb70d708; 88 focused pass, full Ruff clean, 1,783 full-local pass / 3 unrelated fails; CI at M05 implementation head 25 success / 2 expected skip; live Bing GET stats 24 history rows (6 emitted), related 100 rows (10 emitted), both HTTP 200; zero-call cache repeats | Arbitrary crochet patterns US/en-US (no siteUrl), Bing exact/broad impression semantics, original UTC-day local budget 3/3, no key leaks/paid fallback; M04 remains unchecked per user |
 | M06 | COMPLETE — 2026-11-20 | PR #328; implementation f61cd9ff1d49dc9bf4fec224775dacd021c4888c; 109 focused pass and full Ruff clean; 1,828 full-local pass / 3 unrelated existing fails / 10 deselected; GitHub CI 25 success / 2 expected skip after one unrelated Python 3.12 concurrency-test retry; 14 sourced daily views across 7+7 days, cache repeat 0 calls | Canonical en.wikipedia.org Python programming language page; prior 26,965 vs current 25,846 views (−4.15%, not search volume), original M06 daily quota 2/4, M04 deferred unchanged; no new dependencies/paid services |
 | M07 | COMPLETE — 2026-11-20 | PR #328; code 6293fc149a88ca662c9ea26e0fbb1184b3ed117d; 38 focused/162 mixed tests pass, full local 1,866 pass / 3 unrelated old OpenAlex fails, full Ruff clean; first CI had unrelated transient cross-source failure, follow-up head 64313d5 green **25 success/2 expected skip** | Live AI agents first-page sample: 10 stories (provider 550), 10 comments across 8 threads (1329), 8 Show HN launches (210); 0-call cache hits; HN quota 4/5 and M04 quota unchanged; PR remains draft/unmerged |
-| M08 | ☐ NOT STARTED | — | — |
+| M08 | IMPLEMENTED/OFFLINE VERIFIED; LIVE BLOCKED ? 2026-11-21 | Isolated branch feat/mjau-m08-existing-github-issues; 111 focused+legacy tests pass, Ruff clean; full offline 1,909 pass/1 unrelated OpenAlex fail/10 deselected; existing GitHub provider reused with sanitized new caches; independent source metadata confirms 8 matching open issues | Live adapter zero network due existing protected .request_locks ACL; original GitHub budget 0/12. Not complete until authorized access and observed same-collector result/cache repeat; M04 untouched |
 | M09 | ☐ NOT STARTED | — | — |
 | M10 | ☐ NOT STARTED | — | — |
 | M11 | ☐ NOT STARTED | — | — |

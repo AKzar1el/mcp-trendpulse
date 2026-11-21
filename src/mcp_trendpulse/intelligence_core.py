@@ -440,7 +440,9 @@ def _collect_under_lock(
             observations = evidence_projection(plan.source, payload)
             # OpenAlex 100-group requests have a dedicated safe projection.
             reduced = (
-                _bounded_openalex_topic_groups(payload)
+                _bounded_github_issues_data(payload)
+                if plan.source == "github_issues"
+                else _bounded_openalex_topic_groups(payload)
                 if _is_openalex_topic_group_plan(plan)
                 else _bound_payload(payload)
             )
@@ -466,6 +468,30 @@ def _collect_under_lock(
     }
     store.save(identity, output, 3600)
     return output
+
+
+def _bounded_github_issues_data(payload: Any) -> dict[str, Any]:
+    """Persist only aggregate metadata: never GitHub issue bodies or identities.
+
+    The source's sanitized issue list is already available in observations,
+    so a second raw payload copy is unnecessary and can expose sensitive
+    data pasted by third parties into otherwise public issue tickets.
+    """
+    from mcp_trendpulse.intelligence_evidence import UnexpectedSourceShape
+
+    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+        raise UnexpectedSourceShape("Expected public GitHub issues search results")
+    total = payload.get("total_count")
+    incomplete = payload.get("incomplete_results")
+    if (total is not None and (
+            type(total) is not int or not 0 <= total <= 100_000_000)):
+        raise UnexpectedSourceShape("Invalid public GitHub issues total count")
+    if incomplete is not None and type(incomplete) is not bool:
+        raise UnexpectedSourceShape("Invalid GitHub search completeness flag")
+    return {
+        "total_count": total, "incomplete_results": incomplete,
+        "page_items_received": min(len(payload["items"]), 20),
+    }
 
 
 def _is_github_issue_count_plan(plan: Plan) -> bool:

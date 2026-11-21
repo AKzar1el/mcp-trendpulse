@@ -104,9 +104,11 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
         query = f'"{terms}" is:issue is:open'
         # Created recently, not merely an old issue updated this week.
         if p["lookback_days"] is not None:
-            from datetime import date, timedelta
+            from datetime import datetime, timedelta, timezone
 
-            cutoff = date.today() - timedelta(days=p["lookback_days"])
+            cutoff = datetime.now(timezone.utc).date() - timedelta(
+                days=p["lookback_days"]
+            )
             query += f" created:>={cutoff.isoformat()}"
         owner_repo = p["identifier"]
         if owner_repo:
