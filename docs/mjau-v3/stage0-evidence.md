@@ -34,11 +34,28 @@
 
 **Decision:** BLOCKED until independently reviewed true article/source lineage with original IDs and a v1-compatible end-to-end comparison shows fewer false confirmations without losing genuinely independent observations. This illustrative two-record release pair alone is insufficient for acceptance.
 
+### 2026-11-21 extension: two genuine events, four official source records
+
+To avoid a misleading one-event-only proof, the independent God v5 Windows worktree fetched a **second** GitHub/PyPI source pair from the official MCP Python SDK releases. Only public IDs, version names, dates, canonical URLs and SHA-256 hashes were preserved in `tests/fixtures/mjau_v3/mcp_release_pypi_two_events_20261121.json`, not release-note text or package files.
+
+| Event | Original GitHub release | Published UTC | PyPI mcp first upload UTC | Source raw SHA-256 (GitHub / PyPI) |
+| --- | --- | --- | --- | --- |
+| v2.3.0 | [402184404](https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.3.0) | 2026-10-02 22:02:27 | 2026-10-02 22:06:52 | `5eeade981fe66c9963ad88615c42946eb5adaee7c82ecae3f99f7733cc5775c8` / `d9348a2813cdf05df82f7852afb9f13d8a8035d62c3a5e07fb9657bc5382aad7` |
+| v2.2.0 | [384197183](https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.2.0) | 2026-09-07 15:53:57 | 2026-09-07 16:06:19 | `425b3cd734918055779898f8677e4faa4cacb1573ebdf32ce922645a28491ef5` / `1983ff600264ca5a21d531b282d349c4fac4d3d2b05e1e8592b4e739f013f538` |
+
+The PyPI JSON metadata for both versions explicitly links `project_urls.Repository` to `https://github.com/modelcontextprotocol/python-sdk`. The reviewer manually attested each PyPI distribution to its corresponding GitHub version **event**; the algorithm does NOT derive that relationship from titles/semantic similarity. Distinct v2.2.0 versus v2.3.0 releases must **not** be merged.
+
+**Observed B09 four-record outcome:** two verified original events, two same-event PyPI records, **zero unresolved** (under manual linkage assertions), one original publisher, and two apparent publisher labels before lineage. An unreviewed link abstains and a falsified original URL fails closed. The v1 publisher-count proxy remains **not the actual v1 evaluator**; the four source classes cannot be compared end-to-end without controlled v1-compatible data. These are **two releases**, not two validated buyers or independent demand signals.
+
+**Regression:** `PYTHONPATH=src python -m pytest -q tests/test_mjau_v3_historical.py tests/test_mjau_v3_origin_graph.py tests/test_mjau_v3_origin_snapshot.py` yielded **36/36 passed** on Windows Python 3.13.5; Ruff and compileall passed. The five additional tests use the saved original-source-derived fixture only, with network blocked. Four official free metadata requests, $0 cost, no new dependencies, paid feeds, raw text redistribution or permanent worker.
+
+**Decision remains BLOCKED:** real metadata provenance and distinct-event preservation are demonstrated, but a genuine separately published news/press-release lineage sample, actual v1 comparison and independent reviewer approval are still outstanding. This case alone is insufficient to claim fewer false confirmations in v1 production.
+
 ## B08 — official MCP conformance: BLOCKED (separate track)
 
 Reference: https://github.com/modelcontextprotocol/conformance and https://github.com/modelcontextprotocol/inspector .
 
-The official local conformance runner targets an HTTP MCP endpoint using requirements for a specified protocol revision; the current optional TrendPulse server is stdio-based. Requirements for dated 2025-11-25 are not automatically identical to newer draft revisions. The dedicated TrendPulse Codexify tunnel returned "Tunnel-client has not been seen for 300 seconds". This sandbox cannot install official packages from upstream or access the actual service. **No real official MCP suite result was obtained.** An isolated test-only HTTP adapter and live process are required; do not change shared MCP registration just to satisfy conformance.
+The official local conformance runner targets an HTTP MCP endpoint using requirements for a specified protocol revision; the current optional TrendPulse server is stdio-based. Requirements for dated 2025-11-25 are not automatically identical to newer draft revisions. The dedicated TrendPulse Codexify tunnel returned "Tunnel-client has not been seen for 300 seconds". **Initial sandbox** had no live Windows access; a later independent God v5 Windows session successfully validated the real stdio MCP and temporary loopback HTTP startup. Nevertheless **no official MCP conformance suite was executed**, because pinned npm and Bun test-only installs timed out. The updated evidence and exact limitations appear in `docs/mjau-v3/connection-and-real-mcp-20261121.md`; do not change shared MCP registration just to satisfy conformance.
 
 **Decision:** BLOCKED, not compliant/passing. Never count an import-only unit test as official MCP acceptance.
 
@@ -52,8 +69,8 @@ From the feature checkout: PYTHONPATH=src python -m pytest -q tests/test_mjau_v3
 - A05 with 24 synthetic cases: median 3.154 ms; p95 3.531 ms; peak tracked allocation 51,341 B; JSON output 797 B.
 - B09 with two original-source metadata records: median 0.403 ms; p95 0.560 ms; peak tracked allocation 13,800 B; JSON output 838 B.
 
-These are individual local measurements, NOT Windows 8-GB production or statistically reliable workload performance guarantees. This proof made zero network calls and incurred zero provider/API cost. There are no third-party dependencies or copied article bodies/artwork. GitHub/PyPI metadata remains linked, not redistributed wholesale.
+These are individual **initial offline pilot** measurements, NOT Windows 8-GB production or statistically reliable workload performance guarantees. That initial pilot made zero network calls; the later four-source B09 proof above used four free, bounded official metadata requests. There are no third-party dependencies or copied article bodies/artwork. GitHub/PyPI metadata remains linked, not redistributed wholesale.
 
 **Rollback:** Revert only the isolated commit(s) or remove src/mcp_trendpulse/mjau_v3/, tests/test_mjau_v3_*.py and docs/mjau-v3/ from the feature branch. No runtime migration or production rollback is needed.
 
-**Final release gate:** Stay draft/unmerged. Before acceptance require real audited source/outcome evidence, direct measured v1-versus-v3 utility, real MCP conformance, security/regression/lint review against a stable v1 staging commit and explicit owner approval. If those cannot demonstrate added value, DISCARD rather than merge. A04, A10, A09 and A11 remain unstarted in this Stage 0 checkpoint; no permission to expand research-only candidates.
+**Final release gate:** Stay draft/unmerged. Before acceptance require real audited source/outcome evidence, direct measured v1-versus-v3 utility, real MCP conformance, security/regression/lint review against a stable v1 staging commit and explicit owner approval. If those cannot demonstrate added value, DISCARD rather than merge. A04 and A10 subsequently received independent live-source and source-snapshot proofs in draft PRs #377 and #378, but are not release-accepted. A09 remains LICENSE-BLOCKED; A11 is benchmark-BLOCKED. No permission to expand research-only candidates.

@@ -1,0 +1,95 @@
+{
+  "$schema_note": "Source-derived identity/version/timestamp metadata only; no GitHub release notes, project descriptions, package assets or uploaded files redistributed.",
+  "observed_at": "2026-11-21",
+  "original_sources": [
+    {
+      "source": "GitHub releases official API",
+      "version": "2.3.0",
+      "endpoint": "https://api.github.com/repos/modelcontextprotocol/python-sdk/releases/tags/v2.3.0",
+      "sha256": "5eeade981fe66c9963ad88615c42946eb5adaee7c82ecae3f99f7733cc5775c8",
+      "release_id": "402184404",
+      "source_publication_timestamp": "2026-10-02T22:02:27Z",
+      "canonical_url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.3.0"
+    },
+    {
+      "source": "PyPI JSON official API",
+      "version": "2.3.0",
+      "endpoint": "https://pypi.org/pypi/mcp/2.3.0/json",
+      "sha256": "d9348a2813cdf05df82f7852afb9f13d8a8035d62c3a5e07fb9657bc5382aad7",
+      "source_publication_timestamp": "2026-10-02T22:06:52.119073Z",
+      "canonical_url": "https://pypi.org/project/mcp/2.3.0/",
+      "reviewed_project_urls_repository": "https://github.com/modelcontextprotocol/python-sdk",
+      "source_release_file_count": 2
+    },
+    {
+      "source": "GitHub releases official API",
+      "version": "2.2.0",
+      "endpoint": "https://api.github.com/repos/modelcontextprotocol/python-sdk/releases/tags/v2.2.0",
+      "sha256": "425b3cd734918055779898f8677e4faa4cacb1573ebdf32ce922645a28491ef5",
+      "release_id": "384197183",
+      "source_publication_timestamp": "2026-09-07T15:53:57Z",
+      "canonical_url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.2.0"
+    },
+    {
+      "source": "PyPI JSON official API",
+      "version": "2.2.0",
+      "endpoint": "https://pypi.org/pypi/mcp/2.2.0/json",
+      "sha256": "1983ff600264ca5a21d531b282d349c4fac4d3d2b05e1e8592b4e739f013f538",
+      "source_publication_timestamp": "2026-09-07T16:06:19.711091Z",
+      "canonical_url": "https://pypi.org/project/mcp/2.2.0/",
+      "reviewed_project_urls_repository": "https://github.com/modelcontextprotocol/python-sdk",
+      "source_release_file_count": 2
+    }
+  ],
+  "reviewed_relation_basis": "Both PyPI mcp version JSON records expose project_urls.Repository=https://github.com/modelcontextprotocol/python-sdk; GitHub tag v<version> and PyPI package mcp <version> match the identical released software version on the same day, minutes apart. Each version is a DISTINCT software release event. This is manual event-identity review, NOT independent customer demand, sales, exploit evidence or verified publishing syndication.",
+  "evidence_records": [
+    {
+      "source_id": "github_releases",
+      "source_record_id": "402184404",
+      "publisher": "modelcontextprotocol",
+      "source_url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.3.0",
+      "published_at": "2026-10-02",
+      "observed_at": "2026-11-21",
+      "origin_url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.3.0",
+      "origin_relation": "original",
+      "reviewed_origin": true
+    },
+    {
+      "source_id": "pypi_catalog",
+      "source_record_id": "mcp:2.3.0",
+      "publisher": "pypi",
+      "source_url": "https://pypi.org/project/mcp/2.3.0/",
+      "published_at": "2026-10-02",
+      "observed_at": "2026-11-21",
+      "origin_url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.3.0",
+      "origin_relation": "same_event",
+      "lineage_reference_url": "https://pypi.org/project/mcp/2.3.0/",
+      "reviewed_origin": true
+    },
+    {
+      "source_id": "github_releases",
+      "source_record_id": "384197183",
+      "publisher": "modelcontextprotocol",
+      "source_url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.2.0",
+      "published_at": "2026-09-07",
+      "observed_at": "2026-11-21",
+      "origin_url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.2.0",
+      "origin_relation": "original",
+      "reviewed_origin": true
+    },
+    {
+      "source_id": "pypi_catalog",
+      "source_record_id": "mcp:2.2.0",
+      "publisher": "pypi",
+      "source_url": "https://pypi.org/project/mcp/2.2.0/",
+      "published_at": "2026-09-07",
+      "observed_at": "2026-11-21",
+      "origin_url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.2.0",
+      "origin_relation": "same_event",
+      "lineage_reference_url": "https://pypi.org/project/mcp/2.2.0/",
+      "reviewed_origin": true
+    }
+  ],
+  "v1_comparison_limit": "Only publisher-label proxy can be computed for these source classes; the real v1 opportunity evaluator has not been measured on matching source inputs.",
+  "license_review": "Only public IDs, dates, URLs, SHA-256 and factual version metadata are retained. Do not redistribute original release text or package files."
+}
