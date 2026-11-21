@@ -95,8 +95,21 @@ def _parse(payload: Any, *, release: str, observed: datetime) -> dict[str, Any]:
     age_days = max(0, (observed.date() - created.date()).days)
     end_date = parsed["eolFrom"]
     days_until = (date.fromisoformat(end_date) - observed.date()).days if end_date else None
+    # Report contradictory publisher flags instead of silently announcing support.
+    # Ignore the EOL boundary day because providers can disagree on inclusivity.
+    conflicts: list[str] = []
+    if result["isEol"] and result["isMaintained"]:
+        conflicts.append("eol_true_but_maintained_true")
+    if days_until is not None:
+        if days_until < -1 and not result["isEol"]:
+            conflicts.append("past_eol_date_but_eol_false")
+        elif days_until > 1 and result["isEol"]:
+            conflicts.append("future_eol_date_but_eol_true")
     return {
-        "status": "observed_stale" if age_days > 30 else "observed",
+        "status": ("observed_partial" if conflicts else
+                   "observed_stale" if age_days > 30 else "observed"),
+        "provider_phase_conflicts": conflicts,
+        "provider_phase_consistent": not conflicts,
         "release": release,
         "source_schema_version": payload["schema_version"],
         "source_generated_at": created.isoformat(),
