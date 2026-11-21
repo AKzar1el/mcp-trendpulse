@@ -76,14 +76,7 @@ class Plan:
             "method": self.method,
             "url": self.url,
             "body": self.body,
-            # Show only harmless HTTP content-negotiation metadata in
-            # plan-only previews. Even a redacted Authorization/Api-Key
-            # HEADER NAME can reveal credential configuration; the real
-            # Plan.headers remains unchanged for the actual provider call.
-            "headers": {
-                k: "<configured>" for k in self.headers
-                if k.casefold() in {"accept", "content-type", "user-agent"}
-            },
+            "headers": {k: "<configured>" for k in self.headers},
             "docs": self.docs,
             "caution": self.caution,
             "budget_per_day": self.budget_per_day,

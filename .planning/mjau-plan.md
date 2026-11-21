@@ -955,20 +955,18 @@ separately on the exact pushed M11 code commit.
 
 ## 2026-11-21 integration security and verification
 
-The final staged integration audit also identified an unrelated
-pre-existing plan-only privacy issue: the original
-`intelligence_core.Plan.public()` redacted credential values but still
-disclosed an `Authorization` header key in public offline CLI previews.
-The actual OpenAlex provider authentication and private
-`Plan.headers` are unchanged. This integration adds a strict
-public-safe-header allowlist (Accept/Content-Type/User-Agent only) to
-the preview serializer; all sensitive credential header **names and
-values** are absent from plan-only JSON. A focused regression proves
-that actual private request headers remain intact. This corrects the
-pre-existing `test_discover_cli_plan_only_and_history_gate` failure
-without relaxing its security assertion, changing provider quotas
-or making extra requests. Source and full-suite results are reported
-against the exact integrated commit after verification.
+The final audit isolated a prior plan-only CLI privacy discrepancy:
+the existing OpenAlex request plan exposed a redacted Authorization
+header name in the offline discover CLI JSON. An attempted global
+header-name allowlist incorrectly broke existing MCP/adapter contracts
+that require redacted x-api-key and SECURITY_TOKEN names. The final
+correction restores unchanged core Plan.public() behavior (all header
+names retained, all values replaced with the configured sentinel),
+while stripping sensitive header names ONLY in the offline discover
+CLI JSON preview. Provider authentication and live request headers
+are unchanged, and no provider/source budget is consumed. Tests
+cover existing request-plan compatibility and offline CLI privacy.
+No production or staging deployment is implied.
 
 ## Decision log and deferred/non-scope integrations
 

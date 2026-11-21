@@ -1529,6 +1529,17 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
             )
     except (OSError, ValueError, TypeError) as exc:
         raise click.ClickException(str(exc)) from exc
+    if not execute:
+        # The discover CLI preview is a public, offline plan. Hide even
+        # sensitive header *names* here; other callers of Plan.public()
+        # intentionally keep their existing redacted-header contract.
+        # No live request is modified, and credential values are never copied.
+        for plan in response.get("plans", []):
+            if isinstance(plan, dict) and isinstance(plan.get("headers"), dict):
+                plan["headers"] = {
+                    key: value for key, value in plan["headers"].items()
+                    if key.casefold() in {"accept", "content-type", "user-agent"}
+                }
     if output_format == "text" and execute:
         click.echo(format_discovery_report(response))
     else:
