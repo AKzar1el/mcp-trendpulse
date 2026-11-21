@@ -218,7 +218,8 @@ def test_cooldown_prevents_network():
 
 
 def test_budget_exhaustion_redacted_without_request():
-    class DailyBudgetExceeded(Exception): pass
+    class DailyBudgetExceeded(Exception):
+        pass
     store=Store()
     store.fail=DailyBudgetExceeded("TOKENSECRET")
     out, _, called=run(store=store)
