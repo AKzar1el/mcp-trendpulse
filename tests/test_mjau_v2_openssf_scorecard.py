@@ -265,3 +265,8 @@ def test_transport_fixed_host_no_redirects_or_proxy(monkeypatch):
     assert status==200 and "checks" in data
     with pytest.raises(ValueError):
         sc._fetch("https://bad.example/projects/github.com/ossf/scorecard")
+def test_scan_fractional_second_before_observed_not_falsely_future():
+    moment = datetime(2026, 11, 21, 4, 30, 0, 800000, tzinfo=timezone.utc)
+    out, _, _ = run(now=moment, obj=payload(scan="2026-11-21T04:30:00.500000Z"))
+    assert out["status"] == "observed"
+    assert out["scan_age_days"] == 0
