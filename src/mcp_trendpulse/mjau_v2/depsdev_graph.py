@@ -56,7 +56,17 @@ def _key(system: str, package: str, version: str) -> str:
         separators=(",", ":")).encode()).hexdigest()
 
 
-def _parse_graph(value: Any, *, system: str, limit: int = MAX_PREVIEW) -> dict[str, Any]:
+def _equivalent_name(a: str, b: str, system: str) -> bool:
+    """Ecosystem-canonical names: PEP 503 in PyPI, case for npm/cargo."""
+    if system == "PYPI":
+        return re.sub(r"[-_.]+", "-", a).lower() == re.sub(r"[-_.]+", "-", b).lower()
+    if system in {"NPM", "CARGO"}:
+        return a.casefold() == b.casefold()
+    return a == b
+
+
+def _parse_graph(value: Any, *, system: str, package: str,
+                 version: str, limit: int = MAX_PREVIEW) -> dict[str, Any]:
     """Fail closed; preserve graph errors, duplicates, and measurement semantics."""
     invalid = {"status": "invalid_source_shape", "root": None,
                "summary": None, "direct_preview": []}
@@ -95,8 +105,10 @@ def _parse_graph(value: Any, *, system: str, limit: int = MAX_PREVIEW) -> dict[s
                 "bundled": node.get("bundled", False),
                 "has_resolution_error": bool(errors),
             })
-        if safe_nodes[0]["system"] != system:
-            raise ValueError("root ecosystem mismatch")
+        if (safe_nodes[0]["system"] != system
+                or not _equivalent_name(package, safe_nodes[0]["name"], system)
+                or safe_nodes[0]["version"] != version):
+            raise ValueError("provider root package/version mismatch")
         safe_edges: list[tuple[int, int]] = []
         for edge in edges:
             if (not isinstance(edge, dict)
@@ -234,7 +246,7 @@ def inspect_package_dependencies(
                 if when.utcoffset() is not None and 0 <= (
                     now - when.astimezone(timezone.utc)
                 ).total_seconds() <= TTL_SECONDS:
-                    parsed = _parse_graph(saved.get("payload"), system=system)
+                    parsed = _parse_graph(saved.get("payload"), system=system, package=package, version=version)
                     if parsed["status"] == "observed":
                         parsed.pop("_cache_nodes", None)
                         parsed.pop("_cache_edges", None)
@@ -258,7 +270,7 @@ def inspect_package_dependencies(
         if status != 200:
             result.update(status="unavailable", reason="provider_response_error")
             return result
-        parsed = _parse_graph(payload, system=system)
+        parsed = _parse_graph(payload, system=system, package=package, version=version)
         if parsed["status"] == "observed":
             cache.save(key, {
                 "source": SOURCE, "requested": result["requested"],
