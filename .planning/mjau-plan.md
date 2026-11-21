@@ -443,6 +443,25 @@ assertions around midnight and one plan-only assertion about the
 redacted Authorization header label; no M07 tests failed. Full local
 green is NOT claimed. Actual GitHub PR CI results are recorded against
 the pushed head separately.
+
+**GitHub CI on M07 implementation commit
+6293fc149a88ca662c9ea26e0fbb1184b3ed117d:**
+24 SUCCESS, 2 expected SKIPPED publish checks, and **1 FAILED**
+unrelated live cross-source integration check: Independent MCP
+source-combination and cache compatibility, Actions run 44840693560.
+Both initial run and a **single controlled retry** (attempt 2)
+successfully observed and cache-replayed CORDIS and CELLAR, then
+exited around 12s later with a redacted ExceptionGroup before the
+third configured source (USAspending) could emit its source result.
+That script, scripts/intelligence_cross_source_smoke.py, exercises
+three older existing MCP sources and does **not** invoke the new
+HN adapter. The exact underlying external connection/status is
+unverified because the smoke redacts exceptions; do not diagnose it
+as an M07 defect or as an actual USAspending outage without further
+evidence. No provider quota bypass, repeated retries, or alteration
+of the unrelated smoke script was made. **The overall draft PR is
+NOT fully green**, and must remain unmerged pending ordinary
+independent resolution of that separate provider contract.
 M04 stays unchecked until the user's reminder; M08+ untouched.
 - **Library:** existing `requests`; source public HN Algolia search.
 - Search genuine recent technical discussions and launches using observed topic phrases; dedupe repeated posts by stable ID, distinguish story and comment counts, count unique days/topics not raw repeated mentions.
@@ -519,7 +538,7 @@ M04 stays unchecked until the user's reminder; M08+ untouched.
 | M04 | IMPLEMENTED/OFFLINE VERIFIED; LIVE PENDING — 2026-11-20 | PR #328; original feature 5e2d279a00f453c1521204fc4b6faa27da2d93f3; M04 adversarial source/cache hardening on feature branch; 70 focused tests, full Ruff clean, local full 1,747 passed / 1 existing unrelated failure / 10 deselected | Original SQLite quota directory accessible; historical shared TrendSpy provider daily budget 2/2 used on 2026-11-20; actual M04 CLI refused with zero provider operations; no live source observation until UTC reset; M04 remains unchecked |
 | M05 | COMPLETE — 2026-11-20 | PR #328; implementation c721e008dae1bc8dac4efd991957f4ebbb70d708; 88 focused pass, full Ruff clean, 1,783 full-local pass / 3 unrelated fails; CI at M05 implementation head 25 success / 2 expected skip; live Bing GET stats 24 history rows (6 emitted), related 100 rows (10 emitted), both HTTP 200; zero-call cache repeats | Arbitrary crochet patterns US/en-US (no siteUrl), Bing exact/broad impression semantics, original UTC-day local budget 3/3, no key leaks/paid fallback; M04 remains unchecked per user |
 | M06 | COMPLETE — 2026-11-20 | PR #328; implementation f61cd9ff1d49dc9bf4fec224775dacd021c4888c; 109 focused pass and full Ruff clean; 1,828 full-local pass / 3 unrelated existing fails / 10 deselected; GitHub CI 25 success / 2 expected skip after one unrelated Python 3.12 concurrency-test retry; 14 sourced daily views across 7+7 days, cache repeat 0 calls | Canonical en.wikipedia.org Python programming language page; prior 26,965 vs current 25,846 views (−4.15%, not search volume), original M06 daily quota 2/4, M04 deferred unchanged; no new dependencies/paid services |
-| M07 | COMPLETE — 2026-11-20 | PR #328 M07 implementation commit pending; 38 focused M07 and 162 mixed tests pass; full local 1,866 pass / 3 existing OpenAlex fails / 10 deselected, Ruff clean; real HN story/comment/Show HN with zero-call cache repeats | AI agents source sample: 10 stories (provider 550 matches), 10 comments across 8 threads (provider 1329), 8 Show HN launches (provider 210); all first-page partial, HN budget 4/5 Nov20 UTC, M04 deferred unchanged |
+| M07 | COMPLETE SOURCE/IMPLEMENTATION — 2026-11-20 | PR #328, M07 commit 6293fc149a88ca662c9ea26e0fbb1184b3ed117d; 38 focused/162 mixed tests pass; full local 1,866 pass / 3 old OpenAlex fails; Ruff clean; CI at M07 head 24 successful/2 skipped/**1 unrelated cross-source failed twice** | Real AI agents first-page sample: 10 stories (provider 550), 10 comments across 8 threads (1329), 8 Show HN launches (210); original HN budget 4/5 and M04 quota unchanged; PR stays draft/unmerged until external check resolved |
 | M08 | ☐ NOT STARTED | — | — |
 | M09 | ☐ NOT STARTED | — | — |
 | M10 | ☐ NOT STARTED | — | — |
