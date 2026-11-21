@@ -1,6 +1,6 @@
 # MJAU v3 A10 — OSV advisory evidence pilot
 
-**Decision: BLOCKED; not an accepted capability or release.**
+**Decision: BLOCKED; official source and temporary v1-cache replay proved, independent utility/no-signal/license review incomplete. Not accepted for release.**
 
 **Pinned v1 staging ancestor:** `b88b0a974b5dcdb480e4fd8c4da5f7bbca68e98e` (draft v1 PR #328). Independent A10 branch with no shared edits and no dependency on the A04 or Stage 0 PRs. No protected, production or central registration changed.
 
@@ -40,3 +40,14 @@ On Python 3.13.5 sandbox:
 **BLOCKED** pending one genuinely free, bounded OSV package/version request and one known advisory-ID request through approved existing v1 cache/budget, validated zero-network replay, a side-by-side real v1 vs A10 security research task with independent ground truth (including adversarial non-vulnerable/no-result examples), provider-missingness review, actual upstream feed license decisions, and full repository regression/official MCP checks. No claim of **ACCEPT** or utility uplift is warranted.
 
 When connectivity returns, use the existing v1 staging test environment, avoid shared mutable cache/quotas, and do not add an auto worker. Revert only A10 module, test and doc in this draft branch to roll back; no production state or old workers are affected. If real incremental value fails, **DISCARD** rather than ship.
+
+## 2026-11-21 live-source and Windows cache-replay follow-up
+
+**Exact code under test:** `b9b0053f64ed2f4da7aa79a3d10877e1842cbfb1` (A10 Ruff fix included). A10 original 45/45 targeted tests and independent GitHub Python 3.11–3.14 CI, Ruff and two container jobs passed. The original "no JSON API request" paragraph above describes the original pilot, **not** this later source test.
+
+- **Official OSV POST** `https://api.osv.dev/v1/query` with `{"package":{"name":"Jinja2","ecosystem":"PyPI"},"version":"2.10.1"}`: HTTP **200**, first response **27,088 bytes**, **10** source-indexed advisory IDs, no next page. First-run SHA-256 `c70dbc02f1ec901f2afb0d3068e352a8e3d2e6ae9d309a9551abafd0ac77e547` at **2026-11-21T05:08:12Z**; a later separately fetched source response also reported ten entries but hashed `7d0f3d92559a617c2e42c1ebce5e89df7ad42399d879bb0c87ea08c8b170b6a5`. Do not treat source bytes as immutable; preserve source time and ID.
+- **Official OSV GET** `https://api.osv.dev/v1/vulns/OSV-2020-744`: HTTP **200**, 947 bytes, SHA-256 `e7a2228addd9927419da678e0bc79d12964fe54584f7e00241417a48a8cfee69` at **2026-11-21T05:08:12Z**. Parsed ID `OSV-2020-744`, source-published `2020-07-04T00:00:01.948828Z`, modified `2022-04-13T03:04:39.780694Z`; dates are historical advisory metadata, **not** proof of current exploitation.
+- One additional bounded OSV POST for real PyPI `idna==3.10` also returned indexed advisories; **this is NOT a zero-advisory negative case**, and no no-signal ground truth is claimed. Subsequent tests used an independent temporary `BudgetCache` from v1 with cap **3** (two source queries and one advisory lookup), no redirects, 8-second timeout, 192 KB per response, one successful fetch per plan, second invocation with network explicitly denied, and verified cap enforcement. **60 cached reads:** p50 **4.992 ms**, p95 **9.815 ms** on Windows. SQLite temp directory cleaned after `gc.collect()`. Three free requests, $0 API cost, no persistent source storage or worker.
+- **v1 comparator:** `plan_source("osv_public_api")` explicitly raises `IntelligenceError: Unknown source ID`; v1's package downloads and GitHub issue counts cannot answer the exact package/version advisory question. A10 returns real OSV advisory identities and dates and never equates them to demand, proof of exploitation, or safe software. This is a source-coverage gain on a small observed task, not blinded predictive or ROI uplift.
+
+**Gate update:** the original live-source and v1 cache-replay blockers are now **PASSED**. **A10 remains BLOCKED** for release acceptance because independently reviewed no-advisory/no-signal cases, source/feed license reuse rights, robust real-workflow utility comparison and official B08 conformance remain unresolved. Raw advisory bodies were neither committed nor bulk persisted; only small IDs/dates/links are projected. No dependency, shared CLI/MCP registration or production state changed. Rollback remains A10-only.
