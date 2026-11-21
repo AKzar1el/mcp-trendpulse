@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -68,13 +68,31 @@ def _parse(payload: Any, *, owner: str, repo: str,
             or not isinstance(source_tool.get("version"), str)
             or not 1 <= len(source_tool["version"]) <= 50):
         return invalid
-    try:
-        when = datetime.fromisoformat(payload["date"].replace("Z", "+00:00"))
-        if when.utcoffset() is None or when > observed_at:
-            return invalid
-        when = when.astimezone(timezone.utc)
-    except (KeyError, ValueError, AttributeError, TypeError):
+    raw_scan = payload.get("date")
+    if not isinstance(raw_scan, str) or not 10 <= len(raw_scan) <= 50:
         return invalid
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw_scan):
+        # Published weekly results sometimes carry a date, not a timestamp.
+        # Do not invent a time of day or claim timezone precision.
+        try:
+            scan_date = date.fromisoformat(raw_scan)
+        except ValueError:
+            return invalid
+        if scan_date > observed_at.date():
+            return invalid
+        scan_at = None
+        precision = "date"
+    else:
+        try:
+            when = datetime.fromisoformat(raw_scan.replace("Z", "+00:00"))
+            if when.utcoffset() is None or when > observed_at:
+                return invalid
+            when = when.astimezone(timezone.utc)
+        except (ValueError, OverflowError):
+            return invalid
+        scan_date = when.date()
+        scan_at = when.isoformat()
+        precision = "timestamp"
     clean = []
     seen = set()
     for row in checks:
@@ -89,10 +107,12 @@ def _parse(payload: Any, *, owner: str, repo: str,
                       "inconclusive": score < 0})
         seen.add(name.casefold())
     clean.sort(key=lambda row: row["name"])
-    age_days = max(0, (observed_at.date() - when.date()).days)
+    age_days = max(0, (observed_at.date() - scan_date).days)
     return {
         "status": "observed_stale" if age_days > 30 else "observed",
-        "source_scan_at": when.isoformat(),
+        "source_scan_at": scan_at,
+        "source_scan_date": scan_date.isoformat(),
+        "source_scan_precision": precision,
         "scan_age_days": age_days,
         "repo_commit_scanned": source_repo["commit"],
         "scorecard_version": source_tool["version"],
@@ -105,6 +125,9 @@ def _parse(payload: Any, *, owner: str, repo: str,
         "not_a_security_audit_or_vulnerability_guarantee": True,
         "no_score_is_not_insecure": True,
         "coverage": "published_scanned_repo_only_not_all_public_repositories",
+        "full_check_coverage_verified": False,
+        "unreported_checks_are_unknown": True,
+        "source_data_license": "CDLA-Permissive-2.0",
         "source_viewer_url": (f"https://scorecard.dev/viewer/?uri="
                               f"github.com/{owner}/{repo}"),
     }
@@ -160,6 +183,7 @@ def inspect_openssf_scorecard(
         "aggregate_score": None, "checks": [],
         "local_daily_request_cap": CAP_PER_DAY, "no_score_is_not_insecure": True,
         "source_not_a_security_audit": True, "verified_exploits": False,
+        "full_check_coverage_verified": False, "unreported_checks_are_unknown": True,
         "revenue_or_customer_demand_verified": False,
     }
     if not execute:
@@ -213,7 +237,7 @@ def inspect_openssf_scorecard(
                 "source": SOURCE, "repository": result["repository"],
                 "observed_at": now.isoformat(),
                 "payload": {
-                    "date": parsed["source_scan_at"],
+                    "date": parsed["source_scan_at"] or parsed["source_scan_date"],
                     "repo": {"name": result["repository"],
                              "commit": parsed["repo_commit_scanned"]},
                     "scorecard": {"version": parsed["scorecard_version"]},
