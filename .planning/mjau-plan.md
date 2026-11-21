@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00–M03, M05–M07 COMPLETE (verified); M04 safety guard verified, real Explore source observation blocked by upstream 429 (not claimed complete)  | **Next task:** M08 only on separate authorization. Do not automatically repeat blocked M04 live requests.
+**Created:** 2026-11-20 | **Status:** M00-M03 and M05-M07 complete in staging. M04 safety verified but live source blocked upstream 429. M08 offline-verified in independent draft PR #370 (live lock-ACL blocked). M09/M10 source-verified in draft PR #371; M11 source-verified in draft PR #372; M12 offline-verified in new isolated draft branch (not yet merged). **Next:** M13 when separately authorized. Do not retry M04 upstream backoff, merge unrelated PRs or invent source demand.
 
 ## Mission and non-negotiable scope
 
@@ -543,10 +543,78 @@ M04 stays unchecked until the user's reminder; M08+ untouched.
 
 ### Phase C — combine and make useful
 
-#### [ ] M12 — Keyword/phrase extraction and intent hypotheses
-- **Libraries:** first existing `nltk`, regex and M02 `rapidfuzz`; add `rake-nltk` only if tests prove improved extraction and its license/dependency suitability.
-- Extract observed query terms separately from generated phrase hypotheses; classify informational/problem/commercial intent as **heuristic**; keep original-language evidence; rank relevance without inventing search volume or SEO competition.
-- **Acceptance:** multilingual fixtures and source-to-keyword provenance, deterministic duplicate grouping, human-readable explanation of intent heuristic.
+#### [x] M12 - Keyword/phrase extraction and intent hypotheses
+- **OFFLINE ACCEPTANCE VERIFIED 2026-11-21.** Implemented
+  src/mcp_trendpulse/intelligence_phrases.py and no-network CLI
+  intelligence phrase-hypotheses --input <JSON> --format text|json,
+  docs/multilingual-phrase-hypotheses.md and a small explicit offline
+  docs/examples/mjau-m12-evidence.json. No provider call, site
+  property, paid API, LLM, NLTK corpus download, dependency addition,
+  quota reset or SQLite write. Reused installed NLTK corpus-free
+  ngrams, M02 lexical normalize_keyword and conservative RapidFuzz
+  complete-link near-duplicate guard. Input: max 128KiB local JSON and
+  80 strictly validated typed signal/title/manual-note references.
+  Output: max 160 ranked candidates and 160 bounded lexical families.
+
+  **Source provenance boundaries:** A complete M00 typed TrendSignal
+  with a public/official/community query-method flag and compatible
+  actual search-source metric may contribute source-attested
+  observed_query_terms only when coverage is observed/partial.
+  Other source measurements (news, HN, GitHub issues, package
+  downloads, Stack Overflow questions) remain
+  source_topics_not_queries. Public-title and manual-note text
+  become generated_phrase_hypotheses only; an unavailable/no_data
+  source record is skipped, NEVER turned into search demand or a
+  measured zero. Exact source/record URL, UTC observed time when
+  available, original language and country remain attached to each
+  candidate; manual notes have no fabricated source URL/time.
+  Unknown fields, unsafe URLs, token/emails/path IDs, oversized or
+  malformed input fail closed and do not echo private material.
+
+  **Language/intent:** deterministic Unicode-aware extraction and
+  simple curated stopwords/intent cues for English, German, Spanish,
+  French, Slovenian and Croatian Latin, without guessing language,
+  translation or remote corpus. Missing/unsupported title language
+  explicitly abstains; typed terms retain original script without
+  inferred intent. Informational/problem/commercial/mixed/unknown
+  intent is a transparent literal heuristic with matched cue
+  explanations, NOT independently verified buyer intent or semantics.
+  Accents, C++/C#, free/paid qualifiers, negations, country and
+  language scope are not merged. Exact candidate provenance is
+  deduplicated deterministically; conservative M02 95-threshold
+  complete-link lexical families never claim semantic equivalence.
+
+  **Ranking:** bounded phrase-token count, distinct supplied source
+  observation references and heuristic cue matches only, strictly
+  within each evidence class. Provider values, indices, impressions,
+  pageviews, downloads, rank or multi-source units are NEVER added
+  or repurposed as search volume or SEO competition. Source-attested
+  queries are retained ahead of generated candidates when output
+  is truncated and dropped candidate count is explicit.
+
+  **Deterministic evidence:** 63 dedicated M12 offline fixture/tests
+  PASSED after hardening Croatian inflected cue and source record
+  traversal validation; full repository Ruff clean. The real-shaped
+  offline example processed five prior public-title/manual source
+  reference records into **45 generated phrase hypotheses** across
+  English, Slovenian, German and French, with **zero observed
+  search queries and zero network operations** (correct: no
+  verified typed observed query in example); 45 lexical families,
+  no unsupported language, no truncation. This example is NOT
+  additional provider measurement or proven search demand.
+
+  **Verification receipts:** 63 dedicated M12 offline tests PASSED,
+  250 combined M12/M02/M04-M07/typed-source tests PASSED, full Ruff
+  and git diff --check clean. The complete isolated Windows suite
+  finished **1,935 passed, 2 unrelated failures, 10 deselected,
+  3 warnings**. One is the existing OpenAlex redacted Authorization
+  header-label assertion. The other is an unrelated timing-sensitive
+  RSS preflight worker test; exactly one isolated controlled rerun
+  PASSED 1/1 with no source changes. The full Windows suite is NOT
+  claimed entirely green; no M12 test failed. GitHub CI status is
+  separately verified only after pushing the exact M12 branch head. M04 and M08
+  upstream blockers and independent M09-M11 draft PRs untouched.
+  **Next unstarted task: M13 historical momentum, not started here.**
 
 #### [ ] M13 — Historical momentum and trend lifecycle
 - **Libraries:** existing `pandas` / `statistics`; add optional `statsmodels` STL only after enough comparable full cycles exist.
@@ -597,7 +665,7 @@ M04 stays unchecked until the user's reminder; M08+ untouched.
 | M09 | ☐ NOT STARTED | — | — |
 | M10 | ☐ NOT STARTED | — | — |
 | M11 | ☐ NOT STARTED | — | — |
-| M12 | ☐ NOT STARTED | — | — |
+| M12 | COMPLETE / OFFLINE VERIFIED - 2026-11-21 | Existing NLTK + M02 RapidFuzz reused; 63 dedicated and 250 combined offline tests pass, full Ruff clean; full Windows 1,935 pass/2 unrelated fail/10 deselected; RSS timing rerun 1/1 passed; five source/manual reference fixture records yielded 45 generated hypotheses, 45 lexical families, zero observed queries, zero network/provider/quota change | Six explicit languages, source-attested vs generated separation, URL/record/time provenance, conservative intent cues and lexical ranking only; independent M12 draft branch, no M13 or unrelated PR modification |
 | M13 | ☐ NOT STARTED | — | — |
 | M14 | ☐ NOT STARTED | — | — |
 
