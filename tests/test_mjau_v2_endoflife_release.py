@@ -267,3 +267,37 @@ def test_requests_transport_fixed_host_no_redirect_or_proxy(monkeypatch):
     assert code==200 and data["result"]["name"]=="22"
     with pytest.raises(ValueError):
         eol._fetch("https://evil.example/api/v1/products/nodejs/releases/22")
+def test_current_source_can_conflict_on_eol_and_maintained():
+    obj = payload(cycle="20")
+    obj["result"]["isEol"] = True
+    obj["result"]["isMaintained"] = True
+    obj["result"]["eolFrom"] = "2026-04-30"
+    cache = Cache()
+    out, cache, called = run(release="20", obj=obj, cache=cache)
+    assert out["status"] == "observed_partial"
+    assert out["is_eol"] is True and out["is_maintained"] is True
+    assert out["provider_phase_consistent"] is False
+    assert "eol_true_but_maintained_true" in out["provider_phase_conflicts"]
+    assert not cache.data and len(called) == 1
+
+
+def test_conflicting_past_or_future_calendar_dates_are_not_consistent():
+    earlier = payload()
+    earlier["result"]["eolFrom"] = "2024-01-01"
+    observed, _, _ = run(obj=earlier)
+    assert observed["status"] == "observed_partial"
+    assert "past_eol_date_but_eol_false" in observed["provider_phase_conflicts"]
+
+    later = payload()
+    later["result"]["isEol"] = True
+    later["result"]["isMaintained"] = False
+    future, _, _ = run(obj=later)
+    assert future["status"] == "observed_partial"
+    assert "future_eol_date_but_eol_true" in future["provider_phase_conflicts"]
+
+
+def test_consistent_source_has_explicit_no_conflicts():
+    out, _, _ = run()
+    assert out["status"] == "observed"
+    assert out["provider_phase_consistent"] is True
+    assert out["provider_phase_conflicts"] == []
