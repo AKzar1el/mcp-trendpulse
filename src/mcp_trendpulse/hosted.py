@@ -1040,3 +1040,42 @@ async def find_seo_opportunities(
         project_context=project_context,
         limitations=limitations,
     )
+
+
+@hosted_mcp.prompt(
+    name="source_evidence_research_report",
+    description=(
+        "MJAU M14 offline research report on already collected typed public "
+        "source signals, with direct source citations and strict data gaps. "
+        "No provider calls, no GSC/GA4, no extra hosted tools, no paid APIs "
+        "and no unsupported cross-source demand claims."
+    ),
+)
+def source_evidence_research_report(
+    signals_json: str,
+    output_format: str = "text",
+) -> str:
+    """Prompt-accessible deterministic report, no network or filesystem."""
+    import json
+
+    from mcp_trendpulse.intelligence_research import (
+        MAX_INPUT_BYTES,
+        format_public_research,
+        synthesize_public_research,
+    )
+
+    if (
+        not isinstance(signals_json, str)
+        or len(signals_json.encode("utf-8")) > MAX_INPUT_BYTES
+        or output_format not in ("text", "json")
+    ):
+        raise ValueError("Offline evidence prompt input is invalid or oversized")
+    try:
+        report = synthesize_public_research(json.loads(signals_json))
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError("Invalid or unsafe offline source evidence") from None
+    if output_format == "json":
+        return json.dumps(
+            report, ensure_ascii=False, sort_keys=True, allow_nan=False,
+        )
+    return format_public_research(report)

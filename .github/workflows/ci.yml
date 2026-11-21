@@ -49,6 +49,7 @@ jobs:
           --no-build-package pydantic-core
           --no-build-package pyyaml
           --no-build-package regex
+          --no-build-package rapidfuzz
           --no-build-package rpds-py
           --no-build-package selectolax
 

@@ -47,7 +47,7 @@ jobs:
           echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -91,7 +91,7 @@ jobs:
           grep -q '"result"' "${RUNNER_TEMP}/initialize.out"
 
       - name: Preserve immutable version tag
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'workflow_dispatch'
         id: version_tag
         shell: bash
         run: |
@@ -106,7 +106,7 @@ jobs:
           fi
 
       - name: Push image tags
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           IMAGE="${{ steps.meta.outputs.image }}"

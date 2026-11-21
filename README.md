@@ -482,6 +482,34 @@ If you deploy TrendPulse remotely, retain these controls and add deployment-leve
 
 For responsible disclosure instructions, see [SECURITY.md](SECURITY.md).
 
+## Optional free market intelligence (separate MCP)
+
+Market-intelligence source adapters are **opt-in only** and do not change the
+default TrendPulse tools, hosted MCP, or scheduled workers. Use the existing CLI:
+
+```bash
+mcp-trendpulse-cli intelligence sources
+mcp-trendpulse-cli intelligence settings status
+mcp-trendpulse-cli intelligence settings guide openalex
+```
+
+Start the standalone read-only MCP only when explicitly wanted:
+
+```bash
+python -m mcp_trendpulse.intelligence_mcp
+```
+
+See [source verification and free-tier rules](docs/intelligence-free-sources.md)
+and [safe provider settings and self-hosted RSSHub](docs/intelligence-provider-settings.md).
+The separate MCP also provides 18 opportunity investigation lanes, deterministic
+buyer/evidence triage, bounded trend checks, and a time-aware outcome backtest.
+These rank research priorities, **not** startup success probabilities. See
+[opportunity evaluation and chaos test matrix](docs/intelligence-opportunity-evaluation.md).
+
+ChatGPT web needs a separately authenticated remote MCP connection or secure
+tunnel; the local stdio process is **not** a public plugin endpoint.
+No API secret should be provided in chat or committed into the repository.
+
 ## Roadmap
 
 Current production-readiness priorities are:
@@ -499,3 +527,13 @@ Current production-readiness priorities are:
 MIT. See [LICENSE](LICENSE).
 
 <!-- mcp-name: io.github.AKzar1el/mcp-trendpulse -->
+
+
+### Opt-in current activity hunter (free-only)
+
+The optional intelligence extension includes `mcp-trendpulse-cli intelligence hunt --execute`, an evidence-attributed, **current-first** opportunity watchlist. It fetches bounded publicly available signals from fixed source adapters and ranks recent topical observations without requiring historical training data or claiming startup-success probabilities. For reproducible future comparisons, add `--record-history` to store limited local hashed metadata. The separate optional MCP tool is `intelligence_hunt_current`; the community MCP and existing scheduled worker are unchanged. See [opportunity evaluation](docs/intelligence-opportunity-evaluation.md).
+
+
+### Seedless, free current-theme discovery
+
+The optional intelligence MCP/CLI now offers `intelligence discover --execute --format text`. It collects bounded **recent OpenAlex research, CFPB public complaint categories and TED procurement notices**, and identifies repeated original-source themes without any preset industry keywords. It requires no historical database and never infers growth, verified buyers or revenue from source popularity. To accumulate optional hashed candidate history, add `--record-history`. The normal 16-tool community MCP and scheduled worker are unchanged. See [opportunity evaluation](docs/intelligence-opportunity-evaluation.md).
