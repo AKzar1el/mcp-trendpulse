@@ -7,6 +7,8 @@ This module deliberately does not register an MCP tool or alter the core CLI.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import hashlib
 import json
 import re
@@ -203,7 +205,7 @@ def search_registry_competitors(
     try:
         if cache is None:
             from mcp_trendpulse.intelligence_core import BudgetCache
-            cache = BudgetCache()
+            cache = BudgetCache(root=Path.home() / ".mcp-trendpulse" / "mjau-v2-intelligence")
         key = _cache_key(query, limit)
         saved = cache.cached(key)
         if (isinstance(saved, dict) and saved.get("query") == query
