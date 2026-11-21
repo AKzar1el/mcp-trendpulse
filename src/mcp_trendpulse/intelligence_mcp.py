@@ -257,6 +257,58 @@ def intelligence_walk_forward_backtest(
     return walk_forward_evaluation(examples, k=k)
 
 
+
+@intel_mcp.tool(
+    description=(
+        "Inspect the provider-resolved, version-specific package dependency graph "
+        "from the FREE deps.dev v3 API. Supports npm, PyPI, Cargo and Maven. "
+        "Plan-only unless execute=True; bounded daily source quota and sanitized "
+        "cache. Missing/incomplete or unverified package identity NEVER means "
+        "zero dependencies. Graph edges do NOT measure users, installs, dependents, "
+        "revenue or buyer demand."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_dependency_graph(
+    ecosystem: str,
+    package: str,
+    version: str,
+    execute: bool = False,
+) -> dict[str, Any]:
+    from mcp_trendpulse.mjau_v2.depsdev_graph import (
+        inspect_package_dependencies,
+    )
+
+    return inspect_package_dependencies(
+        ecosystem=ecosystem, package=package, version=version,
+        execute=execute,
+    )
+
+
+@intel_mcp.tool(
+    description=(
+        "Inspect a FREE published OpenSSF Scorecard heuristic assessment for "
+        "one public GitHub repository. Plan-only unless execute=True. Returns "
+        "published score and source scan date/precision, check coverage and "
+        "inconclusive checks. Missing checks or HTTP 404 mean UNKNOWN, not an "
+        "insecure repository. This is not a security audit or verified vulnerability."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_repository_scorecard(
+    owner: str,
+    repo: str,
+    execute: bool = False,
+) -> dict[str, Any]:
+    from mcp_trendpulse.mjau_v2.openssf_scorecard import (
+        inspect_openssf_scorecard,
+    )
+
+    return inspect_openssf_scorecard(
+        owner=owner, repo=repo, execute=execute,
+    )
+
+
 def main() -> None:
     intel_mcp.run()
 

@@ -33,6 +33,8 @@ TOOLS = {
     "intelligence_observe_source_snapshots",
     "intelligence_hunt_current",
     "intelligence_discover_current",
+    "intelligence_dependency_graph",
+    "intelligence_repository_scorecard",
 }
 FAKE_TOKEN = "SYNTHETIC_OFFLINE_E2E_TOKEN_NOT_A_PROVIDER_KEY"
 
@@ -107,7 +109,23 @@ async def exercise(mode: str, result_path: Path) -> int:
                     schema = json.dumps(tool.inputSchema).lower()
                     if '"api_key"' in schema or '"secret"' in schema or '"token"' in schema:
                         raise AssertionError("Secret-bearing MCP argument schema exposed")
-                checked.append({"case": "initialize_discover_twelve_read_only_tools", "ok": True})
+                checked.append({"case": "initialize_discover_fourteen_read_only_tools", "ok": True})
+                a03 = await _call(session, "intelligence_dependency_graph", {
+                    "ecosystem": "npm", "package": "is-odd", "version": "3.0.1",
+                    "execute": False,
+                })
+                b01 = await _call(session, "intelligence_repository_scorecard", {
+                    "owner": "pallets", "repo": "flask", "execute": False,
+                })
+                for planned in (a03, b01):
+                    if (
+                        planned.get("status") != "planned"
+                        or planned.get("network_performed") is not False
+                        or planned.get("requests_attempted") != 0
+                        or planned.get("cache_hit") is not False
+                    ):
+                        raise AssertionError("V2 plan-only accessed sources")
+                checked.append({"case": "v2_a03_b01_stdio_plan_no_network", "ok": True})
 
                 seedless_plan = await _call(
                     session, "intelligence_discover_current", {
