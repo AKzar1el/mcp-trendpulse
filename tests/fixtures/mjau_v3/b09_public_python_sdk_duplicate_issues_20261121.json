@@ -1,0 +1,30 @@
+{
+  "$schema_note": "Source-origin identity metadata only. Three public issues fetched via connected GitHub API 2026-11-21; no issue bodies or user account details copied.",
+  "observed_at": "2026-11-21",
+  "repository": "https://github.com/modelcontextprotocol/python-sdk",
+  "case_question": "Does B09 improve the actual v1 evaluation on explicitly linked original/duplicate plus unrelated GitHub issues?",
+  "public_originals": [
+    {
+      "issue": 3551,
+      "url": "https://github.com/modelcontextprotocol/python-sdk/issues/3551",
+      "created_at": "2026-09-20T13:48:22Z",
+      "subject": "stdio server cancellation blocked by stdin read worker"
+    },
+    {
+      "issue": 3596,
+      "url": "https://github.com/modelcontextprotocol/python-sdk/issues/3596",
+      "created_at": "2026-09-29T10:46:21Z",
+      "subject": "same stdin read worker shutdown hang",
+      "original_issue": 3551,
+      "linkage_evidence": "Public issue #3596 explicitly calls itself a duplicate of #3551"
+    },
+    {
+      "issue": 3100,
+      "url": "https://github.com/modelcontextprotocol/python-sdk/issues/3100",
+      "created_at": "2026-07-16T05:06:47Z",
+      "subject": "Pydantic validation/serialization output schema mismatch",
+      "distinct_from": 3551
+    }
+  ],
+  "metadata_limitation": "Public issue metadata are real; no paid buyer or external market demand is attested. Distinctness is only between these subject-specific issue reports."
+}
