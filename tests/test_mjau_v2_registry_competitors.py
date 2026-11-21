@@ -306,3 +306,47 @@ def test_no_extra_fields_in_results_from_provider():
     out, store, _ = run(rows=payload(raw))
     assert "should-not-emit" not in json.dumps(out)
     assert "not-allowed" not in json.dumps(store.data)
+def test_official_schema_accepts_mixed_case_github_namespace():
+    # Official server schema permits uppercase ASCII in the reverse-DNS namespace.
+    out, _, _ = run(rows=payload(item(name="io.github.Digital-Defiance/mcp-filesystem")))
+    assert out["status"] == "observed"
+    assert out["records"][0]["server_name"] == "io.github.Digital-Defiance/mcp-filesystem"
+
+
+def test_official_schema_accepts_long_but_bounded_versions():
+    out, _, _ = run(rows=payload(item(version="v" + "1" * 90)))
+    assert out["status"] == "observed"
+    assert len(out["records"][0]["version"]) == 91
+
+
+def test_registry_search_is_name_scoped_even_when_title_matches():
+    out, _, _ = run(rows=payload(item(name="io.example/weather", title="Filesystem")))
+    assert out["status"] == "invalid_source_shape" and out["records"] == []
+
+
+def test_mixed_matching_and_nonmatching_names_are_marked_partial():
+    out, store, _ = run(rows=payload(item(), item(name="io.example/weather")))
+    assert out["status"] == "observed_partial" and out["source_rows_rejected"] == 1
+    assert len(out["records"]) == 1
+    assert store.data == {}
+
+
+def test_cached_valid_but_off_query_server_is_rejected_before_replay():
+    store = Store()
+    run(store=store)
+    key = next(iter(store.data))
+    store.data[key]["provider_result"]["servers"][0]["server"]["name"] = "io.example/weather"
+    out, _, calls = run(store=store)
+    assert out["status"] == "observed" and not out["cache_hit"]
+    assert store.used == 2 and len(calls) == 1
+
+
+def test_official_name_length_ceiling_enforced():
+    bad_name = "io.example/" + "a" * 191
+    out, _, _ = run(rows=payload(item(name=bad_name)))
+    assert out["status"] == "invalid_source_shape"
+
+
+def test_disallowed_reserved_char_in_name_rejected():
+    out, _, _ = run(rows=payload(item(name="io.example:admin/filesystem")))
+    assert out["status"] == "invalid_source_shape"
