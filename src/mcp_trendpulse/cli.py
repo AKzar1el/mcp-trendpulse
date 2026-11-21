@@ -1146,6 +1146,40 @@ def intelligence_hn_discussions(query, tag, days, limit, execute, output_format)
         click.echo(format_hn_report(report))
 
 
+
+@intelligence.command("github-problems")
+@click.option("--query", required=True,
+              help="Explicit developer-problem phrase, never a search qualifier.")
+@click.option("--repository", default="",
+              help="Optional public owner/repo filter; biases the returned sample.")
+@click.option("--days", type=click.IntRange(7, 90), default=30,
+              show_default=True, help="Recent issue creation lookback (UTC days).")
+@click.option("--limit", type=click.IntRange(1, 10), default=10,
+              show_default=True, help="Number of first-page issues to inspect.")
+@click.option("--execute", is_flag=True,
+              help="Use existing cached or quota-checked GitHub Issues collector.")
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]),
+              default="text", show_default=True)
+def intelligence_github_problems(query, repository, days, limit, execute, output_format):
+    """M08: one bounded public GitHub-issue search, not unique customers."""
+    from mcp_trendpulse.intelligence_github_issues import (
+        discover_github_problems, format_github_problems,
+    )
+    try:
+        report = discover_github_problems(
+            query=query, repository=repository,
+            lookback_days=days, limit=limit, execute=execute,
+        )
+    except (OSError, TypeError, ValueError):
+        raise click.ClickException(
+            "Invalid public GitHub issue phrase, owner/repo or lookback"
+        ) from None
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_github_problems(report))
+
+
 @intelligence.command("sources")
 @click.option("--wave", type=click.IntRange(1, 3), default=None)
 def intelligence_sources(wave):

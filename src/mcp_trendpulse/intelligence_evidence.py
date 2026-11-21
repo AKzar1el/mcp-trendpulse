@@ -109,7 +109,8 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
             # Classification is a bounded lexical screen, not trust or demand.
             projected.append({
                 **{k: item[k] for k in (
-                    "id", "title", "created_at", "html_url", "pull_request",
+                    "id", "number", "title", "state", "created_at",
+                    "updated_at", "html_url", "repository_url", "pull_request",
                 ) if k in item},
                 "issue_evidence_type": classify_github_issue(
                     item.get("title"), item.get("body"), item.get("html_url"),
