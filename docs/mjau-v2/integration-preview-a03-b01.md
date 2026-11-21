@@ -47,3 +47,34 @@ The offline benchmark process peaked at **41.49 MiB Windows working set**, inclu
 6. **Rollback:** preview branch can simply be abandoned. No live config was modified and no worker/tunnel needs restart.
 
 **Conclusion:** A03+B01 has a clean **non-shipping integration preview** with real MCP transport and strong focused compatibility evidence. It is not authorized for production until the remaining gates pass. Candidate policies remain *prove useful or discard*, not “keep just because implemented.”
+
+## Follow-up milestone: canonicalization, official MCP comparison, v1+v2+v3 compatibility — 2026-11-21
+
+**Supersedes the earlier focused A03 count and 383-case cross-v1 test result above.** Earlier receipts were accurate at their original commits; later changes are tested below.
+
+### 1. A03 root canonicalization: RESOLVED WITH GUARDED SCOPE
+
+- Official deps.dev v3 says returned root package/version identifiers may be normalized. Real source `PYPI Colorama@0.04.6` returned `PYPI colorama@0.4.6`.
+- Source commits `637c168e780a1c85817aa21fa16fe4e8b9b59bb9` and `8c81d541070625e2f20cf731c85b608c06c461bf`, tests `3a0023db1c99fef21293baf833ce9fe886de36ae`, copied into this preview.
+- **77/77 authentic pytest PASS**, Ruff clean; native real adapter with original v1 SQLite BudgetCache PASS: 1 real GET (4.60s), second exact replay 0 network, temp cleanup successful.
+- Only provably equivalent simple numeric PyPI release aliases use PEP 440 component-zero padding (and PEP 503 package-name normalization). Unverified root version => `identity_unverified`, no dependencies, no cache; unrelated root => invalid. No dependency upgrade or generalized SemVer parser.
+- Official references: https://docs.deps.dev/api/v3/ ; https://packaging.python.org/en/latest/specifications/version-specifiers/ .
+
+### 2. B01 first-party OpenSSF MCP overlap: DESIGN DECISION RECORDED
+
+- Official experimental `scorecard mcp` exposes five read-only tools and two check resources via an independent Go binary; this is **broader and more informative than B01** and uses the same underlying REST API.
+- Retain B01 **only as a narrow, budgeted score/heuristic observation embedded within TrendPulse**. Do not copy/reimplement the official `get_check_result`, `compare_repos`, `list_checks`, `explain_check` features. Full Scorecard research should use the official MCP separately when supported; if future integration makes its basic score cheaper/reliably available, re-evaluate B01 as redundant and discard.
+- Official Windows x64 v5.7.0 asset is 29,007,450 bytes, but the temp first-party download did **not** complete checksum validation; no binary was executed/installed and no Go binary RSS/startup comparison is claimed. This missing optional binary benchmark must **not** be represented as a first-party performance failure.
+- Official references: https://github.com/ossf/scorecard/blob/main/docs/mcp.md and https://github.com/ossf/scorecard/releases/tag/v5.7.0 .
+
+### 3. Cross-track code compatibility: PASS, release readiness: NOT YET
+
+- **541/541 targeted authentic pytest tests passed** with `pytest_asyncio.plugin` explicitly loaded, **Ruff passed** for staged v2/v3 source/tests. Execution included **11 original v1 modules + two v2 preview modules + seven v3 experimental test modules** and their fixture files. Temporary isolated Python environment imports from the local original v1 checkout.
+- Pinned test versions: v1 `876957a874e4bc81c0470095254b5a6b0b189397`, v2 preview `cab95cb2a7c86e299c88176406c338e37ae23eb7`, v3 Stage0 `55e8cd7ffb4e4038a9ae591d4a45a2871098d45f`, v3 A04 `4460540c4aa2adea296e47185852634d3ccb65e8`, v3 A10 `a47bc5b71d051bb72978dfae3eff1f72b0949d53`.
+- Total test runtime **95.21s pytest** / **163.18s overall wrapper including collection/startup**. Local original v1 HEAD stayed fixed and worktree clean. **No shared source, main merge, schedule, v3 branch, production registry, or GitHub Actions run was modified for this test.**
+- GitHub PR #328 current v1 SHA has **14/14 associated PR workflow runs completed successfully** and shows `mergeable=true`, but remains **OPEN/DRAFT**, not owner-approved/merged. It is not valid to claim that all v1/v3 business gates are complete merely because CI is green.
+- V3 Stage0, A04, A10 pilots continue to mark source usefulness/independent evidence gates **BLOCKED** even though they have passing unit tests. The combined 541 tests prove import/code compatibility, **not independent v3 decision uplift or integration approval**.
+
+### Remaining release-level decisions
+
+**Code interoperability and A03 canonicalization are resolved for the tested scope.** The official MCP overlap has a conservative, non-duplicative deployment decision. Still pending: v1 owner to mark PR #328 ready/merge when satisfied; separate v3 owner to finish its genuine source-evidence, rights and decision-quality gates; one authorized integration owner to merge only accepted features, run the **full** combined repository suite (541 was targeted, not full), real registered stdio MCP/production-shaped requests and p95 load/RSS tests on the merged commit. Do **not** approve or merge unproven v3 pilots, or GDELT A06 / social A08.
