@@ -921,6 +921,39 @@ def intelligence_signal_schema(output_format):
     click.echo("Use --format json to inspect the versioned Pydantic JSON Schema.")
 
 
+
+@intelligence.command("phrase-hypotheses")
+@click.option("--input", "input_file", type=click.Path(
+    exists=True, dir_okay=False, path_type=Path), required=True,
+    help="Offline JSON with up to 80 typed source signals, public titles or notes.")
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]),
+              default="text", show_default=True)
+def intelligence_phrase_hypotheses(input_file, output_format):
+    """M12: multilingual source-preserving phrase and intent heuristics, offline."""
+    from mcp_trendpulse.intelligence_phrases import (
+        MAX_INPUT_BYTES, extract_phrase_hypotheses, format_phrase_hypotheses,
+    )
+
+    try:
+        with input_file.open("rb") as file:
+            data = file.read(MAX_INPUT_BYTES + 1)
+        if len(data) > MAX_INPUT_BYTES:
+            raise ValueError("Input exceeds the bounded local JSON size")
+        payload = json.loads(data.decode("utf-8"))
+        report = extract_phrase_hypotheses(payload)
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError,
+            json.JSONDecodeError):
+        # Never reproduce untrusted evidence titles, tokens or file bytes.
+        raise click.ClickException(
+            "Invalid, unsafe, or oversized offline M12 evidence JSON"
+        ) from None
+
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_phrase_hypotheses(report))
+
+
 @intelligence.command("cluster-keywords")
 @click.option("--input", "input_file", type=click.Path(
     exists=True, dir_okay=False, path_type=Path), required=True,
@@ -1158,6 +1191,193 @@ def intelligence_hn_discussions(query, tag, days, limit, execute, output_format)
         click.echo(format_hn_report(report))
 
 
+
+@intelligence.command("github-problems")
+@click.option("--query", required=True,
+              help="Explicit developer-problem phrase, never a search qualifier.")
+@click.option("--repository", default="",
+              help="Optional public owner/repo filter; biases the returned sample.")
+@click.option("--days", type=click.IntRange(7, 90), default=30,
+              show_default=True, help="Recent issue creation lookback (UTC days).")
+@click.option("--limit", type=click.IntRange(1, 10), default=10,
+              show_default=True, help="Number of first-page issues to inspect.")
+@click.option("--execute", is_flag=True,
+              help="Use existing cached or quota-checked GitHub Issues collector.")
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]),
+              default="text", show_default=True)
+def intelligence_github_problems(query, repository, days, limit, execute, output_format):
+    """M08: one bounded public GitHub-issue search, not unique customers."""
+    from mcp_trendpulse.intelligence_github_issues import (
+        discover_github_problems, format_github_problems,
+    )
+    try:
+        report = discover_github_problems(
+            query=query, repository=repository,
+            lookback_days=days, limit=limit, execute=execute,
+        )
+    except (OSError, TypeError, ValueError):
+        raise click.ClickException(
+            "Invalid public GitHub issue phrase, owner/repo or lookback"
+        ) from None
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_github_problems(report))
+
+
+@intelligence.command("npm-downloads")
+@click.option("--package", "package_name", required=True,
+              help="Exact npm name; supports @scope/name, no bulk or version query.")
+@click.option("--days", type=click.Choice(["7", "30"]), default="7",
+              show_default=True, help="Last 7 or last 30 published UTC days.")
+@click.option("--execute", is_flag=True,
+              help="Opt in to one public npm downloads API request, or validated cache.")
+@click.option("--format", "output_format",
+              type=click.Choice(["text", "json"]), default="text", show_default=True)
+def intelligence_npm_downloads(package_name, days, execute, output_format):
+    """M09: npm package tarball requests, not users or purchase demand."""
+    from mcp_trendpulse.intelligence_package_downloads import (
+        discover_package_downloads, format_package_downloads,
+    )
+    try:
+        report = discover_package_downloads(
+            ecosystem="npm", package=package_name,
+            days=int(days), execute=execute,
+        )
+    except (OSError, TypeError, ValueError):
+        raise click.ClickException(
+            "Invalid npm package name or daily history window"
+        ) from None
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_package_downloads(report))
+
+
+@intelligence.command("pypi-downloads")
+@click.option("--package", "package_name", required=True,
+              help="Exact PyPI distribution, PEP 503 normalized.")
+@click.option("--days", type=click.Choice(["7", "30"]), default="7",
+              show_default=True, help="Last 7 or 30 available daily observations.")
+@click.option("--execute", is_flag=True,
+              help="Opt in to one public PyPI Stats request or validated cache.")
+@click.option("--format", "output_format",
+              type=click.Choice(["text", "json"]), default="text", show_default=True)
+def intelligence_pypi_downloads(package_name, days, execute, output_format):
+    """M10: PyPI Stats downloads excluding known mirrors, not unique users."""
+    from mcp_trendpulse.intelligence_package_downloads import (
+        discover_package_downloads, format_package_downloads,
+    )
+    try:
+        report = discover_package_downloads(
+            ecosystem="pypi", package=package_name,
+            days=int(days), execute=execute,
+        )
+    except (OSError, TypeError, ValueError):
+        raise click.ClickException(
+            "Invalid PyPI package name or daily history window"
+        ) from None
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_package_downloads(report))
+
+
+@intelligence.command("stackexchange-questions")
+@click.option("--tag", required=True,
+              help="One exact public Stack Overflow tag, e.g. python.")
+@click.option("--term", default="",
+              help="Optional literal question search phrase, not a user or URL.")
+@click.option("--days", type=click.IntRange(7, 30), default=14,
+              show_default=True, help="Recent UTC lookback days.")
+@click.option("--limit", type=click.IntRange(1, 10), default=10,
+              show_default=True, help="First-page question sample cap.")
+@click.option("--execute", is_flag=True,
+              help="Opt in to one keyless and quota-checked Stack Exchange API query.")
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]),
+              default="text", show_default=True)
+def intelligence_stackexchange_questions(tag, term, days, limit, execute, output_format):
+    """M11: public question recurrence, not customer demand or search volume."""
+    from mcp_trendpulse.intelligence_stackexchange import (
+        discover_stackoverflow_questions, format_stackexchange_report,
+    )
+    try:
+        report = discover_stackoverflow_questions(
+            tag=tag, term=term, days=days,
+            limit=limit, execute=execute,
+        )
+    except (OSError, ValueError, TypeError):
+        raise click.ClickException(
+            "Invalid Stack Overflow tag, literal phrase or UTC search window"
+        ) from None
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_stackexchange_report(report))
+
+
+@intelligence.command("lifecycle")
+@click.option("--input", "input_file", required=True, type=click.Path(
+    exists=True, dir_okay=False, path_type=Path),
+    help="Local JSON containing 1-500 strictly typed M00 historical signals.")
+@click.option("--format", "output_format", default="text", show_default=True,
+              type=click.Choice(["text", "json"]))
+def intelligence_lifecycle(input_file, output_format):
+    """M13: offline aligned-source history, conservative lifecycle heuristics."""
+    from mcp_trendpulse.intelligence_lifecycle import (
+        MAX_INPUT_BYTES, analyze_lifecycle, format_lifecycle_report,
+    )
+
+    try:
+        with input_file.open("rb") as handle:
+            raw = handle.read(MAX_INPUT_BYTES + 1)
+        if len(raw) > MAX_INPUT_BYTES:
+            raise ValueError("Input exceeds bounded file size")
+        report = analyze_lifecycle(json.loads(raw.decode("utf-8")))
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError,
+            json.JSONDecodeError):
+        raise click.ClickException(
+            "Invalid, unsafe, or oversized offline historical signal JSON"
+        ) from None
+
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_lifecycle_report(report))
+
+
+@intelligence.command("research-report")
+@click.option("--input", "input_file", required=True, type=click.Path(
+    exists=True, dir_okay=False, path_type=Path),
+    help="Bounded offline JSON with 1-120 fully typed M00 signals.")
+@click.option("--format", "output_format",
+              type=click.Choice(["text", "json"]), default="text",
+              show_default=True)
+def intelligence_research_report(input_file, output_format):
+    """M14: read-only cross-source research, no live provider or demand score."""
+    from mcp_trendpulse.intelligence_research import (
+        MAX_INPUT_BYTES, format_public_research, synthesize_public_research,
+    )
+
+    try:
+        with input_file.open("rb") as source:
+            raw = source.read(MAX_INPUT_BYTES + 1)
+        if len(raw) > MAX_INPUT_BYTES:
+            raise ValueError("M14 input exceeds allowed size")
+        report = synthesize_public_research(json.loads(raw.decode("utf-8")))
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError,
+            OverflowError, json.JSONDecodeError):
+        # Never echo source tokens, file content or potentially private paths.
+        raise click.ClickException(
+            "Invalid, unsafe or oversized offline research source JSON"
+        ) from None
+
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_public_research(report))
+
+
 @intelligence.command("sources")
 @click.option("--wave", type=click.IntRange(1, 3), default=None)
 def intelligence_sources(wave):
@@ -1309,6 +1529,17 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
             )
     except (OSError, ValueError, TypeError) as exc:
         raise click.ClickException(str(exc)) from exc
+    if not execute:
+        # The discover CLI preview is a public, offline plan. Hide even
+        # sensitive header *names* here; other callers of Plan.public()
+        # intentionally keep their existing redacted-header contract.
+        # No live request is modified, and credential values are never copied.
+        for plan in response.get("plans", []):
+            if isinstance(plan, dict) and isinstance(plan.get("headers"), dict):
+                plan["headers"] = {
+                    key: value for key, value in plan["headers"].items()
+                    if key.casefold() in {"accept", "content-type", "user-agent"}
+                }
     if output_format == "text" and execute:
         click.echo(format_discovery_report(response))
     else:

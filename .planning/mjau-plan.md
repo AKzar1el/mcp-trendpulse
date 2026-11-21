@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00–M03, M05–M07 COMPLETE (verified); M04 safety guard verified, real Explore source observation blocked by upstream 429 (not claimed complete)  | **Next task:** M08 only on separate authorization. Do not automatically repeat blocked M04 live requests.
+**Created:** 2026-11-20 | **Integration audit 2026-11-21:** M00-M03, M05-M07 verified; M04 user-directed implementation CLOSED as provider-availability dependent; M08 live acceptance now verified; M09-M10 previously public-source verified; M11-M14 will be integrated and tested separately. Source snapshots are not buyers or absolute demand. No main merge/deployment implied.
 
 ## Mission and non-negotiable scope
 
@@ -521,43 +521,452 @@ M04 stays unchecked until the user's reminder; M08+ untouched.
 - Search genuine recent technical discussions and launches using observed topic phrases; dedupe repeated posts by stable ID, distinguish story and comment counts, count unique days/topics not raw repeated mentions.
 - **Acceptance:** one bounded query with timestamps and source IDs; handle deletion and pagination cap; no false customer demand.
 
-#### [ ] M08 — Reuse existing GitHub Issues source (no duplicate provider)
+#### [x] M08 - Reuse existing GitHub Issues source (no duplicate provider)
 - **Library:** current `intelligence_foundation` GitHub Issues adapter.
 - Add only a thin normalized signal transform where absent: distinct issue IDs, repository, time, state and topic relevance, source caps and cooldown.
 - **Acceptance:** no duplicate GitHub API adapter, owner/repo bias explicit, verified sampled issues and no fabricated independent buyers.
 
-#### [ ] M09 — npm package-download trend
-- **Library:** existing `requests`; public npm downloads endpoint.
-- Map package identity, ecosystem and daily/weekly downloads; flag CI/bots and packages with missing history. Downloads are not unique users/customers.
-- **Acceptance:** one bounded public package/timeframe query, correct time granularity and cache; missing/invalid package test.
+**2026-11-21 STATUS: IMPLEMENTED / OFFLINE VERIFIED; LIVE BLOCKED, NOT COMPLETE.**
+User explicitly authorized M08 while a separate fresh chat attempts M04
+on draft PR #328; M08 was built in a separate ordinary shallow Git clone,
+branch feat/mjau-m08-existing-github-issues. The original checkout and
+original PR head were left unchanged.
 
-#### [ ] M10 — PyPI download statistics
-- **Library:** existing `requests` (or optional `pypistats` only if it substantially simplifies a tested API contract); PyPI Stats public aggregate endpoint.
-- Collect Python package daily history; preserve data-source sampling limitations and delivery lag. Normalize concept only for display; **never** add npm and PyPI raw counts.
-- **Acceptance:** one bounded observed package, zero vs unavailable tests, source date coverage.
+Implementation: src/mcp_trendpulse/intelligence_github_issues.py,
+opt-in CLI intelligence github-problems, tests/test_mjau_github_issues.py,
+and docs/github-issue-problems.md. Reuses EXISTING foundation
+plan_source("github_issues") and core collect HTTP transport, cache,
+existing shared per-query lock and 12/day UTC provider budget;
+no duplicate client, source token, alternate cache or new dependency.
+Input requires one literal phrase, optional public owner/repo filter,
+creation lookback 7`90 UTC days and <=10 returned issues.
+Each record validates stable global issue ID, canonical GitHub issue
+and repository URL, state=open, no pull_request marker,
+created/updated UTC dates and duplicate global or repo/number ID.
+The report clearly labels first-page sampling, owner/repo concentration,
+unfetched records, incomplete provider results and malformed exclusions.
+Only the existing conservative issue_evidence_type classification and
+partial daily typed github_issue_mentions signals are emitted,
+never verified independent buyers, exact search volume or market size.
 
-#### [ ] M11 — Stack Exchange API
-- **Library:** existing `requests`; free API with quota/backoff instructions.
-- Track topic/tag question recurrence and accepted/open problem patterns, without treating questions as search volume or sales.
-- **Acceptance:** one limited search/tag call, source-provided throttle honored, metadata + timestamps saved, nonrepresentative-sample caveat.
+The existing collector now caches only sanitized aggregate metadata
+and the safe issue projection for NEW GitHub source requests; it no
+longer persists raw issue bodies, author emails or labels for those
+new snapshots. Prior quota/cache history was not deleted or rewritten.
+GitHub recent-creation cutoff now consistently uses UTC instead
+of local Windows date. Offline targeted and legacy
+foundation/issue-quality/hunter tests: **111 PASSED; Ruff clean**.
+Full offline Windows suite in the M08 isolated checkout:
+**1,909 PASSED, 1 FAILED, 10 DESELECTED, 3 WARNINGS**.
+The only failure is the pre-existing, unrelated OpenAlex plan-only test
+which rejects the visible Authorization header label even though its
+value is redacted. No M08 test failed, and full-local green is NOT
+claimed. GitHub CI status is documented for its exact PR head.
+
+**Official source metadata, separate from collector:** One bounded
+authenticated, read-only GitHub API lookup for open public
+microsoft/playwright issues mentioning timeout and created since
+2026-10-22 returned total_count=8, incomplete_results=false,
+including global IDs 6370513287 (#44096), 6449982165 (#44180),
+6154854553 (#43842), all with matching GitHub canonical URLs,
+repo URL and source timestamps. This verifies the upstream contract
+but NOT end-to-end M08 CLI acceptance or independent customer demand.
+
+**Live gate blocked:** The actual M08 opt-in CLI returned
+local_budget_unavailable, requests_attempted=0, network_performed=false
+before any provider request; the existing GitHub daily budget remained
+**0/12** for 2026-11-21 UTC. Read-only Windows ACL inspection showed
+the parent ~/.mcp-trendpulse/intelligence SQLite store is accessible,
+but the existing .request_locks child denied Get-Acl and creating the
+per-query lock. An additive non-elevated icacls grant on precisely that
+child failed (exit 5, Access denied). No lock-folder replacement,
+permission reset, new quota database, source retry or bypass.
+Only an authorized Windows administrator's additive grant on the
+same original child (details in docs) can restore M08 live validation.
+Afterwards rerun one bounded CLI query and identical zero-network
+cache repeat; until then M08 stays UNCHECKED.
+No M04 provider calls or shared branch writes; M09+ untouched.
+
+**2026-11-21 genuine M08 acceptance after user repaired Windows ACL:** Normal-user access to the original existing .request_locks directory succeeds (explicit Modify grant). The original M08 `github-problems --query timeout --repository microsoft/playwright --days 30 --limit 10 --execute` returned `status=observed`, `network_performed=true`, exactly 1 original authorized GitHub source request, 8 accepted source issue records, 6 dated typed github_issue_mentions signals. An identical immediately repeated command returned `cache_hit=true`, `network_performed=false`, zero requests and the same eight records. Original SQLite `PRAGMA quick_check=ok`; UTC 2026-11-21 existing github_issues source budget 1/12, no copied budget or lock folder, no rate-limit bypass. M08 is now **LIVE VERIFIED / COMPLETE**. Earlier failed ACL/source attempts above remain historical evidence.
+
+#### [x] M09 ? npm package-download trend
+- **Implementation / LIVE VERIFIED 2026-11-21 UTC:** New shared package
+  source adapter, opt-in CLI intelligence npm-downloads, deterministic
+  offline fixtures and docs/package-download-history.md. Official
+  keyless https://api.npmjs.org/downloads/range/last-week/zod returned
+  7/7 source-dated daily downloads, **2026-11-13..2026-11-19**,
+  total **475,488,459** npm tarball download *events*, 0 missing or
+  rejected, 2-day availability lag. Seven source-attributed daily
+  npm_package_downloads TrendSignals; provenance official_api.
+  Exact repeated CLI command: **cache_hit=true, requests_attempted=0,
+  network_performed=false** and identical verified daily total.
+  Original SQLite dedicated npm source budget **1/5** on 2026-11-21
+  UTC; shared quota DB PRAGMA quick_check=ok.
+
+  Single exact package (also supports URL-encoded scoped names),
+  periods seven/30 source days, source identity, inclusive dates,
+  partial/missing vs actual zero, nonnegative integer count, UTC
+  lag and stale shape checks. Source 404 does not mean zero users.
+  Fixed official HTTPS origin, 128KiB body, 5/12s timeout, no
+  redirects/proxies/retries, durable 429/503 cooldown and validated
+  24-hour cache; zero new dependency/credentials/paid service.
+  **npm download events include CI/CD, bots and dependency installs:
+  not unique users, customers, search interest or market demand.**
+  Focused package fixture tests and repository CI recorded in
+  implementation branch; do not merge while related other branch
+  conversations remain unresolved.
+
+#### [x] M10 ? PyPI download statistics
+- **Implementation / LIVE VERIFIED 2026-11-21 UTC:** Same opt-in
+  bounded source adapter and CLI intelligence pypi-downloads
+  with normalized PEP503 project names and a seven/30-day window.
+  Official https://pypistats.org/api/packages/pydantic/overall?mirrors=false
+  returned 181 historical daily without_mirrors observations;
+  the selected verified latest **7/7 daily source dates
+  2026-11-13..2026-11-19** yielded **285,184,650**
+  mirror-excluded Python package download *events*,
+  0 missing/rejected, source lag 2 days. Seven typed
+  pypi_package_downloads provenance signals use public_api.
+  An identical second CLI request was a validated **cache hit,
+  requests_attempted=0, network_performed=false**, preserving values.
+  Dedicated original SQLite PyPI Stats source budget **1/3** on
+  UTC 2026-11-21. M04/M08 state/budgets untouched.
+
+  PyPI Stats is a separately hosted limited-resource public API,
+  with daily refresh and ~180-day history. Explicit mirrors=false
+  requires without_mirrors source category, refuses mixed categories,
+  malformed/duplicate/missing dates, wrong package and invented zero.
+  Stable 24-hour cache, max 160KiB response, fixed official
+  HTTPS host, no proxy/redirect/retry/account/API key/payment.
+  Known mirror clients are excluded; CI/CD still counts.
+  **Never add npm and PyPI download counts or represent the totals
+  as distinct humans or paying buyers.** See
+  docs/package-download-history.md and
+  tests/test_mjau_package_downloads.py. M11+ untouched.
+
+**Verified offline on the isolated M09/M10 branch:** 62 dedicated
+package-source tests passed; combined M09?M10 + M04/M05/M06/M07/typed
+source compatibility 224 passed; full repository Ruff clean and
+git diff --check clean. Full Windows repository suite **1,930 passed,
+1 previously existing unrelated OpenAlex plan-only redacted
+Authorization-header-label assertion failure, 10 deselected and
+3 warnings**, all M09/M10 tests passed. The full local suite is
+NOT claimed green. Review the specific GitHub CI results at the
+actual pushed branch head rather than inferring green CI from local.
+
+#### [x] M11 ? Stack Exchange API
+- **Implementation and SOURCE LIVE VERIFIED 2026-11-21 UTC:** added
+  src/mcp_trendpulse/intelligence_stackexchange.py, the opt-in
+  intelligence stackexchange-questions CLI, offline tests and
+  docs/stackexchange-question-evidence.md. This is the public keyless
+  official Stack Exchange v2.3 search/advanced GET restricted to the
+  Stack Overflow site, one exact safe lowercase tag, optional literal
+  manual query, creation-date Unix UTC filter, sorted newest first,
+  page 1 and a first-page limit 1..10. No user account, API key,
+  paid provider, bulk crawl, project analytics or new dependency.
+
+  Exact one live request for tag python, manual text term timeout,
+  14-day UTC creation lookback 2026-11-07T00:00Z through before
+  2026-11-21T00:00Z, pagesize 10: status=observed, source question
+  **80015847** created **2026-11-10T16:22:45Z** with canonical
+  https://stackoverflow.com/questions/80015847.
+  Title "Asyncio Unhandled Exception in atexit"; the q term
+  did not appear verbatim in the title (Stack Exchange search q
+  has an undocumented algorithm and may match other properties).
+  Source question reported **3 answers** and is_answered=true but
+  **no accepted answer ID**. These properties are distinct and do
+  not establish whether the problem remains unresolved. Source
+  has_more=false and quota_remaining **299** of quota_max **300**;
+  no backoff field was present in this real source wrapper. No
+  rejected rows, one observed source UTC day, one typed partial
+  stackexchange_question_mentions daily signal, no user identities
+  or question bodies retained.
+
+  The identical immediate second command returned
+  **cache_hit=true, requests_attempted=0, network_performed=false**
+  with identical question ID/answer flags/quota metadata.
+  Original SQLite dedicated M11 source used **1/3** operations
+  for 2026-11-21 UTC; PRAGMA quick_check=ok. Independent npm/PyPI
+  remained at 1/5 and 1/3. The parallel M04 Google Trends record
+  was 2/2 and untouched; M08 GitHub issue request-lock ACL and
+  independent PR #370 were not modified.
+
+  The adapter validates canonical question ID/site/link/UTC
+  source creation date, required tag, bounded title, answer_count,
+  is_answered and optional accepted_answer_id; malformed or
+  repeated records are excluded. has_more and query matching are
+  not assumed complete population coverage. Coarse counts for
+  answered, no answer and accepted answer are sampled source
+  metadata, not consumer demand or verified technical issues.
+  No author, post body, profile, noncanonical external URL or
+  unknown JSON metadata enters validated results/cache.
+
+  All calls are explicit --execute, with a fixed HTTPS host,
+  one first-page query, 128KiB response cap, 5/12s timeout, no
+  redirects/proxies/retries, original SQLite UTC-day source cap
+  3, six-hour validated query cache and no key. The official
+  provider may return a mandatory per-method backoff value; this
+  is saved durably for the **actual requested number of seconds**,
+  not truncated to the core 300s default. API-reported quota
+  exhaustion opens a hold until the next UTC day. No automatic
+  retry or quota bypass. 404/429/503/provider errors are not
+  counted as no-data interest. See docs and tests.
+  M12+ untouched. Isolated draft-PR verification may be reported
+  below without silently merging related open feature branches.
+
+**Offline regression receipts on isolated M11 branch:** 53 dedicated
+M11 source/CLI/contract tests passed. The combined M11 +
+M04/M05/M06/M07/typed-source compatibility suite passed **216 tests**;
+full Ruff and git diff --check passed. The complete Windows repository
+test run finished **1,922 passed, 1 pre-existing unrelated OpenAlex
+redacted Authorization-header-label test failed, 10 deselected and
+3 warnings**. The single unrelated failure was
+tests/test_intelligence_entrypoints.py::test_discover_cli_plan_only_and_history_gate,
+which expects the word Authorization to be absent even though only
+the redacted header value "<configured>" is exposed. No M11 test
+failed; do NOT claim full local green. CI evidence is recorded
+separately on the exact pushed M11 code commit.
 
 ### Phase C — combine and make useful
 
-#### [ ] M12 — Keyword/phrase extraction and intent hypotheses
-- **Libraries:** first existing `nltk`, regex and M02 `rapidfuzz`; add `rake-nltk` only if tests prove improved extraction and its license/dependency suitability.
-- Extract observed query terms separately from generated phrase hypotheses; classify informational/problem/commercial intent as **heuristic**; keep original-language evidence; rank relevance without inventing search volume or SEO competition.
-- **Acceptance:** multilingual fixtures and source-to-keyword provenance, deterministic duplicate grouping, human-readable explanation of intent heuristic.
+#### [x] M12 - Keyword/phrase extraction and intent hypotheses
+- **OFFLINE ACCEPTANCE VERIFIED 2026-11-21.** Implemented
+  src/mcp_trendpulse/intelligence_phrases.py and no-network CLI
+  intelligence phrase-hypotheses --input <JSON> --format text|json,
+  docs/multilingual-phrase-hypotheses.md and a small explicit offline
+  docs/examples/mjau-m12-evidence.json. No provider call, site
+  property, paid API, LLM, NLTK corpus download, dependency addition,
+  quota reset or SQLite write. Reused installed NLTK corpus-free
+  ngrams, M02 lexical normalize_keyword and conservative RapidFuzz
+  complete-link near-duplicate guard. Input: max 128KiB local JSON and
+  80 strictly validated typed signal/title/manual-note references.
+  Output: max 160 ranked candidates and 160 bounded lexical families.
 
-#### [ ] M13 — Historical momentum and trend lifecycle
-- **Libraries:** existing `pandas` / `statistics`; add optional `statsmodels` STL only after enough comparable full cycles exist.
-- Compare aligned time windows, require minimum sample-days, handle data gaps, first-seen / repeat observations, distinguish one-off spikes, new, accelerating, sustained, seasonal and declining. Do not compare unlike provider units.
-- **Acceptance:** controlled increasing/flat/seasonal/irregular synthetic fixtures, an actual source-history test, no false 'growth' when coverage is partial.
+  **Source provenance boundaries:** A complete M00 typed TrendSignal
+  with a public/official/community query-method flag and compatible
+  actual search-source metric may contribute source-attested
+  observed_query_terms only when coverage is observed/partial.
+  Other source measurements (news, HN, GitHub issues, package
+  downloads, Stack Overflow questions) remain
+  source_topics_not_queries. Public-title and manual-note text
+  become generated_phrase_hypotheses only; an unavailable/no_data
+  source record is skipped, NEVER turned into search demand or a
+  measured zero. Exact source/record URL, UTC observed time when
+  available, original language and country remain attached to each
+  candidate; manual notes have no fabricated source URL/time.
+  Unknown fields, unsafe URLs, token/emails/path IDs, oversized or
+  malformed input fail closed and do not echo private material.
 
-#### [ ] M14 — Cross-source evidence, recommendations and final CLI/MCP output
-- Reuse all qualified source adapters, normalized schema, RapidFuzz clusters, SQLite provenance and existing CLI/MCP interfaces.
-- Produce compact user-facing research: `rising_queries`, `keyword_families`, `country_language_interest`, `independent_attention`, `developer_problem_evidence`, `package_adoption_evidence`, `product_hypotheses`, `data_gaps`, `next_validation_action`.
-- Clearly label levels: observed search query / relative interest / source mention / adoption metric / generated keyword / hypothetical business opportunity. Independent source corroboration is not automatic causal proof.
-- **Acceptance:** one real multi-source research example with direct primary-source references, one offline deterministic report, readable text+JSON, bounded execution, no GSC/GA4, no fake demand metrics. No new background automation.
+  **Language/intent:** deterministic Unicode-aware extraction and
+  simple curated stopwords/intent cues for English, German, Spanish,
+  French, Slovenian and Croatian Latin, without guessing language,
+  translation or remote corpus. Missing/unsupported title language
+  explicitly abstains; typed terms retain original script without
+  inferred intent. Informational/problem/commercial/mixed/unknown
+  intent is a transparent literal heuristic with matched cue
+  explanations, NOT independently verified buyer intent or semantics.
+  Accents, C++/C#, free/paid qualifiers, negations, country and
+  language scope are not merged. Exact candidate provenance is
+  deduplicated deterministically; conservative M02 95-threshold
+  complete-link lexical families never claim semantic equivalence.
+
+  **Ranking:** bounded phrase-token count, distinct supplied source
+  observation references and heuristic cue matches only, strictly
+  within each evidence class. Provider values, indices, impressions,
+  pageviews, downloads, rank or multi-source units are NEVER added
+  or repurposed as search volume or SEO competition. Source-attested
+  queries are retained ahead of generated candidates when output
+  is truncated and dropped candidate count is explicit.
+
+  **Deterministic evidence:** 63 dedicated M12 offline fixture/tests
+  PASSED after hardening Croatian inflected cue and source record
+  traversal validation; full repository Ruff clean. The real-shaped
+  offline example processed five prior public-title/manual source
+  reference records into **45 generated phrase hypotheses** across
+  English, Slovenian, German and French, with **zero observed
+  search queries and zero network operations** (correct: no
+  verified typed observed query in example); 45 lexical families,
+  no unsupported language, no truncation. This example is NOT
+  additional provider measurement or proven search demand.
+
+  **Verification receipts:** 63 dedicated M12 offline tests PASSED,
+  250 combined M12/M02/M04-M07/typed-source tests PASSED, full Ruff
+  and git diff --check clean. The complete isolated Windows suite
+  finished **1,935 passed, 2 unrelated failures, 10 deselected,
+  3 warnings**. One is the existing OpenAlex redacted Authorization
+  header-label assertion. The other is an unrelated timing-sensitive
+  RSS preflight worker test; exactly one isolated controlled rerun
+  PASSED 1/1 with no source changes. The full Windows suite is NOT
+  claimed entirely green; no M12 test failed. GitHub CI status is
+  separately verified only after pushing the exact M12 branch head. M04 and M08
+  upstream blockers and independent M09-M11 draft PRs untouched.
+  **Next unstarted task: M13 historical momentum, not started here.**
+
+#### [x] M13 - Historical momentum and trend lifecycle
+- **OFFLINE VERIFIED 2026-11-21.** Added
+  `src/mcp_trendpulse/intelligence_lifecycle.py`,
+  `intelligence lifecycle --input <JSON> --format text|json` CLI,
+  `tests/test_mjau_lifecycle.py` and complete methodology in
+  `docs/historical-momentum-lifecycle.md`.
+  No provider/network requests, extra dependencies, quota/SQLite writes,
+  paid APIs, credential changes or background automations.
+- **Strict source comparability:** validates complete M00 TrendSignal
+  records; groups by exact source URL/ID, term, metric+unit,
+  country/language, scope, provenance method/basis and granularity.
+  Refuses mixed metric units, ranks/buckets, future/misaligned dates,
+  conflicted duplicate revisions, partial/unavailable/no_data periods,
+  missing internal periods, unsafe count precision or different
+  Google normalized 0`100 observation batches. Never converts
+  unknown data into observed zero; explicit measured zero is valid.
+  Unknown leading/trailing source days without provider-declared
+  expected window are stated as unverified, not assumed complete.
+  Minimum two complete windows: daily 7+7, weekly 4+4, monthly 3+3.
+- **Conservative heuristics only:** sustained, declining,
+  rising_not_acceleration_verified, accelerating after 3 complete
+  increasing windows, new_in_observed_window only when ALL prior
+  supplied periods were zero, resurfacing, one_off_spike,
+  four-cycle descriptive seven-day seasonal_pattern, no-activity
+  from actual source zeros. Abstains for short, irregular,
+  incomplete or incompatible source histories. No forecasts,
+  global first-ever observations, annual seasonality, independent
+  customers or demand / SEO volume claims.
+- **Actual previous-source history acceptance:** read-only export of
+  the earlier M09 npm `zod` and M10 PyPI `pydantic` verified
+  public-source SQLite cache, each 7 fully observed daily dates
+  2026-11-13..19. Typed reproducible example:
+  `docs/examples/mjau-m13-observed-package-downloads.json`.
+  Source counts 475,488,459 and 285,184,650 download events
+  remain entirely separate. Officially captured short history yields
+  two distinct `insufficient_history` + `unknown` results with NULL
+  comparisons (7 source dates, 14 required). CLI verified
+  network_performed=false, provider_operations=0,
+  sqlite_or_quota_modified=false: no fabricated rising trend.
+- **Acceptance:** 59 dedicated M13 offline tests pass and Ruff
+  clean, covering controlled accelerating/flat/declining/spike/
+  four-week cycles/new-vs-resurfacing, date gaps vs measured zeros,
+  weekly/monthly alignment, normalized batch boundaries,
+  deterministic deduplication, safe source provenance and actual
+  previous provider history. Combined regression and exact-commit
+  GitHub CI are recorded after they complete. Work is isolated
+  on a new draft branch; M14 remains unchecked.
+- **M04 operator decision:** M04 implementation is CLOSED as
+  external-availability-dependent Google Trends work; a provider
+  429 means unavailable at that moment, NOT a code change/retry
+  request. M13 made no M04 requests. M08's original Windows
+  .request_locks ACL acceptance gate remains independent;
+  original PR #328 and draft PRs #370-373 untouched.
+
+#### [x] M14 - Cross-source evidence, recommendations and final CLI/MCP output
+- **OFFLINE IMPLEMENTATION VERIFIED 2026-11-21.**
+  New `src/mcp_trendpulse/intelligence_research.py` accepts at
+  most 120 fully validated original M00 typed `TrendSignal` records
+  in a strictly bounded 128KiB JSON input, no external provider,
+  source cache, SQLite mutation, new credential, API quota, paid API
+  or new dependency. Reuses existing M02 95% conservative
+  complete-link RapidFuzz keyword grouping, separated by original
+  evidence class, country and language; keeps original source URL,
+  record ID, source UTC observation time, period, metric unit, value
+  provenance, source coverage and sampling basis. No sum of unlike
+  providers/units/markets and no manufactured market demand score.
+  Duplicate exact source records collapse deterministically;
+  truncated references/families and source gaps are explicit.
+- **Delivered report keys:** `rising_queries` only after 14 fully
+  observed, consecutive, source-attested-query daily points in
+  the SAME source normalization batch and same market/scope,
+  previous seven-day mean >0 and next seven-day mean at least 25%
+  higher without pure one-off spike; rising is a descriptive
+  source-specific comparison, not acceleration, absolute search
+  volume or a forecast. `observed_query_candidates` cannot include
+  manual Bing seed terms or HN search strings.
+  `keyword_families` (M02 lexical only); `country_language_interest`
+  (individual original Google interest/rank and Bing keyword metrics);
+  `independent_attention` (Wikimedia/news attention proxies);
+  `developer_problem_evidence` (HN/GitHub/StackOverflow discussion
+  NOT validated user problems); `package_adoption_evidence`
+  (npm/PyPI events not users); `product_hypotheses` ONLY when an
+  explicitly typed `generated_keyword_candidate` is provided,
+  as unanswered validation questions. `data_gaps`, exact-term
+  source diversity (not independent people) and one human-directed
+  `next_validation_action` always explain absent coverage.
+  Values from unavailable/no_data are never filled with zero.
+- **Actual seven-primary-source fixture:** original prior M03
+  Google BigQuery ranked source signals (5), M05 official Bing
+  keyword research weekly exact-match source records (6),
+  M06 verified canonical Wikimedia `Python (programming language)`
+  daily views (14), M07 HN public story source links (2),
+  M09 verified npm `zod` daily downloads (7),
+  M10 verified PyPI Stats `pydantic` mirror-excluded daily
+  downloads (7), M11 verified public Stack Overflow question (1).
+  Total **42 fully typed source records / seven distinct source IDs**,
+  copied ONLY from original already-verified SQLite cache
+  mode=ro with PRAGMA quick_check=ok, zero provider calls and zero
+  quota/database writes. Permanent reproducible sample at
+  `docs/examples/mjau-m14-real-multisource-signals.json`.
+  Actual CLI returned six country/language search-interest groups,
+  one public-attention group, three developer-discussion groups,
+  two separate package download groups and 11 conservative M02
+  lexical families; **zero source-attested organic search queries,
+  zero proven rising-query windows and zero product hypotheses**.
+  This is correct source-evidence abstention, NOT false zero demand.
+- **Text/JSON CLI and hosted MCP prompt:** Added offline
+  `intelligence research-report --input --format text|json` in
+  `src/mcp_trendpulse/cli.py`. Exposes the same pure function via
+  `source_evidence_research_report(signals_json, output_format)`
+  hosted MCP PROMPT, not a seventh hosted tool, to preserve the
+  intentionally fixed and app-reviewed six-tool catalog.
+  Actual FastMCP Client initialize/list-tools(6)/list-prompts/get-prompt
+  roundtrip returned typed JSON source report and network=false,
+  with no calls to external provider services. Existing hosted
+  tool catalog and ChatGPT submission manifest remain unchanged.
+- **Verification:** 58 dedicated M14 tests plus one original
+  hosted six-tool-catalog test (59 tests total) passed; full
+  repository Ruff and git diff --check clean. Tests cover exact
+  source provenance, M02 scope and intent boundaries, zero-vs-missing,
+  source candidate versus generated hypothesis, genuine 42-record
+  multi-source sample, provider-normalized 14-day rising gate,
+  duplicate/conflict and user privacy guards, bounded output/caps,
+  sanitized CLI, direct prompt and hosted registry compatibility.
+  Broader local tests and GitHub exact-commit CI will be recorded
+  separately after completed execution. Full methodology in
+  `docs/cross-source-research-report.md`.
+- **Post-integration compact-report efficiency check:** bounded preview
+  excerpts to 24 source/term groups per evidence section, 24
+  source-attested query candidates and 24 generated hypothesis
+  questions, preserving complete source group counts and explicit
+  truncation flags. No original provider source rows or source budget
+  were deleted/modified. On real 42-record cached public evidence,
+  the revised report produced 78,701 bytes in 55.1 ms untraced.
+  On strict offline synthetic 120 distinct source records, JSON was
+  reduced from 287,339 to 108,348 bytes (about 62% smaller),
+  completing in 609 ms untraced on the checked Windows Python 3.13.
+  These are bounded local smoke timings, not an SLA. Added regressions
+  for total counts, truncation and candidate/hypothesis caps; 60 M14
+  focused tests and repository Ruff passed. Pre-optimization integrated
+  code head b2a401a also passed 22/22 independent GitHub checks;
+  exact post-optimization CI must be verified separately.
+- **M04 operator decision:** user considers implementation CLOSED;
+  external Google Trends rate-limits/429 are genuine availability
+  and must be reported honestly, never bypassed/retried by M14.
+  **M08** independent Windows `.request_locks` ACL live-test
+  gate remains pending elevated local repair in separate draft #370.
+  Original PR #328 and independent drafts #370-374 unchanged,
+  M14 branch independent, no forced merge, release, deployment,
+  new scheduled work or paid integration.
+
+## 2026-11-21 integration security and verification
+
+The final audit isolated a prior plan-only CLI privacy discrepancy:
+the existing OpenAlex request plan exposed a redacted Authorization
+header name in the offline discover CLI JSON. An attempted global
+header-name allowlist incorrectly broke existing MCP/adapter contracts
+that require redacted x-api-key and SECURITY_TOKEN names. The final
+correction restores unchanged core Plan.public() behavior (all header
+names retained, all values replaced with the configured sentinel),
+while stripping sensitive header names ONLY in the offline discover
+CLI JSON preview. Provider authentication and live request headers
+are unchanged, and no provider/source budget is consumed. Tests
+cover existing request-plan compatibility and offline CLI privacy.
+No production or staging deployment is implied.
 
 ## Decision log and deferred/non-scope integrations
 
@@ -593,13 +1002,13 @@ M04 stays unchecked until the user's reminder; M08+ untouched.
 | M05 | COMPLETE — 2026-11-20 | PR #328; implementation c721e008dae1bc8dac4efd991957f4ebbb70d708; 88 focused pass, full Ruff clean, 1,783 full-local pass / 3 unrelated fails; CI at M05 implementation head 25 success / 2 expected skip; live Bing GET stats 24 history rows (6 emitted), related 100 rows (10 emitted), both HTTP 200; zero-call cache repeats | Arbitrary crochet patterns US/en-US (no siteUrl), Bing exact/broad impression semantics, original UTC-day local budget 3/3, no key leaks/paid fallback; M04 remains unchecked per user |
 | M06 | COMPLETE — 2026-11-20 | PR #328; implementation f61cd9ff1d49dc9bf4fec224775dacd021c4888c; 109 focused pass and full Ruff clean; 1,828 full-local pass / 3 unrelated existing fails / 10 deselected; GitHub CI 25 success / 2 expected skip after one unrelated Python 3.12 concurrency-test retry; 14 sourced daily views across 7+7 days, cache repeat 0 calls | Canonical en.wikipedia.org Python programming language page; prior 26,965 vs current 25,846 views (−4.15%, not search volume), original M06 daily quota 2/4, M04 deferred unchanged; no new dependencies/paid services |
 | M07 | COMPLETE — 2026-11-20 | PR #328; code 6293fc149a88ca662c9ea26e0fbb1184b3ed117d; 38 focused/162 mixed tests pass, full local 1,866 pass / 3 unrelated old OpenAlex fails, full Ruff clean; first CI had unrelated transient cross-source failure, follow-up head 64313d5 green **25 success/2 expected skip** | Live AI agents first-page sample: 10 stories (provider 550), 10 comments across 8 threads (1329), 8 Show HN launches (210); 0-call cache hits; HN quota 4/5 and M04 quota unchanged; PR remains draft/unmerged |
-| M08 | ☐ NOT STARTED | — | — |
-| M09 | ☐ NOT STARTED | — | — |
-| M10 | ☐ NOT STARTED | — | — |
-| M11 | ☐ NOT STARTED | — | — |
-| M12 | ☐ NOT STARTED | — | — |
-| M13 | ☐ NOT STARTED | — | — |
-| M14 | ☐ NOT STARTED | — | — |
+| M08 | COMPLETE - GENUINE LIVE VERIFIED 2026-11-21 | One bounded official GitHub Issues source request produced 8 accepted open public issues and 6 dated partial signals; exact repeat cache hit no network, original budget 1/12, original lock ACL fixed, SQLite integrity OK; prior 111 legacy/focused tests & CI green | Public issues are not independent buyers, first-page bias and incomplete population remain; no duplicate API/alternate budget |
+| M09 | COMPLETE ? 2026-11-21 source-live verified | npm zod Nov13?19: 7/7 daily counts, 475,488,459 downloads, no missing, two-day source lag, exact 0-network cached repeat, quota 1/5 | Counts include CI/bots/dependency installs and are not unique users; independent implementation PR, M04/M08 untouched |
+| M10 | COMPLETE ? 2026-11-21 source-live verified | PyPI Stats pydantic without_mirrors Nov13?19: 7/7 daily counts, 285,184,650 downloads, two-day lag, source history 181 dates, cache repeat 0 network, quota 1/3 | Excludes known mirrors but CI remains included; distinct ecosystem no npm sum, no purchase/unique-user claim, independent implementation PR |
+| M11 | COMPLETE / SOURCE LIVE VERIFIED ? 2026-11-21 | Official Stack Exchange API tag python + manual timeout returned question 80015847 (2026-11-10), answered with 3 replies but no accepted answer, has_more false, provider quota 299/300, exact 0-network cache repeat, local daily budget 1/3 | Keyless first-page question evidence and typed partial question source signal, not verified problem recurrence/customers/search volume; independent draft PR, M04/M08/M09/M10 untouched |
+| M12 | COMPLETE / OFFLINE VERIFIED - 2026-11-21 | Existing NLTK + M02 RapidFuzz reused; 63 dedicated and 250 combined offline tests pass, full Ruff clean; full Windows 1,935 pass/2 unrelated fail/10 deselected; RSS timing rerun 1/1 passed; five source/manual reference fixture records yielded 45 generated hypotheses, 45 lexical families, zero observed queries, zero network/provider/quota change | Six explicit languages, source-attested vs generated separation, URL/record/time provenance, conservative intent cues and lexical ranking only; independent M12 draft branch, no M13 or unrelated PR modification |
+| M13 | COMPLETE ? 2026-11-21 OFFLINE VERIFIED | 59 dedicated tests pass, Ruff clean; real prior npm zod and PyPI pydantic 7+7 daily source points abstain insufficient_history (14 required), 0 provider operations; source-aligned daily/weekly/monthly and conservative lifecycle heuristics | No cross-unit merges, no missing-to-zero fill, no unsupported provider normalization or annual/causal claims; independent M13 draft, M14 untouched |
+| M14 | COMPLETE - OFFLINE VERIFIED 2026-11-21 | 42 actual typed public source observations from seven families via read-only cache; full CLI + hosted MCP prompt, 59 focused/hosted tests pass, Ruff clean; correct 0 source-attested queries, 0 rising windows, 0 demand claims | Source classes/country/language/metric units separated, M02 95 lexical, no GSC/GA4/no new tools/quotas; independent M14 draft, all earlier PRs untouched |
 
 **How to update:** Replace a milestone's `[ ]` with `[x]` only after all gates and actual bounded live verification pass. Change progress-ledger state to `COMPLETE`, with commit/PR, test evidence and next task. For failures use `BLOCKED` or for M05 `SKIPPED` (reason), not `COMPLETE`. Do not check future steps speculatively.
 

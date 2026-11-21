@@ -1,0 +1,396 @@
+{
+  "signals": [
+    {
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "zod",
+      "normalized_term": "zod",
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-13",
+        "end_date": "2026-11-13",
+        "granularity": "daily"
+      },
+      "value": 72535132.0,
+      "value_label": null,
+      "sampling_scope": "npm registry tarball downloads; CI/bots/dependencies included; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "official_api",
+        "source_record_id": "4f63cf5cd8ae579d5ec01d31:2026-11-13",
+        "sampling_basis": "single_package_daily_registry_downloads",
+        "is_observed_search_query": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "zod",
+      "normalized_term": "zod",
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-14",
+        "end_date": "2026-11-14",
+        "granularity": "daily"
+      },
+      "value": 46196116.0,
+      "value_label": null,
+      "sampling_scope": "npm registry tarball downloads; CI/bots/dependencies included; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "official_api",
+        "source_record_id": "4f63cf5cd8ae579d5ec01d31:2026-11-14",
+        "sampling_basis": "single_package_daily_registry_downloads",
+        "is_observed_search_query": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "zod",
+      "normalized_term": "zod",
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-15",
+        "end_date": "2026-11-15",
+        "granularity": "daily"
+      },
+      "value": 43686970.0,
+      "value_label": null,
+      "sampling_scope": "npm registry tarball downloads; CI/bots/dependencies included; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "official_api",
+        "source_record_id": "4f63cf5cd8ae579d5ec01d31:2026-11-15",
+        "sampling_basis": "single_package_daily_registry_downloads",
+        "is_observed_search_query": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "zod",
+      "normalized_term": "zod",
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-16",
+        "end_date": "2026-11-16",
+        "granularity": "daily"
+      },
+      "value": 75733472.0,
+      "value_label": null,
+      "sampling_scope": "npm registry tarball downloads; CI/bots/dependencies included; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "official_api",
+        "source_record_id": "4f63cf5cd8ae579d5ec01d31:2026-11-16",
+        "sampling_basis": "single_package_daily_registry_downloads",
+        "is_observed_search_query": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "zod",
+      "normalized_term": "zod",
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-17",
+        "end_date": "2026-11-17",
+        "granularity": "daily"
+      },
+      "value": 79892153.0,
+      "value_label": null,
+      "sampling_scope": "npm registry tarball downloads; CI/bots/dependencies included; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "official_api",
+        "source_record_id": "4f63cf5cd8ae579d5ec01d31:2026-11-17",
+        "sampling_basis": "single_package_daily_registry_downloads",
+        "is_observed_search_query": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "zod",
+      "normalized_term": "zod",
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-18",
+        "end_date": "2026-11-18",
+        "granularity": "daily"
+      },
+      "value": 79745652.0,
+      "value_label": null,
+      "sampling_scope": "npm registry tarball downloads; CI/bots/dependencies included; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "official_api",
+        "source_record_id": "4f63cf5cd8ae579d5ec01d31:2026-11-18",
+        "sampling_basis": "single_package_daily_registry_downloads",
+        "is_observed_search_query": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "zod",
+      "normalized_term": "zod",
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-19",
+        "end_date": "2026-11-19",
+        "granularity": "daily"
+      },
+      "value": 77698964.0,
+      "value_label": null,
+      "sampling_scope": "npm registry tarball downloads; CI/bots/dependencies included; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "official_api",
+        "source_record_id": "4f63cf5cd8ae579d5ec01d31:2026-11-19",
+        "sampling_basis": "single_package_daily_registry_downloads",
+        "is_observed_search_query": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "pydantic",
+      "normalized_term": "pydantic",
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-13",
+        "end_date": "2026-11-13",
+        "granularity": "daily"
+      },
+      "value": 42591995.0,
+      "value_label": null,
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "public_api",
+        "source_record_id": "6366233f6ef3843784747023:2026-11-13",
+        "sampling_basis": "single_package_daily_pypi_stats_without_known_mirrors",
+        "is_observed_search_query": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "pydantic",
+      "normalized_term": "pydantic",
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-14",
+        "end_date": "2026-11-14",
+        "granularity": "daily"
+      },
+      "value": 29661448.0,
+      "value_label": null,
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "public_api",
+        "source_record_id": "6366233f6ef3843784747023:2026-11-14",
+        "sampling_basis": "single_package_daily_pypi_stats_without_known_mirrors",
+        "is_observed_search_query": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "pydantic",
+      "normalized_term": "pydantic",
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-15",
+        "end_date": "2026-11-15",
+        "granularity": "daily"
+      },
+      "value": 28631461.0,
+      "value_label": null,
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "public_api",
+        "source_record_id": "6366233f6ef3843784747023:2026-11-15",
+        "sampling_basis": "single_package_daily_pypi_stats_without_known_mirrors",
+        "is_observed_search_query": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "pydantic",
+      "normalized_term": "pydantic",
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-16",
+        "end_date": "2026-11-16",
+        "granularity": "daily"
+      },
+      "value": 44121197.0,
+      "value_label": null,
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "public_api",
+        "source_record_id": "6366233f6ef3843784747023:2026-11-16",
+        "sampling_basis": "single_package_daily_pypi_stats_without_known_mirrors",
+        "is_observed_search_query": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "pydantic",
+      "normalized_term": "pydantic",
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-17",
+        "end_date": "2026-11-17",
+        "granularity": "daily"
+      },
+      "value": 46469928.0,
+      "value_label": null,
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "public_api",
+        "source_record_id": "6366233f6ef3843784747023:2026-11-17",
+        "sampling_basis": "single_package_daily_pypi_stats_without_known_mirrors",
+        "is_observed_search_query": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "pydantic",
+      "normalized_term": "pydantic",
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-18",
+        "end_date": "2026-11-18",
+        "granularity": "daily"
+      },
+      "value": 46191096.0,
+      "value_label": null,
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "public_api",
+        "source_record_id": "6366233f6ef3843784747023:2026-11-18",
+        "sampling_basis": "single_package_daily_pypi_stats_without_known_mirrors",
+        "is_observed_search_query": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "published_at": null,
+      "country": null,
+      "language": null,
+      "raw_term": "pydantic",
+      "normalized_term": "pydantic",
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "period": {
+        "start_date": "2026-11-19",
+        "end_date": "2026-11-19",
+        "granularity": "daily"
+      },
+      "value": 47517525.0,
+      "value_label": null,
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or buyer demand",
+      "coverage_status": "observed",
+      "provenance": {
+        "method": "public_api",
+        "source_record_id": "6366233f6ef3843784747023:2026-11-19",
+        "sampling_basis": "single_package_daily_pypi_stats_without_known_mirrors",
+        "is_observed_search_query": false
+      }
+    }
+  ]
+}

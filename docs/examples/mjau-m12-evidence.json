@@ -1,0 +1,42 @@
+{
+  "evidence": [
+    {
+      "kind": "public_title",
+      "source_id": "hacker_news_algolia",
+      "source_url": "https://news.ycombinator.com/item?id=50582844",
+      "source_record_id": "50582844",
+      "observed_at": "2026-11-20T23:30:00Z",
+      "language": "en",
+      "country": null,
+      "title": "Show HN: XSquads - Set a mission, agents work on it autonomously in your harness"
+    },
+    {
+      "kind": "public_title",
+      "source_id": "stackexchange_question_mentions",
+      "source_url": "https://stackoverflow.com/questions/80015847",
+      "source_record_id": "80015847",
+      "observed_at": "2026-11-21T00:30:00Z",
+      "language": "en",
+      "country": null,
+      "title": "Asyncio Unhandled Exception in atexit"
+    },
+    {
+      "kind": "manual_note",
+      "language": "sl",
+      "country": "SI",
+      "text": "Kako odpraviti napako pri prijavi API"
+    },
+    {
+      "kind": "manual_note",
+      "language": "de",
+      "country": "DE",
+      "text": "Fehler bei Python API Anmeldung"
+    },
+    {
+      "kind": "manual_note",
+      "language": "fr",
+      "country": "FR",
+      "text": "Prix des outils API"
+    }
+  ]
+}
