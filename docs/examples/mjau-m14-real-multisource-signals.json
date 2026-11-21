@@ -1,0 +1,1180 @@
+{
+  "signals": [
+    {
+      "country": "US",
+      "coverage_status": "observed",
+      "language": "en-US",
+      "metric_type": "bing_keyword_impressions",
+      "metric_unit": "impressions",
+      "normalized_term": "crochet patterns",
+      "observed_at": "2026-11-20T23:01:30.442716Z",
+      "period": {
+        "end_date": "2026-10-10",
+        "granularity": "weekly",
+        "start_date": "2026-10-10"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "bing_weekly_exact_query_impressions",
+        "source_record_id": null
+      },
+      "published_at": null,
+      "raw_term": "crochet patterns",
+      "sampling_scope": "Bing market-wide exact-match weekly keyword impressions; NOT site performance",
+      "schema_version": 1,
+      "source_id": "bing_webmaster_keyword_research",
+      "source_url": "https://ssl.bing.com/webmaster/api.svc/json/GetKeywordStats",
+      "value": 644.0,
+      "value_label": null
+    },
+    {
+      "country": "US",
+      "coverage_status": "observed",
+      "language": "en-US",
+      "metric_type": "bing_keyword_impressions",
+      "metric_unit": "impressions",
+      "normalized_term": "crochet patterns",
+      "observed_at": "2026-11-20T23:01:30.442716Z",
+      "period": {
+        "end_date": "2026-10-17",
+        "granularity": "weekly",
+        "start_date": "2026-10-17"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "bing_weekly_exact_query_impressions",
+        "source_record_id": null
+      },
+      "published_at": null,
+      "raw_term": "crochet patterns",
+      "sampling_scope": "Bing market-wide exact-match weekly keyword impressions; NOT site performance",
+      "schema_version": 1,
+      "source_id": "bing_webmaster_keyword_research",
+      "source_url": "https://ssl.bing.com/webmaster/api.svc/json/GetKeywordStats",
+      "value": 754.0,
+      "value_label": null
+    },
+    {
+      "country": "US",
+      "coverage_status": "observed",
+      "language": "en-US",
+      "metric_type": "bing_keyword_impressions",
+      "metric_unit": "impressions",
+      "normalized_term": "crochet patterns",
+      "observed_at": "2026-11-20T23:01:30.442716Z",
+      "period": {
+        "end_date": "2026-10-24",
+        "granularity": "weekly",
+        "start_date": "2026-10-24"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "bing_weekly_exact_query_impressions",
+        "source_record_id": null
+      },
+      "published_at": null,
+      "raw_term": "crochet patterns",
+      "sampling_scope": "Bing market-wide exact-match weekly keyword impressions; NOT site performance",
+      "schema_version": 1,
+      "source_id": "bing_webmaster_keyword_research",
+      "source_url": "https://ssl.bing.com/webmaster/api.svc/json/GetKeywordStats",
+      "value": 761.0,
+      "value_label": null
+    },
+    {
+      "country": "US",
+      "coverage_status": "observed",
+      "language": "en-US",
+      "metric_type": "bing_keyword_impressions",
+      "metric_unit": "impressions",
+      "normalized_term": "crochet patterns",
+      "observed_at": "2026-11-20T23:01:30.442716Z",
+      "period": {
+        "end_date": "2026-10-31",
+        "granularity": "weekly",
+        "start_date": "2026-10-31"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "bing_weekly_exact_query_impressions",
+        "source_record_id": null
+      },
+      "published_at": null,
+      "raw_term": "crochet patterns",
+      "sampling_scope": "Bing market-wide exact-match weekly keyword impressions; NOT site performance",
+      "schema_version": 1,
+      "source_id": "bing_webmaster_keyword_research",
+      "source_url": "https://ssl.bing.com/webmaster/api.svc/json/GetKeywordStats",
+      "value": 661.0,
+      "value_label": null
+    },
+    {
+      "country": "US",
+      "coverage_status": "observed",
+      "language": "en-US",
+      "metric_type": "bing_keyword_impressions",
+      "metric_unit": "impressions",
+      "normalized_term": "crochet patterns",
+      "observed_at": "2026-11-20T23:01:30.442716Z",
+      "period": {
+        "end_date": "2026-11-07",
+        "granularity": "weekly",
+        "start_date": "2026-11-07"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "bing_weekly_exact_query_impressions",
+        "source_record_id": null
+      },
+      "published_at": null,
+      "raw_term": "crochet patterns",
+      "sampling_scope": "Bing market-wide exact-match weekly keyword impressions; NOT site performance",
+      "schema_version": 1,
+      "source_id": "bing_webmaster_keyword_research",
+      "source_url": "https://ssl.bing.com/webmaster/api.svc/json/GetKeywordStats",
+      "value": 760.0,
+      "value_label": null
+    },
+    {
+      "country": "US",
+      "coverage_status": "observed",
+      "language": "en-US",
+      "metric_type": "bing_keyword_impressions",
+      "metric_unit": "impressions",
+      "normalized_term": "crochet patterns",
+      "observed_at": "2026-11-20T23:01:30.442716Z",
+      "period": {
+        "end_date": "2026-11-14",
+        "granularity": "weekly",
+        "start_date": "2026-11-14"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "bing_weekly_exact_query_impressions",
+        "source_record_id": null
+      },
+      "published_at": null,
+      "raw_term": "crochet patterns",
+      "sampling_scope": "Bing market-wide exact-match weekly keyword impressions; NOT site performance",
+      "schema_version": 1,
+      "source_id": "bing_webmaster_keyword_research",
+      "source_url": "https://ssl.bing.com/webmaster/api.svc/json/GetKeywordStats",
+      "value": 742.0,
+      "value_label": null
+    },
+    {
+      "country": "US",
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "google_bigquery_rank",
+      "metric_unit": "rank",
+      "normalized_term": "sixpence",
+      "observed_at": "2026-11-20T22:21:17.020699Z",
+      "period": {
+        "end_date": "2026-11-18",
+        "granularity": "daily",
+        "start_date": "2026-11-18"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_dataset",
+        "sampling_basis": "daily_curated_25_latest_week_best_rank",
+        "source_record_id": null
+      },
+      "published_at": null,
+      "raw_term": "sixpence",
+      "sampling_scope": "Google Trends BigQuery curated rising 25 snapshot 2026-11-18 for US; best rank in latest historical week",
+      "schema_version": 1,
+      "source_id": "google_trends_bigquery",
+      "source_url": "https://cloud.google.com/blog/products/data-analytics/international-google-trends-datasets-in-bigquery",
+      "value": 1.0,
+      "value_label": null
+    },
+    {
+      "country": "US",
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "google_bigquery_rank",
+      "metric_unit": "rank",
+      "normalized_term": "nsa",
+      "observed_at": "2026-11-20T22:21:17.020699Z",
+      "period": {
+        "end_date": "2026-11-18",
+        "granularity": "daily",
+        "start_date": "2026-11-18"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_dataset",
+        "sampling_basis": "daily_curated_25_latest_week_best_rank",
+        "source_record_id": null
+      },
+      "published_at": null,
+      "raw_term": "nsa",
+      "sampling_scope": "Google Trends BigQuery curated rising 25 snapshot 2026-11-18 for US; best rank in latest historical week",
+      "schema_version": 1,
+      "source_id": "google_trends_bigquery",
+      "source_url": "https://cloud.google.com/blog/products/data-analytics/international-google-trends-datasets-in-bigquery",
+      "value": 2.0,
+      "value_label": null
+    },
+    {
+      "country": "US",
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "google_bigquery_rank",
+      "metric_unit": "rank",
+      "normalized_term": "argentina vs costa rica",
+      "observed_at": "2026-11-20T22:21:17.020699Z",
+      "period": {
+        "end_date": "2026-11-18",
+        "granularity": "daily",
+        "start_date": "2026-11-18"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_dataset",
+        "sampling_basis": "daily_curated_25_latest_week_best_rank",
+        "source_record_id": null
+      },
+      "published_at": null,
+      "raw_term": "argentina vs costa rica",
+      "sampling_scope": "Google Trends BigQuery curated rising 25 snapshot 2026-11-18 for US; best rank in latest historical week",
+      "schema_version": 1,
+      "source_id": "google_trends_bigquery",
+      "source_url": "https://cloud.google.com/blog/products/data-analytics/international-google-trends-datasets-in-bigquery",
+      "value": 3.0,
+      "value_label": null
+    },
+    {
+      "country": "US",
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "google_bigquery_rank",
+      "metric_unit": "rank",
+      "normalized_term": "pistons vs spurs",
+      "observed_at": "2026-11-20T22:21:17.020699Z",
+      "period": {
+        "end_date": "2026-11-18",
+        "granularity": "daily",
+        "start_date": "2026-11-18"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_dataset",
+        "sampling_basis": "daily_curated_25_latest_week_best_rank",
+        "source_record_id": null
+      },
+      "published_at": null,
+      "raw_term": "pistons vs spurs",
+      "sampling_scope": "Google Trends BigQuery curated rising 25 snapshot 2026-11-18 for US; best rank in latest historical week",
+      "schema_version": 1,
+      "source_id": "google_trends_bigquery",
+      "source_url": "https://cloud.google.com/blog/products/data-analytics/international-google-trends-datasets-in-bigquery",
+      "value": 4.0,
+      "value_label": null
+    },
+    {
+      "country": "US",
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "google_bigquery_rank",
+      "metric_unit": "rank",
+      "normalized_term": "penny lane",
+      "observed_at": "2026-11-20T22:21:17.020699Z",
+      "period": {
+        "end_date": "2026-11-18",
+        "granularity": "daily",
+        "start_date": "2026-11-18"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_dataset",
+        "sampling_basis": "daily_curated_25_latest_week_best_rank",
+        "source_record_id": null
+      },
+      "published_at": null,
+      "raw_term": "penny lane",
+      "sampling_scope": "Google Trends BigQuery curated rising 25 snapshot 2026-11-18 for US; best rank in latest historical week",
+      "schema_version": 1,
+      "source_id": "google_trends_bigquery",
+      "source_url": "https://cloud.google.com/blog/products/data-analytics/international-google-trends-datasets-in-bigquery",
+      "value": 5.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-04",
+        "granularity": "daily",
+        "start_date": "2026-11-04"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-04"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 4132.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-05",
+        "granularity": "daily",
+        "start_date": "2026-11-05"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-05"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 5213.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-06",
+        "granularity": "daily",
+        "start_date": "2026-11-06"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-06"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 4379.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-07",
+        "granularity": "daily",
+        "start_date": "2026-11-07"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-07"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 3237.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-08",
+        "granularity": "daily",
+        "start_date": "2026-11-08"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-08"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 2508.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-09",
+        "granularity": "daily",
+        "start_date": "2026-11-09"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-09"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 3620.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-10",
+        "granularity": "daily",
+        "start_date": "2026-11-10"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-10"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 3876.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-11",
+        "granularity": "daily",
+        "start_date": "2026-11-11"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-11"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 3975.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-12",
+        "granularity": "daily",
+        "start_date": "2026-11-12"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-12"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 4110.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-13",
+        "granularity": "daily",
+        "start_date": "2026-11-13"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-13"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 3600.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-14",
+        "granularity": "daily",
+        "start_date": "2026-11-14"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-14"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 2924.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-15",
+        "granularity": "daily",
+        "start_date": "2026-11-15"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-15"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 3021.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-16",
+        "granularity": "daily",
+        "start_date": "2026-11-16"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-16"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 4123.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": "en",
+      "metric_type": "wikimedia_pageviews",
+      "metric_unit": "pageviews",
+      "normalized_term": "python (programming language)",
+      "observed_at": "2026-11-20T23:23:28.692525Z",
+      "period": {
+        "end_date": "2026-11-17",
+        "granularity": "daily",
+        "start_date": "2026-11-17"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "wikimedia_verified_canonical_daily_article",
+        "source_record_id": "enwiki:2026-11-17"
+      },
+      "published_at": null,
+      "raw_term": "Python (programming language)",
+      "sampling_scope": "Wikimedia canonical per-article daily all-access/user pageview requests; not unique readers",
+      "schema_version": 1,
+      "source_id": "wikimedia_pageviews",
+      "source_url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/user/Python_%28programming_language%29/daily/20261104/20261117",
+      "value": 4093.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "partial",
+      "language": null,
+      "metric_type": "hacker_news_story_mentions",
+      "metric_unit": "stories",
+      "normalized_term": "ai agents",
+      "observed_at": "2026-11-20T23:53:59.309895Z",
+      "period": {
+        "end_date": "2026-11-20",
+        "granularity": "daily",
+        "start_date": "2026-11-20"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_api",
+        "sampling_basis": "source_attributed_bounded_first_page_story",
+        "source_record_id": "50582844"
+      },
+      "published_at": null,
+      "raw_term": "AI agents",
+      "sampling_scope": "One real HN story on bounded Algolia first-page manual query; not all HN or unique developer issues",
+      "schema_version": 1,
+      "source_id": "hacker_news_story_mentions",
+      "source_url": "https://news.ycombinator.com/item?id=50582844",
+      "value": 1.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "partial",
+      "language": null,
+      "metric_type": "hacker_news_story_mentions",
+      "metric_unit": "stories",
+      "normalized_term": "ai agents",
+      "observed_at": "2026-11-20T23:53:59.309895Z",
+      "period": {
+        "end_date": "2026-11-20",
+        "granularity": "daily",
+        "start_date": "2026-11-20"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_api",
+        "sampling_basis": "source_attributed_bounded_first_page_story",
+        "source_record_id": "50582578"
+      },
+      "published_at": null,
+      "raw_term": "AI agents",
+      "sampling_scope": "One real HN story on bounded Algolia first-page manual query; not all HN or unique developer issues",
+      "schema_version": 1,
+      "source_id": "hacker_news_story_mentions",
+      "source_url": "https://news.ycombinator.com/item?id=50582578",
+      "value": 1.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "period": {
+        "end_date": "2026-11-13",
+        "granularity": "daily",
+        "start_date": "2026-11-13"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "npm_registry_daily_package_download_requests",
+        "source_record_id": "zod:2026-11-13"
+      },
+      "published_at": null,
+      "raw_term": "zod",
+      "sampling_scope": "Official npm registry daily tarball download requests; may include CI/bots/dependencies, not unique users",
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "value": 72535132.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "period": {
+        "end_date": "2026-11-14",
+        "granularity": "daily",
+        "start_date": "2026-11-14"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "npm_registry_daily_package_download_requests",
+        "source_record_id": "zod:2026-11-14"
+      },
+      "published_at": null,
+      "raw_term": "zod",
+      "sampling_scope": "Official npm registry daily tarball download requests; may include CI/bots/dependencies, not unique users",
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "value": 46196116.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "period": {
+        "end_date": "2026-11-15",
+        "granularity": "daily",
+        "start_date": "2026-11-15"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "npm_registry_daily_package_download_requests",
+        "source_record_id": "zod:2026-11-15"
+      },
+      "published_at": null,
+      "raw_term": "zod",
+      "sampling_scope": "Official npm registry daily tarball download requests; may include CI/bots/dependencies, not unique users",
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "value": 43686970.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "period": {
+        "end_date": "2026-11-16",
+        "granularity": "daily",
+        "start_date": "2026-11-16"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "npm_registry_daily_package_download_requests",
+        "source_record_id": "zod:2026-11-16"
+      },
+      "published_at": null,
+      "raw_term": "zod",
+      "sampling_scope": "Official npm registry daily tarball download requests; may include CI/bots/dependencies, not unique users",
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "value": 75733472.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "period": {
+        "end_date": "2026-11-17",
+        "granularity": "daily",
+        "start_date": "2026-11-17"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "npm_registry_daily_package_download_requests",
+        "source_record_id": "zod:2026-11-17"
+      },
+      "published_at": null,
+      "raw_term": "zod",
+      "sampling_scope": "Official npm registry daily tarball download requests; may include CI/bots/dependencies, not unique users",
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "value": 79892153.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "period": {
+        "end_date": "2026-11-18",
+        "granularity": "daily",
+        "start_date": "2026-11-18"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "npm_registry_daily_package_download_requests",
+        "source_record_id": "zod:2026-11-18"
+      },
+      "published_at": null,
+      "raw_term": "zod",
+      "sampling_scope": "Official npm registry daily tarball download requests; may include CI/bots/dependencies, not unique users",
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "value": 79745652.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "npm_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "zod",
+      "observed_at": "2026-11-21T01:00:24.791205Z",
+      "period": {
+        "end_date": "2026-11-19",
+        "granularity": "daily",
+        "start_date": "2026-11-19"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "official_api",
+        "sampling_basis": "npm_registry_daily_package_download_requests",
+        "source_record_id": "zod:2026-11-19"
+      },
+      "published_at": null,
+      "raw_term": "zod",
+      "sampling_scope": "Official npm registry daily tarball download requests; may include CI/bots/dependencies, not unique users",
+      "schema_version": 1,
+      "source_id": "npm_package_downloads",
+      "source_url": "https://api.npmjs.org/downloads/range/last-week/zod",
+      "value": 77698964.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "pydantic",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "period": {
+        "end_date": "2026-11-13",
+        "granularity": "daily",
+        "start_date": "2026-11-13"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_api",
+        "sampling_basis": "pypi_daily_package_downloads_without_known_mirrors",
+        "source_record_id": "pydantic:2026-11-13"
+      },
+      "published_at": null,
+      "raw_term": "pydantic",
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or paid customers",
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "value": 42591995.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "pydantic",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "period": {
+        "end_date": "2026-11-14",
+        "granularity": "daily",
+        "start_date": "2026-11-14"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_api",
+        "sampling_basis": "pypi_daily_package_downloads_without_known_mirrors",
+        "source_record_id": "pydantic:2026-11-14"
+      },
+      "published_at": null,
+      "raw_term": "pydantic",
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or paid customers",
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "value": 29661448.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "pydantic",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "period": {
+        "end_date": "2026-11-15",
+        "granularity": "daily",
+        "start_date": "2026-11-15"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_api",
+        "sampling_basis": "pypi_daily_package_downloads_without_known_mirrors",
+        "source_record_id": "pydantic:2026-11-15"
+      },
+      "published_at": null,
+      "raw_term": "pydantic",
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or paid customers",
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "value": 28631461.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "pydantic",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "period": {
+        "end_date": "2026-11-16",
+        "granularity": "daily",
+        "start_date": "2026-11-16"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_api",
+        "sampling_basis": "pypi_daily_package_downloads_without_known_mirrors",
+        "source_record_id": "pydantic:2026-11-16"
+      },
+      "published_at": null,
+      "raw_term": "pydantic",
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or paid customers",
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "value": 44121197.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "pydantic",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "period": {
+        "end_date": "2026-11-17",
+        "granularity": "daily",
+        "start_date": "2026-11-17"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_api",
+        "sampling_basis": "pypi_daily_package_downloads_without_known_mirrors",
+        "source_record_id": "pydantic:2026-11-17"
+      },
+      "published_at": null,
+      "raw_term": "pydantic",
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or paid customers",
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "value": 46469928.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "pydantic",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "period": {
+        "end_date": "2026-11-18",
+        "granularity": "daily",
+        "start_date": "2026-11-18"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_api",
+        "sampling_basis": "pypi_daily_package_downloads_without_known_mirrors",
+        "source_record_id": "pydantic:2026-11-18"
+      },
+      "published_at": null,
+      "raw_term": "pydantic",
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or paid customers",
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "value": 46191096.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "observed",
+      "language": null,
+      "metric_type": "pypi_package_downloads",
+      "metric_unit": "downloads",
+      "normalized_term": "pydantic",
+      "observed_at": "2026-11-21T01:01:28.329974Z",
+      "period": {
+        "end_date": "2026-11-19",
+        "granularity": "daily",
+        "start_date": "2026-11-19"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_api",
+        "sampling_basis": "pypi_daily_package_downloads_without_known_mirrors",
+        "source_record_id": "pydantic:2026-11-19"
+      },
+      "published_at": null,
+      "raw_term": "pydantic",
+      "sampling_scope": "PyPI Stats daily downloads excluding known mirrors; not unique users or paid customers",
+      "schema_version": 1,
+      "source_id": "pypi_package_downloads",
+      "source_url": "https://pypistats.org/api/packages/pydantic/overall?mirrors=false",
+      "value": 47517525.0,
+      "value_label": null
+    },
+    {
+      "country": null,
+      "coverage_status": "partial",
+      "language": null,
+      "metric_type": "stackexchange_question_mentions",
+      "metric_unit": "questions",
+      "normalized_term": "asyncio unhandled exception in atexit",
+      "observed_at": "2026-11-21T01:19:36.258580Z",
+      "period": {
+        "end_date": "2026-11-10",
+        "granularity": "daily",
+        "start_date": "2026-11-10"
+      },
+      "provenance": {
+        "is_observed_search_query": false,
+        "method": "public_api",
+        "sampling_basis": "first_page_public_question",
+        "source_record_id": "stackoverflow:80015847"
+      },
+      "published_at": null,
+      "raw_term": "Asyncio Unhandled Exception in atexit",
+      "sampling_scope": "Public Stack Overflow source question from bounded tag python and manual q timeout; problem not independently verified",
+      "schema_version": 1,
+      "source_id": "stackexchange_question_mentions",
+      "source_url": "https://stackoverflow.com/questions/80015847",
+      "value": 1.0,
+      "value_label": null
+    }
+  ]
+}
