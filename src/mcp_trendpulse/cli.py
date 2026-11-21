@@ -1158,6 +1158,40 @@ def intelligence_hn_discussions(query, tag, days, limit, execute, output_format)
         click.echo(format_hn_report(report))
 
 
+
+@intelligence.command("stackexchange-questions")
+@click.option("--tag", required=True,
+              help="One exact public Stack Overflow tag, e.g. python.")
+@click.option("--term", default="",
+              help="Optional literal question search phrase, not a user or URL.")
+@click.option("--days", type=click.IntRange(7, 30), default=14,
+              show_default=True, help="Recent UTC lookback days.")
+@click.option("--limit", type=click.IntRange(1, 10), default=10,
+              show_default=True, help="First-page question sample cap.")
+@click.option("--execute", is_flag=True,
+              help="Opt in to one keyless and quota-checked Stack Exchange API query.")
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]),
+              default="text", show_default=True)
+def intelligence_stackexchange_questions(tag, term, days, limit, execute, output_format):
+    """M11: public question recurrence, not customer demand or search volume."""
+    from mcp_trendpulse.intelligence_stackexchange import (
+        discover_stackoverflow_questions, format_stackexchange_report,
+    )
+    try:
+        report = discover_stackoverflow_questions(
+            tag=tag, term=term, days=days,
+            limit=limit, execute=execute,
+        )
+    except (OSError, ValueError, TypeError):
+        raise click.ClickException(
+            "Invalid Stack Overflow tag, literal phrase or UTC search window"
+        ) from None
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_stackexchange_report(report))
+
+
 @intelligence.command("sources")
 @click.option("--wave", type=click.IntRange(1, 3), default=None)
 def intelligence_sources(wave):

@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00–M03, M05–M07 COMPLETE (verified); M04 implemented/offline-verified, still pending live Explore gate after user-authorized deferral  | **Next task:** M04 when the operator reminds us; otherwise M08 only if separately authorized.
+**Created:** 2026-11-20 | **Status:** M00?M03, M05?M07 live-verified on staging; M09?M10 verified separately in draft PR #371, M11 live-verified on independent branch. M04's separate gate and M08's original request-lock ACL gate remain unchecked; M08's isolated draft PR #370 is offline-verified only. **Next unstarted milestone:** M12. No merge/deploy implied.
 
 ## Mission and non-negotiable scope
 
@@ -490,10 +490,78 @@ M04 stays unchecked until the user's reminder; M08+ untouched.
 - Collect Python package daily history; preserve data-source sampling limitations and delivery lag. Normalize concept only for display; **never** add npm and PyPI raw counts.
 - **Acceptance:** one bounded observed package, zero vs unavailable tests, source date coverage.
 
-#### [ ] M11 — Stack Exchange API
-- **Library:** existing `requests`; free API with quota/backoff instructions.
-- Track topic/tag question recurrence and accepted/open problem patterns, without treating questions as search volume or sales.
-- **Acceptance:** one limited search/tag call, source-provided throttle honored, metadata + timestamps saved, nonrepresentative-sample caveat.
+#### [x] M11 ? Stack Exchange API
+- **Implementation and SOURCE LIVE VERIFIED 2026-11-21 UTC:** added
+  src/mcp_trendpulse/intelligence_stackexchange.py, the opt-in
+  intelligence stackexchange-questions CLI, offline tests and
+  docs/stackexchange-question-evidence.md. This is the public keyless
+  official Stack Exchange v2.3 search/advanced GET restricted to the
+  Stack Overflow site, one exact safe lowercase tag, optional literal
+  manual query, creation-date Unix UTC filter, sorted newest first,
+  page 1 and a first-page limit 1..10. No user account, API key,
+  paid provider, bulk crawl, project analytics or new dependency.
+
+  Exact one live request for tag python, manual text term timeout,
+  14-day UTC creation lookback 2026-11-07T00:00Z through before
+  2026-11-21T00:00Z, pagesize 10: status=observed, source question
+  **80015847** created **2026-11-10T16:22:45Z** with canonical
+  https://stackoverflow.com/questions/80015847.
+  Title "Asyncio Unhandled Exception in atexit"; the q term
+  did not appear verbatim in the title (Stack Exchange search q
+  has an undocumented algorithm and may match other properties).
+  Source question reported **3 answers** and is_answered=true but
+  **no accepted answer ID**. These properties are distinct and do
+  not establish whether the problem remains unresolved. Source
+  has_more=false and quota_remaining **299** of quota_max **300**;
+  no backoff field was present in this real source wrapper. No
+  rejected rows, one observed source UTC day, one typed partial
+  stackexchange_question_mentions daily signal, no user identities
+  or question bodies retained.
+
+  The identical immediate second command returned
+  **cache_hit=true, requests_attempted=0, network_performed=false**
+  with identical question ID/answer flags/quota metadata.
+  Original SQLite dedicated M11 source used **1/3** operations
+  for 2026-11-21 UTC; PRAGMA quick_check=ok. Independent npm/PyPI
+  remained at 1/5 and 1/3. The parallel M04 Google Trends record
+  was 2/2 and untouched; M08 GitHub issue request-lock ACL and
+  independent PR #370 were not modified.
+
+  The adapter validates canonical question ID/site/link/UTC
+  source creation date, required tag, bounded title, answer_count,
+  is_answered and optional accepted_answer_id; malformed or
+  repeated records are excluded. has_more and query matching are
+  not assumed complete population coverage. Coarse counts for
+  answered, no answer and accepted answer are sampled source
+  metadata, not consumer demand or verified technical issues.
+  No author, post body, profile, noncanonical external URL or
+  unknown JSON metadata enters validated results/cache.
+
+  All calls are explicit --execute, with a fixed HTTPS host,
+  one first-page query, 128KiB response cap, 5/12s timeout, no
+  redirects/proxies/retries, original SQLite UTC-day source cap
+  3, six-hour validated query cache and no key. The official
+  provider may return a mandatory per-method backoff value; this
+  is saved durably for the **actual requested number of seconds**,
+  not truncated to the core 300s default. API-reported quota
+  exhaustion opens a hold until the next UTC day. No automatic
+  retry or quota bypass. 404/429/503/provider errors are not
+  counted as no-data interest. See docs and tests.
+  M12+ untouched. Isolated draft-PR verification may be reported
+  below without silently merging related open feature branches.
+
+**Offline regression receipts on isolated M11 branch:** 53 dedicated
+M11 source/CLI/contract tests passed. The combined M11 +
+M04/M05/M06/M07/typed-source compatibility suite passed **216 tests**;
+full Ruff and git diff --check passed. The complete Windows repository
+test run finished **1,922 passed, 1 pre-existing unrelated OpenAlex
+redacted Authorization-header-label test failed, 10 deselected and
+3 warnings**. The single unrelated failure was
+tests/test_intelligence_entrypoints.py::test_discover_cli_plan_only_and_history_gate,
+which expects the word Authorization to be absent even though only
+the redacted header value "<configured>" is exposed. No M11 test
+failed; do NOT claim full local green. CI evidence is recorded
+separately on the exact pushed M11 code commit.
 
 ### Phase C — combine and make useful
 
@@ -550,7 +618,7 @@ M04 stays unchecked until the user's reminder; M08+ untouched.
 | M08 | ☐ NOT STARTED | — | — |
 | M09 | ☐ NOT STARTED | — | — |
 | M10 | ☐ NOT STARTED | — | — |
-| M11 | ☐ NOT STARTED | — | — |
+| M11 | COMPLETE / SOURCE LIVE VERIFIED ? 2026-11-21 | Official Stack Exchange API tag python + manual timeout returned question 80015847 (2026-11-10), answered with 3 replies but no accepted answer, has_more false, provider quota 299/300, exact 0-network cache repeat, local daily budget 1/3 | Keyless first-page question evidence and typed partial question source signal, not verified problem recurrence/customers/search volume; independent draft PR, M04/M08/M09/M10 untouched |
 | M12 | ☐ NOT STARTED | — | — |
 | M13 | ☐ NOT STARTED | — | — |
 | M14 | ☐ NOT STARTED | — | — |
