@@ -1,1 +1,1 @@
-"""Optional MJAU v2 evidence modules; no default MCP registrations."""
+"""Optional, isolated MJAU v2 evidence adapters; no default MCP registrations."""
