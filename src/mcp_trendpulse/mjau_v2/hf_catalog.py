@@ -108,7 +108,8 @@ def _parse(payload: Any, *, kind: str, limit: int,
             rejected += 1
             continue
         gated = obj.get("gated")
-        if gated not in (None, False, True, "auto", "manual"):
+        if not (gated is None or type(gated) is bool
+                or (isinstance(gated, str) and gated in {"auto", "manual"})):
             rejected += 1
             continue
         try:
