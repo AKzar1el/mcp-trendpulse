@@ -186,9 +186,12 @@ def test_excessively_nested_source_objects_fail_closed_with_public_value_error()
     nested = []
     for _ in range(6000):
         nested = [nested]
-    with pytest.raises(ValueError, match="Invalid Wikidata JSON"):
+    # CPython's C JSON encoder has version/platform-dependent depth handling:
+    # it can either reject during serialization or validate the envelope next.
+    # Both must fail closed with a public ValueError, never RecursionError.
+    with pytest.raises(ValueError):
         parse_qid_lookup(nested, ["Q89"], ["en"])
-    with pytest.raises(ValueError, match="Invalid OSV JSON"):
+    with pytest.raises(ValueError):
         parse_compact_package_query(
             nested, ecosystem="PyPI", package="Jinja2", version="2.10.1",
         )
