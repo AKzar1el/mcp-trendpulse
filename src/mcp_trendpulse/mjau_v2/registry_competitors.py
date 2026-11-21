@@ -22,7 +22,7 @@ CACHE_TTL_SECONDS = 6 * 3600
 MAX_RESPONSE_BYTES = 128 * 1024
 MAX_SERVERS = 15
 _META = "io.modelcontextprotocol.registry/official"
-_NAME = re.compile(r"^[a-z0-9][a-z0-9_.-]{1,125}/[a-zA-Z0-9][a-zA-Z0-9_.-]{0,125}$")
+_NAME = re.compile(r"^[a-zA-Z0-9.-]+/[a-zA-Z0-9._-]+$")
 
 
 class OversizedRegistryResponse(ValueError):
@@ -46,7 +46,7 @@ def _text(value: Any, maximum: int) -> str | None:
     return value.strip()[:maximum]
 
 
-def _parse(payload: Any, limit: int) -> dict[str, Any]:
+def _parse(payload: Any, limit: int, *, query: str | None = None) -> dict[str, Any]:
     """Fail closed on invalid envelopes; never turn malformed data into no_data."""
     if not isinstance(payload, dict):
         return {"status": "invalid_source_shape", "records": [], "source_rows_received": None}
@@ -74,8 +74,10 @@ def _parse(payload: Any, limit: int) -> dict[str, Any]:
             rejected += 1
             continue
         name, version = server.get("name"), server.get("version")
-        if (not isinstance(name, str) or not _NAME.fullmatch(name)
-                or not isinstance(version, str) or not 1 <= len(version) <= 64
+        if (not isinstance(name, str) or not 3 <= len(name) <= 200
+                or not _NAME.fullmatch(name)
+                or (query is not None and query.casefold() not in name.casefold())
+                or not isinstance(version, str) or not 1 <= len(version) <= 255
                 or any(ord(ch) < 33 or ord(ch) == 127 for ch in version)
                 or official.get("isLatest") is not True
                 or official.get("status") != "active" or name in seen):
@@ -196,7 +198,7 @@ def search_registry_competitors(
                 if (old_when.utcoffset() is not None
                         and now - timedelta(hours=6) <= old_when.astimezone(timezone.utc) <= now):
                     old_payload = saved.get("provider_result")
-                    normalized = _parse(old_payload, limit)
+                    normalized = _parse(old_payload, limit, query=query)
                     if normalized["status"] in {"observed", "observed_partial", "no_data"}:
                         result.update(normalized)
                         result["observed_at"] = old_when.astimezone(timezone.utc).isoformat()
@@ -218,7 +220,7 @@ def search_registry_competitors(
         if code != 200:
             result.update(status="unavailable", reason="provider_response_error")
             return result
-        normalized = _parse(payload, limit)
+        normalized = _parse(payload, limit, query=query)
         result.update(normalized)
         if (normalized["status"] in {"observed", "observed_partial", "no_data"}
                 and normalized["source_rows_rejected"] == 0):
