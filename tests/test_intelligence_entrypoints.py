@@ -41,14 +41,15 @@ def test_intel_cli_offline_ats_file(tmp_path):
 async def test_intel_mcp_is_separate_and_readonly():
     async with Client(intel_mcp) as client:
         tools = {tool.name: tool for tool in await client.list_tools()}
-        assert len(tools) == 12
+        assert len(tools) == 14
         assert set(tools) == {
             "intelligence_source_catalog", "intelligence_plan",
             "intelligence_collect", "intelligence_analyze_job_postings",
             "intelligence_provider_settings", "intelligence_provider_setup",
             "intelligence_opportunity_lanes", "intelligence_evaluate_opportunities",
             "intelligence_walk_forward_backtest", "intelligence_observe_source_snapshots",
-            "intelligence_hunt_current", "intelligence_discover_current"
+            "intelligence_hunt_current", "intelligence_discover_current",
+            "intelligence_dependency_graph", "intelligence_repository_scorecard",
         }
         for tool in tools.values():
             assert tool.annotations.readOnlyHint is True
@@ -59,8 +60,8 @@ async def test_intel_mcp_is_separate_and_readonly():
 
 
 async def test_optional_discovery_mcp_propagates_bounded_source_flags_without_network():
-    # New optional inputs extend the existing tool schema, not the community MCP
-    # or the number of tools in the separate intelligence service.
+    # Optional discovery flags extend its schema without changing community MCP.
+    # The separately opt-in intelligence server also contains two V2 tools.
     async with Client(intel_mcp) as client:
         found = {tool.name: tool for tool in await client.list_tools()}
         tool = found["intelligence_discover_current"]

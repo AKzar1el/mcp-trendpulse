@@ -15,6 +15,7 @@ import os
 import re
 import sqlite3
 import time
+from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -224,7 +225,7 @@ class BudgetCache:
         self.db = root / "intelligence.sqlite3"
         if self.db.is_symlink():
             raise IntelligenceError("Cache database may not be a symlink")
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute("CREATE TABLE IF NOT EXISTS cache (id TEXT PRIMARY KEY, until REAL NOT NULL, body TEXT NOT NULL)")
             conn.execute("CREATE TABLE IF NOT EXISTS budget (source TEXT NOT NULL, day TEXT NOT NULL, used INTEGER NOT NULL, PRIMARY KEY(source, day))")
             conn.execute("CREATE TABLE IF NOT EXISTS cooldown (source TEXT PRIMARY KEY, until REAL NOT NULL)")
@@ -233,12 +234,12 @@ class BudgetCache:
         return sqlite3.connect(str(self.db), timeout=5, isolation_level=None)
 
     def cached(self, key: str) -> dict[str, Any] | None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             row = conn.execute("SELECT body FROM cache WHERE id=? AND until>?", (key, time.time())).fetchone()
         return json.loads(row[0]) if row else None
 
     def blocked(self, source: str) -> bool:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             row = conn.execute("SELECT until FROM cooldown WHERE source=?", (source,)).fetchone()
         return bool(row and row[0] > time.time())
 
@@ -252,7 +253,7 @@ class BudgetCache:
 
     def _extend_cooldown(self, source: str, seconds: int) -> None:
         until = time.time() + seconds
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute(
                 "INSERT INTO cooldown(source, until) VALUES (?, ?) "
                 "ON CONFLICT(source) DO UPDATE SET until=MAX(until, excluded.until)",
@@ -261,7 +262,7 @@ class BudgetCache:
 
     def reserve(self, source: str, cap: int, *, guard_cooldown: bool = False) -> None:
         day = datetime.now(timezone.utc).date().isoformat()
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute("BEGIN IMMEDIATE")
             if guard_cooldown:
                 row = conn.execute(
@@ -288,7 +289,7 @@ class BudgetCache:
                 or not 1 <= count <= cap):
             raise IntelligenceError("Invalid bounded provider reservation")
         day = datetime.now(timezone.utc).date().isoformat()
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 "SELECT used FROM budget WHERE source=? AND day=?",
@@ -306,7 +307,7 @@ class BudgetCache:
             conn.commit()
 
     def save(self, key: str, output: dict[str, Any], ttl: int) -> None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute("INSERT OR REPLACE INTO cache(id, until, body) VALUES (?, ?, ?)",
                          (key, time.time() + ttl, json.dumps(output, ensure_ascii=False)))
 
