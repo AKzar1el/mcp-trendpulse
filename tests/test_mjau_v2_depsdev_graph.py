@@ -307,3 +307,91 @@ def test_no_user_secrets_or_unbounded_root_error_in_persisted_cache():
     out, cache, _ = run(payload=p, cache=cache)
     assert out["status"] == "observed"
     assert "SECRET" not in json.dumps(cache.items) and "SECRET" not in json.dumps(out)
+
+@pytest.mark.parametrize("requested,source_version", [
+    ("0.04.6", "0.4.6"),
+    ("1.0", "1.0.0"),
+    ("01.002.000", "1.2"),
+    ("1.0.0", "1.0.0"),
+])
+def test_pypi_simple_pep440_numeric_aliases_verified(requested, source_version):
+    obj = {"nodes": [node("colorama", source_version,
+                          system="PYPI", relation="SELF")],
+           "edges": [], "error": ""}
+    out, _, called = run(system="pypi", package="Colorama",
+                         version=requested, payload=obj)
+    assert out["status"] == "observed" and len(called) == 1
+    assert out["provider_root_identity_verified"] is True
+    assert out["root"]["version"] == source_version
+    assert out["root"]["package"] == "colorama"
+    assert out["summary"]["root_only_zero_dependencies_observed"] is True
+
+
+@pytest.mark.parametrize("requested,provider", [
+    ("0.4.6", "0.4.7"),
+    ("1.0a1", "1.0"),
+    ("1.0", "1.0rc1"),
+    ("1.0+corp", "1.0"),
+])
+def test_unverified_pypi_version_mismatch_abstains_and_never_caches(requested, provider):
+    obj = {"nodes": [node("colorama", provider,
+                          system="PYPI", relation="SELF")],
+           "edges": [], "error": ""}
+    cache = Cache()
+    out, cache, called = run(system="pypi", package="colorama",
+                            version=requested, payload=obj, cache=cache)
+    assert out["status"] == "identity_unverified" and len(called) == 1
+    assert out["reason"] == "provider_root_version_not_proven_equivalent"
+    assert out["not_evidence_for_requested_version"] is True
+    assert out["provider_root_identity_verified"] is False
+    assert out["root"]["version"] == provider
+    assert out["summary"] is None and not out["direct_preview"]
+    assert not cache.items
+
+
+def test_no_numeric_semver_aliases_for_npm_cargo_maven():
+    for system in ("NPM", "CARGO", "MAVEN"):
+        assert not dep._equivalent_version("0.04.6", "0.4.6", system)
+        assert not dep._equivalent_version("1.0", "1.0.0", system)
+
+
+def test_pypi_name_normalization_does_not_equate_different_packages():
+    assert dep._equivalent_name("My_Package", "my-package", "PYPI")
+    assert not dep._equivalent_name("my-package", "my-package-extra", "PYPI")
+    obj = {"nodes": [node("colorama-malicious", "0.4.6",
+                          system="PYPI", relation="SELF")],
+           "edges": [], "error": ""}
+    out, _, _ = run(system="pypi", package="colorama",
+                    version="0.4.6", payload=obj)
+    assert out["status"] == "invalid_source_shape"
+    assert out["summary"] is None
+
+
+def test_unverified_provider_version_is_not_cached_even_with_dependencies():
+    obj = {"nodes": [
+        node("colorama", "0.4.7", system="PYPI", relation="SELF"),
+        node("other", "1.2", system="PYPI", relation="DIRECT"),
+    ], "edges": [{"fromNode": 0, "toNode": 1}], "error": ""}
+    cache = Cache()
+    out, _, called = run(system="pypi", package="colorama",
+                         version="0.4.6", payload=obj, cache=cache)
+    assert out["status"] == "identity_unverified"
+    assert out["summary"] is None and out["direct_preview"] == []
+    assert not cache.items and len(called) == 1
+
+
+def test_canonicalized_root_survives_validated_cache_replay():
+    obj = {"nodes": [node("colorama", "0.4.6",
+                          system="PYPI", relation="SELF")],
+           "edges": [], "error": ""}
+    cache = Cache()
+    first, _, _ = run(system="pypi", package="Colorama", version="0.04.6",
+                      payload=obj, cache=cache)
+    second, _, called = run(system="pypi", package="Colorama", version="0.04.6",
+                            code=503, cache=cache)
+    assert first["status"] == second["status"] == "observed"
+    assert first["provider_root_canonicalized"] is True
+    assert second["provider_root_canonicalized"] is True
+    assert second["cache_hit"] and not second["network_performed"]
+    assert second["requests_attempted"] == 0 and not called
+    assert len(cache.items) == 1
