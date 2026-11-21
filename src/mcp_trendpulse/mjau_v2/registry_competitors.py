@@ -46,6 +46,19 @@ def _text(value: Any, maximum: int) -> str | None:
     return value.strip()[:maximum]
 
 
+def _utc_time(value: Any) -> str | None:
+    """Normalized registry metadata timestamp; not a code-release date."""
+    if not isinstance(value, str) or not 10 <= len(value) <= 48:
+        return None
+    try:
+        stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if stamp.utcoffset() is None:
+            return None
+        return stamp.astimezone(timezone.utc).isoformat()
+    except (ValueError, OverflowError):
+        return None
+
+
 def _parse(payload: Any, limit: int, *, query: str | None = None) -> dict[str, Any]:
     """Fail closed on invalid envelopes; never turn malformed data into no_data."""
     if not isinstance(payload, dict):
@@ -96,6 +109,9 @@ def _parse(payload: Any, limit: int, *, query: str | None = None) -> dict[str, A
         records.append({
             "server_name": name, "version": version, "title": title,
             "description": description, "repository_url": repo_url,
+            "repository_url_status": "publisher_supplied_unverified" if repo_url else "not_supplied",
+            "registry_version_published_at": _utc_time(official.get("publishedAt")),
+            "registry_metadata_updated_at": _utc_time(official.get("updatedAt")),
             "source_detail_url": f"{URL}/{quote(name, safe='')}/versions/latest",
             "source_status": "active_latest_registry_entry",
         })
@@ -229,7 +245,9 @@ def search_registry_competitors(
                 "name": r["server_name"], "version": r["version"],
                 "title": r["title"], "description": r["description"],
                 "repository": ({"source": "github" if r["repository_url"].startswith("https://github.com/") else "gitlab", "url": r["repository_url"]} if r["repository_url"] else None),
-            }, "_meta": {_META: {"isLatest": True, "status": "active"}}} for r in normalized["records"]]
+            }, "_meta": {_META: {"isLatest": True, "status": "active",
+                                   "publishedAt": r["registry_version_published_at"],
+                                   "updatedAt": r["registry_metadata_updated_at"]}}} for r in normalized["records"]]
             cache.save(key, {
                 "query": query, "limit": limit, "source": SOURCE_ID,
                 "observed_at": now.isoformat(),
