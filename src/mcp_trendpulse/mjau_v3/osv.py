@@ -156,7 +156,11 @@ def parse_package_query(payload: Any, *, ecosystem: str, package: str, version: 
     more = payload.get("next_page_token")
     if more is not None and (not isinstance(more, str) or not 1 <= len(more) <= 2048):
         raise ValueError("Invalid pagination token")
-    items = payload.get("vulns")
+    # The real OSV POST /v1/query endpoint returns HTTP 200 with {} when no
+    # advisories are indexed (observed for PyPI six==1.16.0). This is a valid
+    # empty result, NOT a declaration that the package is secure. Reject other
+    # missing-vulns envelopes rather than silently treating them as empty.
+    items = [] if not payload else payload.get("vulns")
     if items is None and more is not None:
         items = []
     if not isinstance(items, list) or len(items) > MAX_ADVISORIES:

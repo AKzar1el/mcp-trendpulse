@@ -7,6 +7,7 @@ Original response SHA-256 values are retained for audit and source traceability.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -18,6 +19,8 @@ from mcp_trendpulse.mjau_v3.osv import parse_advisory_lookup, parse_package_quer
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mjau_v3" / "osv_jinja2_and_osv_2020_744_20261121.json"
+EMPTY_SOURCE = Path(__file__).parent / "fixtures" / "mjau_v3" / "osv_six_1_16_0_empty_20261121.json"
+EMPTY_SOURCE_SHA256 = "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
 
 
 def original_source_projection():
@@ -70,6 +73,20 @@ def test_missing_advisory_list_only_means_no_indexed_match_in_that_response():
         {"vulns": []}, ecosystem="PyPI", package="Jinja2", version="2.10.1"
     )
     assert result["status"] == "no_returned_advisories"
+    assert result["no_advisory_not_equivalent_to_safe_package"] is True
+
+
+def test_actual_osv_empty_object_response_is_no_indexed_match_not_safe():
+    # Official POST /v1/query for real PyPI six==1.16.0 on 2026-11-21
+    # returned HTTP 200, JSON {}. This is original two-byte source evidence.
+    raw = EMPTY_SOURCE.read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == EMPTY_SOURCE_SHA256
+    result = parse_package_query(
+        json.loads(raw), ecosystem="PyPI", package="six", version="1.16.0"
+    )
+    assert result["status"] == "no_returned_advisories"
+    assert result["source_population_complete"] is True
+    assert result["advisory_count_in_this_response"] == 0
     assert result["no_advisory_not_equivalent_to_safe_package"] is True
 
 

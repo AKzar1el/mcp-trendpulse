@@ -81,7 +81,7 @@ def test_empty_paged_page_is_unknown_not_zero():
     assert result["status"] == "incomplete_paged_response"
 
 
-@pytest.mark.parametrize("payload", [None, [], {}, {"error": {"code": "rate_limited"}}, {"vulns": None}, {"vulns": {}}])
+@pytest.mark.parametrize("payload", [None, [], {"unknown": "shape"}, {"error": {"code": "rate_limited"}}, {"vulns": None}, {"vulns": {}}])
 def test_invalid_api_shapes_rejected(payload):
     with pytest.raises(ValueError):
         query(payload)
