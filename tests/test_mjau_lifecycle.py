@@ -11,6 +11,7 @@ from click.testing import CliRunner
 from mcp_trendpulse.cli import cli
 from mcp_trendpulse.intelligence_lifecycle import (
     MAX_INPUT_BYTES, MAX_SIGNALS, _weekly_repetition, analyze_lifecycle,
+    format_lifecycle_report,
 )
 from mcp_trendpulse.intelligence_signal import (
     SignalPeriod, SignalProvenance, TrendSignal,
@@ -411,6 +412,67 @@ def test_relative_index_within_one_source_normalization_batch_allowed():
     assert g["lifecycle"] == "rising_not_acceleration_verified"
     assert g["metric_unit"] == "relative_index_0_100"
     assert g["search_volume_verified"] is False
+    assert "normalized_batch_views" not in g
+
+
+def test_disjoint_normalized_batches_preserve_separate_complete_window():
+    kw = dict(metric="google_trends_normalized_interest",
+              scope="normalized single US batch", term="AI agents",
+              country="US", language="en")
+    rows = history([10] * 7 + [30] * 7, **kw)
+    expected = single(analyze_lifecycle(rows))
+    older = point(5, -1, batch=OBSERVED - timedelta(days=1), **kw)
+    actual = single(analyze_lifecycle([older, *rows]))
+    assert actual["status"] == "incomparable_normalized_batches"
+    assert actual["comparison"] is None
+    assert actual["normalized_batch_count"] == 2
+    assert actual["normalized_overlapping_periods_count"] == 0
+    assert actual["normalized_batch_views_omitted"] == 0
+    views = actual["normalized_batch_views"]
+    assert [v["status"] for v in views] == ["insufficient_history", "observed"]
+    assert views[1]["periods_observed"] == 14
+    assert views[1]["lifecycle"] == expected["lifecycle"]
+    assert views[1]["comparison"] == expected["comparison"]
+    assert views[1]["compared_window_dates"] == expected["compared_window_dates"]
+    assert all(v["search_volume_verified"] is False for v in views)
+    assert actual == single(analyze_lifecycle(list(reversed([older, *rows]))))
+    summary = format_lifecycle_report(analyze_lifecycle([older, *rows]))
+    assert "Independent batch 2026-11-21T01:00:00+00:00" in summary
+    assert "overlapping periods: 0" in summary
+
+
+def test_competing_complete_normalized_batches_never_mix_denominators():
+    kw = dict(metric="google_trends_normalized_interest")
+    earlier = history([30] * 7 + [10] * 7,
+                      batch=OBSERVED - timedelta(days=1), **kw)
+    later = history([10] * 7 + [30] * 7, **kw)
+    report = single(analyze_lifecycle(earlier + later))
+    assert report["status"] == "incomparable_normalized_batches"
+    assert report["lifecycle"] == "unknown"
+    assert report["comparison"] is None
+    assert report["normalized_overlapping_periods_count"] == 14
+    assert [v["lifecycle"] for v in report["normalized_batch_views"]] == [
+        "declining", "rising_not_acceleration_verified",
+    ]
+    assert all(v["compared_window_dates"] is not None
+               for v in report["normalized_batch_views"])
+
+
+def test_normalized_batch_view_cap_uses_latest_timestamps_not_outcomes():
+    kw = dict(metric="google_trends_normalized_interest")
+    rows = [point(5, 0, batch=OBSERVED - timedelta(days=i), **kw)
+            for i in range(14)]
+    report = single(analyze_lifecycle(rows))
+    assert report["normalized_batch_count"] == 14
+    assert report["normalized_batch_views_omitted"] == 2
+    assert len(report["normalized_batch_views"]) == 12
+    assert report["normalized_batch_selection_policy"] == (
+        "latest_12_observation_timestamps_utc_no_outcome_selection"
+    )
+    assert report["normalized_batch_views"][-1]["observed_at_utc"] == (
+        OBSERVED.isoformat()
+    )
+    assert report == single(analyze_lifecycle(list(reversed(rows))))
 
 
 def test_normalized_index_snapshots_differing_observed_at_abstain():
