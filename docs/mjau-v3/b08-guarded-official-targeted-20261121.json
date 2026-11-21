@@ -1,0 +1,49 @@
+{
+  "runner": "@modelcontextprotocol/conformance@0.1.16",
+  "lockfile_sha256": "df89d138b91871a7fb041f8d3923a78b9a1e2d5bdf28ba589fe6f944f30814fe",
+  "verified_dependency_tarballs": 111,
+  "server": "guarded isolated optional intelligence HTTP (no shared production startup changes)",
+  "scenarios": [
+    {
+      "scenario": "server-initialize",
+      "exit_code": 0,
+      "passed": 1,
+      "total": 1,
+      "failed": 0
+    },
+    {
+      "scenario": "tools-list",
+      "exit_code": 0,
+      "passed": 1,
+      "total": 1,
+      "failed": 0
+    },
+    {
+      "scenario": "tools-call-error",
+      "exit_code": 0,
+      "passed": 1,
+      "total": 1,
+      "failed": 0
+    },
+    {
+      "scenario": "ping",
+      "exit_code": 0,
+      "passed": 1,
+      "total": 1,
+      "failed": 0
+    },
+    {
+      "scenario": "dns-rebinding-protection",
+      "exit_code": 0,
+      "passed": 2,
+      "total": 2,
+      "failed": 0
+    }
+  ],
+  "scope": "selected real-app-relevant scenarios; not complete 2025-11-25 requirements tier",
+  "full_default_unprotected_suite": {
+    "passed": 11,
+    "failed": 21
+  },
+  "no_production_registration": true
+}

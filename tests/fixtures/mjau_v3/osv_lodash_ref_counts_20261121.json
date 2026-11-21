@@ -1,0 +1,38 @@
+{
+  "metadata": {
+    "raw_source_sha256": "30fdd2293c40fea8a5383fde2d80af4bdecb13e4d63b4300ad382fa14665b928",
+    "full_advisory_body_retained": false
+  },
+  "per_advisory_reference_counts": [
+    {
+      "id": "GHSA-29mw-wpgm-hmr9",
+      "references_count": 20,
+      "references_type": "list"
+    },
+    {
+      "id": "GHSA-35jh-r3h4-6jhm",
+      "references_count": 17,
+      "references_type": "list"
+    },
+    {
+      "id": "GHSA-jf85-cpcp-j695",
+      "references_count": 10,
+      "references_type": "list"
+    },
+    {
+      "id": "GHSA-p6mc-m468-83gw",
+      "references_count": 12,
+      "references_type": "list"
+    },
+    {
+      "id": "GHSA-r5fr-rjxr-66jc",
+      "references_count": 6,
+      "references_type": "list"
+    },
+    {
+      "id": "GHSA-xxjr-mmjv-4gpg",
+      "references_count": 93,
+      "references_type": "list"
+    }
+  ]
+}
