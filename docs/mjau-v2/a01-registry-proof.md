@@ -24,12 +24,20 @@ An independent public web read (2026-11-21) of `https://registry.modelcontextpro
 | Gate | Result | Interpretation |
 | --- | --- | --- |
 | Distinct utility | Candidate alternatives gain a registry name, version, repository link when present and exact primary-source link | Useful *kind of information* absent from v1's `competition: not_measured`, but no verified research-task uplift yet |
-| Offline tests | **50 passed**, 0 failed, Python 3.13.5, pytest, isolated import; `PYTHONPATH=src pytest -q tests/test_mjau_v2_registry_competitors.py` | Covers input validation, current/latest metadata, dedup, limited first page, HTTP failures and cooldown, budget errors, secret-safe errors, cache replay/poisoning, source status and bounded transport with fake HTTP session |
+| Offline tests | **60 passed**, 0 failed, Python 3.13.5, pytest, isolated import; `PYTHONPATH=src pytest -q tests/test_mjau_v2_registry_competitors.py` | Covers input validation, current/latest metadata, dedup, limited first page, HTTP failures and cooldown, budget errors, secret-safe errors, cache replay/poisoning, source status and bounded transport with fake HTTP session, mixed-case official namespaces, source publication/update timestamps, query-scoped cache replay, and publisher-supplied repository-link labeling |
 | Real provider schema | Independent public web request returned source response with active latest version | Adapter real network call **not performed** |
 | Full-repository regression/ruff | **Not run**; dedicated Codexify TrendPulse tunnel unavailable and this container lacks the full dependency suite | No claim that full CI is green |
 | API use/cost | Public official registry GET, no key; local 4/day and six-hour cache | No paid dependencies; formal live availability and terms audit still open |
 | Agent isolation | No shared core edits, no production/worker/PR #328 changes | Supports parallel v3 testing |
 | Measured task uplift | **Not yet measured** beyond a minimal source-shaped offline comparison | Strict pass-or-discard gate remains **OPEN** |
+
+## Additional source-contract corrections (2026-11-21)
+
+- The official server-name schema permits mixed-case ASCII in the reverse-DNS namespace. The original prototype incorrectly rejected examples such as `io.github.Digital-Defiance/mcp-filesystem`; fixed with schema-matching name validation, a 200-character maximum and tests against actual documented naming forms.
+- Cached rows are now revalidated against the manual query's name substring, so a syntactically valid server with an unrelated name cannot be substituted into a cached answer.
+- Official per-version `publishedAt` and registry metadata `updatedAt` timestamps are normalized to UTC and explicitly labeled as **registry metadata dates, not code commit dates or customer growth**. Invalid timestamps become unknown.
+- Repository links are explicitly identified as **publisher-supplied and unverified**. No source code, repository security, user count or actual competitor functionality has been independently validated.
+- Latest targeted rerun: **60/60 passing** in isolated Python 3.13.5. This is focused synthetic/schema testing only; live adapter acceptance and full v1 regression remain open.
 
 ## Decision and next bounded checks
 
