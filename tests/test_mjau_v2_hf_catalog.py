@@ -181,6 +181,7 @@ def test_empty_list_is_no_catalog_matches_not_zero_adoption():
     [dict(model(), createdAt="2028-01-01T00:00:00Z")],
     [dict(model(), createdAt="2026-11-21")],
     [dict(model(), gated=0)],
+    [dict(model(), gated=1)],
     [dict(model(), gated="unexpected-string")],
 ])
 def test_invalid_records_fail_closed(bad):
