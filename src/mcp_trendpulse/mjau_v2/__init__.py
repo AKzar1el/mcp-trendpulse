@@ -1,1 +1,1 @@
-"""Isolated, optional MJAU v2 research components (not registered on core MCP)."""
+"""Optional source-backed MJAU v2 research modules; no shared MCP registration."""
