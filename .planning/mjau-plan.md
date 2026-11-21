@@ -953,6 +953,23 @@ separately on the exact pushed M11 code commit.
   M14 branch independent, no forced merge, release, deployment,
   new scheduled work or paid integration.
 
+## 2026-11-21 integration security and verification
+
+The final staged integration audit also identified an unrelated
+pre-existing plan-only privacy issue: the original
+`intelligence_core.Plan.public()` redacted credential values but still
+disclosed an `Authorization` header key in public offline CLI previews.
+The actual OpenAlex provider authentication and private
+`Plan.headers` are unchanged. This integration adds a strict
+public-safe-header allowlist (Accept/Content-Type/User-Agent only) to
+the preview serializer; all sensitive credential header **names and
+values** are absent from plan-only JSON. A focused regression proves
+that actual private request headers remain intact. This corrects the
+pre-existing `test_discover_cli_plan_only_and_history_gate` failure
+without relaxing its security assertion, changing provider quotas
+or making extra requests. Source and full-suite results are reported
+against the exact integrated commit after verification.
+
 ## Decision log and deferred/non-scope integrations
 
 - **Bing**: M05 conditional candidate **accepted for evaluation** because Bing Keyword Research and `GetKeywordStats` are query-oriented rather than a site's query-performance report; still requires one verified site to get an account-level API key. Do not claim working automated access until tested.
