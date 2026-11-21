@@ -350,3 +350,34 @@ def test_official_name_length_ceiling_enforced():
 def test_disallowed_reserved_char_in_name_rejected():
     out, _, _ = run(rows=payload(item(name="io.example:admin/filesystem")))
     assert out["status"] == "invalid_source_shape"
+def test_registry_dates_are_metadata_dates_not_release_inferences():
+    source = item()
+    source["_meta"][reg._META]["publishedAt"] = "2026-11-19T04:32:31.708394Z"
+    source["_meta"][reg._META]["updatedAt"] = "2026-11-20T09:00:00+01:00"
+    store = Store()
+    out, _, _ = run(rows=payload(source), store=store)
+    record = out["records"][0]
+    assert record["registry_version_published_at"] == "2026-11-19T04:32:31.708394+00:00"
+    assert record["registry_metadata_updated_at"] == "2026-11-20T08:00:00+00:00"
+    assert record["repository_url_status"] == "publisher_supplied_unverified"
+    replay, _, calls = run(store=store, code=503)
+    assert replay["cache_hit"] and not calls
+    assert replay["records"] == out["records"]
+
+
+def test_invalid_date_metadata_is_unknown_not_a_fake_timestamp():
+    source = item()
+    source["_meta"][reg._META]["publishedAt"] = "2027-01-01"
+    source["_meta"][reg._META]["updatedAt"] = "bad-secret-token"
+    out, store, _ = run(rows=payload(source))
+    assert out["status"] == "observed"
+    assert out["records"][0]["registry_version_published_at"] is None
+    assert out["records"][0]["registry_metadata_updated_at"] is None
+    assert "bad-secret-token" not in json.dumps(store.data)
+
+
+def test_registry_repo_link_is_always_explicitly_unverified():
+    out, _, _ = run()
+    assert out["records"][0]["repository_url_status"] == "publisher_supplied_unverified"
+    without, _, _ = run(rows=payload(item(repository=None)))
+    assert without["records"][0]["repository_url_status"] == "not_supplied"
