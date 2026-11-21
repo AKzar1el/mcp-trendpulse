@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from mcp_trendpulse.intelligence_opportunities import SOURCE_KIND, evaluate_opportunities
 from mcp_trendpulse.mjau_v3.origin_graph import audit_origin_evidence
 
 
@@ -86,3 +87,53 @@ def test_original_source_case_replays_without_network(monkeypatch):
     fixture = case()
     output = audit_origin_evidence(fixture["evidence_records"], as_of=fixture["observed_at"])
     assert output["zero_network_calls"] is True
+
+
+def test_real_v1_evaluator_rejects_release_metadata_not_supported_by_its_source_contract():
+    """Exact source-derived records cannot create a fictitious v1 uplift.
+
+    GitHub Releases and PyPI distributions are real sources, but neither is a
+    supported v1 opportunity-evaluation evidence class. The old label-count
+    proxy cannot stand in for an actual baseline measurement.
+    """
+    fixture = case()
+    assert "github_releases" not in SOURCE_KIND
+    assert "pypi_catalog" not in SOURCE_KIND
+    candidate = {
+        "id": "mcp-sdk-releases", "title": "MCP SDK release metadata",
+        "lane": "research_to_product", "geography": "US",
+        "workflow": "sdk-release-research", "buyer": "",
+    }
+    evidence = [
+        {
+            "id": f"release-record-{index}",
+            "candidate": candidate["id"],
+            "source": row["source_id"],
+            "published_at": row["published_at"],
+            "observed_at": row["observed_at"],
+            "origin_id": f"release-origin-{index}",
+            "publisher": row["publisher"],
+            "geography": candidate["geography"],
+            "workflow": candidate["workflow"],
+            "url": row["source_url"],
+            "claim": "Source-observed SDK release metadata only",
+        }
+        for index, row in enumerate(fixture["evidence_records"], start=1)
+    ]
+    baseline = evaluate_opportunities(
+        [candidate], evidence, as_of=fixture["observed_at"]
+    )
+    assert baseline["rejected_count"] == 4
+    assert all(
+        "Unknown or non-free source" in row["reason"]
+        for row in baseline["rejected_records"]
+    )
+    assert baseline["results"][0]["status"] == "insufficient"
+    assert baseline["results"][0]["independent_publishers"] == 0
+    assert baseline["results"][0]["buying_intent_confirmed"] is False
+    v3 = audit_origin_evidence(
+        fixture["evidence_records"], as_of=fixture["observed_at"]
+    )
+    assert v3["verified_original_event_count"] == 2
+    assert v3["dependent_or_same_event_records"] == 2
+    assert v3["v1_proxy_is_not_full_v1_evaluation"] is True
