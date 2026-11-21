@@ -217,7 +217,8 @@ def test_provider_cooldown_no_network():
 
 
 def test_budget_cap_prevents_call():
-    class DailyBudgetExceeded(Exception):pass
+    class DailyBudgetExceeded(Exception):
+        pass
     store=Cache()
     store.fail=DailyBudgetExceeded("secret")
     out, _, called=run(cache=store)
