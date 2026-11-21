@@ -1,0 +1,86 @@
+{
+  "metadata": {
+    "source": "OSV official public API",
+    "original_raw_not_copied": true,
+    "derived_fields": "advisory IDs and publication/modified/withdrawn timestamps only",
+    "license_review_required_per_original_feed": true,
+    "query_ecosystem": "PyPI",
+    "query_package": "Jinja2",
+    "query_version": "2.10.1",
+    "advisory_id": "OSV-2020-744",
+    "source_package_sha256": "185db0af40cbf619cc473f19e1e354b14fbabf5edf778ccbfc2287c5a6b62292",
+    "source_advisory_sha256": "e7a2228addd9927419da678e0bc79d12964fe54584f7e00241417a48a8cfee69",
+    "package_observed_utc": "2026-11-21T05:25:04.957425+00:00",
+    "advisory_observed_utc": "2026-11-21T05:25:05.359214+00:00"
+  },
+  "minimal_package_envelope": {
+    "vulns": [
+      {
+        "id": "GHSA-cpwx-vrp4-4pq7",
+        "published": "2025-03-05T20:40:14Z",
+        "modified": "2026-11-18T00:45:13.756181Z",
+        "withdrawn": null
+      },
+      {
+        "id": "GHSA-g3rq-g295-4j3m",
+        "published": "2021-03-19T21:28:05Z",
+        "modified": "2025-02-14T05:26:14.565160Z",
+        "withdrawn": null
+      },
+      {
+        "id": "GHSA-h5c8-rqwp-cp95",
+        "published": "2024-01-11T15:20:48Z",
+        "modified": "2026-09-10T03:50:00.236017Z",
+        "withdrawn": null
+      },
+      {
+        "id": "GHSA-h75v-3vvj-5mfj",
+        "published": "2024-05-06T14:20:59Z",
+        "modified": "2026-09-10T03:50:13.786450Z",
+        "withdrawn": null
+      },
+      {
+        "id": "GHSA-q2x7-8rv6-6q7h",
+        "published": "2024-12-23T17:56:08Z",
+        "modified": "2026-09-10T03:50:21.662855Z",
+        "withdrawn": null
+      },
+      {
+        "id": "PYSEC-2021-66",
+        "published": "2021-02-01T20:15:00Z",
+        "modified": "2023-11-08T04:03:28.543308Z",
+        "withdrawn": null
+      },
+      {
+        "id": "PYSEC-2026-1471",
+        "published": "2026-07-07T14:34:50.446969Z",
+        "modified": "2026-07-07T17:46:43.358335Z",
+        "withdrawn": null
+      },
+      {
+        "id": "PYSEC-2026-1473",
+        "published": "2026-07-07T11:45:29.949639Z",
+        "modified": "2026-07-07T17:46:13.853151Z",
+        "withdrawn": null
+      },
+      {
+        "id": "PYSEC-2026-1474",
+        "published": "2026-07-07T11:45:41.875280Z",
+        "modified": "2026-07-07T17:46:13.832160Z",
+        "withdrawn": null
+      },
+      {
+        "id": "PYSEC-2026-1475",
+        "published": "2026-07-07T14:34:47.732576Z",
+        "modified": "2026-07-07T17:46:13.842466Z",
+        "withdrawn": null
+      }
+    ]
+  },
+  "minimal_advisory": {
+    "id": "OSV-2020-744",
+    "published": "2020-07-04T00:00:01.948828Z",
+    "modified": "2022-04-13T03:04:39.780694Z",
+    "withdrawn": null
+  }
+}
