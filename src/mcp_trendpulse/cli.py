@@ -1346,6 +1346,38 @@ def intelligence_lifecycle(input_file, output_format):
         click.echo(format_lifecycle_report(report))
 
 
+@intelligence.command("research-report")
+@click.option("--input", "input_file", required=True, type=click.Path(
+    exists=True, dir_okay=False, path_type=Path),
+    help="Bounded offline JSON with 1-120 fully typed M00 signals.")
+@click.option("--format", "output_format",
+              type=click.Choice(["text", "json"]), default="text",
+              show_default=True)
+def intelligence_research_report(input_file, output_format):
+    """M14: read-only cross-source research, no live provider or demand score."""
+    from mcp_trendpulse.intelligence_research import (
+        MAX_INPUT_BYTES, format_public_research, synthesize_public_research,
+    )
+
+    try:
+        with input_file.open("rb") as source:
+            raw = source.read(MAX_INPUT_BYTES + 1)
+        if len(raw) > MAX_INPUT_BYTES:
+            raise ValueError("M14 input exceeds allowed size")
+        report = synthesize_public_research(json.loads(raw.decode("utf-8")))
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError,
+            OverflowError, json.JSONDecodeError):
+        # Never echo source tokens, file content or potentially private paths.
+        raise click.ClickException(
+            "Invalid, unsafe or oversized offline research source JSON"
+        ) from None
+
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_public_research(report))
+
+
 @intelligence.command("sources")
 @click.option("--wave", type=click.IntRange(1, 3), default=None)
 def intelligence_sources(wave):

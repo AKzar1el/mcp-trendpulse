@@ -856,11 +856,87 @@ separately on the exact pushed M11 code commit.
   .request_locks ACL acceptance gate remains independent;
   original PR #328 and draft PRs #370-373 untouched.
 
-#### [ ] M14 — Cross-source evidence, recommendations and final CLI/MCP output
-- Reuse all qualified source adapters, normalized schema, RapidFuzz clusters, SQLite provenance and existing CLI/MCP interfaces.
-- Produce compact user-facing research: `rising_queries`, `keyword_families`, `country_language_interest`, `independent_attention`, `developer_problem_evidence`, `package_adoption_evidence`, `product_hypotheses`, `data_gaps`, `next_validation_action`.
-- Clearly label levels: observed search query / relative interest / source mention / adoption metric / generated keyword / hypothetical business opportunity. Independent source corroboration is not automatic causal proof.
-- **Acceptance:** one real multi-source research example with direct primary-source references, one offline deterministic report, readable text+JSON, bounded execution, no GSC/GA4, no fake demand metrics. No new background automation.
+#### [x] M14 - Cross-source evidence, recommendations and final CLI/MCP output
+- **OFFLINE IMPLEMENTATION VERIFIED 2026-11-21.**
+  New `src/mcp_trendpulse/intelligence_research.py` accepts at
+  most 120 fully validated original M00 typed `TrendSignal` records
+  in a strictly bounded 128KiB JSON input, no external provider,
+  source cache, SQLite mutation, new credential, API quota, paid API
+  or new dependency. Reuses existing M02 95% conservative
+  complete-link RapidFuzz keyword grouping, separated by original
+  evidence class, country and language; keeps original source URL,
+  record ID, source UTC observation time, period, metric unit, value
+  provenance, source coverage and sampling basis. No sum of unlike
+  providers/units/markets and no manufactured market demand score.
+  Duplicate exact source records collapse deterministically;
+  truncated references/families and source gaps are explicit.
+- **Delivered report keys:** `rising_queries` only after 14 fully
+  observed, consecutive, source-attested-query daily points in
+  the SAME source normalization batch and same market/scope,
+  previous seven-day mean >0 and next seven-day mean at least 25%
+  higher without pure one-off spike; rising is a descriptive
+  source-specific comparison, not acceleration, absolute search
+  volume or a forecast. `observed_query_candidates` cannot include
+  manual Bing seed terms or HN search strings.
+  `keyword_families` (M02 lexical only); `country_language_interest`
+  (individual original Google interest/rank and Bing keyword metrics);
+  `independent_attention` (Wikimedia/news attention proxies);
+  `developer_problem_evidence` (HN/GitHub/StackOverflow discussion
+  NOT validated user problems); `package_adoption_evidence`
+  (npm/PyPI events not users); `product_hypotheses` ONLY when an
+  explicitly typed `generated_keyword_candidate` is provided,
+  as unanswered validation questions. `data_gaps`, exact-term
+  source diversity (not independent people) and one human-directed
+  `next_validation_action` always explain absent coverage.
+  Values from unavailable/no_data are never filled with zero.
+- **Actual seven-primary-source fixture:** original prior M03
+  Google BigQuery ranked source signals (5), M05 official Bing
+  keyword research weekly exact-match source records (6),
+  M06 verified canonical Wikimedia `Python (programming language)`
+  daily views (14), M07 HN public story source links (2),
+  M09 verified npm `zod` daily downloads (7),
+  M10 verified PyPI Stats `pydantic` mirror-excluded daily
+  downloads (7), M11 verified public Stack Overflow question (1).
+  Total **42 fully typed source records / seven distinct source IDs**,
+  copied ONLY from original already-verified SQLite cache
+  mode=ro with PRAGMA quick_check=ok, zero provider calls and zero
+  quota/database writes. Permanent reproducible sample at
+  `docs/examples/mjau-m14-real-multisource-signals.json`.
+  Actual CLI returned six country/language search-interest groups,
+  one public-attention group, three developer-discussion groups,
+  two separate package download groups and 11 conservative M02
+  lexical families; **zero source-attested organic search queries,
+  zero proven rising-query windows and zero product hypotheses**.
+  This is correct source-evidence abstention, NOT false zero demand.
+- **Text/JSON CLI and hosted MCP prompt:** Added offline
+  `intelligence research-report --input --format text|json` in
+  `src/mcp_trendpulse/cli.py`. Exposes the same pure function via
+  `source_evidence_research_report(signals_json, output_format)`
+  hosted MCP PROMPT, not a seventh hosted tool, to preserve the
+  intentionally fixed and app-reviewed six-tool catalog.
+  Actual FastMCP Client initialize/list-tools(6)/list-prompts/get-prompt
+  roundtrip returned typed JSON source report and network=false,
+  with no calls to external provider services. Existing hosted
+  tool catalog and ChatGPT submission manifest remain unchanged.
+- **Verification:** 58 dedicated M14 tests plus one original
+  hosted six-tool-catalog test (59 tests total) passed; full
+  repository Ruff and git diff --check clean. Tests cover exact
+  source provenance, M02 scope and intent boundaries, zero-vs-missing,
+  source candidate versus generated hypothesis, genuine 42-record
+  multi-source sample, provider-normalized 14-day rising gate,
+  duplicate/conflict and user privacy guards, bounded output/caps,
+  sanitized CLI, direct prompt and hosted registry compatibility.
+  Broader local tests and GitHub exact-commit CI will be recorded
+  separately after completed execution. Full methodology in
+  `docs/cross-source-research-report.md`.
+- **M04 operator decision:** user considers implementation CLOSED;
+  external Google Trends rate-limits/429 are genuine availability
+  and must be reported honestly, never bypassed/retried by M14.
+  **M08** independent Windows `.request_locks` ACL live-test
+  gate remains pending elevated local repair in separate draft #370.
+  Original PR #328 and independent drafts #370-374 unchanged,
+  M14 branch independent, no forced merge, release, deployment,
+  new scheduled work or paid integration.
 
 ## Decision log and deferred/non-scope integrations
 
@@ -902,7 +978,7 @@ separately on the exact pushed M11 code commit.
 | M11 | COMPLETE / SOURCE LIVE VERIFIED ? 2026-11-21 | Official Stack Exchange API tag python + manual timeout returned question 80015847 (2026-11-10), answered with 3 replies but no accepted answer, has_more false, provider quota 299/300, exact 0-network cache repeat, local daily budget 1/3 | Keyless first-page question evidence and typed partial question source signal, not verified problem recurrence/customers/search volume; independent draft PR, M04/M08/M09/M10 untouched |
 | M12 | COMPLETE / OFFLINE VERIFIED - 2026-11-21 | Existing NLTK + M02 RapidFuzz reused; 63 dedicated and 250 combined offline tests pass, full Ruff clean; full Windows 1,935 pass/2 unrelated fail/10 deselected; RSS timing rerun 1/1 passed; five source/manual reference fixture records yielded 45 generated hypotheses, 45 lexical families, zero observed queries, zero network/provider/quota change | Six explicit languages, source-attested vs generated separation, URL/record/time provenance, conservative intent cues and lexical ranking only; independent M12 draft branch, no M13 or unrelated PR modification |
 | M13 | COMPLETE ? 2026-11-21 OFFLINE VERIFIED | 59 dedicated tests pass, Ruff clean; real prior npm zod and PyPI pydantic 7+7 daily source points abstain insufficient_history (14 required), 0 provider operations; source-aligned daily/weekly/monthly and conservative lifecycle heuristics | No cross-unit merges, no missing-to-zero fill, no unsupported provider normalization or annual/causal claims; independent M13 draft, M14 untouched |
-| M14 | ☐ NOT STARTED | — | — |
+| M14 | COMPLETE - OFFLINE VERIFIED 2026-11-21 | 42 actual typed public source observations from seven families via read-only cache; full CLI + hosted MCP prompt, 59 focused/hosted tests pass, Ruff clean; correct 0 source-attested queries, 0 rising windows, 0 demand claims | Source classes/country/language/metric units separated, M02 95 lexical, no GSC/GA4/no new tools/quotas; independent M14 draft, all earlier PRs untouched |
 
 **How to update:** Replace a milestone's `[ ]` with `[x]` only after all gates and actual bounded live verification pass. Change progress-ledger state to `COMPLETE`, with commit/PR, test evidence and next task. For failures use `BLOCKED` or for M05 `SKIPPED` (reason), not `COMPLETE`. Do not check future steps speculatively.
 
