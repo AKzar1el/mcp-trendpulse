@@ -1,1 +1,1 @@
-"""Isolated optional MJAU v2 research adapters; no default MCP tools."""
+"""Optional, isolated MJAU v2 evidence adapters; no default MCP registrations."""
