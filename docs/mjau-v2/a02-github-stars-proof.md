@@ -51,3 +51,13 @@ Official documentation:
 4. If all mandatory gates pass -> ACCEPT for later single-owner integration review. If provider blocked -> BLOCKED. If useful improvement cannot be established or costs/performance regress -> DISCARD. Remove discarded code before release.
 
 **No new background jobs, PR merge, release, deployment, paid API, credentials, schema changes or workers were authorized or performed by this proof.**
+
+## Bounded real-source acceptance on Windows (2026-11-21)
+
+**Supersedes the earlier adapter-network blocker above.** Through the healthy shared Codexify God v5 bridge, the exact pinned A02 source at commit `a8dfc081a08285080b22138d23820b4d6138120d` was loaded in memory alongside the v1 `BudgetCache`. A new temporary cache was used; the v1 branch and running agents were untouched.
+
+- First execution: `owner=AKzar1el`, `repo=mcp-trendpulse`, `limit=10`, `execute=True`; provider read yielded `status=observed_partial`, `network_performed=true`, `requests_attempted=1`, **ten dated provider-week cohorts** and `comparison_status=descriptive_cohort_window_comparison`. The official API separately returned HTTP 200. Cohorts count surviving stars from original star dates, not unique users or actual historical unstar events.
+- Identical second execution: `cache_hit=true`, `network_performed=false`, `requests_attempted=0` (real cache replay).
+- The one-shot Windows wrapper returned nonzero **after** these outputs because `TemporaryDirectory` encountered a temporary SQLite handle lock while deleting its own cache. The directory was explicitly verified and cleaned after process termination. The two source operations themselves succeeded; full clean test-harness exit was not claimed.
+
+**Current decision:** source transport and replay **OBSERVED**; A02 remains **NOT ACCEPTED** until the five-case baseline-usefulness evaluation, license/quotas, resource profiling, Ruff and full relevant regression gates pass. No production, v1 shared files, v3, merge, or release changes.
