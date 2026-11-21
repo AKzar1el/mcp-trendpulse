@@ -1,1 +1,1 @@
-"""Bounded opt-in MJAU v2 proof modules, not registered on public MCP."""
+"""Optional, isolated MJAU v2 evidence adapters; no default MCP registrations."""
