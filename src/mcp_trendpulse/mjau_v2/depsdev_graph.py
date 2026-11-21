@@ -67,6 +67,25 @@ def _equivalent_name(a: str, b: str, system: str) -> bool:
     return a == b
 
 
+def _equivalent_version(requested: str, canonical: str, system: str) -> bool:
+    """Only provably equivalent, simple PEP 440 numeric release aliases.
+
+    E.g. 0.04.6 == 0.4.6 or 1.0 == 1.0.0 for PyPI.
+    Never guess equivalence for pre-/post-/local versions, npm, Cargo or Maven.
+    """
+    if requested == canonical:
+        return True
+    if system != "PYPI":
+        return False
+    if not (re.fullmatch(r"[0-9]+(?:\.[0-9]+)*", requested)
+            and re.fullmatch(r"[0-9]+(?:\.[0-9]+)*", canonical)):
+        return False
+    left = [int(part) for part in requested.split(".")]
+    right = [int(part) for part in canonical.split(".")]
+    length = max(len(left), len(right))
+    return left + [0] * (length - len(left)) == right + [0] * (length - len(right))
+
+
 def _parse_graph(value: Any, *, system: str, package: str,
                  version: str, limit: int = MAX_PREVIEW) -> dict[str, Any]:
     """Fail closed; preserve graph errors, duplicates, and measurement semantics."""
@@ -107,10 +126,10 @@ def _parse_graph(value: Any, *, system: str, package: str,
                 "bundled": node.get("bundled", False),
                 "has_resolution_error": bool(errors),
             })
-        if (safe_nodes[0]["system"] != system
-                or not _equivalent_name(package, safe_nodes[0]["name"], system)
-                or safe_nodes[0]["version"] != version):
-            raise ValueError("provider root package/version mismatch")
+        root = safe_nodes[0]
+        if (root["system"] != system
+                or not _equivalent_name(package, root["name"], system)):
+            raise ValueError("provider root ecosystem/package mismatch")
         safe_edges: list[tuple[int, int]] = []
         for edge in edges:
             if (not isinstance(edge, dict)
@@ -120,6 +139,18 @@ def _parse_graph(value: Any, *, system: str, package: str,
                     or not 0 <= edge["toNode"] < len(nodes)):
                 raise ValueError("bad graph edge")
             safe_edges.append((edge["fromNode"], edge["toNode"]))
+        if not _equivalent_version(version, root["version"], system):
+            # Parsed source is valid, but an unproven version alias must not
+            # yield dependency counts for the requested version or be cached.
+            return {
+                "status": "identity_unverified",
+                "reason": "provider_root_version_not_proven_equivalent",
+                "root": {"ecosystem": root["system"], "package": root["name"],
+                         "version": root["version"]},
+                "summary": None, "direct_preview": [],
+                "provider_root_identity_verified": False,
+                "not_evidence_for_requested_version": True,
+            }
     except (ValueError, TypeError):
         return invalid
 
@@ -140,6 +171,12 @@ def _parse_graph(value: Any, *, system: str, package: str,
         "root": {"ecosystem": safe_nodes[0]["system"],
                  "package": safe_nodes[0]["name"],
                  "version": safe_nodes[0]["version"]},
+        "provider_root_identity_verified": True,
+        "provider_root_canonicalized": (
+            safe_nodes[0]["name"] != package
+            or safe_nodes[0]["version"] != version
+        ),
+        "root_canonicalization_scope": "pypi_name_or_simple_pep440_numeric_release",
         "summary": {
             "resolved_dependency_node_instances": len(safe_nodes) - 1,
             "distinct_resolved_dependency_versions": len(distinct),
