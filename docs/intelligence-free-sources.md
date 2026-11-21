@@ -11,7 +11,7 @@ compute are required.
 
 ## Commands
 
-Use the existing TrendPulse installation and Python 3.11+:
+Use the existing TrendPulse installation and Python 3.11.5+:
 
     mcp-trendpulse-cli intelligence sources
     mcp-trendpulse-cli intelligence sources --wave 2
