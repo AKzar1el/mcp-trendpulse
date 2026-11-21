@@ -61,6 +61,38 @@ def test_dated_valid_advisory_not_demand_or_exploitation():
     assert result["records"][0]["advisory_id"] == ID
     assert result["records"][0]["is_not_exploitation_evidence"]
     assert result["records"][0]["copyright_review_required_per_original_feed"]
+    assert result["records"][0]["upstream_database_hint"] is None
+    assert result["records"][0]["source_license_hint"] is None
+    assert result["records"][0]["source_specific_license_review_required"]
+    assert result["records"][0]["raw_advisory_redistribution_authorized"] is False
+
+
+@pytest.mark.parametrize("advisory_id,publisher", [
+    ("GHSA-cpwx-vrp4-4pq7", "GitHub Advisory Database"),
+    ("PYSEC-2021-66", "PyPI Advisory Database"),
+])
+def test_known_original_database_hint_requires_cc_by_attribution_and_review(advisory_id, publisher):
+    record = advisory()
+    record["id"] = advisory_id
+    output = query({"vulns": [record]})["records"][0]
+    assert output["upstream_database_hint"] == publisher
+    assert output["source_license_hint"] == "CC-BY-4.0"
+    assert output["license_text_reference"] == "https://creativecommons.org/licenses/by/4.0/"
+    assert output["source_license_reference"] == "https://google.github.io/osv.dev/data/"
+    assert output["suggested_attribution"] == f"{publisher} via OSV.dev"
+    assert output["source_specific_license_review_required"] is True
+    assert output["raw_advisory_redistribution_authorized"] is False
+
+
+def test_unknown_advisory_family_does_not_inherit_cc_by_license():
+    record = advisory()
+    record["id"] = "CVE-2024-12345"
+    output = query({"vulns": [record]})["records"][0]
+    assert output["upstream_database_hint"] is None
+    assert output["source_license_hint"] is None
+    assert output["license_text_reference"] is None
+    assert output["suggested_attribution"] is None
+    assert output["source_specific_license_review_required"] is True
 
 
 def test_explicit_empty_vulns_not_safe_package():

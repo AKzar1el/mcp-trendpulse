@@ -55,6 +55,14 @@ def test_original_source_derived_package_version_yields_ten_distinct_advisories(
     assert response["no_auto_remediation"] is True
     assert response["no_advisory_not_equivalent_to_safe_package"] is True
     assert all(record["is_not_commercial_demand_evidence"] for record in response["records"])
+    # The original observed GHSA and PYSEC ID families have separate CC BY
+    # upstream sources; these are hints, not permission to redistribute bodies.
+    assert all(record["source_license_hint"] == "CC-BY-4.0" for record in response["records"])
+    assert all(record["source_specific_license_review_required"] for record in response["records"])
+    assert all(not record["raw_advisory_redistribution_authorized"] for record in response["records"])
+    assert {record["upstream_database_hint"] for record in response["records"]} == {
+        "GitHub Advisory Database", "PyPI Advisory Database",
+    }
 
 
 def test_real_source_derived_advisory_identity_and_dates():

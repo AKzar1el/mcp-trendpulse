@@ -23,6 +23,30 @@ ADVISORY = re.compile(r"(?:OSV-\d{4}-\d+|GHSA-[a-z0-9-]{10,40}|CVE-\d{4}-\d{4,}|
 MAX_BYTES = 192_000
 MAX_ADVISORIES = 12
 MAX_LINKS = 4
+OSV_LICENSE_SOURCES = "https://google.github.io/osv.dev/data/"
+CC_BY_4_LICENSE = "https://creativecommons.org/licenses/by/4.0/"
+
+
+def _attribution_hint(advisory_id: str) -> dict[str, Any]:
+    """Return a non-authoritative attribution hint, never a license grant.
+
+    OSV aggregates feeds with different rights, so an advisory's ID prefix
+    alone cannot establish that all downstream uses are permitted.
+    """
+    database = (
+        "GitHub Advisory Database" if advisory_id.startswith("GHSA-")
+        else "PyPI Advisory Database" if advisory_id.startswith("PYSEC-")
+        else None
+    )
+    return {
+        "upstream_database_hint": database,
+        "source_license_hint": "CC-BY-4.0" if database else None,
+        "source_license_reference": OSV_LICENSE_SOURCES,
+        "license_text_reference": CC_BY_4_LICENSE if database else None,
+        "suggested_attribution": f"{database} via OSV.dev" if database else None,
+        "source_specific_license_review_required": True,
+        "raw_advisory_redistribution_authorized": False,
+    }
 
 
 def _query_inputs(ecosystem: str, package: str, version: str) -> None:
@@ -141,6 +165,7 @@ def _advisory(item: Any) -> dict[str, Any]:
             else "incomplete_advisory_dates"
         ),
         "advisory_links": links[:MAX_LINKS],
+        **_attribution_hint(ident),
         "copyright_review_required_per_original_feed": True,
         "is_not_exploitation_evidence": True,
         "is_not_commercial_demand_evidence": True,
