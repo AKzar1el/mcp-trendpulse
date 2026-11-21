@@ -47,6 +47,10 @@ class DailyBudgetExceeded(IntelligenceError):
         super().__init__(f"{source} free-only daily request cap reached")
 
 
+class SourceCoolingDown(IntelligenceError):
+    """Source is blocked by a persisted cooldown; not exhausted quota."""
+
+
 @dataclass(frozen=True)
 class Plan:
     source: str
@@ -239,8 +243,15 @@ class BudgetCache:
         return bool(row and row[0] > time.time())
 
     def cool_down(self, source: str, seconds: int = 90) -> None:
-        """Treat provider 429/503 as a short shared circuit breaker."""
-        until = time.time() + max(30, min(seconds, 300))
+        """Short-lived source cooldown for transient errors."""
+        self._extend_cooldown(source, max(30, min(seconds, 300)))
+
+    def stop_after_rate_limit(self, source: str) -> None:
+        """Persist a 24-hour no-retry circuit after a Google Trends 429."""
+        self._extend_cooldown(source, 24 * 3600)
+
+    def _extend_cooldown(self, source: str, seconds: int) -> None:
+        until = time.time() + seconds
         with self._connect() as conn:
             conn.execute(
                 "INSERT INTO cooldown(source, until) VALUES (?, ?) "
@@ -248,10 +259,17 @@ class BudgetCache:
                 (source, until),
             )
 
-    def reserve(self, source: str, cap: int) -> None:
+    def reserve(self, source: str, cap: int, *, guard_cooldown: bool = False) -> None:
         day = datetime.now(timezone.utc).date().isoformat()
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            if guard_cooldown:
+                row = conn.execute(
+                    "SELECT until FROM cooldown WHERE source=?", (source,),
+                ).fetchone()
+                if row and row[0] > time.time():
+                    conn.rollback()
+                    raise SourceCoolingDown("Provider cooldown is active")
             row = conn.execute("SELECT used FROM budget WHERE source=? AND day=?", (source, day)).fetchone()
             if row and row[0] >= cap:
                 conn.rollback()

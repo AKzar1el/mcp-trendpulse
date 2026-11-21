@@ -311,7 +311,8 @@ def test_trendspy_proxy_uses_cache_for_identical_normalized_interest_requests(mo
             return response()
 
     class FakeTrends:
-        def __init__(self, request_delay):
+        def __init__(self, request_delay, max_retries=3):
+            assert max_retries == 1
             self.session = FakeSession()
 
         def interest_over_time(self, keywords, **kwargs):

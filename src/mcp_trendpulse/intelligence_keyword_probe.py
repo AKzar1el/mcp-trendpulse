@@ -15,7 +15,7 @@ import sqlite3
 from typing import Any
 
 from mcp_trendpulse.intelligence_core import (
-    BudgetCache, DailyBudgetExceeded,
+    BudgetCache, DailyBudgetExceeded, SourceCoolingDown,
 )
 
 PROVIDER_BUDGET_ID = "google_trends_idea_related_queries"
@@ -224,7 +224,13 @@ async def probe_idea_keywords_async(
             summary["results"].append(output)
             continue
         try:
-            store.reserve(PROVIDER_BUDGET_ID, UTC_DAILY_PROVIDER_CAP)
+            store.reserve(
+                PROVIDER_BUDGET_ID, UTC_DAILY_PROVIDER_CAP, guard_cooldown=True,
+            )
+        except SourceCoolingDown:
+            output["status"] = "provider_cooldown"
+            summary["results"].append(output)
+            continue
         except DailyBudgetExceeded as exc:
             output["status"] = "local_daily_budget_exhausted"
             output["local_quota_utc_day"] = exc.utc_day
@@ -250,7 +256,20 @@ async def probe_idea_keywords_async(
             # Never surface provider exception strings or request metadata.
             name = type(exc).__name__
             output["reason_code"] = name if name in SAFE_REASON else "provider_failed"
-            output["status"] = "provider_rate_limited" if "RateLimit" in name or "Cooldown" in name else "unavailable"
+            if "RateLimit" in name:
+                output["status"] = "provider_rate_limited"
+                try:
+                    store.stop_after_rate_limit(PROVIDER_BUDGET_ID)
+                except (OSError, ValueError, sqlite3.Error):
+                    output["circuit_persistence_failed"] = True
+            elif "Cooldown" in name:
+                output["status"] = "provider_cooldown"
+                try:
+                    store.cool_down(PROVIDER_BUDGET_ID, 300)
+                except (OSError, ValueError, sqlite3.Error):
+                    output["circuit_persistence_failed"] = True
+            else:
+                output["status"] = "unavailable"
         if output["status"] in {
             "observed_related_queries", "observed_empty_related_queries"
         }:

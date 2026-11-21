@@ -2,7 +2,7 @@
 
 > **Canonical task plan.** Refer to this document as **mjau plan** in any ChatGPT/Codexify conversation. Repository: `AKzar1el/mcp-trendpulse`; path: `.planning/mjau-plan.md`; initial staging branch: `feat/free-intelligence-8-lanes-20261118` (draft PR #328). The file is intentionally **not linked from README**. This is still a **public repository**: an unlinked/dot-directory file and the draft branch are discoverable and are **not private**. Never store secrets or internal credentials here.
 
-**Created:** 2026-11-20  | **Status:** M00–M03, M05–M07 COMPLETE (verified); M04 implemented/offline-verified, still pending live Explore gate after user-authorized deferral  | **Next task:** M04 when the operator reminds us; otherwise M08 only if separately authorized.
+**Created:** 2026-11-20  | **Status:** M00–M03, M05–M07 COMPLETE (verified); M04 safety guard verified, real Explore source observation blocked by upstream 429 (not claimed complete)  | **Next task:** M08 only on separate authorization. Do not automatically repeat blocked M04 live requests.
 
 ## Mission and non-negotiable scope
 
@@ -150,7 +150,7 @@ M03 live acceptance and remains independently unchecked.
 - **Acceptance:** one bounded public-data query with recorded bytes estimate, a supported country and dates, original source metric semantics; graceful `no_sandbox_credentials` or unsupported geography without paid fallback.
 
 #### [ ] M04 — Google Trends Explore and related search evidence
-**IMPLEMENTED/OFFLINE VERIFIED 2026-11-20; NOT COMPLETE — LIVE LOCAL BUDGET BLOCKED.**
+**IMPLEMENTED AND SAFETY-VERIFIED; LIVE SOURCE OBSERVATION BLOCKED BY GOOGLE 429 (NOT COMPLETE).**
 The user explicitly deferred only M03 live verification and permitted
 implementation of M04 while away. New opt-in CLI:
 intelligence explore-evidence --term "AI agents" --country SI
@@ -216,6 +216,52 @@ google_trends_idea_related_queries UTC-day budget was already **2/2**
 on 2026-11-20, so no additional M04 provider request was made.
 M04 remains unchecked until the budget legitimately resets and one
 bounded, source-attributed Explore result is observed.
+
+**2026-11-21 UTC live gate and subsequent operator-authorized safety closure:**
+The existing draft PR #328 was used throughout. With the original SQLite
+cache/budget intact (`PRAGMA quick_check=ok`), a single explicit
+`AI agents` / US / `today 3-m` provider call encountered a genuine
+Google Trends HTTP 429. The original five-minute cooldown expired, then
+the identical command also received 429. The shared local daily
+counter moved **0/2 to 1/2 to 2/2**, the second CLI result was
+`status=unavailable`, `related=provider_rate_limited`,
+`interest=provider_cooldown`, and **neither Explore operation produced
+a cached source observation**. This is not zero demand or negative growth.
+The prior M04 CLI JSON-stdout fix was pushed as `6f4a144`; at that
+head CI was 25 success / 2 expected skips.
+
+To stop this failure mode without more Google traffic, the follow-up
+hardening removes TrendSpy's three-attempt internal retry setting
+(`max_retries=1`), opens a **persistent minimum 24-hour local
+Google Trends related-search circuit** upon a reported 429, and makes
+M04 and the legacy keyword probe share an atomic cooldown-aware quota
+reservation. The timeout is a *local conservative stop*, not a Google
+published request allowance. A repeat, including a new SQLite
+connection/process or a legacy probe, now fails closed without
+another provider operation; validated old cached evidence may still
+be read. Local pacing rejections are not falsely labeled as fresh
+upstream 429s. The actual `--execute --format json` CLI path was
+exercised against an isolated persisted-block store and returned
+`provider_cooldown` with 0 operations and no provider instance.
+**314 scoped M04, legacy, provider pacing, and compatibility tests
+passed; Ruff and diff checks clean.** These are offline tests,
+**not a fabricated live successful Explore observation**.
+The repository-wide offline check recorded **1,872 passed, 2 failed,
+10 deselected and 3 warnings**: the existing environment-sensitive
+OpenAlex plan-only redacted Authorization-header assertion, plus an
+unrelated parallel-fetch peak concurrency timing test, which then
+**passed in isolated rerun (1/1)**. No M04 tests failed.
+The operator-authorized guard was also applied to the original
+unchanged-budget SQLite store (integrity `ok`, quota still **2/2**):
+its shared 429 lockout runs through **2026-11-22 01:32:07 UTC**,
+without any additional Google provider operation.
+
+Per operator direction, the M04 reliability/safety work is ready to
+handoff, and later milestones may continue with separate authorization
+without waiting for unofficial Google Explore to unblock. M04
+**remains unchecked for live data acceptance**, with no new scheduled
+attempt, no proxy or fallback, and no requests issued during this
+safeguard repair.
 
 - **Reuse:** existing `trendspy` and current optional Google Trends `intelligence_keyword_probe` quota/cooldown implementation, not a second client.
 - Seed with genuinely observed M01/M03 terms and user-supplied market/topic. Retrieve top/rising related queries and normalized interest where supported; retain timeframe, country and comparative-series basis. Do not derive exact search volume.
@@ -543,7 +589,7 @@ M04 stays unchecked until the user's reminder; M08+ untouched.
 | M01 | COMPLETE — 2026-11-20 | PR #328; `5337ea8f10f68fb83d46e8341342fe94de5b0832`; 1,912 tests, Ruff clean, 14/14 CI; US+GB 10 labels each, one RSS call per market | Existing TrendSpy RSS reused; offline/opt-in CLI; M00 signal provenance, 15-min cache, 12/day local budget, safe related news. Next M02 |
 | M02 | COMPLETE — 2026-11-20 | PR #328; `0c29f7ccb9f7677622e6e3922b1646b0cf8e9a8e`; RapidFuzz 3.14.6 locked; 1,937 tests and Ruff clean; 14/14 CI | Offline 200-signal lexical clusters, market/language isolation, branded/polarity safeguards; M03 next |
 | M03 | COMPLETE — 2026-11-20 | PR #328; implementation df41073; focused 39 passed and full Ruff clean; real US rising Top 5, 2026-11-18, 61,072,200 dry-run bytes <=104,857,600 maximum; five source rows, zero rejected | Project trendpulse-new ACTIVE with billing disabled and no attached account; GB 2026-11-19 no data, GB 2026-11-18 >100 MiB refused; local budget 3/3 UTC day; source ranks not absolute volumes |
-| M04 | IMPLEMENTED/OFFLINE VERIFIED; LIVE PENDING — 2026-11-20 | PR #328; original feature 5e2d279a00f453c1521204fc4b6faa27da2d93f3; M04 adversarial source/cache hardening on feature branch; 70 focused tests, full Ruff clean, local full 1,747 passed / 1 existing unrelated failure / 10 deselected | Original SQLite quota directory accessible; historical shared TrendSpy provider daily budget 2/2 used on 2026-11-20; actual M04 CLI refused with zero provider operations; no live source observation until UTC reset; M04 remains unchecked |
+| M04 | SAFETY VERIFIED; LIVE SOURCE BLOCKED (429) — 2026-11-21 | PR #328; original feature 5e2d279a00f453c1521204fc4b6faa27da2d93f3; first JSON warning fix `6f4a144`; subsequent shared 429 no-retry hardening; 314 scoped pass, full suite 1,872 pass / 2 unrelated fail / 10 deselected; parallel timing test passes isolated; Ruff and diff clean | Live `AI agents` / US repeated once: genuine upstream 429 twice; 0/2→2/2 shared local budget; 0 validated caches. Shared local circuit through 2026-11-22 01:32 UTC, atomic reservation, no implicit retry, isolated CLI no-network end-to-end proof. Live source observation remains **unchecked**; no more automatic attempts |
 | M05 | COMPLETE — 2026-11-20 | PR #328; implementation c721e008dae1bc8dac4efd991957f4ebbb70d708; 88 focused pass, full Ruff clean, 1,783 full-local pass / 3 unrelated fails; CI at M05 implementation head 25 success / 2 expected skip; live Bing GET stats 24 history rows (6 emitted), related 100 rows (10 emitted), both HTTP 200; zero-call cache repeats | Arbitrary crochet patterns US/en-US (no siteUrl), Bing exact/broad impression semantics, original UTC-day local budget 3/3, no key leaks/paid fallback; M04 remains unchecked per user |
 | M06 | COMPLETE — 2026-11-20 | PR #328; implementation f61cd9ff1d49dc9bf4fec224775dacd021c4888c; 109 focused pass and full Ruff clean; 1,828 full-local pass / 3 unrelated existing fails / 10 deselected; GitHub CI 25 success / 2 expected skip after one unrelated Python 3.12 concurrency-test retry; 14 sourced daily views across 7+7 days, cache repeat 0 calls | Canonical en.wikipedia.org Python programming language page; prior 26,965 vs current 25,846 views (−4.15%, not search volume), original M06 daily quota 2/4, M04 deferred unchanged; no new dependencies/paid services |
 | M07 | COMPLETE — 2026-11-20 | PR #328; code 6293fc149a88ca662c9ea26e0fbb1184b3ed117d; 38 focused/162 mixed tests pass, full local 1,866 pass / 3 unrelated old OpenAlex fails, full Ruff clean; first CI had unrelated transient cross-source failure, follow-up head 64313d5 green **25 success/2 expected skip** | Live AI agents first-page sample: 10 stories (provider 550), 10 comments across 8 threads (1329), 8 Show HN launches (210); 0-call cache hits; HN quota 4/5 and M04 quota unchanged; PR remains draft/unmerged |

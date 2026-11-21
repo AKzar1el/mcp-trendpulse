@@ -14,7 +14,9 @@ import sqlite3
 from datetime import date, datetime, timezone
 from typing import Any
 
-from mcp_trendpulse.intelligence_core import BudgetCache, DailyBudgetExceeded
+from mcp_trendpulse.intelligence_core import (
+    BudgetCache, DailyBudgetExceeded, SourceCoolingDown,
+)
 from mcp_trendpulse.intelligence_keyword_probe import (
     PROVIDER_BUDGET_ID, UTC_DAILY_PROVIDER_CAP, _status as _related_status,
 )
@@ -419,10 +421,12 @@ async def discover_explore(
                 target.update(cached)
                 target["cache_hit"] = True
                 continue
-            if store.blocked(PROVIDER_BUDGET_ID):
-                target["status"] = "provider_cooldown"
-                continue
-            store.reserve(PROVIDER_BUDGET_ID, UTC_DAILY_PROVIDER_CAP)
+            store.reserve(
+                PROVIDER_BUDGET_ID, UTC_DAILY_PROVIDER_CAP, guard_cooldown=True,
+            )
+        except SourceCoolingDown:
+            target["status"] = "provider_cooldown"
+            continue
         except DailyBudgetExceeded:
             target["status"] = "local_daily_budget_exhausted"
             continue
@@ -454,12 +458,18 @@ async def discover_explore(
         except Exception as exc:
             # Never copy provider exception text: URLs/tokens may be embedded.
             name = type(exc).__name__
-            if "RateLimit" in name or "Cooldown" in name:
+            if "RateLimit" in name:
                 target["status"] = "provider_rate_limited"
+                try:
+                    store.stop_after_rate_limit(PROVIDER_BUDGET_ID)
+                except (OSError, ValueError, sqlite3.Error):
+                    target["circuit_persistence_failed"] = True
+            elif "Cooldown" in name:
+                target["status"] = "provider_cooldown"
                 try:
                     store.cool_down(PROVIDER_BUDGET_ID, 300)
                 except (OSError, ValueError, sqlite3.Error):
-                    pass
+                    target["circuit_persistence_failed"] = True
             elif "Timeout" in name:
                 target["status"] = "provider_timeout"
             else:

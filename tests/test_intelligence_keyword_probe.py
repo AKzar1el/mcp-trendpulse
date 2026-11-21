@@ -6,6 +6,8 @@ import asyncio
 import pytest
 
 from mcp_trendpulse import intelligence_keyword_probe as probes
+from mcp_trendpulse.errors import ProviderRateLimitError
+from mcp_trendpulse.intelligence_core import BudgetCache
 
 def idea(i, kind, market, words):
     return {
@@ -39,8 +41,9 @@ class Cache:
     def cached(self, key):
         return self.stored.get(key)
 
-    def reserve(self, source, cap):
+    def reserve(self, source, cap, *, guard_cooldown=False):
         assert source == probes.PROVIDER_BUDGET_ID and cap == 2
+        assert guard_cooldown is True
         if self.used >= cap:
             from mcp_trendpulse.intelligence_core import DailyBudgetExceeded
 
@@ -140,6 +143,67 @@ def test_daily_quota_refusal_skips_network_and_reports_partial():
     assert "already reserved" in "\n".join(probes.format_keyword_probe(out))
 
 
+def test_429_in_legacy_probe_stops_second_seed_and_m04_across_store_reopen(tmp_path):
+    from mcp_trendpulse import intelligence_explore as explore
+
+    class RateLimited:
+        calls = 0
+
+        async def get_related_queries(self, **_kw):
+            self.calls += 1
+            raise ProviderRateLimitError("google_trends", "related_queries")
+
+    provider = RateLimited()
+    first = asyncio.run(probes.probe_idea_keywords_async(
+        source(), provider=provider, cache=BudgetCache(tmp_path),
+    ))
+    assert first["provider_operations_attempted"] == 1
+    assert first["results"][0]["status"] == "provider_rate_limited"
+    assert first["results"][1]["status"] == "provider_cooldown"
+
+    class NoCalls:
+        async def get_related_queries(self, **_kw):
+            raise AssertionError("Never retry after 429")
+
+        async def get_trends(self, **_kw):
+            raise AssertionError("Never fetch interest after 429")
+
+    reopened = BudgetCache(tmp_path)
+    repeated = asyncio.run(probes.probe_idea_keywords_async(
+        source(), provider=NoCalls(), cache=reopened,
+    ))
+    assert repeated["provider_operations_attempted"] == 0
+    assert all(r["status"] == "provider_cooldown" for r in repeated["results"])
+    m04 = asyncio.run(explore.discover_explore(
+        explore.select_seed(term="AI agents", country="US"),
+        provider=NoCalls(), cache=BudgetCache(tmp_path), execute=True,
+    ))
+    assert m04["provider_operations_attempted"] == 0
+    assert m04["related"]["status"] == "provider_cooldown"
+    assert m04["interest"]["status"] == "provider_cooldown"
+    assert provider.calls == 1
+
+
+def test_m04_rate_limit_blocks_legacy_probe_even_with_daily_budget_left(tmp_path):
+    from mcp_trendpulse import intelligence_explore as explore
+
+    class Limited:
+        async def get_related_queries(self, **_kw):
+            raise ProviderRateLimitError("google_trends", "related_queries")
+
+    first = asyncio.run(explore.discover_explore(
+        explore.select_seed(term="AI agents", country="US"),
+        provider=Limited(), cache=BudgetCache(tmp_path), execute=True,
+    ))
+    assert first["provider_operations_attempted"] == 1
+    assert first["related"]["status"] == "provider_rate_limited"
+    repeated = asyncio.run(probes.probe_idea_keywords_async(
+        source(), provider=Limited(), cache=BudgetCache(tmp_path),
+    ))
+    assert repeated["provider_operations_attempted"] == 0
+    assert all(r["status"] == "provider_cooldown" for r in repeated["results"])
+
+
 def test_storage_errors_are_not_exhausted_quota_and_no_requests_are_sent():
     class BrokenCache(Cache):
         def cached(self, _key):
@@ -155,7 +219,7 @@ def test_storage_errors_are_not_exhausted_quota_and_no_requests_are_sent():
     assert out["provider_operations_attempted"] == 0
     assert "CREDENTIAL_MUST_NOT_BE_EXPOSED" not in repr(out)
     class UnwriteableCache(Cache):
-        def reserve(self, source, cap):
+        def reserve(self, source, cap, *, guard_cooldown=False):
             raise OSError("disk restricted and password")
     out2 = asyncio.run(probes.probe_idea_keywords_async(
         source(), provider=NoCalls(), cache=UnwriteableCache(),

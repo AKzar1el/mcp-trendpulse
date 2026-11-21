@@ -5,6 +5,10 @@ operation built on TrendPulse's *existing* paced, unofficial TrendSpy
 provider. It is **not** the official Google Trends API, BigQuery, Google
 Search Console, an SEO property report, Keyword Planner, or a measurement
 of search volume or paying customers. It uses no Google Cloud account.
+Do **not** run it for bulk page-by-page keyword discovery: use actual
+property query evidence from Google Search Console for that purpose.
+The official Google Trends API remains access-gated to approved testers:
+https://developers.google.com/search/apis/trends
 
 The command does nothing on the network without explicit `--execute`:
 
@@ -65,22 +69,38 @@ and **two provider operations per UTC day** with the existing
 `intelligence_keyword_probe` feature, avoiding quota bypasses.
 An Explore attempt uses at most one related-query provider operation
 and one interest-over-time provider operation, and the persistent cache
-holds successful responses for six hours. The existing process-wide
-Trends request pacing and 429 cooldown remain active, with an additional
-durable local cooldown. **An operation may involve multiple HTTP
-requests inside TrendSpy; physical request count is not measured.**
+holds successful responses for six hours. The TrendSpy client now uses
+**one attempt per internal HTTP fetch** instead of its default retry
+loop. The existing process-wide HTTP pacing also blocks a follow-up
+fetch when a 429 is detected. **One provider operation can still
+involve multiple distinct HTTP fetches; their number is not measured.**
+After a provider-reported 429, the original shared SQLite state records
+a **minimum 24-hour local no-retry lockout**. This applies to both M04
+and the earlier idea keyword probe even across fresh processes and UTC
+day boundaries. The 24-hour duration is our conservative local guard,
+**not a Google-published reset or request quota**. A cooldown-aware
+SQLite budget reservation atomically refuses blocked requests without
+using additional daily quota. An already validated cached observation
+may still be read without a request.
 Cached source rows are structurally revalidated, and only whitelisted,
 source-labeled evidence metadata is returned; malformed or unexpected
 local SQLite JSON must never be emitted verbatim or trigger an unbudgeted
 refetch.
-The existing related-query wrapper can make one retry on a transient
-unavailability; there is no unbounded retry, alternative endpoint, or
-proxy rotation. Source failure and quota exhaustion do not trigger
-paid fallback or create credentials.
+The existing related-query wrapper may retry a transient *unavailable*
+exception once, but never a rate-limit exception; the TrendSpy client
+itself has no internal retry loop. There is no automatic post-429 retry,
+alternate endpoint, proxy rotation, background schedule, paid fallback
+or newly created credential. A separate local pacing rejection is
+reported as `provider_cooldown`, not as another observed Google 429.
 
 Only a genuinely observed live provider response can satisfy the M04
 live acceptance gate. When Google rate limits or the provider fails,
 report M04 as live blocked even if all deterministic tests pass.
+Unavailable, cooldown, and exhausted-budget results must never be
+converted into zero demand, declining demand, or measured keyword volume.
+Google's applicable Terms prohibit bypassing protective measures and
+automated access contrary to machine-readable instructions:
+https://policies.google.com/terms
 
 ## M03 is independent and verified
 
