@@ -8,7 +8,7 @@ from __future__ import annotations
 import calendar
 import math
 from collections import defaultdict
-from datetime import date, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from statistics import mean, median, pstdev
 from typing import Any
 
@@ -21,6 +21,7 @@ MAX_SIGNALS = 500
 MAX_SERIES = 16
 MAX_MISSING_DATES = 24
 MAX_SOURCE_REFS = 12
+MAX_NORMALIZED_BATCH_VIEWS = 12
 _MIN_WINDOW = {"daily": 7, "weekly": 4, "monthly": 3}
 _ALLOWED_GRANULARITIES = frozenset(_MIN_WINDOW)
 _UNSUPPORTED_VALUES = frozenset({
@@ -412,17 +413,48 @@ def _analyze(key: tuple[str, ...], signals: list[TrendSignal]) -> dict[str, Any]
             "comparable continuous quantitative series."
         ))
         return report
-    if key[6] == "relative_index_0_100" and len({
-        s.observed_at for s in signals
-    }) > 1:
-        report.update(
-            status="incomparable_normalized_batches",
-            reason=(
-                "Provider-normalized interest indices from different "
-                "observation batches cannot be compared as one 0–100 scale."
-            ),
-        )
-        return report
+    if key[6] == "relative_index_0_100":
+        batches: dict[datetime, list[TrendSignal]] = defaultdict(list)
+        period_batches: dict[tuple[date, date], set[datetime]] = defaultdict(set)
+        for sig in signals:
+            observed = sig.observed_at.astimezone(timezone.utc)
+            batches[observed].append(sig)
+            period_batches[(sig.period.start_date, sig.period.end_date)].add(observed)
+        if len(batches) > 1:
+            timestamps = sorted(batches)
+            # Never pick a batch based on its lifecycle outcome or combine scales.
+            views = []
+            for observed in timestamps[-MAX_NORMALIZED_BATCH_VIEWS:]:
+                batch = _analyze(key, batches[observed])
+                views.append({
+                    "observed_at_utc": observed.isoformat(),
+                    **{field: batch[field] for field in (
+                        "input_records", "status", "lifecycle", "reason",
+                        "periods_observed", "compared_window_dates", "comparison",
+                        "first_recorded_source_period", "last_recorded_source_period",
+                        "source_record_ids_first_12", "source_coverage_incomplete",
+                        "missing_period_count", "search_volume_verified",
+                        "buyer_demand_verified",
+                    )},
+                })
+            report.update(
+                status="incomparable_normalized_batches",
+                reason=(
+                    "Different 0–100 normalization batches cannot be combined. "
+                    "Timestamp-labeled per-batch views are independent, not "
+                    "absolute search volume or verified buyer demand."
+                ),
+                normalized_batch_count=len(batches),
+                normalized_overlapping_periods_count=sum(
+                    len(observed) > 1 for observed in period_batches.values()
+                ),
+                normalized_batch_selection_policy=(
+                    "latest_12_observation_timestamps_utc_no_outcome_selection"
+                ),
+                normalized_batch_views_omitted=len(batches) - len(views),
+                normalized_batch_views=views,
+            )
+            return report
     if any(
         sig.metric_unit in {
             "rank", "impressions", "pageviews", "stories", "issues",
@@ -634,4 +666,23 @@ def format_lifecycle_report(report: dict[str, Any]) -> str:
             f"{group['status']}: {group['lifecycle']}"
         )
         lines.append(f"  {group['reason']}")
+        if group.get("normalized_batch_views"):
+            lines.append(
+                f"  Batches: {group['normalized_batch_count']}; "
+                f"overlapping periods: {group['normalized_overlapping_periods_count']}; "
+                f"selection: {group['normalized_batch_selection_policy']}"
+            )
+        for view in group.get("normalized_batch_views", []):
+            dates = view["compared_window_dates"]
+            compared = (f"{dates['previous_first']}..{dates['recent_last']}"
+                        if dates else "no_complete_window")
+            lines.append(
+                f"  Independent batch {view['observed_at_utc']}: "
+                f"{view['status']}/{view['lifecycle']} ({compared})"
+            )
+        if group.get("normalized_batch_views_omitted"):
+            lines.append(
+                f"  Earlier batches omitted from display: "
+                f"{group['normalized_batch_views_omitted']}"
+            )
     return "\n".join(lines)
