@@ -17,7 +17,7 @@ In Devin Desktop, open **Agents > Customize > MCPs** and select the desired inst
 }
 ```
 
-This runs the published free Community MCP from PyPI over local stdio. Install `uv`/`uvx` first and use Python 3.11 or newer. Keep other existing `mcpServers` entries when merging the configuration. Alternatively, use the [Devin CLI plugin installation](../README.md#devin-cli-and-devin-desktop) described in the README.
+This runs the published free Community MCP from PyPI over local stdio. Install `uv`/`uvx` first and use Python 3.11.5 or newer. Keep other existing `mcpServers` entries when merging the configuration. Alternatively, use the [Devin CLI plugin installation](../README.md#devin-cli-and-devin-desktop) described in the README.
 
 Confirm the server appears under **Customize > MCPs**, refresh the list if necessary, and inspect the available tools before making a low-impact read-only news or trend request.
 

@@ -297,8 +297,8 @@ def test_pages_python_floor_matches_installed_package():
     page = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
     project = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
 
-    assert project["requires-python"] == ">=3.11"
-    assert "python ≥ 3.11" in page
+    assert project["requires-python"] == ">=3.11.5"
+    assert "python ≥ 3.11.5" in page
     assert "python ≥ 3.10" not in page
 
 
