@@ -1,6 +1,6 @@
 # MJAU v3 A04 — Wikidata identity pilot (isolated)
 
-**Decision: BLOCKED — keep experimental, do not integrate or release.**
+**Decision: BLOCKED — live API and temporary v1-cache replay proved; independent utility/ambiguity review incomplete. Do not integrate or release.**
 
 ## Baseline and question
 
@@ -43,3 +43,13 @@ From isolated sandbox Python 3.13.5:
 **BLOCKED** because mandatory real official Action API bounded request, zero-network cache replay, six-language source validation, real v1-versus-A04 comparative tasks (including adversarial false-merge cases), full suite and official license/terms regression on the target host are incomplete. The separate TrendPulse Codexify bridge still reports tunnel-client unseen for 300 seconds. No bypass attempted.
 
 Once the connection is healthy, an independently configured reviewer may run **one** planned official source query through an existing approved budgeted collector, store only small evidence metadata in a test-only cache, compare with actual v1 behavior, and decide **ACCEPT or DISCARD**. Do not create public MCP registration, modify shared manifests/CI, or publish until explicitly authorized. Roll back by removing only the A04 module/test/doc commits from this draft branch. No production state changed.
+
+## 2026-11-21 live-source and Windows cache-replay follow-up
+
+**Exact code under test:** `96ee759e422076b33cf3e0bfc814011f63ea499d`; independent Windows managed worktree, Python 3.13.5. Original A04 suite: 45/45 passed; GitHub CI matrix for that commit passed. The original "no live request" paragraph above describes the initial pilot, not this follow-up.
+
+- **One authorized live Action API GET** from `plan_qid_lookup(["Q89","Q312"],["en","de","fr","es","sl","it"])`, fixed `https://www.wikidata.org/w/api.php` origin, User-Agent with repository contact, no redirects, 8 s timeout, 192,000-byte maximum, HTTP **200**, 1,666 bytes, observed **2026-11-21T05:07:43Z**, SHA-256 `7e2c2bf65104d1029330d0a752be5a54aa69085b10b13332eeef132d4202ac10`. Parsing yielded Q89 and Q312 as distinct source items; Q89 has labels in 6/6 requested languages, Q312 4/6, with absent languages preserved as unknown. The name "Apple" matched Q89 within **these two QIDs only**; it does **not** establish correct worldwide name disambiguation.
+- Repeated an exact request through an **isolated temporary instance of the existing v1 `BudgetCache` class**, with a projected-only cached result: one live fetch, second lookup hit the cache with a network transport that intentionally raises if invoked, and an additional daily reservation raised `DailyBudgetExceeded` at cap 1. **60 cached reads:** p50 **3.508 ms**, p95 **5.545 ms** on this Windows machine. No provider fees or persistent runtime changes. After explicit `gc.collect()`, the isolated SQLite directory was removed. An initial run had a Windows temporary SQLite file lock at teardown despite successful replay; the rerun resolved it without changing shared v1 code.
+- Actual **v1 source-planning comparator**: `plan_source("wikidata_action_api")` raises `IntelligenceError: Unknown source ID`. The A04 prototype produces verified QID-scoped identity/labels for this source-backed two-entity task, but the baseline is a capability-coverage comparison, **not** blind precision or business utility uplift. The separate A04 parser and source cache are still not installed into shared `collect` or MCP registration.
+
+**Gate update:** official-source compatibility, bounded fetch, v1-cache reuse and zero-network replay **PASSED**. **A04 remains BLOCKED** for acceptance: independently adjudicated multilingual *ambiguous-name* task set (including at least six languages), security/source licensing review, meaningful real workflow lift and independent integration review are not yet complete. Neither v1 nor v2 changed. Rollback remains this isolated A04 feature branch only.
