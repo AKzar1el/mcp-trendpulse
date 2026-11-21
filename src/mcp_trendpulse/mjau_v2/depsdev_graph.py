@@ -130,18 +130,6 @@ def _parse_graph(value: Any, *, system: str, package: str,
         if (root["system"] != system
                 or not _equivalent_name(package, root["name"], system)):
             raise ValueError("provider root ecosystem/package mismatch")
-        if not _equivalent_version(version, root["version"], system):
-            # Validly shaped source, but do not claim edges belong to the
-            # requested version when a provider resolves an unknown alias.
-            return {
-                "status": "identity_unverified",
-                "reason": "provider_root_version_not_proven_equivalent",
-                "root": {"ecosystem": root["system"], "package": root["name"],
-                         "version": root["version"]},
-                "summary": None, "direct_preview": [],
-                "provider_root_identity_verified": False,
-                "not_evidence_for_requested_version": True,
-            }
         safe_edges: list[tuple[int, int]] = []
         for edge in edges:
             if (not isinstance(edge, dict)
@@ -151,6 +139,18 @@ def _parse_graph(value: Any, *, system: str, package: str,
                     or not 0 <= edge["toNode"] < len(nodes)):
                 raise ValueError("bad graph edge")
             safe_edges.append((edge["fromNode"], edge["toNode"]))
+        if not _equivalent_version(version, root["version"], system):
+            # Parsed source is valid, but an unproven version alias must not
+            # yield dependency counts for the requested version or be cached.
+            return {
+                "status": "identity_unverified",
+                "reason": "provider_root_version_not_proven_equivalent",
+                "root": {"ecosystem": root["system"], "package": root["name"],
+                         "version": root["version"]},
+                "summary": None, "direct_preview": [],
+                "provider_root_identity_verified": False,
+                "not_evidence_for_requested_version": True,
+            }
     except (ValueError, TypeError):
         return invalid
 
