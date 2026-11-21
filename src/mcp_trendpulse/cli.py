@@ -1,10 +1,12 @@
 import asyncio
 import hashlib
 import html
+import io
 import json
 import re
 import sys
 from collections import defaultdict
+from contextlib import redirect_stdout
 from dataclasses import asdict
 from datetime import datetime, timezone
 from math import isfinite
@@ -1021,7 +1023,17 @@ def intelligence_explore_evidence(term, country, source_file, timeframe, execute
             seed = select_seed(term=term, country=country, source=source_data)
         else:
             seed = select_seed(term=term, country=country)
-        report = asyncio.run(discover_explore(seed, execute=execute, timeframe=timeframe))
+        if execute and output_format == "json":
+            # TrendSpy prints 429 warnings to stdout. Keep machine-readable
+            # evidence valid JSON without changing the provider or its quota.
+            with redirect_stdout(io.StringIO()):
+                report = asyncio.run(discover_explore(
+                    seed, execute=execute, timeframe=timeframe,
+                ))
+        else:
+            report = asyncio.run(discover_explore(
+                seed, execute=execute, timeframe=timeframe,
+            ))
     except (OSError, UnicodeError, ValueError, TypeError, KeyError, json.JSONDecodeError):
         raise click.ClickException(
             "Invalid source/term/market for bounded Google Trends Explore"

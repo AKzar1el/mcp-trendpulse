@@ -471,6 +471,30 @@ def test_cli_preview_offline_and_source_file_input(tmp_path, monkeypatch):
     assert json.loads(out2.output)["seed"]["origin"] == "source_observed"
 
 
+def test_cli_live_json_excludes_trendspy_stdout_warning(monkeypatch):
+    async def fake_discover(seed, *, execute, timeframe):
+        assert execute is True
+        print("Warning: Too many rate limit errors (429).")
+        return {"mode": explore.MODE, "status": "unavailable", "seed": seed,
+                "timeframe": timeframe, "provider_operations_attempted": 1,
+                "network_performed": True,
+                "related": {"status": "provider_rate_limited"},
+                "interest": {"status": "provider_cooldown"}}
+
+    monkeypatch.setattr(explore, "discover_explore", fake_discover)
+    result = CliRunner().invoke(cli, [
+        "intelligence", "explore-evidence", "--term", "AI agents",
+        "--country", "US", "--timeframe", "today 3-m",
+        "--execute", "--format", "json",
+    ])
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report["status"] == "unavailable"
+    assert report["related"]["status"] == "provider_rate_limited"
+    assert report["provider_operations_attempted"] == 1
+    assert "Warning:" not in result.output
+
+
 def test_cli_refuses_bad_source_and_double_seed(tmp_path):
     path = tmp_path / "bad.json"
     path.write_text('{"status":"planned","mode":"wrong"}', encoding="utf-8")
