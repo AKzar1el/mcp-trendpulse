@@ -36,7 +36,7 @@ class Response:
         ]).encode("utf-8")
 
 
-def _fake_provider(monkeypatch):
+def _fake_provider(monkeypatch, *, simultaneous_requests: Barrier | None = None):
     stats = {"requests": 0, "active": 0, "peak": 0}
     gate = Lock()
 
@@ -45,6 +45,12 @@ def _fake_provider(monkeypatch):
             stats["requests"] += 1
             stats["active"] += 1
             stats["peak"] = max(stats["active"], stats["peak"])
+
+        # A distinct-query concurrency assertion must not depend on an
+        # 80 ms sleep overlapping under heavy CI scheduler load. Require both
+        # mock HTTP calls to actually enter together, or fail if serialized.
+        if simultaneous_requests is not None:
+            simultaneous_requests.wait(timeout=10)
 
         def closed():
             with gate:
@@ -90,7 +96,7 @@ def test_ten_simultaneous_identical_calls_cost_only_one_provider_request(
 
 
 def test_different_queries_still_fetch_in_parallel(tmp_path, monkeypatch):
-    stats = _fake_provider(monkeypatch)
+    stats = _fake_provider(monkeypatch, simultaneous_requests=Barrier(2))
     cache = intel.BudgetCache(tmp_path)
     plan_us = intel.plan_source(
         "worldbank", country="US", identifier="NY.GDP.MKTP.CD", limit=1, env={}
