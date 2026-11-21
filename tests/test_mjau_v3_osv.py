@@ -1,5 +1,4 @@
 """A10 deterministic source contract tests only, NOT real vulnerability observations."""
-import copy
 import pytest
 from mcp_trendpulse.mjau_v3.osv import (
     plan_package_query, plan_advisory_lookup, parse_package_query,
