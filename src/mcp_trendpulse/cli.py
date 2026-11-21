@@ -921,6 +921,37 @@ def intelligence_signal_schema(output_format):
     click.echo("Use --format json to inspect the versioned Pydantic JSON Schema.")
 
 
+
+@intelligence.command("lifecycle")
+@click.option("--input", "input_file", required=True, type=click.Path(
+    exists=True, dir_okay=False, path_type=Path),
+    help="Local JSON containing 1-500 strictly typed M00 historical signals.")
+@click.option("--format", "output_format", default="text", show_default=True,
+              type=click.Choice(["text", "json"]))
+def intelligence_lifecycle(input_file, output_format):
+    """M13: offline aligned-source history, conservative lifecycle heuristics."""
+    from mcp_trendpulse.intelligence_lifecycle import (
+        MAX_INPUT_BYTES, analyze_lifecycle, format_lifecycle_report,
+    )
+
+    try:
+        with input_file.open("rb") as handle:
+            raw = handle.read(MAX_INPUT_BYTES + 1)
+        if len(raw) > MAX_INPUT_BYTES:
+            raise ValueError("Input exceeds bounded file size")
+        report = analyze_lifecycle(json.loads(raw.decode("utf-8")))
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError,
+            json.JSONDecodeError):
+        raise click.ClickException(
+            "Invalid, unsafe, or oversized offline historical signal JSON"
+        ) from None
+
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_lifecycle_report(report))
+
+
 @intelligence.command("cluster-keywords")
 @click.option("--input", "input_file", type=click.Path(
     exists=True, dir_okay=False, path_type=Path), required=True,
