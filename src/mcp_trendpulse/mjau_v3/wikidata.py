@@ -83,7 +83,11 @@ def _aliases(entity: dict[str, Any], lang: str) -> tuple[list[str], int]:
     # (e.g. Wikidata Q30), so cap the projection rather than reject the item.
     # Unprojected aliases remain explicitly unknown to candidate matching.
     for record in rows[:MAX_ALIASES]:
+        if record is None:
+            raise ValueError("Malformed Wikidata alias record")
         value = _localized(record, lang)
+        if value is None:
+            raise ValueError("Malformed Wikidata alias value")
         if value not in seen:
             out.append(value)
             seen.add(value)
@@ -101,7 +105,7 @@ def parse_qid_lookup(
     ids, langs = _scope(qids, languages)
     try:
         size = len(json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8"))
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, RecursionError) as exc:
         raise ValueError("Invalid Wikidata JSON") from exc
     if size > MAX_BYTES:
         raise ValueError("Wikidata response too large")
@@ -163,12 +167,18 @@ def candidates_for_name(parsed: dict[str, Any], name: str, language: str) -> dic
     needle = _clean_text(name).casefold()
     options = []
     incomplete_aliases = False
+    source_items_incomplete = not bool(parsed.get("results"))
     for item in parsed.get("results", []):
         if item.get("status") != "source_item_observed":
+            source_items_incomplete = True
             continue
         record = item["names"].get(language)
         if not record:
+            source_items_incomplete = True
             continue
+        # A requested entity without a localized label has incomplete name
+        # coverage, even when its QID itself was returned successfully.
+        source_items_incomplete |= record.get("label") is None
         incomplete_aliases |= bool(record.get("aliases_truncated"))
         forms = [record["label"], *record["aliases"]]
         if any(isinstance(v, str) and v.casefold() == needle for v in forms):
@@ -178,11 +188,18 @@ def candidates_for_name(parsed: dict[str, Any], name: str, language: str) -> dic
         "query": name, "language": language, "candidate_qids": options,
         "status": "ambiguous" if len(options) > 1 else (
             "candidate_requires_confirmation" if options else (
-                "unknown_incomplete_aliases" if incomplete_aliases else "unknown_no_match"
+                "unknown_incomplete_aliases" if incomplete_aliases else (
+                    "unknown_incomplete_source" if source_items_incomplete
+                    else "unknown_no_match"
+                )
             )
         ),
         "identity_confirmed": False,
         "searched_aliases_incomplete": incomplete_aliases,
+        "source_items_incomplete": source_items_incomplete,
+        "searched_name_coverage_complete": not (
+            source_items_incomplete or incomplete_aliases
+        ),
         "missing_source_items_are_unknown_not_negative": True,
     }
 

@@ -52,7 +52,7 @@ def _attribution_hint(advisory_id: str) -> dict[str, Any]:
 
 
 def _query_inputs(ecosystem: str, package: str, version: str) -> None:
-    if ecosystem not in ECOSYSTEMS:
+    if not isinstance(ecosystem, str) or ecosystem not in ECOSYSTEMS:
         raise ValueError("Only scoped PyPI/npm ecosystem lookups are supported")
     if (not isinstance(package, str) or not 1 <= len(package) <= 120
             or PACKAGE.fullmatch(package) is None or ".." in package
@@ -121,7 +121,10 @@ def _date(value: Any, field: str) -> str | None:
 
 
 def _safe_ref(link: Any) -> str | None:
-    if not isinstance(link, str) or len(link) > 500:
+    if (not isinstance(link, str) or not 1 <= len(link) <= 500
+            or any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127
+                   for ch in link) or "\\" in link
+            or re.search(r"%(?:0[0-9a-f]|1[0-9a-f]|7f)", link, re.I)):
         return None
     try:
         url = urlsplit(link)
@@ -146,16 +149,25 @@ def _safe_ref(link: Any) -> str | None:
     else:
         if not ip.is_global:
             return None
-    if any(any(x in name.lower() for x in ("token", "secret", "auth", "apikey", "password"))
-           for name, _ in parse_qsl(url.query, keep_blank_values=True)):
-        return None
+    # URL query keys may be percent-encoded or use separators (api_key,
+    # access-key, session_id). Strip separators before checking for
+    # credentials; never echo source links containing them into tool output.
+    sensitive = (
+        "token", "secret", "auth", "apikey", "accesskey", "password",
+        "session", "jwt", "signature", "credential", "bearer",
+    )
+    for name, _ in parse_qsl(url.query, keep_blank_values=True):
+        normalized = re.sub(r"[^a-z0-9]", "", name.casefold())
+        if (any(marker in normalized for marker in sensitive)
+                or normalized in {"key", "sig", "pwd"}):
+            return None
     return link
 
 
 def _size(payload: Any) -> None:
     try:
         size = len(json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8"))
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, RecursionError) as exc:
         raise ValueError("Invalid OSV JSON") from exc
     if size > MAX_BYTES:
         raise ValueError("OSV response exceeds local safety cap")
@@ -306,6 +318,45 @@ def parse_compact_package_query(
         "no_advisory_not_equivalent_to_safe_package": True,
         "no_auto_remediation": True,
         "zero_network_calls": True,
+    }
+
+
+def present_compact_query_for_mcp(parsed: dict[str, Any]) -> dict[str, Any]:
+    """Small, source-attributed projection; do not repeat license text per ID.
+
+    Call only on a validated parse_compact_package_query() result. The
+    detailed source evidence remains available to a reviewer outside MCP.
+    This does not authorize redistribution of any upstream advisory body.
+    """
+    if (not isinstance(parsed, dict)
+            or parsed.get("source") != "osv_public_api"
+            or parsed.get("compact_id_only_no_full_advisory_bodies") is not True):
+        raise ValueError("Expected validated compact OSV source projection")
+    records = parsed.get("records")
+    if not isinstance(records, list) or len(records) > MAX_COMPACT_IDS:
+        raise ValueError("Invalid bounded OSV records")
+    return {
+        "source": "osv_public_api",
+        "ecosystem": parsed["ecosystem"],
+        "package": parsed["package"],
+        "version": parsed["version"],
+        "status": parsed["status"],
+        "source_population_complete": parsed["source_population_complete"],
+        "provider_ids_in_this_page": parsed["provider_ids_in_this_page"],
+        "advisory_count_projected": len(records),
+        "advisories": [{
+            "id": record["advisory_id"],
+            "modified_at": record["modified_at"],
+            "source_url": record["source_url"],
+            "source_database_hint": record["upstream_database_hint"],
+        } for record in records],
+        "source_license_reference": OSV_LICENSE_SOURCES,
+        "source_licenses_are_heterogeneous": True,
+        "source_specific_license_review_required": True,
+        "raw_advisory_redistribution_authorized": False,
+        "no_advisory_not_equivalent_to_safe_package": True,
+        "not_exploitation_or_buyer_demand_evidence": True,
+        "no_auto_remediation": True,
     }
 
 

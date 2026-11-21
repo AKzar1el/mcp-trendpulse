@@ -11,6 +11,7 @@ import pytest
 from mcp_trendpulse.mjau_v3.osv import (
     parse_compact_http_result,
     parse_compact_package_query,
+    present_compact_query_for_mcp,
     plan_compact_package_query,
 )
 
@@ -167,3 +168,49 @@ def test_compact_source_input_is_never_mutated():
     prior = copy.deepcopy(source)
     parse(source)
     assert source == prior
+
+
+def test_mcp_presentation_is_substantially_smaller_with_all_75_real_ids():
+    source = json.loads(
+        (SOURCE.parent / "osv_django_compact_20261121.json").read_text("utf-8")
+    )
+    detail = parse_compact_package_query(
+        source["one_query_envelope"],
+        ecosystem="PyPI", package="Django", version="2.2.0",
+    )
+    before = copy.deepcopy(detail)
+    compact = present_compact_query_for_mcp(detail)
+    assert detail == before
+    assert compact["advisory_count_projected"] == 75
+    assert compact["provider_ids_in_this_page"] == 75
+    assert compact["source_population_complete"] is True
+    assert compact["source_licenses_are_heterogeneous"]
+    assert compact["source_specific_license_review_required"]
+    assert compact["raw_advisory_redistribution_authorized"] is False
+    assert compact["no_advisory_not_equivalent_to_safe_package"]
+    assert compact["no_auto_remediation"] is True
+    assert [r["id"] for r in compact["advisories"]] == [
+        r["advisory_id"] for r in detail["records"]
+    ]
+    for record in compact["advisories"]:
+        assert set(record) == {
+            "id", "modified_at", "source_url", "source_database_hint",
+        }
+    full_size = len(json.dumps(detail, ensure_ascii=False).encode("utf-8"))
+    small_size = len(json.dumps(compact, ensure_ascii=False).encode("utf-8"))
+    assert small_size < full_size * 0.4
+    assert small_size < 20_000
+
+
+def test_mcp_presentation_of_no_matches_does_not_claim_secure_package():
+    detail = parse({"results": [{}]})
+    compact = present_compact_query_for_mcp(detail)
+    assert compact["advisories"] == []
+    assert compact["status"] == "no_returned_advisories"
+    assert compact["no_advisory_not_equivalent_to_safe_package"]
+    assert compact["source_specific_license_review_required"]
+
+
+def test_mcp_presentation_cannot_accept_unvalidated_upstream_input():
+    with pytest.raises(ValueError):
+        present_compact_query_for_mcp({"results": [{}]})
