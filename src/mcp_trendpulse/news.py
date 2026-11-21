@@ -287,7 +287,8 @@ def _get_trends_client() -> Trends:
     """Return one lazily-created TrendSpy client per worker thread."""
     client = getattr(_trends_local, "instance", None)
     if client is None:
-        client = Trends(request_delay=get_google_trends_delay())
+        # Do not amplify an upstream 429 with TrendSpy's default retry loop.
+        client = Trends(request_delay=get_google_trends_delay(), max_retries=1)
         install_trends_session_pacing(client, trends_request_pacer)
         _trends_local.instance = client
     return client

@@ -1,0 +1,41 @@
+name: Optional seedless current-topic discovery smoke
+
+on:
+  pull_request:
+    paths:
+      - "src/mcp_trendpulse/intelligence_discovery.py"
+      - "src/mcp_trendpulse/intelligence_commercial.py"
+      - "scripts/intelligence_discovery_smoke.py"
+      - ".github/workflows/intelligence-discovery-smoke.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  live-discovery:
+    name: Read-only seedless discovery and honest source coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          version: "0.12.5"
+      - run: uv python install 3.12
+      - run: uv sync --locked --dev
+      - name: Attempt three bounded public providers, no credentials
+        run: uv run --locked python scripts/intelligence_discovery_smoke.py
+      - name: Upload status-only provider diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: intelligence-discovery-${{ github.run_id }}
+          path: intelligence-discovery-smoke.json
+          retention-days: 7
+          if-no-files-found: warn

@@ -1,8 +1,12 @@
-# Official Google Trends public dataset: operator-only SQL workflow
+# Official Google Trends BigQuery: SQL preview and opt-in sandbox discovery
 
-This is an **opt-in, no-network SQL generator** for Google's first-party
-BigQuery public dataset. It does not execute queries, acquire credentials,
-enable a hosted provider, or create a Google Cloud billing account.
+The existing **no-network SQL generator** remains available. MJAU M03 adds
+one **explicitly opted-in** public-dataset discovery command. It can execute
+only after Google's Cloud Billing API independently verifies that the
+operator-selected project has **no billing account attached**. A missing
+permission, unsupported account, transport error, or ambiguous billing
+response blocks execution instead of falling back to a billed project.
+No account, project, credential, schedule, or subscription is created.
 
 ## What is supported
 
@@ -25,22 +29,86 @@ uv run mcp-trendpulse-cli bigquery-sql --country US --kind top --dma-id 501
 uv run mcp-trendpulse-cli bigquery-sql --country SI --kind top --snapshot-date 2026-10-25
 ```
 
-Copy the SQL into the **Google Cloud BigQuery Console** and run a **dry run**
-first. Confirm the exact table schema, snapshot availability, and estimated
-bytes scanned with the provider. The generator cannot validate the live
-table or guarantee that the selected country's snapshot exists.
+This prints SQL only; it is useful with **no account or network**. Never
+paste and execute it in a billed project to bypass the safeguards below.
+
+## Optional live discovery — billing-free project only
+
+1. Separately create or select a [Google BigQuery sandbox](https://docs.cloud.google.com/bigquery/docs/sandbox)
+   project **without linking a Cloud Billing account**. Do not upgrade it.
+   The project must have BigQuery and Cloud Billing API permissions needed to
+   read data and query its own billing state. Account creation and permissions
+   are operator-managed.
+2. Install the optional dependency with **uv sync --extra bigquery**, leaving
+   the default package untouched. Supply Application Default Credentials
+   through Google's official [ADC workflow](https://cloud.google.com/docs/authentication/set-up-adc)
+   in your own profile; keep tokens and key files outside the repository.
+3. Preview without network; then explicitly opt in to live operation:
+
+~~~powershell
+uv run --locked mcp-trendpulse-cli bigquery-discover --country GB --kind rising --limit 5
+uv run --extra bigquery --locked mcp-trendpulse-cli bigquery-discover --country GB --kind rising --limit 5 --project-id YOUR_UNBILLED_PROJECT --execute --format json
+~~~
+
+The runner validates the allowed table, country, optional subdivision, date
+(last 30 days), and limit (1–25). It independently checks the live billing
+configuration, **dry-runs first**, refuses estimates exceeding **100 MiB**,
+passes BigQuery's server-side maximum_bytes_billed setting, uses the
+repository's SQLite local cap of **3 attempted executions per UTC day**,
+and avoids automatic job retries. A 15-minute cache can repeat successful
+research without issuing additional cloud queries.
+
+Successful JSON includes the source market, selected snapshot, query type,
+BigQuery dry-run byte estimate and separate attributed google_bigquery_rank
+signals. Their values are **curated ranks from the latest source week**,
+not total query counts, search volume, market share, or all country searches.
+If a country's snapshot is absent, an empty result is **unknown coverage**,
+not zero popularity. Source data can be delayed and country coverage varies.
+Use a snapshot date that actually exists in the public table's published
+partitions; yesterday is only a default, **not** a freshness guarantee.
+The optional BigQuery SDK's read-only table metadata/partition listing can
+help identify an available date before using a scarce daily query attempt.
+International partitions can exceed the 100 MiB scan ceiling even with a
+country filter and a small LIMIT; the client will refuse the data query in
+that case rather than raise the cap.
+
+Results such as no_sandbox_project, bigquery_extra_missing,
+no_sandbox_credentials, sandbox_billing_unverified,
+billing_account_attached, local_daily_budget_exhausted, and
+estimated_bytes_exceeds_limit are refusals, **not** fallback modes.
+The CLI deliberately does not print account credentials, tokens, raw
+upstream errors, or inferred missing search metrics.
+
+## Verified sandbox smoke, 2026-11-20
+
+An operator-owned project with billing disabled and no attached billing
+account successfully read five curated US rising terms for the
+**2026-11-18** snapshot. The dry run estimated **61,072,200 bytes**
+against a **104,857,600-byte** server-side maximum; the bounded live query
+returned five observed source ranks (1–5), zero rejected records, and
+source-country/snapshot provenance. No exact search volumes or market-growth
+claims were inferred.
+
+Two guardrail cases were observed before that successful query:
+**2026-11-19** was not yet available in the international dataset
+(no_data), and the **2026-11-18** GB international partition's dry-run
+estimate was **309,018,782 bytes**, so the data job was refused.
+These were separate, quota-counted attempts—not a license to remove the cap.
+The shared local BigQuery budget reached **3/3 for 2026-11-20 UTC**,
+so no additional same-day requests should be made. Do not assume that
+today's or yesterday's partition exists without checking the provider.
 
 ## Zero automatic paid usage
 
-- No code in this repository sends BigQuery jobs or uses a Google credential.
-- The BigQuery sandbox has no required payment method and provides the
-  documented free query allowance, subject to platform constraints.
-- For any account with billing enabled, set a **maximum bytes billed**
-  threshold (for example 100 MB) *in the BigQuery query settings* before
-  executing; use a custom daily query quota for stricter project control.
-  Google warns that `LIMIT` alone does not limit bytes scanned or charges.
-- Any manually run query can use quota or incur a charge if the free allowance
-  is exhausted. The generator does not and cannot guarantee zero spend.
+- The original SQL preview is completely offline. Normal TrendPulse flows do
+  not load BigQuery credentials or install its optional SDK.
+- Only the opt-in BigQuery discovery execution flag can create jobs, and only
+  on a project verified as billing-free. A failed billing check refuses work.
+- Even a no-billing sandbox can exhaust its free quota. Use explicit byte
+  caps and local budgets; LIMIT alone does not restrict bytes scanned.
+- If a sandbox's published allowance is exhausted, let the request fail.
+  Do not attach billing, route through paid accounts, rotate projects to
+  evade quotas, or retry unacknowledged jobs.
 - Official BigQuery public-data access does **not** resolve issue #22's
   separate authorization review for a public hosted ChatGPT app; redistribution
   and public-service terms must still be reviewed before integration.
@@ -51,3 +119,5 @@ Official references:
 - https://codelabs.developers.google.com/ca-in-bigquery
 - https://docs.cloud.google.com/bigquery/docs/sandbox
 - https://docs.cloud.google.com/bigquery/docs/best-practices-costs
+- https://docs.cloud.google.com/billing/docs/reference/rest/v1/projects/getBillingInfo
+- https://docs.cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJobConfig
