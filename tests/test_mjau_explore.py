@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import sqlite3
+import time
 from datetime import datetime, timezone
 
 import pytest
@@ -203,9 +205,69 @@ async def test_rate_limit_opens_circuit_and_skips_interest(tmp_path):
     assert first["related"]["status"] == "provider_rate_limited"
     assert first["interest"]["status"] == "provider_cooldown"
     assert first["provider_operations_attempted"] == 1
-    second = await explore.discover_explore(seed, provider=provider, cache=store, execute=True)
+    with sqlite3.connect(store.db) as conn:
+        remaining = conn.execute(
+            "SELECT until FROM cooldown WHERE source=?",
+            (legacy.PROVIDER_BUDGET_ID,),
+        ).fetchone()[0] - time.time()
+        used = conn.execute(
+            "SELECT used FROM budget WHERE source=? AND day=date('now')",
+            (legacy.PROVIDER_BUDGET_ID,),
+        ).fetchone()[0]
+    assert remaining >= 23 * 3600  # 429 is not a five-minute retry signal.
+    assert used == 1
+    second = await explore.discover_explore(
+        seed, provider=provider, cache=BudgetCache(tmp_path), execute=True,
+    )
     assert second["provider_operations_attempted"] == 0
     assert second["related"]["status"] == "provider_cooldown"
+    assert second["interest"]["status"] == "provider_cooldown"
+    assert second["network_performed"] is False
+    assert second["exact_search_volume_available"] is False
+    assert len(provider.calls) == 1
+
+
+def test_cli_execute_is_network_free_during_persisted_rate_limit(tmp_path, monkeypatch):
+    from mcp_trendpulse import providers
+
+    store = BudgetCache(tmp_path)
+    store.stop_after_rate_limit(legacy.PROVIDER_BUDGET_ID)
+    monkeypatch.setenv("TRENDPULSE_INTEL_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(providers, "get_provider_set", lambda: (
+        (_ for _ in ()).throw(AssertionError("Blocked CLI cannot open provider"))
+    ))
+    result = CliRunner().invoke(cli, [
+        "intelligence", "explore-evidence", "--term", "AI agents",
+        "--country", "US", "--execute", "--format", "json",
+    ])
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report["status"] == "unavailable"
+    assert report["related"]["status"] == "provider_cooldown"
+    assert report["interest"]["status"] == "provider_cooldown"
+    assert report["provider_operations_attempted"] == 0
+    assert report["network_performed"] is False
+    assert report["exact_search_volume_available"] is False
+    with sqlite3.connect(store.db) as conn:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM budget WHERE source=?",
+            (legacy.PROVIDER_BUDGET_ID,),
+        ).fetchone()[0] == 0
+
+
+@pytest.mark.asyncio
+async def test_local_provider_cooldown_does_not_claim_a_new_google_429(tmp_path):
+    from mcp_trendpulse.trends_rate_control import TrendsCooldownError
+
+    provider = Provider(related=TrendsCooldownError("local pacing guard"))
+    result = await explore.discover_explore(
+        explore.select_seed(term="AI agents", country="US"),
+        provider=provider, cache=BudgetCache(tmp_path), execute=True,
+    )
+    assert result["status"] == "unavailable"
+    assert result["related"]["status"] == "provider_cooldown"
+    assert result["interest"]["status"] == "provider_cooldown"
+    assert result["provider_operations_attempted"] == 1
     assert len(provider.calls) == 1
 
 

@@ -16,8 +16,9 @@ class FakeTrend:
 class FakeTrends:
     instances: list["FakeTrends"] = []
 
-    def __init__(self, *, request_delay: float):
+    def __init__(self, *, request_delay: float, max_retries: int = 3):
         self.request_delay = request_delay
+        self.max_retries = max_retries
         self.created_thread = threading.get_ident()
         self.calls: list[tuple[str, int]] = []
         type(self).instances.append(self)
@@ -53,6 +54,7 @@ async def test_trending_terms_creates_provider_lazily_off_event_loop(monkeypatch
     assert len(FakeTrends.instances) == 1
     instance = FakeTrends.instances[0]
     assert instance.request_delay == 1.5
+    assert instance.max_retries == 1
     assert instance.created_thread != event_loop_thread
     assert instance.calls == [("US", instance.created_thread)]
 
