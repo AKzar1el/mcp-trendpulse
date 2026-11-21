@@ -802,10 +802,59 @@ separately on the exact pushed M11 code commit.
   upstream blockers and independent M09-M11 draft PRs untouched.
   **Next unstarted task: M13 historical momentum, not started here.**
 
-#### [ ] M13 — Historical momentum and trend lifecycle
-- **Libraries:** existing `pandas` / `statistics`; add optional `statsmodels` STL only after enough comparable full cycles exist.
-- Compare aligned time windows, require minimum sample-days, handle data gaps, first-seen / repeat observations, distinguish one-off spikes, new, accelerating, sustained, seasonal and declining. Do not compare unlike provider units.
-- **Acceptance:** controlled increasing/flat/seasonal/irregular synthetic fixtures, an actual source-history test, no false 'growth' when coverage is partial.
+#### [x] M13 - Historical momentum and trend lifecycle
+- **OFFLINE VERIFIED 2026-11-21.** Added
+  `src/mcp_trendpulse/intelligence_lifecycle.py`,
+  `intelligence lifecycle --input <JSON> --format text|json` CLI,
+  `tests/test_mjau_lifecycle.py` and complete methodology in
+  `docs/historical-momentum-lifecycle.md`.
+  No provider/network requests, extra dependencies, quota/SQLite writes,
+  paid APIs, credential changes or background automations.
+- **Strict source comparability:** validates complete M00 TrendSignal
+  records; groups by exact source URL/ID, term, metric+unit,
+  country/language, scope, provenance method/basis and granularity.
+  Refuses mixed metric units, ranks/buckets, future/misaligned dates,
+  conflicted duplicate revisions, partial/unavailable/no_data periods,
+  missing internal periods, unsafe count precision or different
+  Google normalized 0`100 observation batches. Never converts
+  unknown data into observed zero; explicit measured zero is valid.
+  Unknown leading/trailing source days without provider-declared
+  expected window are stated as unverified, not assumed complete.
+  Minimum two complete windows: daily 7+7, weekly 4+4, monthly 3+3.
+- **Conservative heuristics only:** sustained, declining,
+  rising_not_acceleration_verified, accelerating after 3 complete
+  increasing windows, new_in_observed_window only when ALL prior
+  supplied periods were zero, resurfacing, one_off_spike,
+  four-cycle descriptive seven-day seasonal_pattern, no-activity
+  from actual source zeros. Abstains for short, irregular,
+  incomplete or incompatible source histories. No forecasts,
+  global first-ever observations, annual seasonality, independent
+  customers or demand / SEO volume claims.
+- **Actual previous-source history acceptance:** read-only export of
+  the earlier M09 npm `zod` and M10 PyPI `pydantic` verified
+  public-source SQLite cache, each 7 fully observed daily dates
+  2026-11-13..19. Typed reproducible example:
+  `docs/examples/mjau-m13-observed-package-downloads.json`.
+  Source counts 475,488,459 and 285,184,650 download events
+  remain entirely separate. Officially captured short history yields
+  two distinct `insufficient_history` + `unknown` results with NULL
+  comparisons (7 source dates, 14 required). CLI verified
+  network_performed=false, provider_operations=0,
+  sqlite_or_quota_modified=false: no fabricated rising trend.
+- **Acceptance:** 59 dedicated M13 offline tests pass and Ruff
+  clean, covering controlled accelerating/flat/declining/spike/
+  four-week cycles/new-vs-resurfacing, date gaps vs measured zeros,
+  weekly/monthly alignment, normalized batch boundaries,
+  deterministic deduplication, safe source provenance and actual
+  previous provider history. Combined regression and exact-commit
+  GitHub CI are recorded after they complete. Work is isolated
+  on a new draft branch; M14 remains unchecked.
+- **M04 operator decision:** M04 implementation is CLOSED as
+  external-availability-dependent Google Trends work; a provider
+  429 means unavailable at that moment, NOT a code change/retry
+  request. M13 made no M04 requests. M08's original Windows
+  .request_locks ACL acceptance gate remains independent;
+  original PR #328 and draft PRs #370-373 untouched.
 
 #### [ ] M14 — Cross-source evidence, recommendations and final CLI/MCP output
 - Reuse all qualified source adapters, normalized schema, RapidFuzz clusters, SQLite provenance and existing CLI/MCP interfaces.
@@ -852,7 +901,7 @@ separately on the exact pushed M11 code commit.
 | M10 | COMPLETE ? 2026-11-21 source-live verified | PyPI Stats pydantic without_mirrors Nov13?19: 7/7 daily counts, 285,184,650 downloads, two-day lag, source history 181 dates, cache repeat 0 network, quota 1/3 | Excludes known mirrors but CI remains included; distinct ecosystem no npm sum, no purchase/unique-user claim, independent implementation PR |
 | M11 | COMPLETE / SOURCE LIVE VERIFIED ? 2026-11-21 | Official Stack Exchange API tag python + manual timeout returned question 80015847 (2026-11-10), answered with 3 replies but no accepted answer, has_more false, provider quota 299/300, exact 0-network cache repeat, local daily budget 1/3 | Keyless first-page question evidence and typed partial question source signal, not verified problem recurrence/customers/search volume; independent draft PR, M04/M08/M09/M10 untouched |
 | M12 | COMPLETE / OFFLINE VERIFIED - 2026-11-21 | Existing NLTK + M02 RapidFuzz reused; 63 dedicated and 250 combined offline tests pass, full Ruff clean; full Windows 1,935 pass/2 unrelated fail/10 deselected; RSS timing rerun 1/1 passed; five source/manual reference fixture records yielded 45 generated hypotheses, 45 lexical families, zero observed queries, zero network/provider/quota change | Six explicit languages, source-attested vs generated separation, URL/record/time provenance, conservative intent cues and lexical ranking only; independent M12 draft branch, no M13 or unrelated PR modification |
-| M13 | ☐ NOT STARTED | — | — |
+| M13 | COMPLETE ? 2026-11-21 OFFLINE VERIFIED | 59 dedicated tests pass, Ruff clean; real prior npm zod and PyPI pydantic 7+7 daily source points abstain insufficient_history (14 required), 0 provider operations; source-aligned daily/weekly/monthly and conservative lifecycle heuristics | No cross-unit merges, no missing-to-zero fill, no unsupported provider normalization or annual/causal claims; independent M13 draft, M14 untouched |
 | M14 | ☐ NOT STARTED | — | — |
 
 **How to update:** Replace a milestone's `[ ]` with `[x]` only after all gates and actual bounded live verification pass. Change progress-ledger state to `COMPLETE`, with commit/PR, test evidence and next task. For failures use `BLOCKED` or for M05 `SKIPPED` (reason), not `COMPLETE`. Do not check future steps speculatively.
