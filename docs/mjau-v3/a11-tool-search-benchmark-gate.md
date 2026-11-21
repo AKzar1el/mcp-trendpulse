@@ -1,6 +1,6 @@
-# MJAU v3 A11 — Tool-discovery efficiency: BENCHMARK-BLOCKED
+# MJAU v3 A11 — Tool-discovery efficiency: REJECTED/DISCARDED
 
-**Decision on 2026-11-21:** BLOCKED, **no transform added** and no new proxy MCP tool exposed.
+**Final decision on 2026-11-21: REJECTED/DISCARDED for the existing 12-tool catalog.** No transform added and no new proxy MCP tool exposed. The original preregistration below remains useful historical context; the scored findings at the end supersede its initial blocked status.
 
 ## What v1 already provides
 
@@ -18,10 +18,18 @@ Use the existing optional MCP process on its own ephemeral local test-only conne
 4. On each case independently score first-tool correctness, success of actual read-only invocation, wrong-tool rate, refusal/no-tool correctness, per-task p50/p95 latency, context tokens sent, peak RAM, CPU, result provenance and API calls. Repeat runs with interleaved arm order where feasible. A correct search suggestion alone is not a successful invocation.
 5. **ACCEPT only** if the blinded scored data demonstrate a meaningful net gain without material latency, reliability, security or permission regression. If inferior or no useful uplift, **DISCARD** the transform. Missing real-agent trial, unavailable FastMCP version or failed source access is **BLOCKED**, not a pass.
 
-## Current evidence and decision
+## Original preregistration checkpoint (superseded)
 
 **No actual real-MCP discovery baseline or arm comparison has been executed.** The dedicated TrendPulse Codexify tunnel still responds `Tunnel-client has not been seen for 300 seconds`; this sandbox does not have the full local TrendPulse FastMCP runtime installed. No test counts, percent uplift, token or latency savings are claimed for A11. No package, source or production settings have changed.
 
 The official [MCP conformance framework](https://github.com/modelcontextprotocol/conformance) requires a running reachable HTTP MCP endpoint for its server suite; this is separately **B08 BLOCKED**. A successful stdio unit or synthetic ranking simulation cannot stand in for that official protocol test.
 
 **Rollback:** no A11 implementation exists to revert. This documentation records the gate; adding it never constitutes authorization to implement, deploy or merge a transform. Review only after the current branch's own CI completes and full user approval to integrate an ACCEPTed feature.
+
+## 2026-11-21 scored A11 outcome — REJECTED/DISCARDED
+
+The source-backed Windows God v5 integration has since executed the actual optional 12-tool FastMCP 3.4.11 in-memory catalog and the opt-in `BM25SearchTransform`. Frozen test-task definitions were committed **before the full 28-query benchmark** at `b3d5932384ba8507bb45cd62087a80a6972171a7` on the independent A11 research branch. In **three repeat runs** the first-tool score was only **16/24 (66.7%)**, the expected tool appeared in the top five for **23/24**, and safe abstentions were **0/4** on unrelated requests. All eight wrong first-choice task IDs repeated identically across runs. The proxy correctly rejected an unknown tool and an invalid provider; no access-control bypass was observed. Search p95 was 20.1–38.2 ms; estimated two-search schema-plus-results savings were only **913 UTF-8 JSON bytes** relative to directly advertising the existing 12 tools, with an extra search step and proxy invocation.
+
+The frozen protective gates (first-tool accuracy at least 22/24, unrelated-request abstention at least 3/4) **failed**. This is a lexical search experiment with authored prompts, **not** a randomized real LLM-agent study or measured end-user productivity improvement. There is nevertheless enough negative evidence to **discard** the proposed transform for this small optional catalog; do not integrate, merge or release A11 or modify the default community MCP.
+
+[Exact A11 benchmark script, frozen prompts and measured decision](https://github.com/AKzar1el/mcp-trendpulse/blob/feat/mjau-v3-evidence-a11-20261121/docs/mjau-v3/a11-bm25-results.md). The dedicated A11 branch is research evidence only, with **no release PR**, no shared-file edits and no production changes. Retest only if the catalog grows materially and independent model-agent comparisons justify a new decision.
