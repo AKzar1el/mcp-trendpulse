@@ -921,6 +921,39 @@ def intelligence_signal_schema(output_format):
     click.echo("Use --format json to inspect the versioned Pydantic JSON Schema.")
 
 
+
+@intelligence.command("phrase-hypotheses")
+@click.option("--input", "input_file", type=click.Path(
+    exists=True, dir_okay=False, path_type=Path), required=True,
+    help="Offline JSON with up to 80 typed source signals, public titles or notes.")
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]),
+              default="text", show_default=True)
+def intelligence_phrase_hypotheses(input_file, output_format):
+    """M12: multilingual source-preserving phrase and intent heuristics, offline."""
+    from mcp_trendpulse.intelligence_phrases import (
+        MAX_INPUT_BYTES, extract_phrase_hypotheses, format_phrase_hypotheses,
+    )
+
+    try:
+        with input_file.open("rb") as file:
+            data = file.read(MAX_INPUT_BYTES + 1)
+        if len(data) > MAX_INPUT_BYTES:
+            raise ValueError("Input exceeds the bounded local JSON size")
+        payload = json.loads(data.decode("utf-8"))
+        report = extract_phrase_hypotheses(payload)
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError,
+            json.JSONDecodeError):
+        # Never reproduce untrusted evidence titles, tokens or file bytes.
+        raise click.ClickException(
+            "Invalid, unsafe, or oversized offline M12 evidence JSON"
+        ) from None
+
+    if output_format == "json":
+        click.echo(json.dumps(report, ensure_ascii=False, allow_nan=False, sort_keys=True))
+    else:
+        click.echo(format_phrase_hypotheses(report))
+
+
 @intelligence.command("cluster-keywords")
 @click.option("--input", "input_file", type=click.Path(
     exists=True, dir_okay=False, path_type=Path), required=True,
