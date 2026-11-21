@@ -20,6 +20,11 @@ from mcp_trendpulse.mjau_v3.wikidata import candidates_for_name, parse_qid_looku
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mjau_v3" / "wikidata_q89_q312_20261121.json"
 EXPECTED_SHA256 = "7e2c2bf65104d1029330d0a752be5a54aa69085b10b13332eeef132d4202ac10"
+MERCURY_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "mjau_v3"
+    / "wikidata_mercury_planet_god_six_languages_20261121.json"
+)
+MERCURY_SHA256 = "749f037eb5dd47678341f57164b9ac59c9afc43eed073fd35375dd61439b0aad"
 QIDS = ["Q89", "Q312"]
 LANGUAGES = ["en", "de", "fr", "es", "sl", "it"]
 
@@ -27,6 +32,13 @@ LANGUAGES = ["en", "de", "fr", "es", "sl", "it"]
 def original_payload():
     raw = FIXTURE.read_bytes()
     assert hashlib.sha256(raw).hexdigest() == EXPECTED_SHA256
+    assert len(raw) <= 192_000
+    return json.loads(raw)
+
+
+def mercury_payload():
+    raw = MERCURY_FIXTURE.read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == MERCURY_SHA256
     assert len(raw) <= 192_000
     return json.loads(raw)
 
@@ -75,3 +87,37 @@ def test_original_source_can_be_replayed_with_network_unavailable(monkeypatch):
 def test_v1_does_not_already_offer_this_exact_source_lookup():
     with pytest.raises(IntelligenceError, match="Unknown source ID"):
         plan_source("wikidata_action_api")
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_real_mercury_planet_vs_roman_god_ambiguity_in_six_languages(language):
+    # Q308 is the planet, Q1150 the Roman god. Real official source labels
+    # and aliases share a name in every tested language.
+    parsed = parse_qid_lookup(mercury_payload(), ["Q308", "Q1150"], LANGUAGES)
+    first = parsed["results"][0]["names"][language]
+    second = parsed["results"][1]["names"][language]
+    left = {text.casefold() for text in [first["label"], *first["aliases"]] if text}
+    right = {text.casefold() for text in [second["label"], *second["aliases"]] if text}
+    common = sorted(left & right)
+    assert common, f"No source-backed ambiguous name for {language}"
+    result = candidates_for_name(parsed, common[0], language)
+    assert result["status"] == "ambiguous"
+    assert result["candidate_qids"] == ["Q1150", "Q308"]
+    assert result["identity_confirmed"] is False
+
+
+def test_real_mercury_source_refuses_identity_switch():
+    source = copy.deepcopy(mercury_payload())
+    source["entities"]["Q1150"]["id"] = "Q308"
+    with pytest.raises(ValueError, match="Mismatched Wikidata identity"):
+        parse_qid_lookup(source, ["Q308", "Q1150"], LANGUAGES)
+
+
+def test_real_six_language_source_replay_needs_no_network(monkeypatch):
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("Real source regression must be offline")
+
+    monkeypatch.setattr("socket.socket", forbidden)
+    parsed = parse_qid_lookup(mercury_payload(), ["Q308", "Q1150"], LANGUAGES)
+    assert parsed["source_coverage_complete"] is True
+    assert len(parsed["results"]) == 2
