@@ -62,3 +62,20 @@ OpenSSF's official Scorecard MCP documentation confirms that the published REST 
 Official sources: https://github.com/ossf/scorecard/blob/main/docs/mcp.md ; https://github.com/ossf/scorecard/blob/main/README.md ; https://api.scorecard.dev/projects/github.com/pallets/flask ; https://api.scorecard.dev/projects/github.com/psf/requests.
 
 **Decision:** B01's date-only correctness gate is now verified; keep it as a **provisionally useful isolated adapter**, not merged. The integrated MCP, broader performance distribution and single-owner review remain open.
+
+## First-party OpenSSF MCP overlap decision — 2026-11-21
+
+**Authoritative comparison:** The official experimental `ossf/scorecard` MCP exposes **five read-only tools** (`get_repo_score`, `get_check_result`, `compare_repos`, `list_checks`, `explain_check`) and **two check-catalog resources**. It reads pre-computed results from **the same public Scorecard REST provider**; unlike our lightweight adapter, it includes full check reasons/details, documented missing-check names, repository comparisons and offline methodology references. It does not yet implement on-demand scans inside its MCP.
+
+**B01 overlaps only the narrow `get_repo_score` observation.** Its unique *local deployment benefit* is a single budgeted, plan-first source inside the existing v1 `BudgetCache` and optional intelligence runner, with no separate binary/service/process, no untrusted free-form reasons stored, explicit cache/cooldown and no extra public tool registry. It does **not** claim to be a better or fuller Scorecard MCP.
+
+**Decision:** Keep **B01 only as the limited embedded Scorecard evidence source** useful to TrendPulse's combined research pipeline; **do not build** duplicate `get_check_result`, `compare_repos`, `list_checks`, `explain_check` methods. Users requiring full Scorecard-specific analysis should use the official first-party MCP separately when their environment supports it. If a future integration already makes those richer official results directly accessible with lower overhead, re-evaluate and **discard** B01 duplication rather than expose two equivalent public tools.
+
+**Windows feasibility:** Official GitHub release `v5.7.0` (published 2026-11-19) has a `scorecard_5.7.0_windows_amd64.tar.gz` asset of **29,007,450 bytes** and published SHA-256 checksum. The official README cautions Windows support may experience issues. A checksum-manifest download succeeded, but the bounded large-asset transfer was stopped incomplete (~26.99 MB of 29 MB) and a second transfer attempt failed because `curl.exe` was absent. Both temporary folders were removed. **No official Go executable was run or installed; no valid first-party Windows startup/RAM benchmark is claimed.** Running it is not a prerequisite for accepting a narrow embedded REST read; it *is* a prerequisite before claiming first-party binary superiority on this Windows machine.
+
+Official docs:
+- https://github.com/ossf/scorecard/blob/main/docs/mcp.md
+- https://github.com/ossf/scorecard/blob/main/README.md
+- https://github.com/ossf/scorecard/releases/tag/v5.7.0
+
+**Source-quality protections:** B01 already preserves scan-date precision, check scores, `unreported_checks_are_unknown=true`, and `full_check_coverage_verified=false`. First-party check catalogs may change with version; do not invent complete/missing-check lists from a stale hardcoded catalog. Both offerings are **security heuristics, never a security certification**. Source REST data is CDLA Permissive 2.0.
