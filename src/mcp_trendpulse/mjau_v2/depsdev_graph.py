@@ -6,6 +6,8 @@ No shared CLI/MCP registration, scheduled jobs, paid keys, or implicit network.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import hashlib
 import json
 import re
@@ -234,7 +236,7 @@ def inspect_package_dependencies(
     try:
         if cache is None:
             from mcp_trendpulse.intelligence_core import BudgetCache
-            cache = BudgetCache()
+            cache = BudgetCache(root=Path.home() / ".mcp-trendpulse" / "mjau-v2-intelligence")
         key = _key(system, package, version)
         saved = cache.cached(key)
         if (isinstance(saved, dict)
