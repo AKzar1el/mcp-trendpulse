@@ -59,3 +59,22 @@ No automatic schedulers, global MCP tools, live trading, paid services or code c
 - **Test note:** Real pytest 65/65 and Ruff clean with updated isolated cache-default source; no new root identity mismatch failures.
 - **Existing v1 compatibility baseline** (unchanged checkout `b88b0a974b5dcdb480e4fd8c4da5f7bbca68e98e`): 11 selected MJAU/evidence test modules produced **258 passed and 1 timing-sensitive failure** in `tests/test_intelligence_singleflight.py::test_different_queries_still_fetch_in_parallel` under concurrent machine load. That exact unchanged failing assertion **passed** on an isolated rerun. The result is NOT a single fully green broad regression and NOT the full repository suite. The 15 async tests failed on an earlier runner with `pytest-asyncio` disabled; all passed after the installed plugin was explicitly loaded. No source code regression was attributed to the new v2 adapters, because they have **not** been wired into v1.
 - **Still required for inclusion:** a single integration-owner review on current v1 contracts, correct free-source license/attribution, independent decision usefulness and false-positive comparison, no material CPU/RAM/latency regression, and a successful combined regression on the *final merged commit*. **Strict prove-or-discard still applies.**
+
+## Canonical package/version identity — 2026-11-21
+
+**Fixed and verified in isolated A03 source commits `637c168e780a1c85817aa21fa16fe4e8b9b59bb9` and `8c81d541070625e2f20cf731c85b608c06c461bf`; tests `3a0023db1c99fef21293baf833ce9fe886de36ae`.**
+
+Official deps.dev v3 `GetDependencies` documentation explicitly states the provider can return a normalized package **or version** identity that differs from the request. The original A03 rejected all version changes, even when they are canonical equivalent forms.
+
+- Scoped correction: request PyPI `Colorama@0.04.6` returned source root `PYPI:colorama@0.4.6`, a legitimate PEP 503 name alias plus PEP 440 numeric release normalization. The adapter now accepts only exact versions, or **simple numeric PyPI releases with equal component integers, allowing PEP 440 zero-padding**. No new dependency or generic SemVer parser. All npm/Cargo/Maven version changes, PyPI prerelease/postrelease/local ambiguity or unrelated names remain untrusted.
+- Accepted canonical roots explicitly retain the *requested* identity separately from the *provider-returned* canonical root and set `provider_root_canonicalized=true`. They never silently rewrite source provenance. A structurally valid graph with an unproven version alias returns **`status=identity_unverified`**, `summary=null`, `not_evidence_for_requested_version=true`; it cannot be cached as a complete dependency observation.
+- All edges and node identities are validated **before** reporting identity-unverified, so an invalid graph cannot masquerade as a well-formed version alias. A root with unrelated ecosystem/package remains invalid source shape.
+- **77/77 authentic pytest cases passed**, Ruff clean. Native Windows adapter against **actual deps.dev GET** for `Colorama@0.04.6`: `status=observed`, returned root `colorama@0.4.6`, one network request (**4.600 seconds**), valid v1 SQLite cache replay with **zero additional network**. Peak tracemalloc Python allocations ~**3.689 MiB** (not full process RSS). The independent temporary SQLite directory was removed successfully.
+
+Source provenance:
+- https://docs.deps.dev/api/v3/ (`GetDependencies`, canonicalized provider version keys)
+- https://packaging.python.org/en/latest/specifications/name-normalization/
+- https://packaging.python.org/en/latest/specifications/version-specifiers/
+- https://api.deps.dev/v3/systems/pypi/packages/Colorama/versions/0.04.6:dependencies
+
+**Gate status:** The concrete root canonicalization defect is **RESOLVED** for demonstrated, tightly constrained PyPI numeric aliases. Non-provable identities are deliberately **INCONCLUSIVE**. Other A03 constraints remain: generic-Linux scope, limited graph size, source attribution, independent decision utility and final merged MCP regression. This fixes one technical blocker, not global acceptance.
