@@ -44,3 +44,13 @@ An independent public web read (2026-11-21) of `https://registry.modelcontextpro
 **Decision: BLOCKED FOR ACCEPTANCE**, not ACCEPT and not DISCARD. Continue only with one real read from the new adapter (an exact three-result or smaller query), a zero-network cached replay, original current-source/terms verification, and five predeclared question-and-answer comparisons against v1, including no-signal and misleading-competitor cases. An adapter that is reliable but cannot improve actual research decisions must be discarded. Do not force network testing through a disconnected tunnel, bypass quotas, or start CI workflows solely to compensate.
 
 **No claims of A01 completion, ready-to-merge integration, significant performance improvement, or full MJAU v2 production readiness.**
+
+## Bounded real-source acceptance on Windows (2026-11-21)
+
+**Supersedes the earlier adapter-network blocker above.** Using the already-connected shared Codexify God v5 bridge, the exact pinned A01 source at commit `47e4d24444365d4ef44ea4fe77b0394efbe4a1d9` was loaded in memory against the unchanged v1 checkout. The adapter was executed with `query=filesystem`, `limit=3`, `execute=True` and a new isolated temporary `BudgetCache`.
+
+- First execution: `status=observed_partial`, `network_performed=true`, `requests_attempted=1`; sampled named registry entry `com.pulsemcp/remote-filesystem`. The official Registry endpoint separately returned HTTP 200; the result is a partial catalog sample, **not semantic competitor equivalence or commercial adoption**.
+- Identical second execution: `cache_hit=true`, `network_performed=false`, `requests_attempted=0`. This is a genuine validated-cache replay, not a mock response.
+- Windows test-harness cleanup initially failed with a transient SQLite-file lock (`WinError 32`) **after the source and replay assertions had printed**. After Python exited, the explicitly scoped temporary cache directory was successfully removed. This means the one-shot wrapper exited nonzero; it is not an all-green end-to-end or full-suite claim. Shared v1 sources, production and worker services were not modified.
+
+**Current decision:** source transport and replay **OBSERVED**; full A01 **NOT ACCEPTED** pending predeclared real decision-quality comparisons, license/reuse review, performance, Ruff and repository-wide regression gates. Continue to keep this proof isolated; do not merge or release merely because the API returned data.
