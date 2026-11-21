@@ -1,0 +1,45 @@
+# MJAU v2 B02 — End-of-life / support-cycle evidence proof
+
+**State:** TECHNICAL AND SOURCE USEFULNESS PROOF OBSERVED; **NOT ACCEPTED INTO PUBLIC MCP, NOT MERGED OR RELEASED**.  
+**Branch:** `feat/mjau-v2-discovery-b02-eol-20261121`, from v1 MJAU draft base `b88b0a974b5dcdb480e4fd8c4da5f7bbca68e98e`. No v1 or v3 edits.  
+**Scope:** `src/mcp_trendpulse/mjau_v2/endoflife_release.py`, B02 tests, package marker and this report. No shared CLI/MCP, lockfile, dependency, worker, automation or production change.
+
+## Why this is a distinct useful observation
+
+MJAU v1 and v2 A02/A03 cover attention, downloads, developer issues and dependencies—not product **support-phase and end-of-life dates**. The key new question is: *For a specific named software release cycle, what end-of-active-support versus end-of-life dates are actually published?* End-of-support changes may motivate migration investigation, **not verified demand, revenue or permission for automated migration**.
+
+Free public API: https://endoflife.date/docs/api/v1/ ; open source with MIT license and a versioned public v1 contract. Product evidence is community-curated; verify original vendor docs for consequential upgrades or compliance.
+
+**Actual native-source checks on 2026-11-21** — exact one release per GET, official v1 JSON, original v1 SQLite BudgetCache with **isolated temporary directory**, one request per item then zero-network validated cache replay:
+
+| Source release | EOL flag | End active support flag | Maintained flag | Recorded EOL date | Calendar days to published EOL (at 2026-11-21 UTC) |
+| --- | --- | --- | --- | --- | --- |
+| `nodejs` release `22` | false | true | true | 2027-04-30 | 160 |
+| `python` release `3.12` | false | true | true | 2028-10-31 | 710 |
+
+Source version \`1.2.1\`, generated \`2026-11-21T00:08:00+00:00\`; source links <https://endoflife.date/api/v1/products/nodejs/releases/22> and <https://endoflife.date/api/v1/products/python/releases/3.12>.
+
+**Important:** \`isEoas=true\` and \`isEol=false\` with \`isMaintained=true\` are *not* contradictory. Active support ending is not identical to total end-of-life; maintenance may continue under extended/security support. The adapter preserves these separate provider facts rather than creating a single unsupported label or an inferred urgency score.
+
+## Engineering and proof record
+
+- **Plan-only by default:** no network/cache. Fixed HTTPS \`endoflife.date/api/v1/products/<product>/releases/<release>\`; exact validated product slug and release identifier; no redirects (renames become explicit \`rename_redirect_not_followed\`), proxy, retries or credentials.
+- Separate v2 default cache at \`~/.mcp-trendpulse/mjau-v2-intelligence\`, opt-in \`execute=True\`, four daily provider GET reservations, 24h sanitized cache, 64KiB response cap and 429/503 cooldown.
+- Validates v1 JSON envelope, schema version, timezone-aware data-generation timestamp, exact release name, explicit independent EOL/EOAS/EoES/LTS/maintained booleans and date-only fields. Unknown date remains null, not day zero. Stale source over 30 days is visibly \`observed_stale\` and not cached as fresh.
+- HTTP 404 is \`not_found\`, not evidence that an unknown software is unsupported. Other errors, including 429, never become a false EOL observation.
+- No raw provider custom fields, secrets or marketing text stored as evidence.
+
+| Gate | Outcome |
+| --- | --- |
+| Offline committed test bodies | **54/54** executed with Windows Python 3.13 \`-S\` and minimal stdlib pytest-compatible test runner; **not** a full authentic pytest invocation |
+| Native real API and cache | **2/2** release cycles returned observed, source-attributed results, one original-source GET then a zero-network SQLite replay each |
+| Temporary cleanup | Python exit 0 and separate SQLite temp cache removed successfully |
+| New useful evidence class | Published status, phase and dates, distinct from versioned downloads and dependencies |
+| Negative cases | Missing dates, contradictory types, unknown releases, invalid calendar dates, future timestamps, stale source, redirect, 404, 429, 503, cache poisoning and secret-safe failures tested |
+| Full repository regression/Ruff | **Not run** (Windows pytest import stall and Ruff not available on PATH); required before release |
+| Licence and data-reuse | Free public endpoint and MIT open-source dataset, but confirm specific publisher data attribution/terms and vendor cross-check requirements before commercial integration |
+| Current decision | **PROOF-OF-VALUE PASS / FINAL ACCEPTANCE PENDING** — independent review and full compatibility/lint still required |
+
+## Stop/discard rule
+
+Do not add B02 as a global tool merely because it returns dates. Benchmark whether release-cycle questions become more accurate and actionable than v1 while avoiding misleading migration urgency. Verify one case with primary vendor documentation, run full tests, check large-product response limits and correct interpretation of support phases. A feature that cannot pass those gates is **DISCARDED**, not retained as an unused endpoint.
