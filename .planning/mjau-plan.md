@@ -929,6 +929,21 @@ separately on the exact pushed M11 code commit.
   Broader local tests and GitHub exact-commit CI will be recorded
   separately after completed execution. Full methodology in
   `docs/cross-source-research-report.md`.
+- **Post-integration compact-report efficiency check:** bounded preview
+  excerpts to 24 source/term groups per evidence section, 24
+  source-attested query candidates and 24 generated hypothesis
+  questions, preserving complete source group counts and explicit
+  truncation flags. No original provider source rows or source budget
+  were deleted/modified. On real 42-record cached public evidence,
+  the revised report produced 78,701 bytes in 55.1 ms untraced.
+  On strict offline synthetic 120 distinct source records, JSON was
+  reduced from 287,339 to 108,348 bytes (about 62% smaller),
+  completing in 609 ms untraced on the checked Windows Python 3.13.
+  These are bounded local smoke timings, not an SLA. Added regressions
+  for total counts, truncation and candidate/hypothesis caps; 60 M14
+  focused tests and repository Ruff passed. Pre-optimization integrated
+  code head b2a401a also passed 22/22 independent GitHub checks;
+  exact post-optimization CI must be verified separately.
 - **M04 operator decision:** user considers implementation CLOSED;
   external Google Trends rate-limits/429 are genuine availability
   and must be reported honestly, never bypassed/retried by M14.

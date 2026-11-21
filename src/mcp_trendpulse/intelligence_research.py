@@ -28,6 +28,7 @@ from mcp_trendpulse.intelligence_signal import (
 MAX_INPUT_BYTES = 128 * 1024
 MAX_INPUT_SIGNALS = 120
 MAX_REPORT_ITEMS = 120
+MAX_SECTION_PREVIEW = 24  # Compact MCP output; full source counts remain visible.
 MAX_KEYWORD_FAMILIES = 80
 MAX_GAPS = 24
 MAX_SAMPLES_PER_GROUP = 12
@@ -193,8 +194,8 @@ def _source_item(s: TrendSignal) -> dict[str, Any]:
 def _sample_group(
     items: list[dict[str, Any]],
     *, kind: str,
-) -> list[dict[str, Any]]:
-    """Bounded direct primary-source references; never sum source counts."""
+) -> tuple[list[dict[str, Any]], int]:
+    """Bounded source previews with exact total group counts; no metric sums."""
     groups: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
     for item in items:
         key = (
@@ -233,7 +234,7 @@ def _sample_group(
                 obj["coverage_status"] != "observed" for obj in members
             ),
         })
-    return result[:MAX_REPORT_ITEMS]
+    return result[:MAX_SECTION_PREVIEW], len(result)
 
 
 def _keyword_families(
@@ -541,6 +542,27 @@ def synthesize_public_research(payload: Any) -> dict[str, Any]:
     families, families_truncated = _keyword_families(
         records, ref_by_identity,
     )
+    interest_groups, interest_total = _sample_group(
+        interest, kind="search_interest",
+    )
+    attention_groups, attention_total = _sample_group(
+        attention, kind="public_attention",
+    )
+    developer_groups, developer_total = _sample_group(
+        developers, kind="developer_discussion_unverified_problem",
+    )
+    package_groups, package_total = _sample_group(
+        packages, kind="package_download_events_not_unique_users",
+    )
+    group_totals = {
+        "country_language_interest": interest_total,
+        "independent_attention": attention_total,
+        "developer_problem_evidence": developer_total,
+        "package_adoption_evidence": package_total,
+    }
+    attested_preview = sorted(
+        attested, key=lambda item: item["evidence_id"],
+    )[:MAX_SECTION_PREVIEW]
 
     # A generated term does not become a product recommendation until
     # independently validated. It only supplies an explicit question.
@@ -562,7 +584,7 @@ def synthesize_public_research(payload: Any) -> dict[str, Any]:
             "buyer_intent_verified": False,
             "product_recommendation": False,
         }
-        for row in generated[:MAX_REPORT_ITEMS]
+        for row in generated[:MAX_SECTION_PREVIEW]
     ]
     gaps = []
     if not attested:
@@ -678,27 +700,32 @@ def synthesize_public_research(payload: Any) -> dict[str, Any]:
         "market_demand_score": None,
         "search_volume_estimate": None,
         "rising_queries": rising,
-        "observed_query_candidates": sorted(
-            attested, key=lambda r: r["evidence_id"],
-        ),
+        "observed_query_candidates": attested_preview,
+        "observed_query_candidates_total": len(attested),
+        "observed_query_candidates_truncated": len(attested) > len(attested_preview),
         "keyword_families": families,
         "keyword_families_truncated": families_truncated,
-        "country_language_interest": _sample_group(interest, kind="search_interest"),
-        "independent_attention": _sample_group(attention, kind="public_attention"),
-        "developer_problem_evidence": _sample_group(
-            developers, kind="developer_discussion_unverified_problem",
-        ),
-        "package_adoption_evidence": _sample_group(
-            packages, kind="package_download_events_not_unique_users",
-        ),
+        "country_language_interest": interest_groups,
+        "independent_attention": attention_groups,
+        "developer_problem_evidence": developer_groups,
+        "package_adoption_evidence": package_groups,
+        "source_group_totals": group_totals,
+        "source_group_previews_truncated": {
+            name: total > MAX_SECTION_PREVIEW
+            for name, total in group_totals.items()
+        },
         "product_hypotheses": hypotheses,
+        "product_hypotheses_total": len(generated),
+        "product_hypotheses_truncated": len(generated) > len(hypotheses),
         "data_gaps": gaps[:MAX_GAPS],
         "data_gaps_truncated": len(gaps) > MAX_GAPS,
         "next_validation_action": _validation_action(
             rising=rising, query_terms=attested,
             developers=developers, package=packages,
         ),
-        "source_diversity_exact_term_only": overlaps[:MAX_REPORT_ITEMS],
+        "source_diversity_exact_term_only": overlaps[:MAX_SECTION_PREVIEW],
+        "source_diversity_total": len(overlaps),
+        "source_diversity_truncated": len(overlaps) > MAX_SECTION_PREVIEW,
         "metric_definitions": {
             name: {"unit": unit, "evidence_class": level}
             for name, (unit, level) in METRIC_DEFINITIONS.items()
@@ -733,7 +760,8 @@ def format_public_research(report: dict[str, Any]) -> str:
         f"(from {report['input_signal_records']} input records)",
         "No network. No summed demand score, forecasts or site property.",
         f"Verified within-source rising query windows: {len(report['rising_queries'])}",
-        f"Attested search-query candidate records: {len(report['observed_query_candidates'])}",
+        f"Attested search-query candidate records: {report['observed_query_candidates_total']}"
+        f" ({len(report['observed_query_candidates'])} previewed)",
         f"Lexical keyword families: {len(report['keyword_families'])}",
     ]
     for key, title in (
@@ -743,7 +771,10 @@ def format_public_research(report: dict[str, Any]) -> str:
         ("package_adoption_evidence", "Package download events, NOT unique users"),
     ):
         groups = report[key]
-        lines.append(f"{title}: {len(groups)} source/term groups")
+        lines.append(
+            f"{title}: {report['source_group_totals'][key]} source/term groups "
+            f"({len(groups)} previewed)"
+        )
         for item in groups[:8]:
             lines.append(
                 f"- {item['term']} | {item['source_id']}:"
@@ -751,10 +782,13 @@ def format_public_research(report: dict[str, Any]) -> str:
                 f"{item['source_records_in_supplied_sample']} sampled source rows "
                 f"| {item['source_url']}"
             )
-        if len(groups) > 8:
-            lines.append("  ...additional groups are present in JSON")
+        if report["source_group_previews_truncated"][key]:
+            lines.append("  ...more source groups omitted from this compact preview")
+        elif len(groups) > 8:
+            lines.append("  ...more groups appear in JSON preview")
     lines.append(
-        f"Unmeasured product hypotheses: {len(report['product_hypotheses'])}"
+        f"Unmeasured product hypotheses: {report['product_hypotheses_total']}"
+        f" ({len(report['product_hypotheses'])} previewed)"
     )
     lines.append(f"Data gaps: {len(report['data_gaps'])}")
     for gap in report["data_gaps"][:6]:

@@ -86,7 +86,26 @@ and is processed in memory with **no provider or local database calls**.
   source URL/record ID, UTC observed time, source status and unit.
   At most twelve individual references per grouped source summary are
   printed; a truncation flag and total *input source record count*
-  remain visible.
+  remain visible. For large inputs, at most **24 source/term group
+  previews per evidence section** are emitted, while
+  source_group_totals and source_group_previews_truncated record the
+  actual number of qualified groups before truncation. Source-attested
+  query candidate previews and generated product-hypothesis previews
+  are also capped at 24, with exact totals and explicit flags.
+  This keeps the default MCP output concise without presenting the
+  excerpt as complete coverage. To inspect omitted original source
+  records, rerun the same offline CLI with a narrower input file.
+
+**Compact output profiling (Windows Python 3.13, 2026-11-21):**
+the previously source-backed 42-record sample generated JSON of 78,701
+bytes in 55.1 ms (no tracing). A strictly offline synthetic input with
+120 distinct typed source observations generated 108,348 bytes in 609 ms
+(no tracing). Before the bounded previews, the same 120-record test
+produced 287,339 bytes; the new output is approximately 62% smaller,
+with exact source-group totals and per-section truncation flags retained.
+These are one-machine smoke measurements, not service-level guarantees,
+and no source network request was made. The prior CPU time recorded
+under allocation tracing is not comparable with untraced timings.
 - Null country means source market unspecified, **not worldwide**.
   A source's `partial`, `unavailable` or `no_data` status is never
   silently converted to measured zero. Partial values, if the original

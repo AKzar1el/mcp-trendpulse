@@ -566,6 +566,11 @@ def test_output_limit_on_keyword_families_does_not_drop_source_inventory():
     assert report["keyword_families_truncated"] is True
     assert report["deduplicated_source_records"] == 120
     assert report["source_inventory"][0]["source_observations_in_input"] == 120
+    assert report["source_group_totals"]["independent_attention"] == 120
+    assert report["source_group_previews_truncated"]["independent_attention"] is True
+    assert len(report["independent_attention"]) == 24
+    assert all(group["source_metric_values_summed"] is False
+               for group in report["independent_attention"])
 
 
 def test_provenance_source_record_id_and_period_preserved():
@@ -690,3 +695,38 @@ def test_text_formatter_does_not_invent_source_metrics():
     assert "1234 searches" not in text
     assert "product" in text.lower()
     assert "No network" in text
+
+def test_many_attested_queries_have_total_counts_and_safe_preview_cap():
+    rows = [
+        record(
+            metric="bing_keyword_impressions", term=f"source query {i:03d}",
+            country="US", language="en", query=True, record_id=f"q:{i}",
+        )
+        for i in range(30)
+    ]
+    report = synthesize_public_research(rows)
+    assert report["observed_query_candidates_total"] == 30
+    assert len(report["observed_query_candidates"]) == 24
+    assert report["observed_query_candidates_truncated"] is True
+    assert report["source_group_totals"]["country_language_interest"] == 30
+    assert len(report["country_language_interest"]) == 24
+    assert report["source_group_previews_truncated"]["country_language_interest"]
+    assert report["rising_queries"] == []
+    assert report["search_volume_estimate"] is None
+
+
+def test_generated_hypothesis_preview_is_bounded_but_count_exact():
+    rows = [
+        record(
+            metric="generated_keyword_candidate",
+            term=f"unvalidated hypothesis {i:03d}", record_id=f"h:{i}",
+        )
+        for i in range(25)
+    ]
+    report = synthesize_public_research(rows)
+    assert report["product_hypotheses_total"] == 25
+    assert len(report["product_hypotheses"]) == 24
+    assert report["product_hypotheses_truncated"] is True
+    assert all(not row["buyer_intent_verified"] for row in report["product_hypotheses"])
+    assert report["observed_query_candidates_total"] == 0
+    assert report["market_demand_score"] is None
