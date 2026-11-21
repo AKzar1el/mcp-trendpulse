@@ -241,7 +241,8 @@ def test_oversized_source_response_is_invalid_not_empty():
 
 
 def test_local_budget_exhaustion_no_network_and_no_leak():
-    class DailyBudgetExceeded(Exception): pass
+    class DailyBudgetExceeded(Exception):
+        pass
     cache = Store()
     cache.fail = DailyBudgetExceeded("SECRET")
     out, _, called = run(store=cache)
