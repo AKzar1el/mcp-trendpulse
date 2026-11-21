@@ -65,3 +65,15 @@ The intermediate **Q308/Q925** (planet versus chemical element) query independen
 **New targeted regression suite:** `PYTHONPATH=src python -m pytest -q tests/test_mjau_v3_wikidata.py tests/test_mjau_v3_wikidata_snapshot.py`: **58/58 passed** on Python 3.13.5 Windows. Ruff and compileall clean. This proves source-backed candidate abstention in all six language scopes, not authoritative entity disambiguation for all possible names or locales.
 
 **Decision remains BLOCKED**, despite clearing real six-language ambiguity and v1 capability-coverage tests. The source scope comprises only two reviewed objects in each fold; an independently adjudicated broader user-workflow comparison, release rights/attribution review, and separate official MCP conformance remain unproven. No integration, merge or worker changes authorized.
+
+## 2026-11-21 original-source correctness repair — bounded long alias lists
+
+**A real source-shape bug was reproduced on the unmodified A04 parser:** one official `wbgetentities` lookup for `Q30` (United States) with English, German, French, Spanish, Slovenian and Italian returned **HTTP 200**, **3,662 bytes**, SHA-256 `5070e41d4ba1d944e8a55881fd084dc6f7f430d378d257ebfc99c03fd4c3ed46`. Official aliases per language were `en=20`, `de=15`, `fr=19`, `es=8`, `sl=4`, `it=3`. The original `MAX_ALIASES=8` implementation rejected the entire legitimate entity as `ValueError: Too many or malformed aliases`. No provider credential, paid service or batch crawl was involved.
+
+**Surgical change, isolated to A04:**
+
+- Parse at most **8 source aliases per language**, validate and deduplicate the projected aliases, and preserve `source_alias_count` plus `aliases_truncated`. Source size remains capped at **192 KB**, QIDs at **3**, languages at **6**; no extra API requests are triggered by the parser.
+- A matching name is still `candidate_requires_confirmation` and never automatically merged. An unmatched name in any language where an observed QID has truncated aliases now returns `unknown_incomplete_aliases` (not a false assertion of source absence); untruncated language searches retain `unknown_no_match`.
+- The original CC0 Action API response is retained unchanged as `tests/fixtures/mjau_v3/wikidata_q30_aliases_20261121.json` with a pinned raw SHA-256. Network-disabled replay tests demonstrate the repaired six-language parser, unknown semantics and the eight-alias output bound. All existing Q89/Q312 and Mercury six-language ambiguity protections remain tested.
+
+**Windows regression:** `PYTHONPATH=src python -m pytest -q tests/test_mjau_v3_wikidata.py tests/test_mjau_v3_wikidata_snapshot.py` yielded **59/59 tests passing**; Ruff and Python compilation checks passed. This is evidence of **improved source compatibility and safer abstention** over the earlier A04 pilot, **not** independently measured end-user value versus v1. It does not justify merging into production. Wider independent sampling, actual workflow comparisons and reviewed rights remain release prerequisites.

@@ -25,6 +25,8 @@ MERCURY_FIXTURE = (
     / "wikidata_mercury_planet_god_six_languages_20261121.json"
 )
 MERCURY_SHA256 = "749f037eb5dd47678341f57164b9ac59c9afc43eed073fd35375dd61439b0aad"
+Q30_FIXTURE = Path(__file__).parent / "fixtures" / "mjau_v3" / "wikidata_q30_aliases_20261121.json"
+Q30_SHA256 = "5070e41d4ba1d944e8a55881fd084dc6f7f430d378d257ebfc99c03fd4c3ed46"
 QIDS = ["Q89", "Q312"]
 LANGUAGES = ["en", "de", "fr", "es", "sl", "it"]
 
@@ -121,3 +123,39 @@ def test_real_six_language_source_replay_needs_no_network(monkeypatch):
     parsed = parse_qid_lookup(mercury_payload(), ["Q308", "Q1150"], LANGUAGES)
     assert parsed["source_coverage_complete"] is True
     assert len(parsed["results"]) == 2
+
+
+def test_real_q30_many_aliases_are_bounded_with_unknown_missing_matches(monkeypatch):
+    """Real official Q30 had 20 English, 15 German and 19 French aliases.
+
+    This was a 200 response rejected by the old MAX_ALIASES=8 parser.
+    Never infer absence from a partial alias projection.
+    """
+    raw = Q30_FIXTURE.read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == Q30_SHA256
+    assert len(raw) == 3662
+
+    def deny_network(*_args, **_kwargs):
+        raise AssertionError("Replaying the Q30 observation must not fetch")
+
+    monkeypatch.setattr("socket.socket", deny_network)
+    parsed = parse_qid_lookup(json.loads(raw), ["Q30"], LANGUAGES)
+    assert parsed["source_coverage_complete"] is True
+    names = parsed["results"][0]["names"]
+    assert {lang: names[lang]["source_alias_count"] for lang in LANGUAGES} == {
+        "en": 20, "de": 15, "fr": 19, "es": 8, "sl": 4, "it": 3,
+    }
+    assert {lang for lang in LANGUAGES if names[lang]["aliases_truncated"]} == {
+        "en", "de", "fr",
+    }
+    assert all(len(record["aliases"]) <= 8 for record in names.values())
+    assert candidates_for_name(parsed, "United States", "en")["status"] == (
+        "candidate_requires_confirmation"
+    )
+    unknown = candidates_for_name(parsed, "not a known source alias", "en")
+    assert unknown["status"] == "unknown_incomplete_aliases"
+    assert unknown["candidate_qids"] == []
+    assert unknown["identity_confirmed"] is False
+    assert candidates_for_name(parsed, "not a known source alias", "sl")["status"] == (
+        "unknown_no_match"
+    )

@@ -163,8 +163,19 @@ def test_alias_limit_and_duplicate_alias_dedup():
     assert candidates_for_name(parsed, "apple fruit", "en")["candidate_qids"] == ["Q89"]
     too_many = copy.deepcopy(data)
     too_many["entities"]["Q89"]["aliases"]["en"] *= 5
-    with pytest.raises(ValueError, match="Too many"):
-        parse(too_many)
+    projected = parse(too_many)
+    record = projected["results"][0]["names"]["en"]
+    assert record["source_alias_count"] == 10
+    assert record["aliases_truncated"] is True
+    assert record["aliases"] == ["apple fruit"]
+    missing = candidates_for_name(projected, "unlisted alias", "en")
+    assert missing["status"] == "unknown_incomplete_aliases"
+    assert missing["identity_confirmed"] is False
+    assert missing["searched_aliases_incomplete"] is True
+    # A bounded projected match still requires human confirmation.
+    assert candidates_for_name(projected, "apple fruit", "en")["status"] == (
+        "candidate_requires_confirmation"
+    )
 
 
 def test_no_text_similarity_does_not_infer_jurisdiction_or_market():

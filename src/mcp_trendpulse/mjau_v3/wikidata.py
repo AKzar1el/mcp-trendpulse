@@ -73,18 +73,21 @@ def _localized(record: Any, lang: str) -> str | None:
     return _clean_text(record.get("value"))
 
 
-def _aliases(entity: dict[str, Any], lang: str) -> list[str]:
+def _aliases(entity: dict[str, Any], lang: str) -> tuple[list[str], int]:
     rows = entity.get("aliases", {}).get(lang, [])
-    if not isinstance(rows, list) or len(rows) > MAX_ALIASES:
-        raise ValueError("Too many or malformed aliases")
+    if not isinstance(rows, list):
+        raise ValueError("Malformed aliases")
     seen = set()
     out = []
-    for record in rows:
+    # The official Action API can legitimately return more than eight aliases
+    # (e.g. Wikidata Q30), so cap the projection rather than reject the item.
+    # Unprojected aliases remain explicitly unknown to candidate matching.
+    for record in rows[:MAX_ALIASES]:
         value = _localized(record, lang)
         if value not in seen:
             out.append(value)
             seen.add(value)
-    return out
+    return out, len(rows)
 
 
 def parse_qid_lookup(
@@ -133,8 +136,12 @@ def parse_qid_lookup(
         for lang in langs:
             label = _localized(raw.get("labels", {}).get(lang), lang)
             description = _localized(raw.get("descriptions", {}).get(lang), lang)
-            aliases = _aliases(raw, lang)
-            names[lang] = {"label": label, "description": description, "aliases": aliases}
+            aliases, source_alias_count = _aliases(raw, lang)
+            names[lang] = {
+                "label": label, "description": description, "aliases": aliases,
+                "source_alias_count": source_alias_count,
+                "aliases_truncated": source_alias_count > MAX_ALIASES,
+            }
         results.append({
             "qid": qid, "status": "source_item_observed", "entity_url": f"https://www.wikidata.org/wiki/{qid}",
             "names": names, "source_id": "wikidata_action_api",
@@ -155,12 +162,14 @@ def candidates_for_name(parsed: dict[str, Any], name: str, language: str) -> dic
         raise ValueError("Unsupported source language")
     needle = _clean_text(name).casefold()
     options = []
+    incomplete_aliases = False
     for item in parsed.get("results", []):
         if item.get("status") != "source_item_observed":
             continue
         record = item["names"].get(language)
         if not record:
             continue
+        incomplete_aliases |= bool(record.get("aliases_truncated"))
         forms = [record["label"], *record["aliases"]]
         if any(isinstance(v, str) and v.casefold() == needle for v in forms):
             options.append(item["qid"])
@@ -168,9 +177,12 @@ def candidates_for_name(parsed: dict[str, Any], name: str, language: str) -> dic
     return {
         "query": name, "language": language, "candidate_qids": options,
         "status": "ambiguous" if len(options) > 1 else (
-            "candidate_requires_confirmation" if options else "unknown_no_match"
+            "candidate_requires_confirmation" if options else (
+                "unknown_incomplete_aliases" if incomplete_aliases else "unknown_no_match"
+            )
         ),
         "identity_confirmed": False,
+        "searched_aliases_incomplete": incomplete_aliases,
         "missing_source_items_are_unknown_not_negative": True,
     }
 
