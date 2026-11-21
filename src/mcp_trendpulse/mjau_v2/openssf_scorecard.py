@@ -70,7 +70,7 @@ def _parse(payload: Any, *, owner: str, repo: str,
         return invalid
     try:
         when = datetime.fromisoformat(payload["date"].replace("Z", "+00:00"))
-        if when.utcoffset() is None or when > observed_at.replace(microsecond=0):
+        if when.utcoffset() is None or when > observed_at:
             return invalid
         when = when.astimezone(timezone.utc)
     except (KeyError, ValueError, AttributeError, TypeError):
