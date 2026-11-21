@@ -163,6 +163,24 @@ def test_secret_and_private_links_are_not_redistributed():
     assert "dont_echo" not in str(result)
 
 
+def test_malformed_reference_port_is_dropped_without_losing_advisory():
+    original = advisory()
+    original["references"] = [
+        {"url": "https://example.org:notaport/report"},
+        {"url": "https://example.org:65536/report"},
+        {"url": "https://example.org:443/report"},
+        {"url": "https://example.org:444/report"},
+        {"url": "https://[invalid-ipv6/report"},
+    ]
+    result = query({"vulns": [original]})
+    assert result["status"] == "source_advisories_returned"
+    assert result["advisory_count_in_this_response"] == 1
+    record = result["records"][0]
+    assert record["advisory_id"] == ID
+    assert record["advisory_links"] == ["https://example.org:443/report"]
+    assert record["raw_advisory_redistribution_authorized"] is False
+
+
 def test_no_unbounded_records_or_payloads():
     with pytest.raises(ValueError, match="oversized"):
         query({"vulns": [advisory()] * 13})

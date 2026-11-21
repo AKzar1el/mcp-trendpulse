@@ -107,8 +107,14 @@ def _safe_ref(link: Any) -> str | None:
         url = urlsplit(link)
     except ValueError:
         return None
+    # urlsplit() accepts a malformed textual port; reading .port then raises
+    # ValueError. Reject that reference alone, not the whole source advisory.
+    try:
+        port = url.port
+    except ValueError:
+        return None
     if (url.scheme != "https" or not url.hostname or url.username or url.password
-            or url.fragment or url.port not in (None, 443)):
+            or url.fragment or port not in (None, 443)):
         return None
     host = url.hostname.lower()
     if "." not in host or host.endswith((".local", ".internal")) or host == "localhost":
