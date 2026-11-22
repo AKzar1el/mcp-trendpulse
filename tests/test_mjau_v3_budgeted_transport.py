@@ -51,6 +51,8 @@ def _fake(monkeypatch, raw: bytes, **kwargs):
     ("https://evil.invalid/v1/querybatch", "POST", {"queries": []}),
     ("https://api.osv.dev.evil.invalid/v1/querybatch", "POST", {"queries": []}),
     ("https://api.osv.dev:8080/v1/querybatch", "POST", {"queries": []}),
+    ("https://api.osv.dev:invalid/v1/querybatch", "POST", {"queries": []}),
+    ("https://[invalid/v1/querybatch", "POST", {"queries": []}),
     ("https://user:pass@api.osv.dev/v1/querybatch", "POST", {"queries": []}),
     ("https://api.osv.dev/v1/query", "POST", {"queries": []}),
     ("https://api.osv.dev/v1/querybatch#fragment", "POST", {"queries": []}),
@@ -128,11 +130,13 @@ def test_wikidata_arbitrary_action_must_be_denied_at_http_boundary(monkeypatch):
 
 @pytest.mark.parametrize("payload,mime,exc", [
     (b"<html>bad gateway</html>", "text/html", IntelligenceError),
+    (b'{"results":[{}]}', "application/jsonp", IntelligenceError),
+    (b'{"results":[{}]}', "text/plain; comment=json", IntelligenceError),
     (b"{" + b" " * 192_000 + b"}", "application/json", IntelligenceError),
     (b'{"results":[],"results":[]}', "application/json", ValueError),
     (b'{"results":[NaN]}', "application/json", ValueError),
     (b"\xff", "application/json", UnicodeDecodeError),
-], ids=["html", "oversized-192kb", "duplicate-json-key", "nonfinite-json", "invalid-utf8"])
+], ids=["html", "jsonp-mime", "fake-json-parameter", "oversized-192kb", "duplicate-json-key", "nonfinite-json", "invalid-utf8"])
 def test_invalid_mime_oversized_duplicate_json_or_encoding_fails_closed(
     monkeypatch, payload, mime, exc,
 ):
@@ -145,6 +149,20 @@ def test_invalid_mime_oversized_duplicate_json_or_encoding_fails_closed(
                              "version": "2.2.0"}],
             },
         )
+
+
+@pytest.mark.parametrize("mime", [
+    "application/json; charset=UTF-8",
+    "application/problem+json",
+])
+def test_legitimate_json_media_types_remain_supported(monkeypatch, mime):
+    _fake(monkeypatch, b'{"results":[{}]}', mime=mime)
+    result = budgeted._request_json(
+        url="https://api.osv.dev/v1/querybatch", method="POST",
+        body={"queries": [{"package": {"ecosystem": "npm", "name": "lodash"},
+                           "version": "4.17.11"}]},
+    )
+    assert result == {"results": [{}]}
 
 
 def test_no_automatic_redirects_are_possible():

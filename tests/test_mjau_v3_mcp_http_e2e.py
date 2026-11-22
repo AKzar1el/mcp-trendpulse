@@ -19,7 +19,7 @@ import pytest
 
 
 @pytest.mark.integration
-def test_guarded_http_mcp_can_use_both_source_backed_tools_without_network():
+def test_guarded_http_mcp_can_use_both_source_backed_tools_without_network(tmp_path):
     root = Path(__file__).resolve().parents[1]
     with socket.socket() as bound:
         bound.bind(("127.0.0.1", 0))
@@ -34,17 +34,21 @@ def test_guarded_http_mcp_can_use_both_source_backed_tools_without_network():
     env["PYTHONPATH"] = os.pathsep.join(
         (str(root / "src"), str(root / "tests"))
     )
-    server = subprocess.Popen(
-        [sys.executable, "-u", "-c", program],
-        cwd=root,
-        env=env,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    stderr_path = tmp_path / "guarded-http-child-stderr.log"
+    with stderr_path.open("wb") as child_stderr:
+        server = subprocess.Popen(
+            [sys.executable, "-u", "-c", program],
+            cwd=root,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=child_stderr,
+        )
     try:
         ready = False
-        deadline = time.monotonic() + 50
+        # Shared Windows startup can be slower than the protocol itself.
+        # Match the already bounded 90s real stdio initialization limit.
+        deadline = time.monotonic() + 90
         while time.monotonic() < deadline and server.poll() is None:
             try:
                 with socket.create_connection(("127.0.0.1", port), timeout=0.4):
@@ -52,7 +56,11 @@ def test_guarded_http_mcp_can_use_both_source_backed_tools_without_network():
                     break
             except OSError:
                 time.sleep(0.25)
-        assert ready, "Disposable A04/A10 HTTP MCP server did not start"
+        assert ready, (
+            "Disposable A04/A10 HTTP MCP server did not start; "
+            f"exit={server.poll()}; "
+            f"child_stderr={stderr_path.read_text('utf-8', errors='replace')[-1200:]}"
+        )
 
         async def exercise():
             async with Client(f"http://127.0.0.1:{port}/mcp") as client:

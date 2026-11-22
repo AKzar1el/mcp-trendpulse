@@ -148,6 +148,19 @@ def test_shared_budget_and_cache_two_sources_never_persist_provider_bodies(
     assert b"raw_advisory_bodies" not in saved
 
 
+def test_returned_wikidata_missing_item_is_not_reported_as_observed(tmp_path, monkeypatch):
+    """An explicit `missing` entry fills the map, but no item was observed."""
+    cache = BudgetCache(tmp_path)
+    payload = {"success": 1, "entities": {"Q42": {"id": "Q42", "missing": ""}}}
+    monkeypatch.setattr(api, "_request_json", lambda **_: payload)
+    result = api.wikidata_identity(["Q42"], ["en"], cache=cache, execute=True)
+    assert result["status"] == "source_entities_partially_observed"
+    assert result["results"][0]["status"] == "unknown_missing_entity"
+    assert result["source_coverage_complete"] is False
+    assert result["identity_verified"] is False
+    assert "name_candidates" not in result
+
+
 def test_failed_http_429_stops_future_source_operations(tmp_path, monkeypatch):
     cache = BudgetCache(tmp_path)
     called = 0

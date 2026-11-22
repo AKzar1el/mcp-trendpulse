@@ -92,6 +92,13 @@ def test_missing_entity_not_negative_zero():
     assert not parsed["source_coverage_complete"]
 
 
+def test_present_but_explicitly_missing_entity_does_not_claim_complete_coverage():
+    data = {"success": 1, "entities": {"Q89": {"id": "Q89", "missing": ""}}}
+    parsed = parse_qid_lookup(data, ["Q89"], ["en"])
+    assert parsed["results"][0]["status"] == "unknown_missing_entity"
+    assert parsed["source_coverage_complete"] is False
+
+
 def test_empty_source_map_is_unknown():
     p = parse_qid_lookup({"success": 1, "entities": {}}, ["Q89"], ["en"])
     assert p["results"][0]["status"] == "unknown_partial_response"

@@ -155,7 +155,11 @@ def parse_qid_lookup(
     return {
         "source": "wikidata_action_api", "status": "OFFLINE_PARSED_UPSTREAM_PAYLOAD",
         "qids_requested": ids, "languages_requested": langs, "results": results,
-        "source_coverage_complete": len(entities) == len(ids),
+        # A returned `missing` sentinel occupies a requested key but does
+        # not establish any observed source item.
+        "source_coverage_complete": all(
+            item["status"] == "source_item_observed" for item in results
+        ),
         "raw_payload_reused_not_fetched": True, "no_auto_entity_merging": True,
     }
 

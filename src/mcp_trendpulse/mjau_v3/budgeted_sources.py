@@ -92,7 +92,11 @@ def _request_json(
     timeout: int = TIMEOUT_SECONDS,
 ) -> Any:
     """One original-provider request; never retries, redirects or fetches URLs in results."""
-    parsed = urlsplit(url)
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port
+    except ValueError:
+        raise IntelligenceError("Unapproved MJAU v3 source request") from None
     trusted_get = (
         method == "GET" and parsed.hostname == "www.wikidata.org"
         and parsed.path == "/w/api.php" and body is None
@@ -103,7 +107,7 @@ def _request_json(
         and parsed.path == "/v1/querybatch" and parsed.query == ""
         and _canonical_osv_batch(body)
     )
-    if (parsed.scheme != "https" or parsed.port not in (None, 443)
+    if (parsed.scheme != "https" or port not in (None, 443)
             or parsed.username or parsed.password or parsed.fragment
             or not (trusted_get or trusted_post)):
         raise IntelligenceError("Unapproved MJAU v3 source request")
@@ -124,8 +128,10 @@ def _request_json(
     with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
         if response.status != 200:
             raise IntelligenceError("Provider returned non-200 response")
-        content_type = response.headers.get("Content-Type", "").casefold()
-        if "json" not in content_type:
+        content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().casefold()
+        if not (content_type == "application/json" or (
+                content_type.startswith("application/") and content_type.endswith("+json")
+        )):
             raise IntelligenceError("Provider returned non-JSON content")
         raw = response.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES:
