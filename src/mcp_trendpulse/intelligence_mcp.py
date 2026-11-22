@@ -361,6 +361,32 @@ def intelligence_release_lifecycle(
         product=product, release=release, execute=execute,
     )
 
+
+@intel_mcp.tool(
+    description=(
+        "Inspect FREE public Hugging Face Hub model/dataset catalog metadata "
+        "and provider-defined trendingScore, likes and downloads. This is one "
+        "bounded, partial snapshot: NOT model quality, user adoption, growth, "
+        "buyers, market share or permission to use gated model/dataset contents. "
+        "Plan-only by default; execute=True uses one fixed-host metadata GET "
+        "subject to local quota, cache and cooldown. No weights, dataset files "
+        "or private repositories are accessed."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_hf_catalog(
+    kind: str,
+    limit: int = 5,
+    search: str = "",
+    execute: bool = False,
+) -> dict[str, Any]:
+    from mcp_trendpulse.mjau_v2.hf_catalog import discover_hf_catalog
+
+    return discover_hf_catalog(
+        kind=kind, limit=limit, search=search, execute=execute,
+    )
+
+
 def main() -> None:
     intel_mcp.run()
 
