@@ -399,6 +399,16 @@ async def _call_trends_async(operation: str, invoke: Callable[[], Any]):
         raise classify_provider_exception(
             exc, provider="google_trends", operation=operation
         ) from exc
+    except ProviderError:
+        # Keep an already sanitized provider receipt without double wrapping.
+        raise
+    except Exception as exc:
+        # TrendSpy sometimes raises parsing/HTTP errors inside its worker.
+        # They are upstream failures, not invalid caller arguments, because
+        # validation runs before this wrapper is invoked.
+        raise classify_provider_exception(
+            exc, provider="google_trends", operation=operation
+        ) from exc
 
 
 def _call_related_queries_with_unavailable_retry(**kwargs):
@@ -2007,6 +2017,7 @@ async def get_ranked_trends(
     if normalized_sort not in _ALLOWED_RANK_SORTS:
         allowed = ", ".join(sorted(_ALLOWED_RANK_SORTS))
         raise ValueError(f"Unsupported sort {sort!r}; expected one of: {allowed}.")
+    geo = normalize_trending_geo(geo)
 
     trends = await _call_trends_async(
         "trending_now",
