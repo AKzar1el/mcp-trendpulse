@@ -11,6 +11,9 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from sqlite3 import DatabaseError
+import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
@@ -21,6 +24,7 @@ from filelock import FileLock, Timeout as FileLockTimeout
 from mcp_trendpulse.intelligence_core import (
     BudgetCache, DailyBudgetExceeded, IntelligenceError, SourceCoolingDown,
 )
+from mcp_trendpulse.mjau_v3.cache_integrity import valid_cached_result
 from mcp_trendpulse.mjau_v3.osv import (
     parse_compact_package_query, plan_compact_package_query,
     present_compact_query_for_mcp,
@@ -163,6 +167,64 @@ def _safe_failure(source: str, reason: str, *, cache_hit: bool = False) -> dict[
     }
 
 
+def _checked_cache(
+    store: BudgetCache, identity: str, source: str, url: str,
+    body: dict[str, Any] | None, cap: int,
+) -> dict[str, Any] | None:
+    """Read cached metadata only if its versioned safety contract is intact."""
+    try:
+        # Distinguish an absent entry from a present but JSON-null entry.
+        # BudgetCache.cached() intentionally returns None for both; V3 must
+        # never treat a corrupted entry as permission for another request.
+        with store._connect() as conn:
+            row = conn.execute(
+                "SELECT body FROM cache WHERE id=? AND until>?",
+                (identity, time.time()),
+            ).fetchone()
+        if row is None:
+            return None
+        raw = row[0]
+        if not isinstance(raw, str) or len(raw) > MAX_BYTES:
+            return _safe_failure(source, "local_cache_integrity_failure", cache_hit=True)
+        if len(raw.encode("utf-8", "strict")) > MAX_BYTES:
+            return _safe_failure(source, "local_cache_integrity_failure", cache_hit=True)
+
+        def unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("Duplicate local cache field")
+                result[key] = value
+            return result
+
+        cached = json.loads(
+            raw, object_pairs_hook=unique_keys,
+            parse_constant=lambda _: (_ for _ in ()).throw(ValueError("Nonfinite cache JSON")),
+        )
+    except (DatabaseError, OSError, TypeError, ValueError,
+            UnicodeError, RecursionError):
+        return _safe_failure(source, "local_cache_integrity_failure", cache_hit=True)
+    if not valid_cached_result(cached, source, url, body, cap):
+        return _safe_failure(source, "local_cache_integrity_failure", cache_hit=True)
+    return {**cached, "cache_hit": True, "network_performed": False}
+
+
+def _retry_after_seconds(value: Any) -> int:
+    """Respect numeric seconds and RFC HTTP-date Retry-After without retries."""
+    if not isinstance(value, str) or len(value) > 120:
+        return 90
+    delay = value.strip()
+    if delay.isascii() and delay.isdecimal() and len(delay) <= 8:
+        return int(delay)
+    try:
+        until = parsedate_to_datetime(delay)
+        if until.tzinfo is None:
+            return 90
+        return max(0, int((until - datetime.now(timezone.utc)).total_seconds()) + 1)
+    except (TypeError, ValueError, OverflowError, IndexError):
+        return 90
+
+
 def _prepare_or_get(
     source: str, *, url: str, method: str, body: dict[str, Any] | None,
     projection: Any, execute: bool, cache: BudgetCache | None,
@@ -193,9 +255,9 @@ def _prepare_or_get(
     identity = hashlib.sha256(json.dumps([
         "mjau-v3-fixed-source-v1", source, method, url, body,
     ], sort_keys=True, ensure_ascii=True).encode("utf-8")).hexdigest()
-    cached = store.cached(identity)
+    cached = _checked_cache(store, identity, source, url, body, cap)
     if cached is not None:
-        return {**cached, "cache_hit": True, "network_performed": False}
+        return cached
 
     root = store.db.parent / ".request_locks"
     if root.is_symlink():
@@ -206,9 +268,9 @@ def _prepare_or_get(
         raise IntelligenceError("Request lock file may not be a symlink")
     try:
         with FileLock(str(path), timeout=TIMEOUT_SECONDS + 5):
-            cached = store.cached(identity)
+            cached = _checked_cache(store, identity, source, url, body, cap)
             if cached is not None:
-                return {**cached, "cache_hit": True, "network_performed": False}
+                return cached
             try:
                 store.reserve(budget_key, cap, guard_cooldown=True)
             except DailyBudgetExceeded:
@@ -229,13 +291,11 @@ def _prepare_or_get(
                     store.stop_after_rate_limit(budget_key)
                 elif exc.code == 503:
                     delay = exc.headers.get("Retry-After", "") if exc.headers else ""
-                    seconds = min(300, max(30, int(delay))) if (
-                        delay.isdecimal() and len(delay) <= 4
-                    ) else 90
-                    if delay.isdecimal() and len(delay) <= 6 and int(delay) > 300:
+                    seconds = _retry_after_seconds(delay)
+                    if seconds > 300:
                         store.stop_after_rate_limit(budget_key)
                     else:
-                        store.cool_down(budget_key, seconds)
+                        store.cool_down(budget_key, max(30, seconds))
                 result = _safe_failure(source, f"provider_http_{exc.code}")
                 result["network_performed"] = True
                 store.save(identity, result, 45)
