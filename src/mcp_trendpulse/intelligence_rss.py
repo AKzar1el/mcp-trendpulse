@@ -193,7 +193,8 @@ def _normalize_feed(rows: Any, country: str, observed: datetime) -> dict[str, An
     processed: list[dict[str, Any]] = []
     rejected = 0
     duplicates = 0
-    for raw in rows[:MAX_SOURCE_ROWS]:
+    output_truncated = False
+    for index, raw in enumerate(rows[:MAX_SOURCE_ROWS]):
         if not isinstance(raw, dict):
             rejected += 1
             continue
@@ -242,11 +243,12 @@ def _normalize_feed(rows: Any, country: str, observed: datetime) -> dict[str, An
             "related_news": _extract_news(raw.get("news")),
         })
         if len(processed) >= MAX_OUTPUT_ROWS:
+            output_truncated = index + 1 < len(rows)
             break
     result["records_observed"] = len(processed)
     result["records_rejected"] = rejected
     result["duplicates_removed"] = duplicates
-    truncated = len(rows) > MAX_SOURCE_ROWS
+    truncated = len(rows) > MAX_SOURCE_ROWS or output_truncated
     result["status"] = (
         "invalid_source_shape" if not processed else
         "observed_partial" if truncated or rejected else "observed"
