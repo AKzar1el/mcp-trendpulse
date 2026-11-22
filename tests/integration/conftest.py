@@ -25,12 +25,18 @@ def _classified_external_failure(exc: BaseException, provider: str) -> str | Non
         return None
     if isinstance(exc, ToolError):
         raw = str(exc)
+        # Only structured provider receipts from FastMCP's tool-call wrapper
+        # can skip a live smoke; text containing JSON must not spoof outages.
+        if not raw.startswith("Error calling tool"):
+            return None
         marker = raw.find('{"code":')
         if marker == -1:
             return None
         try:
-            receipt, _ = json.JSONDecoder().raw_decode(raw[marker:])
+            receipt, size = json.JSONDecoder().raw_decode(raw[marker:])
         except (ValueError, TypeError):
+            return None
+        if raw[marker + size:].strip():
             return None
         if (isinstance(receipt, dict) and receipt.get("provider") == provider
                 and receipt.get("code") in _UPSTREAM_ERRORS

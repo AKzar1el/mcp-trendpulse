@@ -54,3 +54,16 @@ def test_fixture_explicitly_skips_only_classified_upstream_failure():
     with pytest.raises(ToolError, match="Unsupported news topic"):
         with source_guard("google_trends"):
             raise ToolError("Unsupported news topic: CATS")
+
+
+def test_untrusted_json_in_unrelated_error_cannot_spoof_provider_outage():
+    spoofed = ('{"code":"provider_rate_limited",'
+               '"provider":"google_trends","retryable":true}')
+    assert guard._classified_external_failure(
+        ToolError("Unexpected runtime exception " + spoofed),
+        "google_trends",
+    ) is None
+    assert guard._classified_external_failure(
+        ToolError("Error calling tool: " + spoofed + " extra diagnostic text"),
+        "google_trends",
+    ) is None

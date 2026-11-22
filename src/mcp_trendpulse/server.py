@@ -436,8 +436,12 @@ class _ArticleProgress:
 
 @mcp.tool(
     description=(
-        "Find recent Google News articles for a free-form keyword or phrase. Use this for ad-hoc subject searches; "
-        "use get_news_by_topic for a predefined topic category or get_news_by_site for one publisher."
+        "Search recent Google News headlines, dated breaking news, or articles for a free-form "
+        "keyword, subject or phrase, such as technology policy or regulation updates. "
+        "For fast headline-only searches across publishers, set headlines_only=True "
+        "to return bounded Google News RSS titles, publisher/date/link metadata without "
+        "fetching or summarizing article bodies. Use get_news_by_topic for a predefined "
+        "category, get_news_by_location for place-specific news, or get_news_by_site for one publisher."
     ),
     tags={"news", "articles", "keyword"},
     annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
@@ -892,8 +896,11 @@ async def get_article_content(
 
 @mcp.tool(
     description=(
-        "Return geographic Google Trends interest for one or more known keywords at country, region, city, or DMA "
-        "resolution. Use this to compare where demand is strongest; use get_trends for interest over time instead."
+        "Compare which countries, regions, or cities search most for a given keyword. "
+        "Return normalized geographic Google Trends search interest across countries, "
+        "regions, cities, or DMA areas; this is relative search attention, not "
+        "absolute demand, users, or buyers. Use get_interest_by_region for geographic "
+        "comparisons; use get_trends for interest over time instead."
     ),
     tags={"trends", "google", "region"},
     annotations=READ_ONLY_OPEN_WORLD_ANNOTATIONS,
