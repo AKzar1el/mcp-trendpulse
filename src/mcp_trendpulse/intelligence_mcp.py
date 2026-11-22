@@ -336,6 +336,31 @@ def intelligence_repository_star_history(
     )
 
 
+
+@intel_mcp.tool(
+    description=(
+        "Inspect FREE community-curated software release-cycle dates from "
+        "endoflife.date v1. Source EOL, active-support, extended/commercial "
+        "maintenance and future support dates are DISTINCT. A source's "
+        "isMaintained may reflect third-party commercial support after upstream "
+        "EOL and NEVER verifies a caller's support entitlement. Plan-only by "
+        "default; execute=True performs one bounded, source-capped read. "
+        "Vendor dates must be checked separately before migration or compliance "
+        "decisions. No buyer demand, urgency or vendor warranty is inferred."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_release_lifecycle(
+    product: str,
+    release: str,
+    execute: bool = False,
+) -> dict[str, Any]:
+    from mcp_trendpulse.mjau_v2.endoflife_release import observe_release_support
+
+    return observe_release_support(
+        product=product, release=release, execute=execute,
+    )
+
 def main() -> None:
     intel_mcp.run()
 

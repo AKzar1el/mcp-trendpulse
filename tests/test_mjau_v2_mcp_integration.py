@@ -10,20 +10,23 @@ from mcp_trendpulse.intelligence_mcp import (
     intelligence_dependency_graph,
     intelligence_repository_scorecard,
     intelligence_repository_star_history,
+    intelligence_release_lifecycle,
 )
 
 
-def test_three_new_tools_registered_only_in_opt_in_intelligence_mcp():
+def test_four_new_tools_registered_only_in_opt_in_intelligence_mcp():
     tools = asyncio.run(intel_mcp.list_tools())
     names = {tool.name for tool in tools}
     assert "intelligence_dependency_graph" in names
     assert "intelligence_repository_scorecard" in names
     assert "intelligence_repository_star_history" in names
-    assert len(names) == 15
+    assert "intelligence_release_lifecycle" in names
+    assert len(names) == 16
     for tool in tools:
         if tool.name in {"intelligence_dependency_graph",
                          "intelligence_repository_scorecard",
-                         "intelligence_repository_star_history"}:
+                         "intelligence_repository_star_history",
+                         "intelligence_release_lifecycle"}:
             assert tool.annotations.readOnlyHint is True
             assert tool.annotations.destructiveHint is False
 
@@ -46,7 +49,8 @@ def test_dependency_and_scorecard_plan_never_touch_sqlite_or_network(monkeypatch
     dependency = intelligence_dependency_graph("npm", "is-odd", "3.0.1")
     score = intelligence_repository_scorecard("pallets", "flask")
     stars = intelligence_repository_star_history("fastapi", "fastapi")
-    for result in (dependency, score, stars):
+    lifecycle = intelligence_release_lifecycle("nodejs", "20")
+    for result in (dependency, score, stars, lifecycle):
         assert result["status"] == "planned"
         assert result["requests_attempted"] == 0
         assert result["network_performed"] is False
@@ -71,6 +75,8 @@ def test_execute_requires_real_boolean():
         intelligence_repository_scorecard("pallets", "flask", execute="yes")
     with pytest.raises(ValueError):
         intelligence_repository_star_history("fastapi", "fastapi", execute="yes")
+    with pytest.raises(ValueError):
+        intelligence_release_lifecycle("nodejs", "20", execute="yes")
 
 
 def test_explicit_execute_uses_original_isolated_sqlite_cache(monkeypatch, tmp_path):
@@ -175,3 +181,47 @@ def test_budget_cache_closes_windows_sqlite_before_disposable_cleanup(tmp_path):
     # the connection-owning operations must release their file descriptors.
     shutil.rmtree(cache_root)
     assert not cache_root.exists()
+
+
+def test_b02_post_eol_commercial_support_uses_bounded_sqlite_replay(
+    monkeypatch, tmp_path,
+):
+    """A real optional MCP tool cannot turn commercial maintenance into support."""
+    from datetime import datetime, timedelta, timezone
+
+    from mcp_trendpulse import intelligence_core
+    from mcp_trendpulse.mjau_v2 import endoflife_release
+
+    store = intelligence_core.BudgetCache(tmp_path / "b02-cache")
+    monkeypatch.setattr(intelligence_core, "BudgetCache", lambda root=None: store)
+    source_calls = []
+
+    def fetch(url):
+        source_calls.append(url)
+        return 200, {
+            "schema_version": "1.2.1",
+            "generated_at": (datetime.now(timezone.utc) - timedelta(seconds=5)).isoformat(),
+            "result": {
+                "name": "20",
+                "isEol": True,
+                "eolFrom": "2026-04-30",
+                "isMaintained": True,
+                "isEoes": False,
+                "eoesFrom": None,
+            },
+        }
+
+    monkeypatch.setattr(endoflife_release, "_fetch", fetch)
+    first = intelligence_release_lifecycle("nodejs", "20", execute=True)
+    repeated = intelligence_release_lifecycle("nodejs", "20", execute=True)
+    assert first["status"] == repeated["status"] == "observed_partial"
+    assert first["provider_phase_consistent"] and not first["provider_phase_conflicts"]
+    assert first["support_scope_caveats"] == [
+        "post_eol_extended_or_commercial_support_possible"]
+    assert not first["official_vendor_support_verified_by_api"]
+    assert not first["support_entitlement_verified"]
+    assert not first["unconditional_support_or_migration_advice_allowed"]
+    assert first["primary_vendor_schedule_reference"].endswith("schedule.json")
+    assert repeated["cache_hit"] and not repeated["network_performed"]
+    assert repeated["requests_attempted"] == 0
+    assert source_calls == [first["source_url"]]
