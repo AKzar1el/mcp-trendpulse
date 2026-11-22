@@ -120,6 +120,7 @@ SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{1,79}$")
 REGION = re.compile(r"^(?:[A-Z]{2}|GLOBAL)$")
 HEALTH = {"ok", *UNHEALTHY}
 MAX_BYTES = 180_000
+SOURCE_REFERENCE_LIMIT = 30
 
 
 def _day(value: Any, label: str) -> date:
@@ -369,6 +370,9 @@ def evaluate_opportunities(
     output; invalid individual records are rejected with indexed reason codes
     without turning the whole batch into fake 'zero demand'. Top-level rejection
     diagnostics cover the full batch; candidate caveats cover attributable rows.
+    source_references is a bounded excerpt, not a complete provenance audit;
+    omitted references may include counterevidence. Inspect the original evidence
+    input when source_references_truncated is true.
     """
     _input(candidates, evidence)
     asof = _day(as_of, "as_of") if as_of is not None else date.today()
@@ -574,10 +578,12 @@ def evaluate_opportunities(
                 if priority >= 2 else
                 "Collect independent current problem and buyer-budget evidence"
             ),
+            "source_references_total": len(valid),
+            "source_references_truncated": len(valid) > SOURCE_REFERENCE_LIMIT,
             "source_references": [
                 {"id": x["id"], "source": x["source"], "published_at": x["published"].isoformat(),
                  "url": x["url"], "polarity": x["polarity"]}
-                for x in sorted(valid, key=lambda x: x["id"])[:30]
+                for x in sorted(valid, key=lambda x: x["id"])[:SOURCE_REFERENCE_LIMIT]
             ],
         }
         results.append(result)
