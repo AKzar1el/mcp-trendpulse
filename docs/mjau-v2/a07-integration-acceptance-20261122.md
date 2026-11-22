@@ -100,7 +100,13 @@ A single, separate opt-in intelligence MCP tool:
   retries. These are NOT network response latency measurements.
 - The original A07 provider proof previously made bounded public GETs
   with HTTP 200 and exact cache replay, all documented by original date.
-  **No further A07 network request** was made for this integration.
+  On 2026-11-22, the integrated **actual MCP tool function** performed
+  exactly **one new public model-catalog GET** under the shared persistent
+  local four-per-UTC-day source budget. It returned `observed_partial`
+  with two current public IDs, `thinkingmachines/Inkling-2-Mini` and
+  `unsloth/Inkling-2-Mini-GGUF`; an identical immediate second invocation
+  was a verified validated SQLite cache hit with **zero additional GETs**.
+  No paid API, auth, downloads, private content or unsupported inference.
 - Full repository pytest, whole-project Ruff, offline lock and protected
   GitHub CI remain mandatory pre-merge gates; this document does not
   assert their success ahead of verification. No PyPI/GHCR release
