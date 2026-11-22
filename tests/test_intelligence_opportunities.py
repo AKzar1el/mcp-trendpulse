@@ -151,6 +151,66 @@ def test_source_reference_excerpt_excludes_duplicates_and_rejected_records():
     assert len(row["source_references"]) == 30
 
 
+@pytest.mark.parametrize("shared_key", ["origin", "canonical_url"])
+@pytest.mark.parametrize("against_sorts_first", [True, False])
+@pytest.mark.parametrize("against_input_first", [True, False])
+def test_mixed_polarity_same_source_fails_closed(
+    shared_key, against_sorts_first, against_input_first,
+):
+    records = strong()
+    award = records[2]
+    contrary = ev("usaspending", 4, polarity="against")
+    if shared_key == "origin":
+        contrary["origin_id"] = award["origin_id"]
+    else:
+        contrary["url"] = award["url"] + "?utm_campaign=duplicate"
+    award["id"] = "a-award" if against_sorts_first else "z-award"
+    contrary["id"] = "z-contrary" if against_sorts_first else "a-contrary"
+
+    mixed = records[:2] + ([contrary, award] if against_input_first else [award, contrary])
+    row = evaluation(mixed)["results"][0]
+    assert row["status"] == "conflict_review"
+    assert row["priority_order"] == 0
+    assert row["conflicting_evidence_indices"] == [2, 3]
+    assert row["conflict_evidence_count"] == 2
+    assert set(row["conflicting_reference_ids"]) == {award["id"], contrary["id"]}
+    assert row["ignored_reasons"]["conflicting_polarity"] == 2
+    assert row["source_references_total"] == 2
+    assert row["source_references_truncated"] is False
+    assert not {award["id"], contrary["id"]} & {
+        ref["id"] for ref in row["source_references"]
+    }
+    assert any("Conflicting polarity" in reason for reason in row["caveats"])
+
+
+def test_same_polarity_shared_url_still_deduplicates_without_conflict():
+    records = strong()
+    syndicated = ev("usaspending", 4, origin_id="another-origin")
+    syndicated["url"] = records[2]["url"] + "?utm_medium=syndication"
+    row = evaluation(records + [syndicated])["results"][0]
+    assert row["status"] == "buyer_interview_priority"
+    assert row["supporting_origins"] == 3
+    assert row["conflicting_evidence_indices"] == []
+    assert row["ignored_reasons"]["duplicate_origin"] == 1
+
+
+def test_invalid_and_other_candidate_rows_do_not_poison_conflict_detection():
+    valid = strong()
+    other = ev("greenhouse_job", 6, candidate_id="workflow-two",
+               origin_id=valid[2]["origin_id"], polarity="against")
+    malformed = ev("usaspending", 7, origin_id=valid[2]["origin_id"],
+                   polarity="against")
+    malformed["url"] = "http://127.0.0.1/private"
+    result = evaluate_opportunities(
+        [candidate(), candidate(ident="workflow-two")],
+        valid + [other, malformed], as_of=ASOF,
+    )
+    main = next(row for row in result["results"] if row["id"] == "workflow-one")
+    assert result["rejected_count"] == 1
+    assert main["status"] == "buyer_interview_priority"
+    assert main["conflicting_evidence_indices"] == []
+
+
 def test_contradiction_downgrades_even_perfect_support():
     disagree = strong() + [ev("github_issues", 4, polarity="against")]
     assert evaluation(disagree)["results"][0]["status"] == "contested"
