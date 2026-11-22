@@ -108,6 +108,49 @@ def test_republished_article_across_sources_is_deduplicated():
     assert row["status"] == "monitor"
 
 
+@pytest.mark.parametrize("count", [0, 30, 31, 300])
+def test_source_reference_excerpt_reports_total_and_truncation(count):
+    evidence = [ev("github_issues", i) for i in range(count)]
+    row = evaluation(evidence)["results"][0]
+    assert row["source_references_total"] == count
+    assert row["source_references_truncated"] is (count > 30)
+    assert len(row["source_references"]) == min(count, 30)
+    assert [ref["id"] for ref in row["source_references"]] == sorted(
+        item["id"] for item in evidence
+    )[:30]
+
+
+def test_source_reference_excerpt_counts_support_and_opposition_in_any_order():
+    evidence = [
+        ev("github_issues", i, polarity="against" if i % 5 == 0 else "support")
+        for i in range(31)
+    ]
+    shuffled = copy.deepcopy(evidence)
+    random.Random(23).shuffle(shuffled)
+    expected_ids = sorted(item["id"] for item in evidence)[:30]
+    for records in (evidence, shuffled):
+        row = evaluation(records)["results"][0]
+        assert row["source_references_total"] == 31
+        assert row["source_references_truncated"] is True
+        assert row["supporting_origins"] + row["contradicting_origins"] == 31
+        assert [ref["id"] for ref in row["source_references"]] == expected_ids
+        assert any(ref["polarity"] == "against" for ref in row["source_references"])
+
+
+def test_source_reference_excerpt_excludes_duplicates_and_rejected_records():
+    evidence = [ev("github_issues", i) for i in range(30)]
+    syndicated = ev("greenhouse_job", 31, origin_id=evidence[4]["origin_id"])
+    bad = ev("github_issues", 32)
+    bad["url"] = "http://127.0.0.1/private"
+    result = evaluation(evidence + [syndicated, bad])
+    row = result["results"][0]
+    assert result["rejected_count"] == 1
+    assert row["ignored_reasons"]["duplicate_origin"] == 1
+    assert row["source_references_total"] == 30
+    assert row["source_references_truncated"] is False
+    assert len(row["source_references"]) == 30
+
+
 def test_contradiction_downgrades_even_perfect_support():
     disagree = strong() + [ev("github_issues", 4, polarity="against")]
     assert evaluation(disagree)["results"][0]["status"] == "contested"
