@@ -24,5 +24,6 @@ def is_google_news_rss_url(value: object) -> bool:
         and parsed.password is None
         and port in (None, 443)
         and parsed.path.startswith("/rss/articles/")
+        and parsed.path != "/rss/articles/"
         and not parsed.fragment
     )

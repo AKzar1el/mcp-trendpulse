@@ -63,6 +63,8 @@ def test_rss_review_json_flags_duplicates_and_unknown_metadata_offline(tmp_path)
     {"headlines": [_headline(url="https://news.google.com:abc/rss/articles/x")]},
     {"headlines": [_headline(url="https://news.google.com:99999/rss/articles/x")]},
     {"headlines": [_headline(url="https://news.google.com:8080/rss/articles/x")]},
+    {"headlines": [_headline(url="https://news.google.com/rss/articles/")]},
+    {"headlines": [_headline(url="https://news.google.com/rss/articles/?hl=en")]},
     {"headlines": [_headline(url="https://news.google.com.evil.invalid/rss/articles/x")]},
     {"headlines": [_headline(url="https://news.google.com/news/x")]},
     {"headlines": [_headline(url="https://user:pass@news.google.com/rss/articles/x")]},
