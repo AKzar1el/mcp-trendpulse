@@ -58,6 +58,16 @@ def test_rss_review_json_flags_duplicates_and_unknown_metadata_offline(tmp_path)
     {"content_level": "article_full"},
     {"schema_version": True},
     {"headlines": [_headline(url="javascript:alert(1)")]},
+    {"headlines": [_headline(url="https://example.invalid/rss/articles/z")]},
+    {"headlines": [_headline(url="http://news.google.com/rss/articles/x")]},
+    {"headlines": [_headline(url="https://news.google.com:abc/rss/articles/x")]},
+    {"headlines": [_headline(url="https://news.google.com:99999/rss/articles/x")]},
+    {"headlines": [_headline(url="https://news.google.com:8080/rss/articles/x")]},
+    {"headlines": [_headline(url="https://news.google.com.evil.invalid/rss/articles/x")]},
+    {"headlines": [_headline(url="https://news.google.com/news/x")]},
+    {"headlines": [_headline(url="https://user:pass@news.google.com/rss/articles/x")]},
+    {"headlines": [_headline(url="https://news.google.com/rss/articles/x#fragment")]},
+    {"headlines": [_headline(url=" https://news.google.com/rss/articles/x")]},
     {"headlines": [_headline(title="")]},
 ])
 def test_rss_review_rejects_malformed_source_without_report(tmp_path, change):
@@ -65,6 +75,19 @@ def test_rss_review_rejects_malformed_source_without_report(tmp_path, change):
     assert result.exit_code == 1
     assert "review failed" in result.output.lower()
     assert '"summary"' not in result.output
+
+
+def test_rss_review_accepts_canonical_google_news_443_and_keeps_source_unauthenticated(tmp_path):
+    result = _run(
+        tmp_path,
+        _capture([_headline(url="https://news.google.com:443/rss/articles/explicit")]),
+        "--format",
+        "json",
+    )
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report["source_authenticated"] is False
+    assert report["headlines"][0]["url"] == "https://news.google.com:443/rss/articles/explicit"
 
 
 def test_rss_review_escapes_markdown_and_never_overwrites(tmp_path):

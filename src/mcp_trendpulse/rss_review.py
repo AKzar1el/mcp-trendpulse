@@ -4,10 +4,10 @@ import csv
 import io
 import json
 from datetime import datetime
-from urllib.parse import urlsplit
 
 from mcp_trendpulse.brief_audit import _csv_safe
 from mcp_trendpulse.brief_review import _invalid_constant, _markdown_safe, _unique_keys
+from mcp_trendpulse.rss_url_validation import is_google_news_rss_url
 
 MAX_RSS_EVIDENCE_BYTES = 1024 * 1024
 MAX_RSS_HEADLINES = 100
@@ -96,13 +96,7 @@ def review_saved_rss_headlines(raw, *, output_format="markdown", contains=None,
             raise ValueError(f"Invalid saved RSS headline #{position}")
         title = _text(item.get("title"), "title", max_length=500)
         url = _text(item.get("url"), "url", max_length=2048)
-        try:
-            parsed = urlsplit(url)
-            valid_url = (parsed.scheme.lower() in ("http", "https") and bool(parsed.hostname)
-                         and parsed.username is None and parsed.password is None)
-        except ValueError:
-            valid_url = False
-        if not valid_url:
+        if not is_google_news_rss_url(url):
             raise ValueError(f"Invalid saved RSS headline URL #{position}")
         publisher = item.get("publisher")
         if publisher == "":
