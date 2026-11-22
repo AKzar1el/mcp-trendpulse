@@ -97,11 +97,13 @@ def test_shared_budget_and_cache_two_sources_never_persist_provider_bodies(
     monkeypatch.setattr(api, "_request_json", fake_provider)
 
     a = api.wikidata_identity(QIDS, LANGS, name="Berlin", cache=cache, execute=True)
-    assert a["status"] == "OFFLINE_PARSED_UPSTREAM_PAYLOAD"
+    assert a["status"] == "source_entities_observed"
+    assert a["source_payload_validated_offline"] is True
     assert a["name_candidates"]["candidate_qids"] == ["Q64"]
     assert a["identity_verified"] is False
     assert a["license"] == "CC0-1.0"
     assert a["network_performed"]
+    assert "OFFLINE" not in a["status"]
     assert not a["cache_hit"]
     assert _usage(cache, api.WIKIDATA_BUDGET_KEY) == 1
 
@@ -123,6 +125,13 @@ def test_shared_budget_and_cache_two_sources_never_persist_provider_bodies(
     assert out["commercial_bulk_redistribution_approved"] is False
     assert out["raw_advisory_redistribution_authorized"] is False
     assert out["source_specific_license_review_required"] is True
+    assert out["source_attribution"]["aggregator"] == "OSV.dev"
+    assert out["source_attribution"]["original_per_record_feed_verified"] is False
+    assert "Filtered original OSV" in out["source_attribution"]["transformation_notice"]
+    assert out["source_attribution"]["cc_by_4_license"] == (
+        "https://creativecommons.org/licenses/by/4.0/"
+    )
+    assert "exact version" in out["third_party_request_notice"]
     assert out["network_performed"] is True
     assert _usage(cache, api.OSV_BUDGET_KEY) == 1
     cached = api.osv_package_ids("PyPI", "Django", "2.2.0", cache=cache, execute=True)
@@ -180,6 +189,56 @@ def test_atomic_daily_cap_rejection_and_zero_network(tmp_path, monkeypatch):
     assert denied["reason"] == "local_utc_daily_budget_exhausted"
     assert denied["network_performed"] is False
     assert denied["not_a_zero_result"] is True
+
+
+def test_wikidata_eight_call_daily_limit_persists_across_store_instances(
+    tmp_path, monkeypatch,
+):
+    original = BudgetCache(tmp_path)
+    monkeypatch.setattr(api, "_request_json", _no_network)
+    for _ in range(api.WIKIDATA_DAILY_CAP):
+        original.reserve(api.WIKIDATA_BUDGET_KEY, api.WIKIDATA_DAILY_CAP)
+    # A new server process with the same SQLite directory cannot bypass the
+    # earlier UTC-day reservations.
+    reopened = BudgetCache(tmp_path)
+    result = api.wikidata_identity(
+        ["Q64"], ["en"], execute=True, cache=reopened,
+    )
+    assert result["status"] == "source_unavailable"
+    assert result["reason"] == "local_utc_daily_budget_exhausted"
+    assert result["not_a_zero_result"] is True
+    assert result["network_performed"] is False
+    assert _usage(reopened, api.WIKIDATA_BUDGET_KEY) == 8
+
+
+def test_long_retry_after_503_enforces_no_more_queries_across_store_reopen(
+    tmp_path, monkeypatch,
+):
+    cache = BudgetCache(tmp_path)
+    called = 0
+
+    def overload(**kwargs):
+        nonlocal called
+        called += 1
+        raise HTTPError(
+            kwargs["url"], 503, "Temporarily unavailable",
+            {"Retry-After": "3600"}, None,
+        )
+
+    monkeypatch.setattr(api, "_request_json", overload)
+    response = api.osv_package_ids(
+        "PyPI", "Django", "2.2.0", cache=cache, execute=True,
+    )
+    assert response["reason"] == "provider_http_503"
+    assert response["not_a_zero_result"]
+    reopened = BudgetCache(tmp_path)
+    assert reopened.blocked(api.OSV_BUDGET_KEY)
+    response2 = api.osv_package_ids(
+        "npm", "lodash", "4.17.11", cache=reopened, execute=True,
+    )
+    assert response2["reason"] == "persisted_provider_cooldown"
+    assert response2["network_performed"] is False
+    assert called == 1
 
 
 def test_bad_plan_arguments_do_not_consume_quota(tmp_path, monkeypatch):

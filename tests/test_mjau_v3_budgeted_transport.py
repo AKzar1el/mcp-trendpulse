@@ -11,6 +11,7 @@ import pytest
 
 from mcp_trendpulse.intelligence_core import IntelligenceError
 from mcp_trendpulse.mjau_v3 import budgeted_sources as budgeted
+from mcp_trendpulse.mjau_v3.wikidata import plan_qid_lookup
 
 
 class Response:
@@ -69,7 +70,7 @@ def test_fixed_origin_and_path_reject_untrusted_destinations(
 def test_wikimedia_contact_header_and_single_no_redirect_opener(monkeypatch):
     opener = _fake(monkeypatch, b'{"success":1,"entities":{}}')
     source = budgeted._request_json(
-        url="https://www.wikidata.org/w/api.php?action=wbgetentities",
+        url=plan_qid_lookup(["Q64"], ["en"])["url"],
         method="GET", body=None,
     )
     assert source["success"] == 1
@@ -99,6 +100,32 @@ def test_osv_has_single_post_with_no_secret_headers(monkeypatch):
     assert "Cookie" not in request.headers
 
 
+def test_osv_two_query_batch_must_be_denied_at_http_boundary(monkeypatch):
+    opener = _fake(monkeypatch, b'{"results":[{},{}]}')
+    package = {"ecosystem": "PyPI", "name": "Django"}
+    body = {
+        "queries": [
+            {"package": package, "version": "2.2.0"},
+            {"package": package, "version": "2.2.1"},
+        ],
+    }
+    with pytest.raises(IntelligenceError, match="Unapproved"):
+        budgeted._request_json(
+            url="https://api.osv.dev/v1/querybatch", method="POST", body=body,
+        )
+    assert opener.requests == []
+
+
+def test_wikidata_arbitrary_action_must_be_denied_at_http_boundary(monkeypatch):
+    opener = _fake(monkeypatch, b'{"query":{}}')
+    with pytest.raises(IntelligenceError, match="Unapproved"):
+        budgeted._request_json(
+            url="https://www.wikidata.org/w/api.php?action=query&meta=siteinfo",
+            method="GET", body=None,
+        )
+    assert opener.requests == []
+
+
 @pytest.mark.parametrize("payload,mime,exc", [
     (b"<html>bad gateway</html>", "text/html", IntelligenceError),
     (b"{" + b" " * 192_000 + b"}", "application/json", IntelligenceError),
@@ -113,7 +140,10 @@ def test_invalid_mime_oversized_duplicate_json_or_encoding_fails_closed(
     with pytest.raises(exc):
         budgeted._request_json(
             url="https://api.osv.dev/v1/querybatch", method="POST",
-            body={"queries": []},
+            body={
+                "queries": [{"package": {"ecosystem": "PyPI", "name": "Django"},
+                             "version": "2.2.0"}],
+            },
         )
 
 

@@ -13,7 +13,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from filelock import FileLock, Timeout as FileLockTimeout
@@ -49,6 +49,44 @@ class _NoRedirect(HTTPRedirectHandler):
         return None
 
 
+def _canonical_wikidata_query(url: str) -> bool:
+    """At the transport boundary, accept only our exact bounded QID request."""
+    try:
+        query = parse_qs(
+            urlsplit(url).query, strict_parsing=True, keep_blank_values=True,
+        )
+        if (set(query) != {
+                "action", "ids", "languages", "props", "format", "formatversion",
+        } or any(len(values) != 1 for values in query.values())):
+            return False
+        qids = query["ids"][0].split("|")
+        languages = query["languages"][0].split("|")
+        return plan_qid_lookup(qids, languages)["url"] == url
+    except (KeyError, ValueError):
+        return False
+
+
+def _canonical_osv_batch(body: Any) -> bool:
+    """Do not let a future caller expand a single-version OSV query into N."""
+    if (not isinstance(body, dict) or set(body) != {"queries"}
+            or not isinstance(body["queries"], list)
+            or len(body["queries"]) != 1):
+        return False
+    query = body["queries"][0]
+    if not isinstance(query, dict) or set(query) != {"package", "version"}:
+        return False
+    package = query["package"]
+    if not isinstance(package, dict) or set(package) != {"ecosystem", "name"}:
+        return False
+    try:
+        canonical = plan_compact_package_query(
+            package["ecosystem"], package["name"], query["version"],
+        )
+    except ValueError:
+        return False
+    return canonical["json_body"] == body
+
+
 def _request_json(
     *, url: str, method: str, body: dict[str, Any] | None,
     timeout: int = TIMEOUT_SECONDS,
@@ -58,11 +96,12 @@ def _request_json(
     trusted_get = (
         method == "GET" and parsed.hostname == "www.wikidata.org"
         and parsed.path == "/w/api.php" and body is None
+        and _canonical_wikidata_query(url)
     )
     trusted_post = (
         method == "POST" and parsed.hostname == "api.osv.dev"
         and parsed.path == "/v1/querybatch" and parsed.query == ""
-        and isinstance(body, dict)
+        and _canonical_osv_batch(body)
     )
     if (parsed.scheme != "https" or parsed.port not in (None, 443)
             or parsed.username or parsed.password or parsed.fragment
@@ -239,6 +278,17 @@ def wikidata_identity(
             raise ValueError("Match language must be in requested languages")
     def project(payload: Any) -> dict[str, Any]:
         parsed = parse_qid_lookup(payload, qids, languages)
+        # The pure adapter validates data *offline*, but this wrapper actually
+        # obtained the source via a budgeted HTTP call. Do not expose the
+        # internal OFFLINE_PARSED_UPSTREAM_PAYLOAD status to an end user as
+        # though the source was not contacted. Preserve a separate field
+        # describing the parser's no-extra-network guarantee.
+        parsed["status"] = (
+            "source_entities_observed"
+            if parsed["source_coverage_complete"]
+            else "source_entities_partially_observed"
+        )
+        parsed["source_payload_validated_offline"] = True
         parsed["license"] = "CC0-1.0"
         parsed["license_url"] = WIKIDATA_LICENSE
         parsed["identity_verified"] = False
@@ -251,7 +301,9 @@ def wikidata_identity(
     # Request identity is QIDs/languages only. Each caller's optional name
     # comparison must be derived AFTER cache lookup, never persisted under a
     # cache key that ignores the name and could return a stale false match.
-    if name and result.get("status") == "OFFLINE_PARSED_UPSTREAM_PAYLOAD":
+    if name and result.get("status") in (
+        "source_entities_observed", "source_entities_partially_observed",
+    ):
         return {
             **result,
             "name_candidates": candidates_for_name(result, name, match_language),
@@ -274,6 +326,22 @@ def osv_package_ids(
             "source_rights_review_status": "pending_final_original_feed_review",
             "commercial_bulk_redistribution_approved": False,
             "cc_by_license_url": "https://creativecommons.org/licenses/by/4.0/",
+            "source_attribution": {
+                "aggregator": "OSV.dev",
+                "aggregator_url": "https://osv.dev/",
+                "upstream_license_index": "https://google.github.io/osv.dev/data/",
+                "cc_by_4_license": "https://creativecommons.org/licenses/by/4.0/",
+                "transformation_notice": (
+                    "Filtered original OSV querybatch response to factual "
+                    "advisory IDs, modified timestamps and OSV record links; "
+                    "no original advisory prose or severity was reproduced."
+                ),
+                "original_per_record_feed_verified": False,
+            },
+            "third_party_request_notice": (
+                "execute=True sends ecosystem, package and exact version to "
+                "the OSV.dev API; no private package lists or secrets."
+            ),
             "source_licensing_comment": (
                 "GHSA/PYSEC prefix indicates attribution hint, not permission; "
                 "check original OSV source; no raw advisories are redistributed."

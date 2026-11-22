@@ -1,0 +1,111 @@
+{
+  "reviewer_type": "assistant_self_review_not_independent_human",
+  "method": "original-source snapshot replay through budgeted callable; independent direct field extractor",
+  "no_external_provider_calls": true,
+  "run_count": 14,
+  "points": 26,
+  "max_points": 28,
+  "passed_decisions": 14,
+  "cases": [
+    {
+      "id": "W01",
+      "user_task": "Fruit vs company in English",
+      "score": 2,
+      "decision": "passed",
+      "evidence": "Original Q89 and Q312 labels, no confirmed identity"
+    },
+    {
+      "id": "W02",
+      "user_task": "Fruit vs company in Slovenian",
+      "score": 2,
+      "decision": "passed",
+      "evidence": "Original Slovenian labels retained separately"
+    },
+    {
+      "id": "W03",
+      "user_task": "Ambiguous Mercury entity (en)",
+      "score": 2,
+      "decision": "passed",
+      "evidence": "Both original Q308/Q1150 present, explicitly ambiguous"
+    },
+    {
+      "id": "W04",
+      "user_task": "Ambiguous Mercury entity (de)",
+      "score": 2,
+      "decision": "passed",
+      "evidence": "Both original Q308/Q1150 present, explicitly ambiguous"
+    },
+    {
+      "id": "W05",
+      "user_task": "Berlin source in three languages; honest live status",
+      "score": 2,
+      "decision": "passed",
+      "evidence": "Q64 original de/en/sl labels; no contradictory OFFLINE user status"
+    },
+    {
+      "id": "W06",
+      "user_task": "Missing Q42 label: abstain instead of inventing",
+      "score": 2,
+      "decision": "passed",
+      "evidence": "Original Q42 en label missing and search coverage incomplete"
+    },
+    {
+      "id": "W07",
+      "user_task": "Absent QID: unknown, never definitive negative",
+      "score": 2,
+      "decision": "passed",
+      "evidence": "Simulated incomplete official envelope with Q312 absent"
+    },
+    {
+      "id": "W08",
+      "user_task": "Unseen aliases after bounded top eight: incomplete",
+      "score": 2,
+      "decision": "passed",
+      "evidence": "Original Q30 has 20 English aliases; only 8 safely projected"
+    },
+    {
+      "id": "W09",
+      "user_task": "Answer a name-only user without a supplied QID",
+      "score": 1,
+      "decision": "passed",
+      "evidence": "Safe but requires user-provided QID; natural-language discovery absent"
+    },
+    {
+      "id": "W10",
+      "user_task": "Exact factual OSV IDs: Django==2.2.0",
+      "score": 2,
+      "decision": "passed",
+      "evidence": "Original source ID-only sample 75 records, descriptions omitted"
+    },
+    {
+      "id": "W11",
+      "user_task": "Exact factual OSV IDs: Jinja2==2.10.1",
+      "score": 2,
+      "decision": "passed",
+      "evidence": "Original source ID-only sample 10 records, descriptions omitted"
+    },
+    {
+      "id": "W13",
+      "user_task": "Exact factual OSV IDs: lodash==4.17.11",
+      "score": 2,
+      "decision": "passed",
+      "evidence": "Original source ID-only sample 6 records, descriptions omitted"
+    },
+    {
+      "id": "W12",
+      "user_task": "Empty OSV result must NOT mean safe package",
+      "score": 2,
+      "decision": "passed",
+      "evidence": "Official npm/react source result has 0 IDs; safety warning retained"
+    },
+    {
+      "id": "W14",
+      "user_task": "User asks for a specific patch recommendation",
+      "score": 1,
+      "decision": "passed",
+      "evidence": "Correct abstention: no fix/severity in ID-only API; extra workflow required"
+    }
+  ],
+  "critical_failure": false,
+  "supervised_opt_in_technical_threshold": 24
+}

@@ -140,7 +140,9 @@ def main():
                 "source_received": raw is not None,
                 "case_results": [],
             }
-            if raw is not None and observed.get("status") == "OFFLINE_PARSED_UPSTREAM_PAYLOAD":
+            if raw is not None and observed.get("status") in (
+                "source_entities_observed", "source_entities_partially_observed",
+            ):
                 identity = json.dumps(raw, ensure_ascii=True, sort_keys=True).encode()
                 group["original_json_sha256"] = hashlib.sha256(identity).hexdigest()
                 projected_by_qid = {r["qid"]: r for r in observed["results"]}
