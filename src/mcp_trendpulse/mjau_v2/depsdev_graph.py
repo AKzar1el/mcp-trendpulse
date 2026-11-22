@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 from urllib.parse import quote
 
+from mcp_trendpulse.mjau_v2.singleflight import singleflight_request
+
 BASE = "https://api.deps.dev"
 SOURCE = "depsdev_v3_resolved_dependencies"
 SYSTEMS = frozenset({"NPM", "PYPI", "CARGO", "MAVEN"})
@@ -242,6 +244,9 @@ def _fetch(url: str) -> tuple[int, Any]:
         session.close()
 
 
+@singleflight_request(
+    lambda args: _key(args["ecosystem"].upper(), args["package"], args["version"])
+)
 def inspect_package_dependencies(
     *, ecosystem: str, package: str, version: str,
     execute: bool = False, cache: Any = None,

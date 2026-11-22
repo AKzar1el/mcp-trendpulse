@@ -1,0 +1,55 @@
+{
+  "mode": "offline",
+  "checked_at": "2026-11-22T01:59:35.568562+00:00",
+  "stdio_handshake": true,
+  "independent_sdk_client": true,
+  "cases_passed": 11,
+  "checks": [
+    {
+      "case": "initialize_discover_seventeen_read_only_tools",
+      "ok": true
+    },
+    {
+      "case": "v2_a02_a03_a07_b01_b02_stdio_plan_no_network",
+      "ok": true
+    },
+    {
+      "case": "seedless_discovery_three_provider_plan_only",
+      "ok": true
+    },
+    {
+      "case": "current_hunter_plan_no_network",
+      "ok": true
+    },
+    {
+      "case": "offline_company_observation_no_false_demand",
+      "ok": true
+    },
+    {
+      "case": "catalogue_wave_filter_and_regional_removal",
+      "ok": true
+    },
+    {
+      "case": "settings_setup_header_redaction",
+      "ok": true
+    },
+    {
+      "case": "job_pain_extraction_with_provenance",
+      "ok": true
+    },
+    {
+      "case": "opportunity_lanes_buyer_gate_failure_and_backtest",
+      "ok": true
+    },
+    {
+      "case": "plan_default_no_network",
+      "ok": true
+    },
+    {
+      "case": "reject_bad_sources_routes_settings_and_limits",
+      "ok": true
+    }
+  ],
+  "paid_requests": 0,
+  "credential_values_in_report": false
+}

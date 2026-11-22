@@ -13,6 +13,8 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from mcp_trendpulse.mjau_v2.singleflight import singleflight_request
+
 BASE = "https://api.scorecard.dev"
 SOURCE = "openssf_published_scorecard"
 CAP_PER_DAY = 4
@@ -161,6 +163,7 @@ def _fetch(url: str) -> tuple[int, Any]:
         session.close()
 
 
+@singleflight_request(lambda args: _key(args["owner"], args["repo"]))
 def inspect_openssf_scorecard(
     *, owner: str, repo: str, execute: bool = False,
     cache: Any = None,
