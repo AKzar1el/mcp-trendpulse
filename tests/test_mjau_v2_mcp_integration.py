@@ -11,22 +11,25 @@ from mcp_trendpulse.intelligence_mcp import (
     intelligence_repository_scorecard,
     intelligence_repository_star_history,
     intelligence_release_lifecycle,
+    intelligence_hf_catalog,
 )
 
 
-def test_four_new_tools_registered_only_in_opt_in_intelligence_mcp():
+def test_five_new_tools_registered_only_in_opt_in_intelligence_mcp():
     tools = asyncio.run(intel_mcp.list_tools())
     names = {tool.name for tool in tools}
     assert "intelligence_dependency_graph" in names
     assert "intelligence_repository_scorecard" in names
     assert "intelligence_repository_star_history" in names
     assert "intelligence_release_lifecycle" in names
-    assert len(names) == 16
+    assert "intelligence_hf_catalog" in names
+    assert len(names) == 17
     for tool in tools:
         if tool.name in {"intelligence_dependency_graph",
                          "intelligence_repository_scorecard",
                          "intelligence_repository_star_history",
-                         "intelligence_release_lifecycle"}:
+                         "intelligence_release_lifecycle",
+                         "intelligence_hf_catalog"}:
             assert tool.annotations.readOnlyHint is True
             assert tool.annotations.destructiveHint is False
 
@@ -50,7 +53,8 @@ def test_dependency_and_scorecard_plan_never_touch_sqlite_or_network(monkeypatch
     score = intelligence_repository_scorecard("pallets", "flask")
     stars = intelligence_repository_star_history("fastapi", "fastapi")
     lifecycle = intelligence_release_lifecycle("nodejs", "20")
-    for result in (dependency, score, stars, lifecycle):
+    hf_catalog = intelligence_hf_catalog("models", limit=2)
+    for result in (dependency, score, stars, lifecycle, hf_catalog):
         assert result["status"] == "planned"
         assert result["requests_attempted"] == 0
         assert result["network_performed"] is False
@@ -77,6 +81,8 @@ def test_execute_requires_real_boolean():
         intelligence_repository_star_history("fastapi", "fastapi", execute="yes")
     with pytest.raises(ValueError):
         intelligence_release_lifecycle("nodejs", "20", execute="yes")
+    with pytest.raises(ValueError):
+        intelligence_hf_catalog("models", execute="yes")
 
 
 def test_explicit_execute_uses_original_isolated_sqlite_cache(monkeypatch, tmp_path):
@@ -225,3 +231,47 @@ def test_b02_post_eol_commercial_support_uses_bounded_sqlite_replay(
     assert repeated["cache_hit"] and not repeated["network_performed"]
     assert repeated["requests_attempted"] == 0
     assert source_calls == [first["source_url"]]
+
+
+def test_a07_hub_model_metadata_is_source_scoped_and_cache_replays(
+    monkeypatch, tmp_path,
+):
+    """An opt-in Hub call returns public metadata, never implied buyer demand."""
+    from datetime import datetime, timezone
+
+    from mcp_trendpulse import intelligence_core
+    from mcp_trendpulse.mjau_v2 import hf_catalog
+
+    store = intelligence_core.BudgetCache(tmp_path / "a07-cache")
+    monkeypatch.setattr(intelligence_core, "BudgetCache", lambda root=None: store)
+    source_calls = []
+
+    def fetch(url, params):
+        source_calls.append((url, params))
+        return 200, [{
+            "id": "example/alpha-2",
+            "modelId": "example/alpha-2",
+            "private": False,
+            "gated": "manual",
+            "trendingScore": 3.5,
+            "downloads": 20,
+            "likes": 2,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        }]
+
+    monkeypatch.setattr(hf_catalog, "_fetch", fetch)
+    first = intelligence_hf_catalog("models", limit=2, execute=True)
+    repeated = intelligence_hf_catalog("models", limit=2, execute=True)
+    assert first["status"] == repeated["status"] == "observed_partial"
+    assert first["records"][0]["repository_id"] == "example/alpha-2"
+    assert first["records"][0]["gated"] == "manual"
+    assert first["records"][0]["provider_download_window"] == (
+        "not_verified_by_this_adapter"
+    )
+    assert not first["comparative_time_series_provided"]
+    assert not first["buyer_demand_verified"]
+    assert not first["model_weights_or_dataset_files_downloaded"]
+    assert repeated["cache_hit"] and not repeated["network_performed"]
+    assert repeated["requests_attempted"] == 0
+    assert len(source_calls) == 1
+    assert source_calls[0][0] == "https://huggingface.co/api/models"
