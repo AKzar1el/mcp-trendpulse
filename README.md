@@ -76,13 +76,13 @@ TrendPulse is published on PyPI, so the shortest install path is:
 uvx mcp-trendpulse
 ```
 
-**Python 3.11.5 or newer is required.** Python 3.10 reached end-of-life in October 2026 and cannot use Pillow 13, which patches upstream image-decoder vulnerabilities. To run TrendPulse on a machine with Python 3.10 as its default, select a supported interpreter explicitly:
+**TrendPulse v0.3.0 and newer requires Python 3.11.5 or newer.** Python 3.10 reached end-of-life in October 2026 and cannot use Pillow 13, which patches upstream image-decoder vulnerabilities; patched Soup Sieve 4.x also requires Python 3.11.5+. To run TrendPulse on a machine with an older Python default, select a supported interpreter explicitly:
 
 ```bash
 uvx --python 3.11 mcp-trendpulse
 ```
 
-See the [security policy](SECURITY.md) for the supported-runtime decision. Users on Python 3.10 must upgrade their interpreter; the new package will not install into a Python 3.10-only environment.
+See the [security policy](SECURITY.md) for the supported-runtime decision. Python 3.10 and Python 3.11.0-3.11.4 users must upgrade their interpreter before upgrading to v0.3.0.
 
 To run the current repository head instead of the published package:
 
