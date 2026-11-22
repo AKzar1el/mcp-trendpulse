@@ -4,6 +4,7 @@ import csv
 import io
 import json
 from datetime import datetime
+
 from mcp_trendpulse.brief_audit import _csv_safe
 from mcp_trendpulse.brief_review import _invalid_constant, _markdown_safe, _unique_keys
 from mcp_trendpulse.rss_url_validation import is_google_news_rss_url
