@@ -232,6 +232,31 @@ async def test_partial_coverage_does_not_claim_complete_feed(tmp_path):
     assert result["records_observed"] == 1
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("row_count", "expected_status"), [
+    (intelligence_rss.MAX_OUTPUT_ROWS, "observed"),
+    (intelligence_rss.MAX_OUTPUT_ROWS + 1, "observed_partial"),
+])
+async def test_output_cap_marks_feed_partial_when_source_has_more_rows(
+    tmp_path, row_count, expected_status,
+):
+    cache = BudgetCache(tmp_path)
+    provider = FakeTrends([
+        row(f"Topic {n}") for n in range(row_count)
+    ])
+    first = await intelligence_rss.discover_trending_rss(
+        "US", execute=True, cache=cache, provider=provider, observed_at=NOW,
+    )
+    assert first["status"] == expected_status
+    assert first["records_observed"] == intelligence_rss.MAX_OUTPUT_ROWS
+    repeated = await intelligence_rss.discover_trending_rss(
+        "US", execute=True, cache=cache, provider=provider, observed_at=NOW,
+    )
+    assert repeated["status"] == expected_status
+    assert repeated["cache_hit"] is True
+    assert len(provider.calls) == 1
+
+
 @pytest.mark.parametrize("bad_geo", ["WORLD", "us", "U;", "U", "U S", ""])
 def test_invalid_geo_rejected_before_network(bad_geo):
     with pytest.raises(ValueError):
