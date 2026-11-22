@@ -44,7 +44,7 @@ def normalize_keyword(text: str) -> str:
         if ch == "-" and i and i < len(text) - 1:
             # Hyphens between words are lexical separators; code markers stay.
             out.append(" ")
-        elif cat.startswith("Z") or ch in "\t\r\n":
+        elif cat.startswith("Z") or ch in "\t\r\n\u200b":
             out.append(" ")
         elif cat.startswith("P") and ch not in {"#", "+"}:
             out.append(" ")

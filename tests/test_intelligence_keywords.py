@@ -48,6 +48,11 @@ def test_unicode_nfc_casefold_whitespace_separators_and_meaningful_symbols():
     assert normalize_keyword("Slovénija") != normalize_keyword("Slovenija")
 
 
+def test_zero_width_space_does_not_fuse_distinct_keyword_tokens():
+    assert normalize_keyword("AI\u200btools") == "ai tools"
+    assert normalize_keyword("AI\u200btools") != normalize_keyword("AItools")
+
+
 @pytest.mark.parametrize("broken", ["", "   ", "...", "\u200d"])
 def test_bad_keywords_cannot_silently_enter_an_unnamed_cluster(broken):
     with pytest.raises(ValueError):
