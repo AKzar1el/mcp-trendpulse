@@ -1,7 +1,8 @@
 # TrendPulse — whole-project functional and effectiveness audit
 
 **Audit date:** 2026-11-22. **Repository:** `AKzar1el/mcp-trendpulse`.
-**Reference main:** `8e2229158bfe5fff8ad2bd915154bf3167d54946` (includes V3 source-only merge).
+**Reference main at start:** `8e2229158bfe5fff8ad2bd915154bf3167d54946` (includes V3 source-only merge).
+**Refreshed main during audit:** `c654c17356f4128921a1ea899edac1ba8046fa17`, incorporating PR #394's V2 Hugging Face fix and stronger external-source QA. **Rebased QA source:** `bdb5febac853bdebaf3534ff382f2b434351ff32`.
 **Existing Codexify live runtime (preserved):** pinned wheel at `7cd13cfd1f7c081daab3487120fa34a7e8e89cf6`, standard 16 + optional V2 intelligence 17 = **33 live catalog tools**.
 
 ## Scope/immutability boundaries
@@ -20,6 +21,7 @@ The V3 merge specifically withholds commercialization/production exposure pendin
 
 - The existing pinned Codexify wheel covers **74/74 tracked Python source modules** of its exact Git revision; all matched after normalizing Windows CRLF versus Git LF. No source code modules missing.
 - Fresh **latest-main** `uv build --offline` produced both a wheel and an sdist. The wheel covers **81/81 Python source modules** at `8e22291`, including default, intelligence, hosted, CLI and V3 source. All matched Git exactly after newline normalization. Wheel SHA-256: `2410dfc515e76b78c77fc06ec2cce2421edda68f0af206f8c6ea24e32b0a0293`.
+- Refreshed **rebased whole-project QA wheel + sdist** at `bdb5feb` also built fully offline. All **81/81 tracked Python modules** matched the rebased Git source after Windows newline normalization, including the upstream PR #394 HF fixes and the malformed-geo protection. Wheel SHA-256: `5a63cf4010fa8facad0ebd0dfe38295685f9e5c6280c2d58c47f349a89732f36`. The one later integration-test assertion change is test-only and cannot affect the wheel.
 - The package's metadata version is still `0.2.47`. A locally built wheel is **not** a published PyPI/GHCR release. The live source was deliberately **not hot-reloaded** with unreleased V3.
 - Existing deployed V2 runtime still reads dependencies from the older tested development venv via a read-only `.pth` bridge. This works but is **not an independently resolved/installed production environment**; changes in that shared venv could affect the live process at the next startup.
 
