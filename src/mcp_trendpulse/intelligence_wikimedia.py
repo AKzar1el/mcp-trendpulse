@@ -32,7 +32,7 @@ _DATE = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
 _CACHED_STATUSES = frozenset(("observed", "observed_partial", "no_data"))
 _EXACT_COUNT_MAX = (1 << 53) - 1
 CONTACT_USER_AGENT = (
-    "mcp-trendpulse/0.2.47 "
+    "mcp-trendpulse/0.3.0 "
     "(https://github.com/AKzar1el/mcp-trendpulse) requests/2"
 )
 

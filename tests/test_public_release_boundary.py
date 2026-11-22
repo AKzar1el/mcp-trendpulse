@@ -12,6 +12,15 @@ def test_public_version_and_python_floor():
     assert project["project"]["version"] == "0.3.0"
     assert manifest["version"] == manifest["packages"][0]["version"] == "0.3.0"
     assert project["project"]["requires-python"] == ">=3.11.5"
+    for manifest_path in (
+        "manifest.json",
+        "plugin.json",
+        "gemini-extension.json",
+        ".claude-plugin/plugin.json",
+        ".cursor-plugin/plugin.json",
+    ):
+        declared = json.loads((ROOT / manifest_path).read_text(encoding="utf-8"))
+        assert declared["version"] == project["project"]["version"], manifest_path
 
 
 def test_public_package_excludes_unreleased_v3_pilot():
