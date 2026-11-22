@@ -137,6 +137,19 @@ def test_source_reference_excerpt_counts_support_and_opposition_in_any_order():
         assert any(ref["polarity"] == "against" for ref in row["source_references"])
 
 
+def test_source_reference_excerpt_discloses_omitted_counterevidence():
+    evidence = [ev("github_issues", i) for i in range(30)]
+    opposing = ev("greenhouse_job", 300, polarity="against")
+    opposing["id"] = "zzz-against"
+    row = evaluation(evidence + [opposing])["results"][0]
+    assert row["status"] == "contested"
+    assert row["contradicting_origins"] == 1
+    assert row["source_references_total"] == 31
+    assert row["source_references_truncated"] is True
+    assert len(row["source_references"]) == 30
+    assert opposing["id"] not in {ref["id"] for ref in row["source_references"]}
+
+
 def test_source_reference_excerpt_excludes_duplicates_and_rejected_records():
     evidence = [ev("github_issues", i) for i in range(30)]
     syndicated = ev("greenhouse_job", 31, origin_id=evidence[4]["origin_id"])

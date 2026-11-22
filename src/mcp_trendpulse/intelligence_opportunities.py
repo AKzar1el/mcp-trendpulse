@@ -371,7 +371,8 @@ def evaluate_opportunities(
     without turning the whole batch into fake 'zero demand'. Top-level rejection
     diagnostics cover the full batch; candidate caveats cover attributable rows.
     source_references is a bounded excerpt, not a complete provenance audit;
-    inspect the original evidence input when source_references_truncated is true.
+    omitted references may include counterevidence. Inspect the original evidence
+    input when source_references_truncated is true.
     """
     _input(candidates, evidence)
     asof = _day(as_of, "as_of") if as_of is not None else date.today()
