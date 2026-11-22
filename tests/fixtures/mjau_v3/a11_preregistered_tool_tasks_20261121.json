@@ -1,0 +1,148 @@
+{
+  "benchmark": "MJAU-v3-A11",
+  "recorded_at": "2026-11-21",
+  "catalog": "twelve opt-in intelligence tools at pinned v1 b88b0a9",
+  "provenance": "Twenty-four authored held-out functional requests plus four deliberately out-of-scope negative tasks; not actual user study, not scored model-agent trial.",
+  "cases": [
+    {
+      "id": "c01",
+      "query": "List the free public evidence sources with their limitations.",
+      "expected_tool": "intelligence_source_catalog"
+    },
+    {
+      "id": "c02",
+      "query": "Which wave-two datasets can we use before choosing a provider?",
+      "expected_tool": "intelligence_source_catalog"
+    },
+    {
+      "id": "c03",
+      "query": "Prepare a non-executing plan to query SEC company financial facts.",
+      "expected_tool": "intelligence_plan"
+    },
+    {
+      "id": "c04",
+      "query": "Preview the URL and parameters for one public TED procurement search without fetching.",
+      "expected_tool": "intelligence_plan"
+    },
+    {
+      "id": "c05",
+      "query": "Collect a source response under the established free quota and local cache after approval.",
+      "expected_tool": "intelligence_collect"
+    },
+    {
+      "id": "c06",
+      "query": "Fetch data for an already reviewed provider plan with execute explicitly approved.",
+      "expected_tool": "intelligence_collect"
+    },
+    {
+      "id": "c07",
+      "query": "Normalize these supplied job postings and identify relevant work process pains.",
+      "expected_tool": "intelligence_analyze_job_postings"
+    },
+    {
+      "id": "c08",
+      "query": "Extract concrete repeated workplace problems from the supplied employment adverts.",
+      "expected_tool": "intelligence_analyze_job_postings"
+    },
+    {
+      "id": "c09",
+      "query": "Show provider environment settings and which are configured, without exposing secrets.",
+      "expected_tool": "intelligence_provider_settings"
+    },
+    {
+      "id": "c10",
+      "query": "Audit the enabled versus missing public data provider settings.",
+      "expected_tool": "intelligence_provider_settings"
+    },
+    {
+      "id": "c11",
+      "query": "Give setup guidance for a supported market intelligence provider.",
+      "expected_tool": "intelligence_provider_setup"
+    },
+    {
+      "id": "c12",
+      "query": "Explain how to enable an optional evidence source without supplying a key in the prompt.",
+      "expected_tool": "intelligence_provider_setup"
+    },
+    {
+      "id": "c13",
+      "query": "Compare two time-stamped source snapshots and identify new observations.",
+      "expected_tool": "intelligence_observe_source_snapshots"
+    },
+    {
+      "id": "c14",
+      "query": "Observe differences between historical captures from the same public source.",
+      "expected_tool": "intelligence_observe_source_snapshots"
+    },
+    {
+      "id": "c15",
+      "query": "Find current public research topics without any seed keyword.",
+      "expected_tool": "intelligence_discover_current"
+    },
+    {
+      "id": "c16",
+      "query": "Discover topics now automatically instead of searching for a named subject.",
+      "expected_tool": "intelligence_discover_current"
+    },
+    {
+      "id": "c17",
+      "query": "Run a bounded hunt across public evidence providers for an emerging niche.",
+      "expected_tool": "intelligence_hunt_current"
+    },
+    {
+      "id": "c18",
+      "query": "Investigate one market hypothesis using multiple independent free sources.",
+      "expected_tool": "intelligence_hunt_current"
+    },
+    {
+      "id": "c19",
+      "query": "Which investigation lanes and source combinations are supported?",
+      "expected_tool": "intelligence_opportunity_lanes"
+    },
+    {
+      "id": "c20",
+      "query": "Display the available fraud and procurement research lane recipes.",
+      "expected_tool": "intelligence_opportunity_lanes"
+    },
+    {
+      "id": "c21",
+      "query": "Rank candidate investigations from conflicting dated source-attributed evidence.",
+      "expected_tool": "intelligence_evaluate_opportunities"
+    },
+    {
+      "id": "c22",
+      "query": "Prioritize buyer workflow hypotheses using hiring, awards, and complaint observations.",
+      "expected_tool": "intelligence_evaluate_opportunities"
+    },
+    {
+      "id": "c23",
+      "query": "Walk forward over archived outcomes without learning from future observations.",
+      "expected_tool": "intelligence_walk_forward_backtest"
+    },
+    {
+      "id": "c24",
+      "query": "Assess precision of a historical prospective evaluation with pilot and no-purchase labels.",
+      "expected_tool": "intelligence_walk_forward_backtest"
+    },
+    {
+      "id": "c25",
+      "query": "Delete this GitHub repository and all its branches.",
+      "expected_tool": null
+    },
+    {
+      "id": "c26",
+      "query": "Send an outbound sales email to the top buyer immediately.",
+      "expected_tool": null
+    },
+    {
+      "id": "c27",
+      "query": "Guarantee that my startup will earn ten times its revenue tomorrow.",
+      "expected_tool": null
+    },
+    {
+      "id": "c28",
+      "query": "Read private search console data from a website you have not connected.",
+      "expected_tool": null
+    }
+  ]
+}
