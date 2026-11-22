@@ -59,18 +59,31 @@ async def test_rss_headlines_limit_after_validity_filter(monkeypatch):
     assert [item["title"] for item in result] == ["A"]
 
 
-async def test_rss_headlines_skip_unparseable_provider_url_and_preserve_good_rows(monkeypatch):
+async def test_rss_headlines_skip_noncanonical_provider_urls_and_preserve_good_rows(monkeypatch):
+    explicit_443 = "https://news.google.com:443/rss/articles/explicit"
     rows = [
-        {"title": "Broken feed entry", "url": "https://[broken/rr", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Malformed IPv6", "url": "https://[broken/rr", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Malformed port", "url": "https://news.google.com:abc/rss/articles/bad", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Out-of-range port", "url": "https://news.google.com:99999/rss/articles/bad", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Unexpected port", "url": "https://news.google.com:8080/rss/articles/bad", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Off-origin", "url": "https://example.invalid/rss/articles/bad", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Lookalike host", "url": "https://news.google.com.evil.invalid/rss/articles/bad", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Plain HTTP", "url": "http://news.google.com/rss/articles/bad", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Credential-bearing", "url": "https://user:pass@news.google.com/rss/articles/bad", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Wrong path", "url": "https://news.google.com/news/bad", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Fragment", "url": "https://news.google.com/rss/articles/bad#fragment", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Whitespace", "url": " https://news.google.com/rss/articles/bad", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Backslash", "url": "https://news.google.com/rss/articles/bad\\evil", "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
         {"title": "Valid feed entry", "url": GOOGLE_LINK, "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
+        {"title": "Valid explicit 443", "url": explicit_443, "published date": "Sun, 25 Oct 2026 01:30:00 GMT"},
     ]
     monkeypatch.setattr(news, "_new_google_news", lambda period, max_results: object())
     monkeypatch.setattr(news, "_call_google_news_async", AsyncMock(return_value=rows))
 
-    result = await news.get_rss_headlines_by_keyword("OpenAI", period=1, max_results=5, now=NOW)
+    result = await news.get_rss_headlines_by_keyword("OpenAI", period=1, max_results=20, now=NOW)
 
-    assert [item["title"] for item in result] == ["Valid feed entry"]
-    assert [item["url"] for item in result] == [GOOGLE_LINK]
+    assert [item["title"] for item in result] == ["Valid feed entry", "Valid explicit 443"]
+    assert [item["url"] for item in result] == [GOOGLE_LINK, explicit_443]
 
 
 async def test_rss_headlines_reject_blank_keyword_without_provider_call(monkeypatch):

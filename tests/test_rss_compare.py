@@ -75,6 +75,24 @@ def test_rss_compare_rejects_invalid_capture_without_partial_report(tmp_path):
     assert '"newly_seen"' not in result.output
 
 
+def test_rss_compare_rejects_off_origin_and_malformed_port_without_partial_report(tmp_path):
+    for url in (
+        "https://example.invalid/rss/articles/z",
+        "https://news.google.com:abc/rss/articles/x",
+        "https://news.google.com:99999/rss/articles/x",
+    ):
+        result = _compare(
+            tmp_path,
+            _capture(_item("Valid", "a")),
+            _capture(_item("Untrusted", "b", url=url)),
+            "--format",
+            "json",
+        )
+        assert result.exit_code == 1, result.output
+        assert "comparison failed" in result.output.lower()
+        assert '"newly_seen"' not in result.output
+
+
 def test_rss_compare_markdown_escapes_untrusted_content(tmp_path):
     result = _compare(tmp_path, _capture(),
                       _capture(_item("x | [link](https://evil.test)", "new", publisher="*P*")))

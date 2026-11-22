@@ -52,6 +52,7 @@ from mcp_trendpulse.errors import (
 )
 from mcp_trendpulse.provider_metrics import provider_metrics
 from mcp_trendpulse.google_news_safe_decode import decode_google_news_url_pinned
+from mcp_trendpulse.rss_url_validation import is_google_news_rss_url
 from mcp_trendpulse.trends_rate_control import (
     install_trends_session_pacing,
     trends_interest_cache,
@@ -1327,20 +1328,7 @@ async def _rss_headlines_from_feed(
         link = item.get("url")
         if not isinstance(title, str) or not title.strip() or not isinstance(link, str):
             continue
-        try:
-            parsed = urlsplit(link)
-            hostname = parsed.hostname
-        except ValueError:
-            # One malformed upstream link must not discard the other headlines.
-            continue
-        if (
-            parsed.scheme != "https"
-            or hostname != "news.google.com"
-            or parsed.username is not None
-            or parsed.password is not None
-            or not parsed.path.startswith("/rss/articles/")
-            or link in seen
-        ):
+        if not is_google_news_rss_url(link) or link in seen:
             continue
         published = _parse_news_publish_date(item.get("published date"))
         if published is None or not cutoff <= published <= reference_now:
