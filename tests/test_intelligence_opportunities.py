@@ -182,6 +182,73 @@ def test_order_independence_and_no_cross_candidate_voting():
     assert next(x for x in one["results"] if x["id"] == "workflow-two")["status"] == "monitor"
 
 
+@pytest.mark.parametrize("unknown_first", [True, False])
+def test_unknown_candidate_cannot_reserve_valid_evidence_id(unknown_first):
+    valid = ev("github_issues", 61)
+    unknown = ev("greenhouse_job", 62, candidate_id="not-registered")
+    unknown["id"] = valid["id"]
+    records = [unknown, valid] if unknown_first else [valid, unknown]
+
+    result = evaluation(records)
+    row = result["results"][0]
+    assert result["rejected_records"] == [{
+        "index": 0 if unknown_first else 1,
+        "reason": "Evidence references unknown candidate",
+    }]
+    assert result["rejected_count"] == 1
+    assert row["status"] == "monitor"
+    assert row["supporting_origins"] == 1
+    assert [ref["id"] for ref in row["source_references"]] == [valid["id"]]
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_unknown_candidate_duplicate_ids_do_not_change_mixed_candidate_results(seed):
+    candidates = [candidate(), candidate(ident="workflow-two")]
+    valid = [ev("github_issues", 71),
+             ev("github_issues", 72, candidate_id="workflow-two")]
+    unknown = [ev("greenhouse_job", 73, candidate_id="not-registered"),
+               ev("greenhouse_job", 74, candidate_id="not-registered")]
+    for invalid, good in zip(unknown, valid):
+        invalid["id"] = good["id"]
+    baseline = evaluate_opportunities(candidates, valid, as_of=ASOF)
+    records = valid + unknown
+    random.Random(seed).shuffle(records)
+    actual = evaluate_opportunities(candidates, records, as_of=ASOF)
+
+    assert actual["rejected_count"] == 2
+    assert {item["reason"] for item in actual["rejected_records"]} == {
+        "Evidence references unknown candidate"}
+    assert [(row["id"], row["status"], row["source_references"])
+            for row in actual["results"]] == [
+                (row["id"], row["status"], row["source_references"])
+                for row in baseline["results"]]
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_cross_candidate_evidence_id_collision_fails_closed_regardless_of_order(seed):
+    candidates = [candidate(), candidate(ident="workflow-two")]
+    support = [ev("github_issues", 81), ev("greenhouse_job", 82),
+               ev("usaspending", 83)]
+    contradiction = ev("github_issues", 84, candidate_id="workflow-two",
+                       polarity="against")
+    contradiction["id"] = support[0]["id"]
+    records = support + [contradiction]
+    random.Random(seed).shuffle(records)
+
+    result = evaluate_opportunities(candidates, records, as_of=ASOF)
+    by_id = {row["id"]: row for row in result["results"]}
+    assert result["rejected_count"] == 2
+    assert result["rejected_records"] == [
+        {"index": index, "reason": "Duplicate evidence ID across candidates"}
+        for index, item in enumerate(records) if item["id"] == support[0]["id"]]
+    assert by_id["workflow-one"]["status"] == "investigate"
+    assert by_id["workflow-one"]["supporting_origins"] == 2
+    assert {ref["id"] for ref in by_id["workflow-one"]["source_references"]} == {
+        support[1]["id"], support[2]["id"]}
+    assert by_id["workflow-two"]["status"] == "insufficient"
+    assert by_id["workflow-two"]["contradicting_origins"] == 0
+
+
 def _series(source, *, missing=None, later=4, earlier=2, extra_future=False):
     end = date.fromisoformat(ASOF)
     start = end - timedelta(days=27)

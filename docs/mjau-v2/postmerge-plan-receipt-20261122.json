@@ -1,0 +1,45 @@
+{
+  "evaluated_at_utc": "2026-11-22T01:48:08.815441+00:00",
+  "mode": "plan",
+  "mcp_transport": "stdio_child_process_sdk",
+  "case_count": 5,
+  "requires_paid_api": false,
+  "baseline_v1_specific_provider_tasks_answerable": 0,
+  "v2_source_observed": 0,
+  "v2_source_scoped_answers": 0,
+  "provider_requests_attempted": 0,
+  "plans_p50_ms": 61.513,
+  "plans_p95_ms": 68.124,
+  "task_results": [
+    {
+      "task": "P1_stars",
+      "tool": "intelligence_repository_star_history",
+      "plan_latency_ms": 87.375,
+      "plan_only_zero_network": true
+    },
+    {
+      "task": "P2_dependencies",
+      "tool": "intelligence_dependency_graph",
+      "plan_latency_ms": 56.291,
+      "plan_only_zero_network": true
+    },
+    {
+      "task": "P3_scorecard",
+      "tool": "intelligence_repository_scorecard",
+      "plan_latency_ms": 61.513,
+      "plan_only_zero_network": true
+    },
+    {
+      "task": "P4_lifecycle",
+      "tool": "intelligence_release_lifecycle",
+      "plan_latency_ms": 51.18,
+      "plan_only_zero_network": true
+    },
+    {
+      "task": "P5_hub_models",
+      "tool": "intelligence_hf_catalog",
+      "plan_latency_ms": 68.124,
+      "plan_only_zero_network": true
+    }
+  ]
+}

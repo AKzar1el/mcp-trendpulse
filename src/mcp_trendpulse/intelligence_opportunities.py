@@ -378,18 +378,30 @@ def evaluate_opportunities(
     accepted = defaultdict(list)
     rejected: list[dict[str, Any]] = []
     allowed = {item["id"] for item in parsed}
-    global_ids = set()
+    validated = []
     for index, raw in enumerate(evidence):
         try:
             record = _evidence(raw, asof)
-            if record["id"] in global_ids:
-                raise ValueError("Duplicate evidence ID")
-            global_ids.add(record["id"])
             if record["candidate"] not in allowed:
                 raise ValueError("Evidence references unknown candidate")
-            accepted[record["candidate"]].append(record)
+            validated.append((index, record))
         except (TypeError, ValueError) as exc:
             rejected.append({"index": index, "reason": str(exc)[:110]})
+    owners = defaultdict(set)
+    for _, record in validated:
+        owners[record["id"]].add(record["candidate"])
+    conflicts = {ident for ident, candidates_for_id in owners.items()
+                 if len(candidates_for_id) > 1}
+    global_ids = set()
+    for index, record in validated:
+        if record["id"] in conflicts:
+            rejected.append({"index": index, "reason": "Duplicate evidence ID across candidates"})
+        elif record["id"] in global_ids:
+            rejected.append({"index": index, "reason": "Duplicate evidence ID"})
+        else:
+            global_ids.add(record["id"])
+            accepted[record["candidate"]].append(record)
+    rejected.sort(key=lambda entry: entry["index"])
     results = []
     for candidate in parsed:
         rows = accepted[candidate["id"]]

@@ -257,6 +257,136 @@ def intelligence_walk_forward_backtest(
     return walk_forward_evaluation(examples, k=k)
 
 
+
+@intel_mcp.tool(
+    description=(
+        "Inspect the provider-resolved, version-specific package dependency graph "
+        "from the FREE deps.dev v3 API. Supports npm, PyPI, Cargo and Maven. "
+        "Plan-only unless execute=True; bounded daily source quota and sanitized "
+        "cache. Missing/incomplete or unverified package identity NEVER means "
+        "zero dependencies. Graph edges do NOT measure users, installs, dependents, "
+        "revenue or buyer demand."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_dependency_graph(
+    ecosystem: str,
+    package: str,
+    version: str,
+    execute: bool = False,
+) -> dict[str, Any]:
+    from mcp_trendpulse.mjau_v2.depsdev_graph import (
+        inspect_package_dependencies,
+    )
+
+    return inspect_package_dependencies(
+        ecosystem=ecosystem, package=package, version=version,
+        execute=execute,
+    )
+
+
+@intel_mcp.tool(
+    description=(
+        "Inspect a FREE published OpenSSF Scorecard heuristic assessment for "
+        "one public GitHub repository. Plan-only unless execute=True. Returns "
+        "published score and source scan date/precision, check coverage and "
+        "inconclusive checks. Missing checks or HTTP 404 mean UNKNOWN, not an "
+        "insecure repository. This is not a security audit or verified vulnerability."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_repository_scorecard(
+    owner: str,
+    repo: str,
+    execute: bool = False,
+) -> dict[str, Any]:
+    from mcp_trendpulse.mjau_v2.openssf_scorecard import (
+        inspect_openssf_scorecard,
+    )
+
+    return inspect_openssf_scorecard(
+        owner=owner, repo=repo, execute=execute,
+    )
+
+
+
+@intel_mcp.tool(
+    description=(
+        "Read FREE GitHub repository star-history aggregate cohorts, NOT "
+        "individual stargazers. GitHub reports stars still active today "
+        "grouped by their original star dates, with provider-defined week/day "
+        "boundaries that are NOT guaranteed UTC. Plan-only unless execute=True, "
+        "with fixed-host HTTPS, local quotas and a validated cache. "
+        "Only descriptive within-repository comparisons are permitted. "
+        "This is NOT net historical star growth, user count, installations, "
+        "commercial demand, market share or a growth forecast."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_repository_star_history(
+    owner: str,
+    repo: str,
+    limit: int = 10,
+    execute: bool = False,
+) -> dict[str, Any]:
+    from mcp_trendpulse.mjau_v2.github_stars import github_star_history
+
+    return github_star_history(
+        owner=owner, repo=repo, limit=limit, execute=execute,
+    )
+
+
+
+@intel_mcp.tool(
+    description=(
+        "Inspect FREE community-curated software release-cycle dates from "
+        "endoflife.date v1. Source EOL, active-support, extended/commercial "
+        "maintenance and future support dates are DISTINCT. A source's "
+        "isMaintained may reflect third-party commercial support after upstream "
+        "EOL and NEVER verifies a caller's support entitlement. Plan-only by "
+        "default; execute=True performs one bounded, source-capped read. "
+        "Vendor dates must be checked separately before migration or compliance "
+        "decisions. No buyer demand, urgency or vendor warranty is inferred."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_release_lifecycle(
+    product: str,
+    release: str,
+    execute: bool = False,
+) -> dict[str, Any]:
+    from mcp_trendpulse.mjau_v2.endoflife_release import observe_release_support
+
+    return observe_release_support(
+        product=product, release=release, execute=execute,
+    )
+
+
+@intel_mcp.tool(
+    description=(
+        "Inspect FREE public Hugging Face Hub model/dataset catalog metadata "
+        "and provider-defined trendingScore, likes and downloads. This is one "
+        "bounded, partial snapshot: NOT model quality, user adoption, growth, "
+        "buyers, market share or permission to use gated model/dataset contents. "
+        "Plan-only by default; execute=True uses one fixed-host metadata GET "
+        "subject to local quota, cache and cooldown. No weights, dataset files "
+        "or private repositories are accessed."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_hf_catalog(
+    kind: str,
+    limit: int = 5,
+    search: str = "",
+    execute: bool = False,
+) -> dict[str, Any]:
+    from mcp_trendpulse.mjau_v2.hf_catalog import discover_hf_catalog
+
+    return discover_hf_catalog(
+        kind=kind, limit=limit, search=search, execute=execute,
+    )
+
+
 def main() -> None:
     intel_mcp.run()
 

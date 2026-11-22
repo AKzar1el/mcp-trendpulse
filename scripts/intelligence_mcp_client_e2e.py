@@ -33,6 +33,11 @@ TOOLS = {
     "intelligence_observe_source_snapshots",
     "intelligence_hunt_current",
     "intelligence_discover_current",
+    "intelligence_dependency_graph",
+    "intelligence_repository_scorecard",
+    "intelligence_repository_star_history",
+    "intelligence_release_lifecycle",
+    "intelligence_hf_catalog",
 }
 FAKE_TOKEN = "SYNTHETIC_OFFLINE_E2E_TOKEN_NOT_A_PROVIDER_KEY"
 
@@ -77,6 +82,9 @@ async def exercise(mode: str, result_path: Path) -> int:
         env = {
             "TRENDPULSE_INTEL_CACHE_DIR": str(cache_dir),
             "TRENDPULSE_INTEL_OPENALEX_KEY": FAKE_TOKEN,
+            # MCP stdio filters inherited environment variables, including
+            # PYTHONPATH: explicitly test this checkout, not an older install.
+            "PYTHONPATH": str(Path(__file__).resolve().parent.parent / "src"),
         }
         if mode == "changedetection":
             # The CI job injects an *ephemeral local instance's* test API key.
@@ -107,7 +115,42 @@ async def exercise(mode: str, result_path: Path) -> int:
                     schema = json.dumps(tool.inputSchema).lower()
                     if '"api_key"' in schema or '"secret"' in schema or '"token"' in schema:
                         raise AssertionError("Secret-bearing MCP argument schema exposed")
-                checked.append({"case": "initialize_discover_twelve_read_only_tools", "ok": True})
+                checked.append({"case": "initialize_discover_seventeen_read_only_tools", "ok": True})
+                a03 = await _call(session, "intelligence_dependency_graph", {
+                    "ecosystem": "npm", "package": "is-odd", "version": "3.0.1",
+                    "execute": False,
+                })
+                b01 = await _call(session, "intelligence_repository_scorecard", {
+                    "owner": "pallets", "repo": "flask", "execute": False,
+                })
+                a02 = await _call(session, "intelligence_repository_star_history", {
+                    "owner": "fastapi", "repo": "fastapi",
+                    "limit": 10, "execute": False,
+                })
+                b02 = await _call(session, "intelligence_release_lifecycle", {
+                    "product": "nodejs", "release": "20", "execute": False,
+                })
+                a07 = await _call(session, "intelligence_hf_catalog", {
+                    "kind": "datasets", "limit": 2, "search": "security",
+                    "execute": False,
+                })
+                for planned in (a03, b01, a02, b02, a07):
+                    if (
+                        planned.get("status") != "planned"
+                        or planned.get("network_performed") is not False
+                        or planned.get("requests_attempted") != 0
+                        or planned.get("cache_hit") is not False
+                    ):
+                        raise AssertionError("V2 plan-only accessed sources")
+                if a02.get("individual_stargazer_data_collected") is not False:
+                    raise AssertionError("A02 privacy-safe plan contract regressed")
+                if (b02.get("is_eol") is not None
+                        or b02.get("vendor_schedule_checked_by_this_call") is not False):
+                    raise AssertionError("B02 fabricated a vendor-confirmed EOL plan")
+                if (a07.get("model_weights_or_dataset_files_downloaded") is not False
+                        or a07.get("customer_demand_verified") is not False):
+                    raise AssertionError("A07 fabricated Hub access or customer demand")
+                checked.append({"case": "v2_a02_a03_a07_b01_b02_stdio_plan_no_network", "ok": True})
 
                 seedless_plan = await _call(
                     session, "intelligence_discover_current", {
