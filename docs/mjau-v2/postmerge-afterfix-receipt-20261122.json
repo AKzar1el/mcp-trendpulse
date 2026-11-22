@@ -1,0 +1,135 @@
+{
+  "evaluated_at_utc": "2026-11-22T01:54:33.725611+00:00",
+  "mode": "live",
+  "mcp_transport": "stdio_child_process_sdk",
+  "case_count": 5,
+  "requires_paid_api": false,
+  "baseline_v1_specific_provider_tasks_answerable": 0,
+  "v2_source_observed": 5,
+  "v2_source_scoped_answers": 5,
+  "provider_requests_attempted": 0,
+  "plans_p50_ms": 44.572,
+  "plans_p95_ms": 58.951,
+  "task_results": [
+    {
+      "task": "P1_stars",
+      "tool": "intelligence_repository_star_history",
+      "plan_latency_ms": 58.951,
+      "plan_only_zero_network": true,
+      "live_latency_ms": 51.54,
+      "observation": {
+        "status": "observed_partial",
+        "status_known_observation": true,
+        "cache_hit": true,
+        "network_performed": false,
+        "requests_attempted": 0,
+        "weekly_rows": 10,
+        "cohort_comparison_status": "descriptive_cohort_window_comparison"
+      },
+      "replay_latency_ms": 42.391,
+      "replay": {
+        "status": "observed_partial",
+        "cache_hit": true,
+        "requests_attempted": 0
+      }
+    },
+    {
+      "task": "P2_dependencies",
+      "tool": "intelligence_dependency_graph",
+      "plan_latency_ms": 38.773,
+      "plan_only_zero_network": true,
+      "live_latency_ms": 42.764,
+      "observation": {
+        "status": "observed",
+        "status_known_observation": true,
+        "cache_hit": true,
+        "network_performed": false,
+        "requests_attempted": 0,
+        "root_verified": true,
+        "direct_versions": 1
+      },
+      "replay_latency_ms": 48.866,
+      "replay": {
+        "status": "observed",
+        "cache_hit": true,
+        "requests_attempted": 0
+      }
+    },
+    {
+      "task": "P3_scorecard",
+      "tool": "intelligence_repository_scorecard",
+      "plan_latency_ms": 62.266,
+      "plan_only_zero_network": true,
+      "live_latency_ms": 46.302,
+      "observation": {
+        "status": "observed",
+        "status_known_observation": true,
+        "cache_hit": true,
+        "network_performed": false,
+        "requests_attempted": 0,
+        "source_scan_date": "2026-11-09",
+        "aggregate_inconclusive": false,
+        "published_checks": 14
+      },
+      "replay_latency_ms": 44.164,
+      "replay": {
+        "status": "observed",
+        "cache_hit": true,
+        "requests_attempted": 0
+      }
+    },
+    {
+      "task": "P4_lifecycle",
+      "tool": "intelligence_release_lifecycle",
+      "plan_latency_ms": 39.998,
+      "plan_only_zero_network": true,
+      "live_latency_ms": 46.329,
+      "observation": {
+        "status": "observed_partial",
+        "status_known_observation": true,
+        "cache_hit": true,
+        "network_performed": false,
+        "requests_attempted": 0,
+        "eol_date": "2026-04-30",
+        "eol": true,
+        "scope_caveats": [
+          "post_eol_extended_or_commercial_support_possible"
+        ]
+      },
+      "replay_latency_ms": 50.259,
+      "replay": {
+        "status": "observed_partial",
+        "cache_hit": true,
+        "requests_attempted": 0
+      }
+    },
+    {
+      "task": "P5_hub_models",
+      "tool": "intelligence_hf_catalog",
+      "plan_latency_ms": 44.572,
+      "plan_only_zero_network": true,
+      "live_latency_ms": 48.839,
+      "observation": {
+        "status": "observed_partial",
+        "status_known_observation": true,
+        "cache_hit": true,
+        "network_performed": false,
+        "requests_attempted": 0,
+        "model_ids": [
+          "thinkingmachines/Inkling-2-Mini",
+          "unsloth/Inkling-2-Mini-GGUF"
+        ],
+        "gating_flags": [
+          "not_reported",
+          "not_reported"
+        ]
+      },
+      "replay_latency_ms": 48.46,
+      "replay": {
+        "status": "observed_partial",
+        "cache_hit": true,
+        "requests_attempted": 0
+      }
+    }
+  ]
+}

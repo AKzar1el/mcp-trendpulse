@@ -15,6 +15,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from mcp_trendpulse.mjau_v2.singleflight import singleflight_request
+
 SOURCE = "github_privacy_safe_star_history"
 API = "https://api.github.com"
 VERSION = "2026-03-10"
@@ -136,6 +138,9 @@ def _key(owner: str, repo: str, limit: int) -> str:
     ).encode()).hexdigest()
 
 
+@singleflight_request(
+    lambda args: _key(args["owner"], args["repo"], args["limit"])
+)
 def github_star_history(
     *, owner: str, repo: str, limit: int = 10, execute: bool = False,
     cache: Any = None,

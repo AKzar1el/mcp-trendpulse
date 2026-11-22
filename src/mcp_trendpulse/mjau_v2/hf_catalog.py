@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlencode
 
+from mcp_trendpulse.mjau_v2.singleflight import singleflight_request
+
 BASE = "https://huggingface.co"
 SOURCE = "hf_public_hub_catalog_v2"
 KINDS = frozenset({"models", "datasets"})
@@ -196,6 +198,9 @@ def _fetch(url: str, params: dict[str, str]) -> tuple[int, Any]:
         session.close()
 
 
+@singleflight_request(
+    lambda args: _key(args["kind"], args["limit"], args["search"])
+)
 def discover_hf_catalog(
     *, kind: str, limit: int = 5, search: str = "",
     execute: bool = False, cache: Any = None,
