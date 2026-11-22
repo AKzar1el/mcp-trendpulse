@@ -1,6 +1,6 @@
 [project]
 name = "mcp-trendpulse"
-version = "0.2.47"
+version = "0.3.0"
 description = "MCP server for Google News research and Google Trends analysis"
 readme = "README.md"
 requires-python = ">=3.11.5"
@@ -51,6 +51,11 @@ bigquery = [
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["mcp_trendpulse*"]
+exclude = ["mcp_trendpulse.mjau_v3", "mcp_trendpulse.mjau_v3.*"]
 
 [dependency-groups]
 dev = [

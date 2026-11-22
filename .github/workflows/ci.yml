@@ -95,6 +95,9 @@ jobs:
           UV_PYTHON: "3.12"
         run: uv build
 
+      - name: Verify public package contains approved V1/V2 only
+        run: python scripts/check_public_distribution.py dist
+
       - name: Validate distribution metadata
         env:
           UV_PYTHON: "3.12"

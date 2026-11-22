@@ -1,0 +1,2 @@
+prune src/mcp_trendpulse/mjau_v3
+recursive-exclude tests test_mjau_v3*.py

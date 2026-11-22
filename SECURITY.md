@@ -4,7 +4,7 @@
 
 Security fixes target the latest published TrendPulse release. If you can reproduce an issue only on an older release, upgrade first and confirm whether the issue still exists.
 
-TrendPulse requires Python 3.11.5 or newer. Python 3.10 reached end-of-life on October 1, 2026, and Pillow 13 (which fixes critical image-decoder vulnerabilities) does not support Python 3.10. We therefore no longer claim support for Python 3.10 installations or resolve Pillow 12.3.0 for that runtime. Upgrade the Python interpreter before upgrading TrendPulse; the existing published versions may remain installable but are not security-maintained on Python 3.10.
+TrendPulse v0.3.0 and newer requires Python 3.11.5 or newer. Python 3.10 reached end-of-life on October 1, 2026, and Pillow 13 (which fixes critical image-decoder vulnerabilities) does not support Python 3.10. Patched Soup Sieve 4.x also requires Python 3.11.5 or newer; Python 3.11.0-3.11.4 cannot install the supported dependency set. Upgrade your Python interpreter before upgrading TrendPulse. Older published packages may remain installable but do not inherit newer dependency fixes.
 
 ## Reporting a vulnerability
 
