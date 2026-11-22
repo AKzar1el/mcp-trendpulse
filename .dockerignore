@@ -13,3 +13,7 @@ build
 .env.*
 *.log
 tests
+
+# Keep the separately gated V3 pilot out of both public container images.
+src/mcp_trendpulse/mjau_v3/
+docs/mjau-v3/

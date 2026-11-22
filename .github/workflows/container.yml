@@ -43,6 +43,16 @@ jobs:
       - name: Build image
         run: docker build --pull --tag mcp-trendpulse:ci .
 
+      - name: Verify unreleased V3 pilot excluded from image
+        run: |
+          docker run --rm --entrypoint python mcp-trendpulse:ci -c "
+          from pathlib import Path
+          import importlib.util
+          assert not Path('/app/src/mcp_trendpulse/mjau_v3').exists()
+          assert not Path('/app/docs/mjau-v3').exists()
+          assert importlib.util.find_spec('mcp_trendpulse.mjau_v3') is None
+          "
+
       - name: Start container
         run: |
           docker run --detach \

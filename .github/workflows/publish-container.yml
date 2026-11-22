@@ -3,6 +3,7 @@ name: Publish stdio container
 on:
   pull_request:
     paths:
+      - ".dockerignore"
       - "Dockerfile.mcp-registry"
       - "pyproject.toml"
       - "src/**"
@@ -11,6 +12,7 @@ on:
     branches:
       - main
     paths:
+      - ".dockerignore"
       - "Dockerfile.mcp-registry"
       - "pyproject.toml"
       - "src/**"
@@ -89,6 +91,19 @@ jobs:
             exit "$status"
           fi
           grep -q '"result"' "${RUNNER_TEMP}/initialize.out"
+
+      - name: Verify unreleased V3 pilot excluded from image
+        shell: bash
+        run: |
+          IMAGE="${{ steps.meta.outputs.image }}"
+          SHORT_SHA="${{ steps.meta.outputs.short_sha }}"
+          docker run --rm --entrypoint python "${IMAGE}:sha-${SHORT_SHA}" -c "
+          from pathlib import Path
+          import importlib.util
+          assert not Path('/app/src/mcp_trendpulse/mjau_v3').exists()
+          assert not Path('/app/docs/mjau-v3').exists()
+          assert importlib.util.find_spec('mcp_trendpulse.mjau_v3') is None
+          "
 
       - name: Preserve immutable version tag
         if: github.event_name == 'workflow_dispatch'
