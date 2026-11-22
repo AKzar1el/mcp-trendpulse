@@ -142,6 +142,17 @@ On the isolated QA branch after the last source change:
 - Independent SDK MCP stdio handshake/discovery/calls: **11/11 passed**.
   The optional catalog still has **17 read-only tools**; the standard
   community and hosted catalogs are unchanged.
+- The initial GitHub CI head `e2662caf` correctly **FAILED** the new
+  multiprocess test on Linux (all Python 3.11-3.14 jobs) while its other
+  **2,818** tests passed. The test initially used Windows-compatible
+  `multiprocessing.get_context("spawn")`, but the Linux pytest-imported
+  `tests.*` module was not importable to its spawned child
+  (`ModuleNotFoundError: No module named 'tests'`). The production V2
+  implementation was not implicated. The fixture now tests separate Linux
+  processes through the supported POSIX `fork` context and preserves
+  actual Windows `spawn`; the corrected local Windows multiprocess/thread
+  QA is **9/9 passed**. Do **not** count failed initial CI as green;
+  the corrected latest-head CI must still prove the fix.
 
 The remaining release gate is the **exact latest-head protected GitHub
 Python 3.11-3.14, package validation, MCP, and Docker CI**, plus an explicit

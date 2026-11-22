@@ -9,7 +9,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
-from multiprocessing import get_context
+from multiprocessing import get_all_start_methods, get_context
 from pathlib import Path
 
 import pytest
@@ -137,8 +137,11 @@ def _multi_process_hub_probe(root, ready, start, results, fetch_count):
     results.put((answer["status"], answer["cache_hit"], answer["requests_attempted"]))
 
 
-def test_singleflight_works_between_separate_windows_processes(tmp_path):
-    context = get_context("spawn")
+def test_singleflight_works_between_separate_processes(tmp_path):
+    # Pytest's Linux import mode can name this module tests.* without making
+    # that package importable to a spawned child. Fork validates independent
+    # POSIX process locking; Windows still verifies real spawn semantics.
+    context = get_context("fork" if "fork" in get_all_start_methods() else "spawn")
     ready, responses = context.Queue(), context.Queue()
     go = context.Event()
     attempts = context.Value("i", 0)
