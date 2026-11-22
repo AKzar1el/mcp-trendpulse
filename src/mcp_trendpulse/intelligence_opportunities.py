@@ -408,7 +408,7 @@ def evaluate_opportunities(
             rejected_candidates.add(record["candidate"])
         else:
             global_ids.add(record["id"])
-            accepted[record["candidate"]].append(record)
+            accepted[record["candidate"]].append((index, record))
     rejected.sort(key=lambda entry: entry["index"])
     results = []
     for candidate in parsed:
@@ -416,7 +416,8 @@ def evaluate_opportunities(
         by_origin: dict[str, dict[str, Any]] = {}
         seen_urls: set[tuple[str, str, tuple[tuple[str, str], ...]]] = set()
         ignored = Counter()
-        for rec in sorted(rows, key=lambda r: (r["published"], r["id"]), reverse=True):
+        eligible = []
+        for index, rec in sorted(rows, key=lambda row: (row[1]["published"], row[1]["id"]), reverse=True):
             if not rec["visible_at_asof"]:
                 ignored["future_or_unobserved"] += 1
                 continue
@@ -435,8 +436,24 @@ def evaluate_opportunities(
             if health.get(rec["source"]) in UNHEALTHY:
                 ignored["unhealthy_provider"] += 1
                 continue
+            eligible.append((index, rec, _canonical_evidence_url(rec["url"])))
+
+        origin_polarities = defaultdict(set)
+        url_polarities = defaultdict(set)
+        for _, rec, canonical_url in eligible:
+            origin_polarities[rec["origin_id"]].add(rec["polarity"])
+            url_polarities[canonical_url].add(rec["polarity"])
+        conflicting_origins = {origin for origin, labels in origin_polarities.items() if len(labels) > 1}
+        conflicting_urls = {url for url, labels in url_polarities.items() if len(labels) > 1}
+        conflicting_indices = set()
+        conflicting_reference_ids = set()
+        for index, rec, canonical_url in eligible:
+            if rec["origin_id"] in conflicting_origins or canonical_url in conflicting_urls:
+                conflicting_indices.add(index)
+                conflicting_reference_ids.add(rec["id"])
+                ignored["conflicting_polarity"] += 1
+                continue
             # Do not count syndicated records under multiple API wrappers.
-            canonical_url = _canonical_evidence_url(rec["url"])
             if rec["origin_id"] in by_origin or canonical_url in seen_urls:
                 ignored["duplicate_origin"] += 1
                 continue
@@ -479,7 +496,7 @@ def evaluate_opportunities(
             if src in OPTIONAL_ENRICHMENT_SOURCES
             and health.get(src) != "ok"
         ]
-        if len({x["publisher"] for x in against}) >= 2:
+        if conflicting_indices or len({x["publisher"] for x in against}) >= 2:
             stage = "conflict_review"
             priority = 0
         elif against:
@@ -511,6 +528,8 @@ def evaluate_opportunities(
             reasons.append("Insufficient distinct evidence classes")
         if against:
             reasons.append("Counterevidence requires human review")
+        if conflicting_indices:
+            reasons.append("Conflicting polarity on a shared origin or canonical URL requires human review")
         if degraded:
             reasons.append("One or more relevant provider signals are unavailable")
         elif not provider_health_reported_ok:
@@ -539,6 +558,9 @@ def evaluate_opportunities(
             "distinct_classes": class_count,
             "supporting_origins": len(supportive),
             "contradicting_origins": len(against),
+            "conflict_evidence_count": len(conflicting_indices),
+            "conflicting_evidence_indices": sorted(conflicting_indices)[:30],
+            "conflicting_reference_ids": sorted(conflicting_reference_ids)[:30],
             "source_health": {
                 src: health.get(src, "unknown") for src in LANES[candidate["lane"]]["sources"]
             },
