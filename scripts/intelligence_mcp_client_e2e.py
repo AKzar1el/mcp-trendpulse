@@ -281,7 +281,7 @@ async def exercise(mode: str, result_path: Path) -> int:
                         "geography": "US", "workflow": "incident_triage",
                         "url": f"https://example.org/real-reference-format/{i}",
                         "published_at": "2026-11-10", "observed_at": "2026-11-12",
-                        "claim": "Offline synthetic evidence fixture",
+                        "claim": "Offline synthetic evidence fixture", "polarity": "support",
                     })
                 assessed = await _call(session, "intelligence_evaluate_opportunities", {
                     "candidates": [case], "evidence": items, "as_of": "2026-11-18",

@@ -169,6 +169,29 @@ def test_bad_facts_report_rejection(field, value):
     assert result["rejected_count"] == 1
 
 
+@pytest.mark.parametrize("polarity", ["OMITTED", None, "", "invalid"])
+def test_missing_or_invalid_polarity_cannot_count_as_support(polarity):
+    rows = strong()
+    if polarity == "OMITTED":
+        rows[2].pop("polarity")
+    else:
+        rows[2]["polarity"] = polarity
+    result = evaluation(rows)
+    assert result["rejected_count"] == 1
+    assert result["results"][0]["supporting_origins"] == 2
+    assert result["results"][0]["status"] == "investigate"
+
+
+def test_all_omitted_polarities_cannot_create_support():
+    rows = strong()
+    for row in rows:
+        row.pop("polarity")
+    result = evaluation(rows)
+    assert result["rejected_count"] == 3
+    assert result["results"][0]["supporting_origins"] == 0
+    assert result["results"][0]["status"] == "insufficient"
+
+
 def test_order_independence_and_no_cross_candidate_voting():
     second = candidate(ident="workflow-two")
     row = ev("github_issues", 9, candidate_id="workflow-two")
