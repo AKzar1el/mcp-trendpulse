@@ -1,6 +1,8 @@
 """M01 Google Trending Now RSS: provider reuse, safety, caching, and coverage."""
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 from datetime import datetime, timezone
 
@@ -218,6 +220,31 @@ async def test_corrupted_cache_is_not_reused_as_verified_source_data(tmp_path):
     assert not current["cache_hit"]
     assert current["trends"][0]["signal"]["raw_term"] == "replacement"
     assert replacement_provider.calls == [("US", True)]
+
+
+@pytest.mark.parametrize(("cached_status", "has_rows"), [
+    ("observed_empty", True),
+    ("observed", False),
+    ("observed_partial", False),
+])
+def test_contradictory_cached_feed_status_forces_refetch(
+    tmp_path, cached_status, has_rows,
+):
+    store = BudgetCache(tmp_path)
+    cached = intelligence_rss._normalize_feed(
+        [row("Stale")] if has_rows else [], "US", NOW,
+    )
+    cached["status"] = cached_status
+    store.save(hashlib.sha256(b"mjau_rss_v1_US").hexdigest(), cached, 900)
+    provider = FakeTrends([row("Fresh")])
+
+    result = asyncio.run(intelligence_rss.discover_trending_rss(
+        "US", execute=True, cache=store, provider=provider, observed_at=NOW,
+    ))
+    assert result["status"] == "observed"
+    assert result["cache_hit"] is False
+    assert result["trends"][0]["signal"]["raw_term"] == "Fresh"
+    assert provider.calls == [("US", True)]
 
 
 @pytest.mark.asyncio
