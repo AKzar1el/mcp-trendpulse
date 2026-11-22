@@ -367,7 +367,8 @@ def evaluate_opportunities(
 
     This intentionally has no success probability. Supplier failures appear in
     output; invalid individual records are rejected with indexed reason codes
-    without turning the whole batch into fake 'zero demand'.
+    without turning the whole batch into fake 'zero demand'. Top-level rejection
+    diagnostics cover the full batch; candidate caveats cover attributable rows.
     """
     _input(candidates, evidence)
     asof = _day(as_of, "as_of") if as_of is not None else date.today()
@@ -377,6 +378,7 @@ def evaluate_opportunities(
         raise ValueError("Candidate IDs must be unique")
     accepted = defaultdict(list)
     rejected: list[dict[str, Any]] = []
+    rejected_candidates: set[str] = set()
     allowed = {item["id"] for item in parsed}
     validated = []
     for index, raw in enumerate(evidence):
@@ -387,6 +389,10 @@ def evaluate_opportunities(
             validated.append((index, record))
         except (TypeError, ValueError) as exc:
             rejected.append({"index": index, "reason": str(exc)[:110]})
+            if isinstance(raw, dict):
+                owner = raw.get("candidate")
+                if isinstance(owner, str) and owner in allowed:
+                    rejected_candidates.add(owner)
     owners = defaultdict(set)
     for _, record in validated:
         owners[record["id"]].add(record["candidate"])
@@ -396,8 +402,10 @@ def evaluate_opportunities(
     for index, record in validated:
         if record["id"] in conflicts:
             rejected.append({"index": index, "reason": "Duplicate evidence ID across candidates"})
+            rejected_candidates.add(record["candidate"])
         elif record["id"] in global_ids:
             rejected.append({"index": index, "reason": "Duplicate evidence ID"})
+            rejected_candidates.add(record["candidate"])
         else:
             global_ids.add(record["id"])
             accepted[record["candidate"]].append(record)
@@ -509,7 +517,7 @@ def evaluate_opportunities(
             reasons.append("Provider health was not reported for every lane source")
         if optional_sources_unavailable:
             reasons.append("Optional patent enrichment not verified; this is not negative demand")
-        if rejected:
+        if candidate["id"] in rejected_candidates:
             reasons.append("Some evidence input records were rejected; inspect reasons")
         if not buyer_proxy:
             reasons.append("No public contract award was observed (not required for investigation)")

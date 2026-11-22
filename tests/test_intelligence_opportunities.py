@@ -157,6 +157,43 @@ def test_invalid_record_rejected_without_destroying_valid_evidence():
     assert "127.0.0.1" not in repr(result["rejected_records"])
 
 
+@pytest.mark.parametrize(("rejected_owner", "expected_warned"), [
+    ("workflow-one", {"workflow-one"}),
+    ("workflow-two", {"workflow-two"}),
+    ("not-registered", set()),
+])
+def test_rejected_evidence_caveat_is_candidate_scoped(rejected_owner, expected_warned):
+    candidates = [candidate(), candidate(ident="workflow-two")]
+    valid = strong() + [ev("github_issues", 90, candidate_id="workflow-two")]
+    baseline = evaluate_opportunities(candidates, valid, as_of=ASOF)
+    malformed = ev("github_issues", 91, candidate_id=rejected_owner)
+    malformed["url"] = "http://127.0.0.1/private"
+
+    actual = evaluate_opportunities(candidates, valid + [malformed], as_of=ASOF)
+    assert actual["rejected_count"] == 1
+    assert actual["rejected_records"] == [{
+        "index": len(valid), "reason": "source_url must be a public HTTPS evidence reference",
+    }]
+    baseline_by_id = {row["id"]: row for row in baseline["results"]}
+    warning = "Some evidence input records were rejected; inspect reasons"
+    for row in actual["results"]:
+        assert (warning in row["caveats"]) == (row["id"] in expected_warned)
+        original = baseline_by_id[row["id"]]
+        assert (row["status"], row["priority_order"], row["source_references"]) == (
+            original["status"], original["priority_order"], original["source_references"])
+
+
+def test_cross_candidate_duplicate_id_warns_both_affected_candidates():
+    candidates = [candidate(), candidate(ident="workflow-two")]
+    first = ev("github_issues", 92)
+    second = ev("greenhouse_job", 93, candidate_id="workflow-two")
+    second["id"] = first["id"]
+    actual = evaluate_opportunities(candidates, [first, second], as_of=ASOF)
+    assert actual["rejected_count"] == 2
+    for row in actual["results"]:
+        assert "Some evidence input records were rejected; inspect reasons" in row["caveats"]
+
+
 @pytest.mark.parametrize("field,value", [
     ("candidate", "not-registered"), ("published_at", "2030-02-30"),
     ("observed_at", "invalid"), ("polarity", "definitely_winning"),
