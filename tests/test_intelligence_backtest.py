@@ -102,6 +102,15 @@ def test_invalid_labels_are_not_counted(key, value):
     assert result["status"] == "invalid_historical_labels"
 
 
+def test_omitted_polarity_blocks_historical_backtest_metrics():
+    rows = eight()
+    rows[0]["evidence"][2].pop("polarity")
+    result = walk_forward_evaluation(rows)
+    assert result["status"] == "invalid_historical_labels"
+    assert result["rejected_count"] == 1
+    assert "precision_at_k" not in result
+
+
 def test_duplicate_candidate_at_cutoff_fails_closed():
     rows = eight()
     rows[1]["candidate"]["id"] = rows[0]["candidate"]["id"]

@@ -239,7 +239,7 @@ def _evidence(raw: Any, asof: date) -> dict[str, Any]:
     geography = raw.get("geography")
     if not isinstance(geography, str) or not REGION.fullmatch(geography):
         raise ValueError("Invalid evidence geography")
-    sentiment = raw.get("polarity", "support")
+    sentiment = raw.get("polarity")
     if sentiment not in {"support", "against"}:
         raise ValueError("Invalid evidence polarity")
     return {
