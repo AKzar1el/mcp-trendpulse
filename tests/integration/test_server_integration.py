@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from fastmcp import Client
+from fastmcp.exceptions import ToolError
 
 from mcp_trendpulse import server
 from mcp_trendpulse.news import BrowserManager, download_article, download_article_with_playwright, save_article_to_json
@@ -33,8 +34,9 @@ async def test_download_article_from_live_publisher(tmp_path: Path):
     async with BrowserManager():
         article = await download_article(article_url)
         assert article is not None
-        article = await download_article_with_playwright(article_url)
-        assert article is not None
+        # The browser fetch must stay disabled until DNS/egress pinning exists.
+        with pytest.raises(ValueError, match="disabled until pinned browser egress"):
+            await download_article_with_playwright(article_url)
         article_path = tmp_path / "article.json"
         save_article_to_json(article, str(article_path))
         assert article_path.exists()
@@ -81,8 +83,8 @@ async def test_get_news_by_topic_uses_google_news(mcp_server):
             assert "title" in article
             assert "url" in article
         params = {"topic": "CATS", "period": 3, "max_results": 2}
-        result = await client.call_tool("get_news_by_topic", params)
-        assert _articles(result) == []
+        with pytest.raises(ToolError, match="Unsupported news topic"):
+            await client.call_tool("get_news_by_topic", params)
 
 
 @pytest.mark.browser
@@ -98,19 +100,24 @@ async def test_get_top_news_uses_google_news(mcp_server):
             assert "url" in article
 
 
-async def test_get_trending_terms_uses_google_trends(mcp_server):
+async def test_get_trending_terms_uses_google_trends(
+    mcp_server, external_source_available,
+):
     async with Client(mcp_server) as client:
         params = {"geo": "US", "full_data": True}
-        result = await client.call_tool("get_trending_terms", params)
+        with external_source_available("google_trends"):
+            result = await client.call_tool("get_trending_terms", params)
         for item in _articles(result):
             assert "keyword" in item
             assert "volume" in item
             assert "link" in item
         params = {"geo": "US", "full_data": False}
-        result = await client.call_tool("get_trending_terms", params)
+        with external_source_available("google_trends"):
+            result = await client.call_tool("get_trending_terms", params)
         for item in _articles(result):
             assert "keyword" in item
             assert "volume" in item
         params = {"geo": "USA", "full_data": True}
-        result = await client.call_tool("get_trending_terms", params)
+        with external_source_available("google_trends"):
+            result = await client.call_tool("get_trending_terms", params)
         assert _articles(result) == []

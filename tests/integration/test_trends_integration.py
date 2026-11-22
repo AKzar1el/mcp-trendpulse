@@ -13,41 +13,45 @@ from mcp_trendpulse.news import (
 )
 
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.network]
 
 
-async def test_get_trends_returns_historical_data() -> None:
-    trends = await get_trends(
-        keyword="artificial intelligence",
-        source="google search",
-        data_mode="weekly",
-    )
+async def test_get_trends_returns_historical_data(external_source_available) -> None:
+    with external_source_available("google_trends"):
+        trends = await get_trends(
+            keyword="artificial intelligence",
+            source="google search",
+            data_mode="weekly",
+        )
 
     assert isinstance(trends, list)
     assert all({"date", "value", "keyword"} <= point.keys() for point in trends)
 
 
-async def test_get_growth_returns_metrics() -> None:
-    growth = await get_growth(
-        keyword="electric vehicles",
-        source="google search",
-        percent_growth=["3M", "1Y"],
-    )
+async def test_get_growth_returns_metrics(external_source_available) -> None:
+    with external_source_available("google_trends"):
+        growth = await get_growth(
+            keyword="electric vehicles",
+            source="google search",
+            percent_growth=["3M", "1Y"],
+        )
 
     assert isinstance(growth, list)
     assert all({"keyword", "growth"} <= item.keys() for item in growth)
 
 
-async def test_get_ranked_trends_returns_rankings() -> None:
-    ranked = await get_ranked_trends(source="google search", sort="wow_pct_change", limit=5)
+async def test_get_ranked_trends_returns_rankings(external_source_available) -> None:
+    with external_source_available("google_trends"):
+        ranked = await get_ranked_trends(source="google search", sort="wow_pct_change", limit=5)
 
     assert isinstance(ranked, list)
     assert len(ranked) <= 5
     assert all({"keyword", "volume", "growth_pct", "started", "news"} <= item.keys() for item in ranked)
 
 
-async def test_get_top_trends_returns_top_trends() -> None:
-    top_trends = await get_top_trends(type="Google Trends", limit=5)
+async def test_get_top_trends_returns_top_trends(external_source_available) -> None:
+    with external_source_available("google_trends"):
+        top_trends = await get_top_trends(type="Google Trends", limit=5)
 
     assert isinstance(top_trends, list)
     assert len(top_trends) <= 5
