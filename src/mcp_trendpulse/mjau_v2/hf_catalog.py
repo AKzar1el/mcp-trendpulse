@@ -98,6 +98,9 @@ def _parse(payload: Any, *, kind: str, limit: int,
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
     rejected = 0
+    # The Hub may match each query token in different parts of an ID.
+    # Preserve a local scope check without requiring an exact phrase.
+    search_tokens = search.casefold().split()
     for i, obj in enumerate(payload):
         if not isinstance(obj, dict):
             rejected += 1
@@ -106,7 +109,8 @@ def _parse(payload: Any, *, kind: str, limit: int,
         if (not isinstance(rid, str) or not _ID.fullmatch(rid)
                 or rid in seen or obj.get("private") is not False
                 or (kind == "models" and obj.get("modelId", rid) != rid)
-                or (search and search.casefold() not in rid.casefold())):
+                or (search_tokens and not all(
+                    part in rid.casefold() for part in search_tokens))):
             rejected += 1
             continue
         gated = obj.get("gated")

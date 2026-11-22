@@ -339,8 +339,11 @@ def intelligence_repository_star_history(
 
 @intel_mcp.tool(
     description=(
-        "Inspect FREE community-curated software release-cycle dates from "
-        "endoflife.date v1. Source EOL, active-support, extended/commercial "
+        "Look up when a named software version reaches end of life (EOL), "
+        "end of active support, or end of maintenance; examples include "
+        "Python 3.12 and Node.js 20 support lifecycle dates. Check free "
+        "community-curated endoflife.date v1 release cycles. Source EOL, "
+        "active-support, extended/commercial "
         "maintenance and future support dates are DISTINCT. A source's "
         "isMaintained may reflect third-party commercial support after upstream "
         "EOL and NEVER verifies a caller's support entitlement. Plan-only by "
