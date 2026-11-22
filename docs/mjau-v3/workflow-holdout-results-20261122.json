@@ -1,0 +1,131 @@
+{
+  "test_name": "MJAU v3 source-grounded holdout",
+  "run_date": "2026-11-22",
+  "preregistered_commit": "f245754ac2db50756ef71ea6af9ba11abc3a6e8d",
+  "source_truth": "Original official Wikimedia Action API entity records and OSV /v1/querybatch ID-only response, independently extracted by a scorer that does not use A04/A10 parsers",
+  "human_independent_review_completed": false,
+  "human_review_still_required": true,
+  "source_requests_attempted": 12,
+  "daily_quota_receipts": [
+    {
+      "budget_key": "mjau_v3_wikidata_action_api",
+      "utc_day": "2026-11-22",
+      "reserved_calls": 4,
+      "cap": 8
+    },
+    {
+      "budget_key": "mjau_v3_osv_querybatch",
+      "utc_day": "2026-11-22",
+      "reserved_calls": 8,
+      "cap": 10
+    }
+  ],
+  "wikidata": {
+    "preregistered_queries": 14,
+    "source-backed_cases_scored": 12,
+    "source-backed_cases_correct": 12,
+    "cases_unscored_due_to_source_unavailable": 2,
+    "query_group_results": [
+      {
+        "qids": [
+          "Q90",
+          "Q60",
+          "Q64"
+        ],
+        "scored": 4,
+        "passed": 4
+      },
+      {
+        "qids": [
+          "Q89",
+          "Q312",
+          "Q30"
+        ],
+        "scored": 4,
+        "passed": 4
+      },
+      {
+        "qids": [
+          "Q308",
+          "Q1150",
+          "Q42"
+        ],
+        "scored": 4,
+        "passed": 4
+      },
+      {
+        "qids": [
+          "Q9999999999",
+          "Q89"
+        ],
+        "scored": 0,
+        "passed": 0,
+        "unavailable_reason": "invalid_or_oversized_source_shape"
+      }
+    ],
+    "false_confirmed_identity": 0
+  },
+  "osv": {
+    "preregistered_version_queries": 8,
+    "source_backed_cases_scored": 8,
+    "source_backed_cases_correct": 8,
+    "cases": [
+      {
+        "ecosystem": "PyPI",
+        "package": "Django",
+        "version": "2.2.0",
+        "original_source_ids": 75
+      },
+      {
+        "ecosystem": "PyPI",
+        "package": "requests",
+        "version": "2.31.0",
+        "original_source_ids": 6
+      },
+      {
+        "ecosystem": "PyPI",
+        "package": "Jinja2",
+        "version": "2.10.1",
+        "original_source_ids": 10
+      },
+      {
+        "ecosystem": "PyPI",
+        "package": "six",
+        "version": "1.16.0",
+        "original_source_ids": 0
+      },
+      {
+        "ecosystem": "npm",
+        "package": "lodash",
+        "version": "4.17.11",
+        "original_source_ids": 6
+      },
+      {
+        "ecosystem": "npm",
+        "package": "minimist",
+        "version": "0.0.8",
+        "original_source_ids": 2
+      },
+      {
+        "ecosystem": "npm",
+        "package": "react",
+        "version": "18.2.0",
+        "original_source_ids": 0
+      },
+      {
+        "ecosystem": "npm",
+        "package": "express",
+        "version": "4.16.0",
+        "original_source_ids": 2
+      }
+    ],
+    "unverified_secure_package_claims": 0,
+    "false_source_advisory_ids": 0,
+    "raw_advisory_bodies_stored": false
+  },
+  "v1_control": "Actual merged v1 plan_source rejects wikidata_action_api and osv_public_api (0 official-source workflows), not synthetic source-matched comparisons",
+  "run_exit_code": 1,
+  "run_exit_reason": "Windows TemporaryDirectory cleanup raised PermissionError WinError 32 for transient SQLite handle AFTER 4 Wikidata and 8 OSV comparisons were printed; the scorer did not write its JSON summary because it wrote after the context manager. This retrospective receipt was reconstructed from printed per-case results plus read-only SQLite budget/cache inspection WITHOUT any provider requery. It is not a full reproducible provider raw-source evidence archive.",
+  "data_retention_note": "Only projected CC0 Wikidata names and minimal OSV ID/modified/source links in transient SQLite; no raw OSV advisory bodies. Raw original provider responses were held in process memory solely during scoring, not retained. Original sources may change.",
+  "release_verdict": "Source-fidelity gate passed for scored cases, human-independent workflow usefulness and commercial OSV rights remain NO-GO. Opt-in integration subject to CI and owner review."
+}

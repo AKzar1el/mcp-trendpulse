@@ -1,0 +1,39 @@
+# A04/A10 — source-rights review, restricted MCP output policy (2026-11-22)
+
+**Scope:** prospective *opt-in* user request for exact Wikidata QID names and OSV package/version advisory identifiers in `AKzar1el/mcp-trendpulse`, NOT a legal opinion or preapproval for commercial bulk redistribution.
+
+## Original publisher terms checked
+
+| Original publisher | Primary policy URL | Reuse policy supported by published terms | Implementation decision |
+| --- | --- | --- | --- |
+| Wikidata structured item records | https://www.wikidata.org/wiki/Wikidata:Licensing | Structured main/Property/Lexeme/EntitySchema data are **CC0**. Prose outside these namespaces and media are **not** covered by this blanket CC0 statement | **Permit** bounded labels, descriptions, aliases attached to explicit QIDs; link every entity to `https://www.wikidata.org/wiki/Q...` and mark human identity confirmation required |
+| GHSA / GitHub Advisory Database | https://google.github.io/osv.dev/data/ ; https://creativecommons.org/licenses/by/4.0/ | OSV lists the upstream feed as **CC BY 4.0**, which permits commercial use subject to suitable attribution, license link and marking modifications | **Permit minimal factual ID/date/source URL projections in optional MCP;** mark `license_review_required`, attach the upstream database/license attribution hint; no copies of advisory body |
+| PyPI Advisory Database (PYSEC) | Same OSV source table and CC BY 4.0 terms | Same CC BY 4.0 attribution/changes requirements | Same restricted ID/date/link only; note prefix is a *hint*, not an attestation of a record's actual provenance |
+| Rust, Haskell, opam etc. CC0 original sources | https://google.github.io/osv.dev/data/ | OSV describes several CC0 sources | **No blanket allowance for mixed OSV response**: source must be independently identified and reviewed per record before content reuse |
+| Ubuntu, Alpine converted advisory feeds | https://google.github.io/osv.dev/data/ | OSV lists some converted/primary sources as **CC BY-SA** | No raw body reuse; no unreviewed relicensing of any source texts |
+| Chainguard/Wolfi | https://google.github.io/osv.dev/data/ ; https://creativecommons.org/licenses/by-nc-nd/4.0/ | OSV lists **CC BY-NC-ND 4.0 / Chainguard License for Commercial Scanners**; commercial scanning rights depend on the specific license | **BLOCK commercial bulk content reuse** without confirmed applicable permission; do not infer restrictions/permission solely from OSV advisory ID prefix |
+| Other/unknown original feed | https://google.github.io/osv.dev/data/ | No uniform grant | **UNKNOWN / REVIEW REQUIRED**, no original description, references, summary, severity or exploit detail redistribution |
+
+OSV's data-source submission guide explicitly describes downstream commercial SCA consumers, but **that statement does not replace the individual upstream license**: https://google.github.io/osv.dev/data/new . The official **`POST /v1/querybatch`** returns only advisory `id` and `modified` fields and maintains query order: https://google.github.io/osv.dev/post-v1-querybatch/ . Prefer that fixed endpoint to `/v1/query` full records for this use case.
+
+### Additional original-maintainer clarification (self-review pass 3, 2026-11-22)
+
+An OSV project maintainer explicitly confirmed in the public discussion at https://github.com/google/osv.dev/issues/6264#issuecomment-6595561725 that **commercial use of the hosted OSV API is acceptable operationally** and that caching API responses is acceptable. The same reply expressly **does not grant a blanket license** to the aggregated source content or determine what satisfies upstream CC BY attribution. It also states that **Chainguard/Wolfi source records are not expected in the `npm` and `PyPI` ecosystems** (the *only* ecosystems enabled by this implementation), and notes `source.yaml` as a potential source-ID cross-check. A second contributor clarifies the special commercial-scanner terms for Chainguard at https://github.com/google/osv.dev/issues/6264#issuecomment-6769197910. The commenter expressly disclaimed giving legal advice.
+
+**Updated scope-dependent assessment:** the specific concern about accidentally reproducing Chainguard/Wolfi NC-ND advisory *bodies* is significantly lower for this exact PyPI/npm-only ID/date/link response, and the official project has no objection to commercial API requests. However, **content/data attribution remains source-by-source**, prefix-based attribution is not authoritative proof, and no legal approval for broad commercial bulk redistribution can be inferred from these maintainer comments. For private, supervised opt-in testing, proceed only with the existing no-text factual projection and clear external-API disclosure; for public/commercial publication, complete the original-source attribution review first. Do not silently remove those risk warnings or expand to other ecosystems.
+
+Wikimedia's API requires an identifiable `User-Agent` with contact URL/email, public API policies and honoring 429/503 `Retry-After` (https://www.mediawiki.org/wiki/Wikimedia_APIs/Access_policy ; https://www.mediawiki.org/wiki/Wikimedia_APIs/Rate_limits). Use the project's public GitHub issues URL as operator contact; impose a daily cache+quota at the MCP layer and do not bypass rate limits.
+
+## Mandatory code-level controls
+
+- **Wikidata:** only exact 1–3 explicit QIDs and 1–6 supported languages, no fuzzy name discovery; candidate associations are always unconfirmed, incomplete source data never becomes definite absence; CC0 source QID URL, no copying Wikipedia prose.
+- **OSV:** only PyPI/npm + exact package/version, one batch query at `https://api.osv.dev/v1/querybatch`, output at most 100 factual IDs with modification dates and source links; **no full advisories, arbitrary references, description, summary or severity** cached or transmitted; no remediation or statement of being secure when IDs are empty.
+- **Attribution:** top-level OSV source table and CC BY 4.0 license links must be accessible to users, optional record family hints may be shown for GHSA/PYSEC; **no metadata field `rights_approved` shall be set to true**. Explicit warnings: unknown or mixed feed license rights; every source requires separate review for public redistribution.
+- **Network:** only fixed HTTPS origins, strict one-request plan, no redirects, no extra automatic pagination/follow-ups, no credentials or paid API calls, hard 192,000-byte cap, timeout 8 sec. Reuse v1's SQLite `BudgetCache` atomic reserve, cooldown and cache, but **do not use generic `intelligence_core.collect()` output**, which may cache more third-party data than this narrow license policy allows.
+- **Exposure:** separate explicitly launched two-tool MCP, `execute=False` by default, does not alter existing community/hosted/optional v1 tool counts or worker schedules. No production enabling or merging solely because source parsing is green.
+
+## Review verdict and outstanding signoff
+
+**Source-rights research completed to a conservative engineering policy, NOT a legal approval.** For limited factual source ID/date/source URL display, low-content exposure is supported by this design; however, public commercial redistribution or large-scale aggregation is **not fully authorized** by this review. Obtain independent legal/owner review of exact public-facing purpose, original-source licenses and attribution presentation before release. A reviewer must also verify credit, link to CC BY, and indication of changes for any CC BY material actually shared.
+
+**Canonical references:** Wikidata license; OSV original sources; OSV contributor rules; official querybatch API; CC BY 4.0 deed and license; Chainguard non-commercial restrictions; Wikimedia API access policy. All links were checked against public original docs on 2026-11-22.

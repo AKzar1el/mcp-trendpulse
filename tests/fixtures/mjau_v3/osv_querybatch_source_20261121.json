@@ -1,0 +1,269 @@
+{
+  "metadata": {
+    "raw_sha256": "c06f2360f56d7f99107b177bf630900a1912938ac3239c3450ff9accbade5e63",
+    "original_http_status": 200,
+    "original_raw_bytes": 6211,
+    "original_full_advisory_bodies_retained": false
+  },
+  "samples": [
+    {
+      "ecosystem": "PyPI",
+      "package": "Django",
+      "version": "2.2.0",
+      "count": 75,
+      "paged": false,
+      "advisory_stubs": [
+        {
+          "id": "GHSA-2gwj-7jmv-h26r",
+          "modified": "2025-02-21T05:41:10.759178Z"
+        },
+        {
+          "id": "GHSA-2m34-jcjv-45xf",
+          "modified": "2024-09-20T15:46:33.021684Z"
+        },
+        {
+          "id": "GHSA-3gh2-xw74-jmcw",
+          "modified": "2026-07-09T16:56:16.012032Z"
+        },
+        {
+          "id": "GHSA-3h9f-r86x-qvjx",
+          "modified": "2026-09-10T03:51:10.140141Z"
+        },
+        {
+          "id": "GHSA-53qw-q765-4fww",
+          "modified": "2024-09-20T16:09:39.890846Z"
+        },
+        {
+          "id": "GHSA-68w8-qjq3-2gfm",
+          "modified": "2024-09-20T15:46:52.557962Z"
+        },
+        {
+          "id": "GHSA-6c3j-c64m-qhgq",
+          "modified": "2026-07-08T05:56:09.047237Z"
+        },
+        {
+          "id": "GHSA-6c7v-2f49-8h26",
+          "modified": "2024-09-18T16:26:02.265514Z"
+        },
+        {
+          "id": "GHSA-6cw3-g6wv-c2xv",
+          "modified": "2024-09-20T15:47:27.155401Z"
+        },
+        {
+          "id": "GHSA-6r97-cj55-9hrq",
+          "modified": "2025-02-21T05:50:19.980781Z"
+        },
+        {
+          "id": "GHSA-6w2r-r2m5-xq5w",
+          "modified": "2026-09-10T03:50:27.987884Z"
+        },
+        {
+          "id": "GHSA-7rp2-fm2h-wchj",
+          "modified": "2024-09-20T16:09:01.600161Z"
+        },
+        {
+          "id": "GHSA-7xr5-9hcq-chf9",
+          "modified": "2026-09-10T03:50:25.160016Z"
+        },
+        {
+          "id": "GHSA-8c5j-9r9f-c6w8",
+          "modified": "2025-02-21T05:29:59.213830Z"
+        },
+        {
+          "id": "GHSA-8cjm-8mp7-r2xf",
+          "modified": "2026-09-10T03:50:48.806230Z"
+        },
+        {
+          "id": "GHSA-8qcx-xf44-272x",
+          "modified": "2026-09-10T03:51:11.070082Z"
+        },
+        {
+          "id": "GHSA-8x94-hmjh-97hq",
+          "modified": "2026-02-04T02:45:55.690257Z"
+        },
+        {
+          "id": "GHSA-923m-gv2p-w5qp",
+          "modified": "2026-09-10T03:50:48.942703Z"
+        },
+        {
+          "id": "GHSA-95rw-fx8r-36v6",
+          "modified": "2024-09-20T15:47:46.984048Z"
+        },
+        {
+          "id": "GHSA-c4qh-4vgv-qc6g",
+          "modified": "2024-09-20T16:24:57.221275Z"
+        },
+        {
+          "id": "GHSA-crhf-3pfg-w68w",
+          "modified": "2026-09-10T03:51:11.475072Z"
+        },
+        {
+          "id": "GHSA-fr28-569j-53c4",
+          "modified": "2024-11-19T05:35:08.998992Z"
+        },
+        {
+          "id": "GHSA-frmv-pr5f-9mcr",
+          "modified": "2026-06-05T14:45:52.053173Z"
+        },
+        {
+          "id": "GHSA-fvgf-6h6h-3322",
+          "modified": "2024-09-20T15:46:03.145197Z"
+        },
+        {
+          "id": "GHSA-h5jv-4p7w-64jg",
+          "modified": "2024-09-20T16:35:22.320310Z"
+        },
+        {
+          "id": "GHSA-h7pc-vwp9-298g",
+          "modified": "2026-09-10T03:50:49.784603Z"
+        },
+        {
+          "id": "GHSA-hmr4-m2h5-33qx",
+          "modified": "2025-02-21T06:12:43.981276Z"
+        },
+        {
+          "id": "GHSA-hvmf-r92r-27hr",
+          "modified": "2024-11-19T05:33:19.050183Z"
+        },
+        {
+          "id": "GHSA-jrh2-hc4r-7jwx",
+          "modified": "2024-09-20T12:22:54.101910Z"
+        },
+        {
+          "id": "GHSA-m6gj-h9gm-gw44",
+          "modified": "2024-09-18T20:08:33.242589Z"
+        },
+        {
+          "id": "GHSA-p99v-5w3c-jqq9",
+          "modified": "2024-09-20T16:08:23.035684Z"
+        },
+        {
+          "id": "GHSA-q238-5cxm-5c9h",
+          "modified": "2026-10-12T14:45:06.559694Z"
+        },
+        {
+          "id": "GHSA-qm57-vhq3-3fwf",
+          "modified": "2024-09-20T15:33:15.953439Z"
+        },
+        {
+          "id": "GHSA-qw25-v68c-qjf3",
+          "modified": "2026-09-10T03:50:58.508072Z"
+        },
+        {
+          "id": "GHSA-rrqc-c2jx-6jgv",
+          "modified": "2026-07-07T17:57:34.018251Z"
+        },
+        {
+          "id": "GHSA-rxjp-mfm9-w4wr",
+          "modified": "2024-09-20T15:33:18.289155Z"
+        },
+        {
+          "id": "GHSA-v6rh-hp5x-86rv",
+          "modified": "2024-11-19T05:35:04.095106Z"
+        },
+        {
+          "id": "GHSA-v9qg-3j8p-r63v",
+          "modified": "2024-09-20T16:35:02.132194Z"
+        },
+        {
+          "id": "GHSA-vfq6-hq5r-27r6",
+          "modified": "2024-09-20T15:24:05.816291Z"
+        },
+        {
+          "id": "GHSA-w24h-v9qh-8gxj",
+          "modified": "2025-02-21T05:41:01.294618Z"
+        }
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "package": "lodash",
+      "version": "4.17.11",
+      "count": 6,
+      "paged": false,
+      "advisory_stubs": [
+        {
+          "id": "GHSA-29mw-wpgm-hmr9",
+          "modified": "2025-09-29T21:12:31.102523Z"
+        },
+        {
+          "id": "GHSA-35jh-r3h4-6jhm",
+          "modified": "2026-10-17T02:55:38.085813Z"
+        },
+        {
+          "id": "GHSA-jf85-cpcp-j695",
+          "modified": "2026-09-10T03:47:55.238868Z"
+        },
+        {
+          "id": "GHSA-p6mc-m468-83gw",
+          "modified": "2025-08-12T21:56:17.174859Z"
+        },
+        {
+          "id": "GHSA-r5fr-rjxr-66jc",
+          "modified": "2026-10-17T02:56:15.633068Z"
+        },
+        {
+          "id": "GHSA-xxjr-mmjv-4gpg",
+          "modified": "2026-11-04T03:15:10.832238Z"
+        }
+      ]
+    },
+    {
+      "ecosystem": "PyPI",
+      "package": "Jinja2",
+      "version": "2.10.1",
+      "count": 10,
+      "paged": false,
+      "advisory_stubs": [
+        {
+          "id": "GHSA-cpwx-vrp4-4pq7",
+          "modified": "2026-11-18T00:45:13.756181Z"
+        },
+        {
+          "id": "GHSA-g3rq-g295-4j3m",
+          "modified": "2025-02-14T05:26:14.565160Z"
+        },
+        {
+          "id": "GHSA-h5c8-rqwp-cp95",
+          "modified": "2026-09-10T03:50:00.236017Z"
+        },
+        {
+          "id": "GHSA-h75v-3vvj-5mfj",
+          "modified": "2026-09-10T03:50:13.786450Z"
+        },
+        {
+          "id": "GHSA-q2x7-8rv6-6q7h",
+          "modified": "2026-09-10T03:50:21.662855Z"
+        },
+        {
+          "id": "PYSEC-2021-66",
+          "modified": "2023-11-08T04:03:28.543308Z"
+        },
+        {
+          "id": "PYSEC-2026-1471",
+          "modified": "2026-07-07T17:46:43.358335Z"
+        },
+        {
+          "id": "PYSEC-2026-1473",
+          "modified": "2026-07-07T17:46:13.853151Z"
+        },
+        {
+          "id": "PYSEC-2026-1474",
+          "modified": "2026-07-07T17:46:13.832160Z"
+        },
+        {
+          "id": "PYSEC-2026-1475",
+          "modified": "2026-07-07T17:46:13.842466Z"
+        }
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "package": "react",
+      "version": "18.2.0",
+      "count": 0,
+      "paged": false,
+      "advisory_stubs": []
+    }
+  ]
+}

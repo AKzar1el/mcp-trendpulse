@@ -1,0 +1,126 @@
+{
+  "method": "adversarial input and transport behavior, unit+actual local MCP integration",
+  "score": 28,
+  "max_score": 28,
+  "critical_failures": 0,
+  "local_results": {
+    "adversarial_and_budget_suite": "61 passed (includes 550 seeded mutated OSV envelope cases and many invalid-origin cases)",
+    "post_attribution_regression": "31 passed",
+    "real_stdio_and_guarded_http": "3 passed, separately",
+    "no_live_provider_requests": true
+  },
+  "cases": [
+    {
+      "id": "S01",
+      "criterion": "Plan-only makes no network, no durable cache",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_mcp.py::test_plan_only_does_not_touch_budget_cache_or_network",
+      "verdict": "pass"
+    },
+    {
+      "id": "S02",
+      "criterion": "execute flag must be Boolean; invalid args consume no quota",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_mcp.py::test_bad_plan_arguments_do_not_consume_quota",
+      "verdict": "pass"
+    },
+    {
+      "id": "S03",
+      "criterion": "Wikidata GET fixed HTTPS host/path and canonical QID action, no arbitrary Action API",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_transport.py::test_wikidata_arbitrary_action_must_be_denied_at_http_boundary",
+      "verdict": "pass"
+    },
+    {
+      "id": "S04",
+      "criterion": "OSV POST fixed HTTPS host/path and exact one-query payload, no query batch expansion",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_transport.py::test_osv_two_query_batch_must_be_denied_at_http_boundary",
+      "verdict": "pass"
+    },
+    {
+      "id": "S05",
+      "criterion": "HTTP redirects disabled even to other HTTPS sites",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_transport.py::test_no_automatic_redirects_are_possible",
+      "verdict": "pass"
+    },
+    {
+      "id": "S06",
+      "criterion": "192000-byte maximum source response enforced",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_transport.py::test_invalid_mime_oversized_duplicate_json_or_encoding_fails_closed",
+      "verdict": "pass"
+    },
+    {
+      "id": "S07",
+      "criterion": "Invalid MIME, duplicate JSON keys, nonfinite/encoding errors are rejected",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_transport.py::test_invalid_mime_oversized_duplicate_json_or_encoding_fails_closed",
+      "verdict": "pass"
+    },
+    {
+      "id": "S08",
+      "criterion": "Actual outgoing source request timeout is fixed at eight seconds",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_transport.py::test_osv_has_single_post_with_no_secret_headers",
+      "verdict": "pass"
+    },
+    {
+      "id": "S09",
+      "criterion": "Persistent eight/day Wikidata cap enforced after reopening store",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_mcp.py::test_wikidata_eight_call_daily_limit_persists_across_store_instances",
+      "verdict": "pass"
+    },
+    {
+      "id": "S10",
+      "criterion": "Persistent ten/day OSV cap enforces no network after exhaustion",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_mcp.py::test_atomic_daily_cap_rejection_and_zero_network",
+      "verdict": "pass"
+    },
+    {
+      "id": "S11",
+      "criterion": "HTTP429/503 persisted cooldown and no subsequent provider call",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_mcp.py::test_long_retry_after_503_enforces_no_more_queries_across_store_reopen",
+      "verdict": "pass"
+    },
+    {
+      "id": "S12",
+      "criterion": "Eight parallel same-source calls use one atomic quota; only safe projected data cached",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_mcp.py::test_singleflight_requests_across_parallel_clients",
+      "verdict": "pass"
+    },
+    {
+      "id": "S13",
+      "criterion": "Wikidata name comparisons computed after cache read to avoid cross-query contamination",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_mcp.py::test_shared_budget_and_cache_two_sources_never_persist_provider_bodies",
+      "verdict": "pass"
+    },
+    {
+      "id": "S14",
+      "criterion": "Real local stdio and guarded HTTP MCP clients initialize; no live connector registry changed",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_stdio.py::test_exact_optional_module_starts_real_stdio_mcp_without_network_or_cache",
+      "verdict": "pass"
+    }
+  ]
+}

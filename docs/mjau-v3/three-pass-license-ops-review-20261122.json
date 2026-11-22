@@ -1,0 +1,135 @@
+{
+  "method": "manual primary-publisher source license, code output provenance, operator review; no legal opinion",
+  "reviewer_type": "assistant_engineering_self_review_not_external_legal_or_human",
+  "primary_sources": [
+    "https://www.wikidata.org/wiki/Wikidata:Licensing",
+    "https://google.github.io/osv.dev/data/",
+    "https://google.github.io/osv.dev/post-v1-querybatch/",
+    "https://github.com/google/osv.dev/issues/6264#issuecomment-6595561725",
+    "https://creativecommons.org/licenses/by/4.0/",
+    "https://creativecommons.org/licenses/by-nc-nd/4.0/"
+  ],
+  "maintainer_clarification": "OSV project permits commercial use of its hosted API and caching operationally; original feed licenses still apply; maintainer says Chainguard/Wolfi source records should not appear in npm/PyPI queries. Maintainer explicitly disclaims providing legal advice.",
+  "private_supervised_opt_in_acceptable_technical_risk": true,
+  "public_commercial_distribution_approved": false,
+  "score_pending_latest_head_ci": 21,
+  "max_score": 28,
+  "hard_external_blocks": [
+    "No independent outside-human usability/accuracy review",
+    "No original-feed-per-record license/attribution or owner approval for intended public commercial redistribution"
+  ],
+  "cases": [
+    {
+      "id": "L01",
+      "criterion": "Wikidata structured entity data official CC0",
+      "verdict": "pass",
+      "score": 2,
+      "max": 2,
+      "evidence": "https://www.wikidata.org/wiki/Wikidata:Licensing"
+    },
+    {
+      "id": "L02",
+      "criterion": "QID labels, descriptions and aliases include original Wikidata QID URL",
+      "verdict": "pass",
+      "score": 2,
+      "max": 2,
+      "evidence": "src/mcp_trendpulse/mjau_v3/wikidata.py:149-154"
+    },
+    {
+      "id": "L03",
+      "criterion": "OSV official querybatch returns ID/modified only; no full text necessary",
+      "verdict": "pass",
+      "score": 2,
+      "max": 2,
+      "evidence": "https://google.github.io/osv.dev/post-v1-querybatch/"
+    },
+    {
+      "id": "L04",
+      "criterion": "GHSA and PyPI Advisory Database original source licenses are CC BY 4.0, not a blanket grant",
+      "verdict": "pass",
+      "score": 2,
+      "max": 2,
+      "evidence": "https://google.github.io/osv.dev/data/"
+    },
+    {
+      "id": "L05",
+      "criterion": "Wolfi/Chainguard NC-ND and special terms acknowledged; only npm/PyPI are supported",
+      "verdict": "pass",
+      "score": 2,
+      "max": 2,
+      "evidence": "https://github.com/google/osv.dev/issues/6264#issuecomment-6595561725"
+    },
+    {
+      "id": "L06",
+      "criterion": "Attribution has OSV link, source list, CC BY link, transformation notice",
+      "verdict": "pass",
+      "score": 2,
+      "max": 2,
+      "evidence": "src/mcp_trendpulse/mjau_v3/budgeted_sources.py::osv_package_ids"
+    },
+    {
+      "id": "L07",
+      "criterion": "True original feed rights verified for each individual ID independently, not by prefix",
+      "verdict": "blocked_external",
+      "score": 0,
+      "max": 2,
+      "evidence": "ID-only querybatch does not provide authoritative per-record original license/provenance; source_database_hint deliberately unverified"
+    },
+    {
+      "id": "L08",
+      "criterion": "No upstream OSV description, severity or exploit content cached/returned",
+      "verdict": "pass",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/test_mjau_v3_budgeted_mcp.py::test_shared_budget_and_cache_two_sources_never_persist_provider_bodies"
+    },
+    {
+      "id": "L09",
+      "criterion": "Unknown/not safe/rights warnings present; no commercial grant is invented",
+      "verdict": "pass",
+      "score": 2,
+      "max": 2,
+      "evidence": "tests/mjau_v3_three_pass_user_review.py W12/W14, budgeted_sources.py source_rights_review_status"
+    },
+    {
+      "id": "L10",
+      "criterion": "Separate explicitly launched two-tool MCP, no default main/hosted registration",
+      "verdict": "pass",
+      "score": 2,
+      "max": 2,
+      "evidence": "src/mcp_trendpulse/mjau_v3/mcp.py; tests/test_mjau_v3_budgeted_stdio.py"
+    },
+    {
+      "id": "L11",
+      "criterion": "Budget and rollback documented; opt-in can be disabled without production changes",
+      "verdict": "pass",
+      "score": 2,
+      "max": 2,
+      "evidence": "docs/mjau-v3/opt-in-budgeted-mcp-review-20261122.md"
+    },
+    {
+      "id": "L12",
+      "criterion": "Draft/unmerged PR, matching latest-head GitHub CI matrix",
+      "verdict": "pending",
+      "score": 1,
+      "max": 2,
+      "evidence": "Prior head 33b8f3f passed CI/Container/Publish; newly patched head will be verified after push"
+    },
+    {
+      "id": "L13",
+      "criterion": "Genuinely independent human assessed unfamiliar user workflows and signed off",
+      "verdict": "not_done",
+      "score": 0,
+      "max": 2,
+      "evidence": "No reviewer assigned or signed in independent-review-packet-20261122.md"
+    },
+    {
+      "id": "L14",
+      "criterion": "Owner/legal review approved exact public/commercial redistribution under each upstream license",
+      "verdict": "not_done",
+      "score": 0,
+      "max": 2,
+      "evidence": "OSV maintainer permits commercial API access operationally, not a blanket downstream feed license: https://github.com/google/osv.dev/issues/6264"
+    }
+  ]
+}

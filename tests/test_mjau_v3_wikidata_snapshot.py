@@ -1,0 +1,161 @@
+"""A04 deterministic replay of a real, CC0 Wikidata Action API observation.
+
+Retrieved 2026-11-21 with the exact one-request Q89/Q312 six-language plan.
+Only source data is stored; no OAuth token, session, personal record, or artwork.
+The original raw bytes are retained to detect accidental edits to this snapshot.
+"""
+
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+from pathlib import Path
+
+import pytest
+
+from mcp_trendpulse.intelligence_core import IntelligenceError, plan_source
+from mcp_trendpulse.mjau_v3.wikidata import candidates_for_name, parse_qid_lookup
+
+
+FIXTURE = Path(__file__).parent / "fixtures" / "mjau_v3" / "wikidata_q89_q312_20261121.json"
+EXPECTED_SHA256 = "7e2c2bf65104d1029330d0a752be5a54aa69085b10b13332eeef132d4202ac10"
+MERCURY_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "mjau_v3"
+    / "wikidata_mercury_planet_god_six_languages_20261121.json"
+)
+MERCURY_SHA256 = "749f037eb5dd47678341f57164b9ac59c9afc43eed073fd35375dd61439b0aad"
+Q30_FIXTURE = Path(__file__).parent / "fixtures" / "mjau_v3" / "wikidata_q30_aliases_20261121.json"
+Q30_SHA256 = "5070e41d4ba1d944e8a55881fd084dc6f7f430d378d257ebfc99c03fd4c3ed46"
+QIDS = ["Q89", "Q312"]
+LANGUAGES = ["en", "de", "fr", "es", "sl", "it"]
+
+
+def original_payload():
+    raw = FIXTURE.read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == EXPECTED_SHA256
+    assert len(raw) <= 192_000
+    return json.loads(raw)
+
+
+def mercury_payload():
+    raw = MERCURY_FIXTURE.read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == MERCURY_SHA256
+    assert len(raw) <= 192_000
+    return json.loads(raw)
+
+
+def test_exact_original_source_fixture_and_language_scopes():
+    parsed = parse_qid_lookup(original_payload(), QIDS, LANGUAGES)
+    assert [item["qid"] for item in parsed["results"]] == QIDS
+    fruit, company = parsed["results"]
+    assert fruit["status"] == "source_item_observed"
+    assert company["status"] == "source_item_observed"
+    assert fruit["names"]["en"]["label"] == "apple"
+    assert company["names"]["en"]["label"] == "Apple Inc."
+    assert sum(bool(v["label"]) for v in fruit["names"].values()) == 6
+    assert sum(bool(v["label"]) for v in company["names"].values()) == 4
+    assert parsed["no_auto_entity_merging"] is True
+
+
+def test_real_source_does_not_automatically_confirm_apple_identity():
+    parsed = parse_qid_lookup(original_payload(), QIDS, LANGUAGES)
+    fruit = candidates_for_name(parsed, "apple", "en")
+    company = candidates_for_name(parsed, "Apple Inc.", "en")
+    assert fruit["candidate_qids"] == ["Q89"]
+    assert company["candidate_qids"] == ["Q312"]
+    assert fruit["status"] == company["status"] == "candidate_requires_confirmation"
+    assert not fruit["identity_confirmed"] and not company["identity_confirmed"]
+    assert candidates_for_name(parsed, "Unrelated", "en")["status"] == "unknown_no_match"
+
+
+def test_original_source_identity_tampering_fails_closed():
+    payload = copy.deepcopy(original_payload())
+    payload["entities"]["Q312"]["id"] = "Q89"
+    with pytest.raises(ValueError, match="Mismatched Wikidata identity"):
+        parse_qid_lookup(payload, QIDS, LANGUAGES)
+
+
+def test_original_source_can_be_replayed_with_network_unavailable(monkeypatch):
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("Original-source regression must never fetch an API")
+
+    monkeypatch.setattr("socket.socket", forbidden)
+    observed = parse_qid_lookup(original_payload(), QIDS, LANGUAGES)
+    assert observed["source_coverage_complete"] is True
+    assert observed["raw_payload_reused_not_fetched"] is True
+
+
+def test_v1_does_not_already_offer_this_exact_source_lookup():
+    with pytest.raises(IntelligenceError, match="Unknown source ID"):
+        plan_source("wikidata_action_api")
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_real_mercury_planet_vs_roman_god_ambiguity_in_six_languages(language):
+    # Q308 is the planet, Q1150 the Roman god. Real official source labels
+    # and aliases share a name in every tested language.
+    parsed = parse_qid_lookup(mercury_payload(), ["Q308", "Q1150"], LANGUAGES)
+    first = parsed["results"][0]["names"][language]
+    second = parsed["results"][1]["names"][language]
+    left = {text.casefold() for text in [first["label"], *first["aliases"]] if text}
+    right = {text.casefold() for text in [second["label"], *second["aliases"]] if text}
+    common = sorted(left & right)
+    assert common, f"No source-backed ambiguous name for {language}"
+    result = candidates_for_name(parsed, common[0], language)
+    assert result["status"] == "ambiguous"
+    assert result["candidate_qids"] == ["Q1150", "Q308"]
+    assert result["identity_confirmed"] is False
+
+
+def test_real_mercury_source_refuses_identity_switch():
+    source = copy.deepcopy(mercury_payload())
+    source["entities"]["Q1150"]["id"] = "Q308"
+    with pytest.raises(ValueError, match="Mismatched Wikidata identity"):
+        parse_qid_lookup(source, ["Q308", "Q1150"], LANGUAGES)
+
+
+def test_real_six_language_source_replay_needs_no_network(monkeypatch):
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("Real source regression must be offline")
+
+    monkeypatch.setattr("socket.socket", forbidden)
+    parsed = parse_qid_lookup(mercury_payload(), ["Q308", "Q1150"], LANGUAGES)
+    assert parsed["source_coverage_complete"] is True
+    assert len(parsed["results"]) == 2
+
+
+def test_real_q30_many_aliases_are_bounded_with_unknown_missing_matches(monkeypatch):
+    """Real official Q30 had 20 English, 15 German and 19 French aliases.
+
+    This was a 200 response rejected by the old MAX_ALIASES=8 parser.
+    Never infer absence from a partial alias projection.
+    """
+    raw = Q30_FIXTURE.read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == Q30_SHA256
+    assert len(raw) == 3662
+
+    def deny_network(*_args, **_kwargs):
+        raise AssertionError("Replaying the Q30 observation must not fetch")
+
+    monkeypatch.setattr("socket.socket", deny_network)
+    parsed = parse_qid_lookup(json.loads(raw), ["Q30"], LANGUAGES)
+    assert parsed["source_coverage_complete"] is True
+    names = parsed["results"][0]["names"]
+    assert {lang: names[lang]["source_alias_count"] for lang in LANGUAGES} == {
+        "en": 20, "de": 15, "fr": 19, "es": 8, "sl": 4, "it": 3,
+    }
+    assert {lang for lang in LANGUAGES if names[lang]["aliases_truncated"]} == {
+        "en", "de", "fr",
+    }
+    assert all(len(record["aliases"]) <= 8 for record in names.values())
+    assert candidates_for_name(parsed, "United States", "en")["status"] == (
+        "candidate_requires_confirmation"
+    )
+    unknown = candidates_for_name(parsed, "not a known source alias", "en")
+    assert unknown["status"] == "unknown_incomplete_aliases"
+    assert unknown["candidate_qids"] == []
+    assert unknown["identity_confirmed"] is False
+    assert candidates_for_name(parsed, "not a known source alias", "sl")["status"] == (
+        "unknown_no_match"
+    )

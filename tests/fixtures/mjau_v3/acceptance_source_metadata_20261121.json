@@ -1,0 +1,223 @@
+{
+  "methodology": "pre-registered before fetching in docs/mjau-v3/acceptance-preregistered-20261121.md",
+  "observed_utc": "2026-11-21T16:28:36.199150Z",
+  "wikidata": {
+    "http_status": 200,
+    "raw_bytes": 5863,
+    "source_sha256": "79994a13f1c0028fceef3012e4c4c09ecc110ce71b62369f04bb6048041c45ae",
+    "elapsed_ms": 742.5,
+    "status": "source_parsed",
+    "record_qids": [
+      "Q42",
+      "Q64",
+      "Q30"
+    ],
+    "language_coverage": {
+      "Q42": [],
+      "Q64": [
+        "en",
+        "de",
+        "fr",
+        "es",
+        "sl",
+        "it"
+      ],
+      "Q30": [
+        "en",
+        "de",
+        "fr",
+        "es",
+        "sl",
+        "it"
+      ]
+    },
+    "truncations": {
+      "Q42": {},
+      "Q64": {
+        "de": 9
+      },
+      "Q30": {
+        "en": 20,
+        "de": 15,
+        "fr": 19
+      }
+    },
+    "english_label_candidates": {
+      "Q64": "candidate_requires_confirmation",
+      "Q30": "candidate_requires_confirmation"
+    },
+    "source_complete": true,
+    "cc0_fixture_path": "tests\\fixtures\\mjau_v3\\wikidata_q42_q64_q30_20261121.json"
+  },
+  "osv": [
+    {
+      "ecosystem": "PyPI",
+      "package": "Jinja2",
+      "version": "2.10.1",
+      "http_status": 200,
+      "raw_bytes": 27088,
+      "source_sha256": "422e1beec53d4ddf36861b113793628fb40d72e58a9fb4cccc969f55cb841312",
+      "elapsed_ms": 412.2,
+      "upstream_count": 10,
+      "upstream_paged": false,
+      "sample_ids": [
+        "GHSA-cpwx-vrp4-4pq7",
+        "GHSA-g3rq-g295-4j3m",
+        "GHSA-h5c8-rqwp-cp95",
+        "GHSA-h75v-3vvj-5mfj",
+        "GHSA-q2x7-8rv6-6q7h",
+        "PYSEC-2021-66",
+        "PYSEC-2026-1471",
+        "PYSEC-2026-1473",
+        "PYSEC-2026-1474",
+        "PYSEC-2026-1475"
+      ],
+      "adapter_status": "source_advisories_returned",
+      "adapter_count": 10,
+      "adapter_source_complete": true,
+      "unknown_license_records": 0,
+      "raw_advisory_reuse_auth": false
+    },
+    {
+      "ecosystem": "PyPI",
+      "package": "six",
+      "version": "1.16.0",
+      "http_status": 200,
+      "raw_bytes": 2,
+      "source_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "elapsed_ms": 317.6,
+      "upstream_count": 0,
+      "upstream_paged": false,
+      "sample_ids": [],
+      "adapter_status": "no_returned_advisories",
+      "adapter_count": 0,
+      "adapter_source_complete": true,
+      "unknown_license_records": 0,
+      "raw_advisory_reuse_auth": false
+    },
+    {
+      "ecosystem": "PyPI",
+      "package": "requests",
+      "version": "2.19.1",
+      "http_status": 200,
+      "raw_bytes": 35372,
+      "source_sha256": "76994f02d6f5fd33d70ebc5aa848139ef096a02a6dbe2d35782ce8e11d3ae604",
+      "elapsed_ms": 419.5,
+      "upstream_count": 10,
+      "upstream_paged": false,
+      "sample_ids": [
+        "GHSA-9hjg-9r4m-mvj7",
+        "GHSA-9wx4-h78v-vm56",
+        "GHSA-gc5v-m9x4-r6x2",
+        "GHSA-j8r2-6x86-q33q",
+        "GHSA-x84v-xcm2-53pg",
+        "PYSEC-2018-28",
+        "PYSEC-2023-74",
+        "PYSEC-2026-1872",
+        "PYSEC-2026-1873",
+        "PYSEC-2026-2275"
+      ],
+      "adapter_status": "source_advisories_returned",
+      "adapter_count": 10,
+      "adapter_source_complete": true,
+      "unknown_license_records": 0,
+      "raw_advisory_reuse_auth": false
+    },
+    {
+      "ecosystem": "PyPI",
+      "package": "Django",
+      "version": "2.2.0",
+      "http_status": 200,
+      "raw_bytes": 192001,
+      "source_sha256": "8eb8f3bc12c4703d15d2841d282bbef9b211634242e52b6af4dc69d243e4631d",
+      "elapsed_ms": 830.1,
+      "unavailable": "response_exceeded_192000_bytes"
+    },
+    {
+      "ecosystem": "PyPI",
+      "package": "PyYAML",
+      "version": "5.1",
+      "http_status": 200,
+      "raw_bytes": 12756,
+      "source_sha256": "74ee864af724b94e51a7ec35658f791018d0f8f5b6581c600a4f386f5c45faa7",
+      "elapsed_ms": 433.3,
+      "upstream_count": 6,
+      "upstream_paged": false,
+      "sample_ids": [
+        "GHSA-3pqx-4fqf-j49f",
+        "GHSA-6757-jp84-gxfx",
+        "GHSA-8q59-q68h-6hv4",
+        "PYSEC-2020-176",
+        "PYSEC-2020-96",
+        "PYSEC-2021-142"
+      ],
+      "adapter_status": "source_advisories_returned",
+      "adapter_count": 6,
+      "adapter_source_complete": true,
+      "unknown_license_records": 0,
+      "raw_advisory_reuse_auth": false
+    },
+    {
+      "ecosystem": "npm",
+      "package": "lodash",
+      "version": "4.17.11",
+      "http_status": 200,
+      "raw_bytes": 31292,
+      "source_sha256": "08b6a8fa095631269ed9faa150fcd8792c8cc9ac85c990a93eebf365ca16a7d2",
+      "elapsed_ms": 353.0,
+      "upstream_count": 6,
+      "upstream_paged": false,
+      "sample_ids": [
+        "GHSA-29mw-wpgm-hmr9",
+        "GHSA-35jh-r3h4-6jhm",
+        "GHSA-jf85-cpcp-j695",
+        "GHSA-p6mc-m468-83gw",
+        "GHSA-r5fr-rjxr-66jc",
+        "GHSA-xxjr-mmjv-4gpg"
+      ],
+      "adapter_status": "parse_rejected",
+      "parse_error_type": "ValueError",
+      "parse_error": "Invalid OSV reference list"
+    },
+    {
+      "ecosystem": "npm",
+      "package": "minimist",
+      "version": "0.0.8",
+      "http_status": 200,
+      "raw_bytes": 5243,
+      "source_sha256": "f61b1e0e622c29084a3f98d45a21515b742d11591ad0cdc426fa45da24562d6c",
+      "elapsed_ms": 374.3,
+      "upstream_count": 2,
+      "upstream_paged": false,
+      "sample_ids": [
+        "GHSA-vh95-rmgr-6w4m",
+        "GHSA-xvch-5gv4-984h"
+      ],
+      "adapter_status": "source_advisories_returned",
+      "adapter_count": 2,
+      "adapter_source_complete": true,
+      "unknown_license_records": 0,
+      "raw_advisory_reuse_auth": false
+    },
+    {
+      "ecosystem": "npm",
+      "package": "react",
+      "version": "18.2.0",
+      "http_status": 200,
+      "raw_bytes": 2,
+      "source_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "elapsed_ms": 303.0,
+      "upstream_count": 0,
+      "upstream_paged": false,
+      "sample_ids": [],
+      "adapter_status": "no_returned_advisories",
+      "adapter_count": 0,
+      "adapter_source_complete": true,
+      "unknown_license_records": 0,
+      "raw_advisory_reuse_auth": false
+    }
+  ],
+  "sources_no_paid": true,
+  "no_retries": true,
+  "total_http_calls": 9
+}
