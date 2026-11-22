@@ -147,6 +147,9 @@ def _read_cached(payload: Any, country: str) -> dict[str, Any] | None:
             or not isinstance(payload.get("trends"), list)
             or len(payload["trends"]) > MAX_OUTPUT_ROWS):
         return None
+    # Never trust a cached presence/absence claim that contradicts its rows.
+    if (payload["status"] == "observed_empty") != (not payload["trends"]):
+        return None
     checked = []
     try:
         for item in payload["trends"]:
