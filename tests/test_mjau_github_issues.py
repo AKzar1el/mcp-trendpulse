@@ -21,11 +21,21 @@ DAY = NOW - timedelta(days=1)
 SECRET = "NEVER_PERSIST_PRIVATE_ISSUE_BODY_123"
 
 
+@pytest.fixture(autouse=True)
+def fresh_observation_time():
+    """Do not let long whole-repo suites age a module-import timestamp."""
+    global NOW, DAY
+    NOW = datetime.now(timezone.utc).replace(microsecond=0)
+    DAY = NOW - timedelta(days=1)
+
+
 def issue(
     iid=80001234, number=1402, owner="microsoft", repo="playwright",
-    *, title="Timeout on browser navigation", created=DAY, state="open",
+    *, title="Timeout on browser navigation", created=None, state="open",
     pull=False,
 ):
+    if created is None:
+        created = DAY
     url = f"https://github.com/{owner}/{repo}/issues/{number}"
     row = {
         "id": iid, "number": number, "title": title, "state": state,

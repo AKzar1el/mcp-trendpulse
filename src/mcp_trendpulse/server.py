@@ -11,7 +11,7 @@ from fastmcp.server.middleware.rate_limiting import RateLimitingMiddleware
 from fastmcp.server.middleware.error_handling import ErrorHandlingMiddleware
 from pydantic import BaseModel, Field, model_serializer
 from mcp_trendpulse.config import GOOGLE_NEWS_MAX_RESULTS, GOOGLE_TRENDS_MAX_RESULTS, load_environment
-from mcp_trendpulse.news import BrowserManager, _enrich_article_nlp
+from mcp_trendpulse.news import BrowserManager, _enrich_article_nlp, normalize_trending_geo
 from mcp_trendpulse.middleware import ProviderErrorMiddleware
 from mcp_trendpulse.providers import get_provider_set
 from newspaper.article import Article
@@ -688,6 +688,7 @@ async def get_trending_terms(
         Field(description="Return full data for each trend including related news stories."),
     ] = False,
 ) -> list[TrendingTermOut]:
+    geo = normalize_trending_geo(geo)
     if not full_data:
         trends = await get_provider_set().trends.get_trending_terms(geo=geo, full_data=False)
         return [TrendingTermOut(keyword=str(tt["keyword"]), volume=tt["volume"]) for tt in trends]
@@ -794,6 +795,7 @@ async def get_top_trends(
     limit: Annotated[int, Field(description="Maximum number of trends to return.", ge=1, le=GOOGLE_TRENDS_MAX_RESULTS)] = 20,
     geo: Annotated[str, Field(description="Geographic region code (e.g. 'US').")] = "US",
 ) -> list[TopTrendOut]:
+    geo = normalize_trending_geo(geo)
     results = await get_provider_set().trends.get_top_trends(
         type=type,
         limit=limit,

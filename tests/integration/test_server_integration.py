@@ -118,6 +118,7 @@ async def test_get_trending_terms_uses_google_trends(
             assert "keyword" in item
             assert "volume" in item
         params = {"geo": "USA", "full_data": True}
-        with external_source_available("google_trends"):
-            result = await client.call_tool("get_trending_terms", params)
-        assert _articles(result) == []
+        # Three-letter countries are not accepted by Google's Trending Now
+        # RSS. Reject locally; never turn HTTP 400 into "no trends" evidence.
+        with pytest.raises(ToolError, match="Invalid Google Trends geo"):
+            await client.call_tool("get_trending_terms", params)

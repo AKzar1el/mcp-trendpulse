@@ -44,7 +44,9 @@ async def test_article_dns_timeout_retains_physical_worker_slot(monkeypatch):
         assert calls == ["https://example.com/slow"]
     finally:
         release.set()
-        assert await asyncio.to_thread(finished.wait, 1)
+        # A released background thread may need an extra scheduler turn on
+        # busy Windows CI machines; keep the cleanup bounded, not flaky.
+        assert await asyncio.to_thread(finished.wait, 2)
 
 
 @pytest.mark.asyncio
