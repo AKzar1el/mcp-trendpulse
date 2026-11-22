@@ -1,0 +1,131 @@
+{
+  "timestamp_utc": "2026-11-22T05:08:42.894823+00:00",
+  "run_mode": "independent_stdios_not_production",
+  "sources_attempted": 0,
+  "paid_services_used": false,
+  "total_tools_across_separate_surfaces": 41,
+  "total_cases": 7,
+  "all_passed": true,
+  "results": [
+    {
+      "surface": "standard",
+      "server": "mcp-trendpulse",
+      "tool_count": 16,
+      "tool_names": [
+        "get_article_content",
+        "get_categories",
+        "get_growth",
+        "get_interest_by_region",
+        "get_news_by_keyword",
+        "get_news_by_location",
+        "get_news_by_site",
+        "get_news_by_topic",
+        "get_ranked_trends",
+        "get_related_queries",
+        "get_related_topics",
+        "get_suggestions",
+        "get_top_news",
+        "get_top_trends",
+        "get_trending_terms",
+        "get_trends"
+      ],
+      "read_only_annotations_count": 16,
+      "handshake_and_discovery_ms": 21366.76,
+      "cases": [
+        {
+          "task": "offline_category_resolution",
+          "ok": true,
+          "ms": 3512.38
+        }
+      ]
+    },
+    {
+      "surface": "intelligence_v2",
+      "server": "trendpulse-free-market-intelligence",
+      "tool_count": 17,
+      "tool_names": [
+        "intelligence_analyze_job_postings",
+        "intelligence_collect",
+        "intelligence_dependency_graph",
+        "intelligence_discover_current",
+        "intelligence_evaluate_opportunities",
+        "intelligence_hf_catalog",
+        "intelligence_hunt_current",
+        "intelligence_observe_source_snapshots",
+        "intelligence_opportunity_lanes",
+        "intelligence_plan",
+        "intelligence_provider_settings",
+        "intelligence_provider_setup",
+        "intelligence_release_lifecycle",
+        "intelligence_repository_scorecard",
+        "intelligence_repository_star_history",
+        "intelligence_source_catalog",
+        "intelligence_walk_forward_backtest"
+      ],
+      "read_only_annotations_count": 17,
+      "handshake_and_discovery_ms": 15541.81,
+      "cases": [
+        {
+          "task": "intelligence_hf_catalog_zero_network",
+          "ok": true,
+          "ms": 56.49
+        },
+        {
+          "task": "intelligence_release_lifecycle_zero_network",
+          "ok": true,
+          "ms": 32.39
+        },
+        {
+          "task": "intelligence_dependency_graph_zero_network",
+          "ok": true,
+          "ms": 31.06
+        }
+      ]
+    },
+    {
+      "surface": "hosted",
+      "server": "trendpulse-by-digestseo",
+      "tool_count": 6,
+      "tool_names": [
+        "analyze_keyword_trend",
+        "compare_keyword_trends",
+        "discover_related_demand",
+        "discover_trends",
+        "find_seo_opportunities",
+        "get_trend_context"
+      ],
+      "read_only_annotations_count": 6,
+      "handshake_and_discovery_ms": 22575.66,
+      "cases": [
+        {
+          "task": "offline_evidence_prompt_registered",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "surface": "v3_isolated_unreleased",
+      "server": "trendpulse-mjau-v3-optional-free-sources",
+      "tool_count": 2,
+      "tool_names": [
+        "mjau_v3_osv_advisory_ids",
+        "mjau_v3_wikidata_names"
+      ],
+      "read_only_annotations_count": 2,
+      "handshake_and_discovery_ms": 11168.02,
+      "cases": [
+        {
+          "task": "mjau_v3_wikidata_names_zero_network",
+          "ok": true,
+          "ms": 34.79
+        },
+        {
+          "task": "mjau_v3_osv_advisory_ids_zero_network",
+          "ok": true,
+          "ms": 23.63
+        }
+      ]
+    }
+  ],
+  "v3_deployed_or_registered": false
+}

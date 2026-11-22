@@ -1,0 +1,66 @@
+{
+  "timestamp_utc": "2026-11-22T05:04:43.883137+00:00",
+  "transport": "independent_child_process_mcp_sdk",
+  "free_provider_requests": 0,
+  "repeats_per_runtime": 6,
+  "same_answer": true,
+  "answers": [
+    {
+      "label": "preserved_old",
+      "server": "mcp-trendpulse",
+      "tools": 16,
+      "cold_initialize_and_discover_ms": 27844.8,
+      "category_ids": [
+        [
+          "Business Finance",
+          1138
+        ],
+        [
+          "Finance",
+          7
+        ],
+        [
+          "Public Finance",
+          1161
+        ]
+      ],
+      "successes": 6,
+      "latency": {
+        "n": 6,
+        "p50_ms": 20.52,
+        "p95_ms": 21.7,
+        "min_ms": 17.68,
+        "max_ms": 1883.14
+      }
+    },
+    {
+      "label": "latest",
+      "server": "mcp-trendpulse",
+      "tools": 16,
+      "cold_initialize_and_discover_ms": 11141.49,
+      "category_ids": [
+        [
+          "Business Finance",
+          1138
+        ],
+        [
+          "Finance",
+          7
+        ],
+        [
+          "Public Finance",
+          1161
+        ]
+      ],
+      "successes": 6,
+      "latency": {
+        "n": 6,
+        "p50_ms": 52.17,
+        "p95_ms": 56.74,
+        "min_ms": 47.07,
+        "max_ms": 1091.08
+      }
+    }
+  ],
+  "limitations": "Same source-free category lookup, not an online search coverage or human productivity comparison. Cold startup varies with CPU/IO."
+}

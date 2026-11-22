@@ -1,0 +1,35 @@
+{
+  "timestamp_utc": "2026-11-22T04:53:08.543609+00:00",
+  "run_mode": "independent_stdios_not_production",
+  "sources_attempted": 0,
+  "paid_services_used": false,
+  "total_tools_across_separate_surfaces": 2,
+  "total_cases": 2,
+  "all_passed": true,
+  "results": [
+    {
+      "surface": "v3_isolated_unreleased",
+      "server": "trendpulse-mjau-v3-optional-free-sources",
+      "tool_count": 2,
+      "tool_names": [
+        "mjau_v3_osv_advisory_ids",
+        "mjau_v3_wikidata_names"
+      ],
+      "read_only_annotations_count": 2,
+      "handshake_and_discovery_ms": 24412.29,
+      "cases": [
+        {
+          "task": "mjau_v3_wikidata_names_zero_network",
+          "ok": true,
+          "ms": 61.76
+        },
+        {
+          "task": "mjau_v3_osv_advisory_ids_zero_network",
+          "ok": true,
+          "ms": 45.72
+        }
+      ]
+    }
+  ],
+  "v3_deployed_or_registered": false
+}

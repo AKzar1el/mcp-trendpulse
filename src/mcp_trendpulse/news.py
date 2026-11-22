@@ -82,6 +82,27 @@ _SEARCH_SOURCE_MAP = {
 _ALLOWED_DATA_MODES = frozenset({"weekly", "daily", "monthly"})
 _ALLOWED_RANK_SORTS = frozenset({"recent_growth_pct", "wow_pct_change", "volume"})
 _ALLOWED_TOP_TREND_TYPES = frozenset({"google trends", "daily trends", "daily"})
+_TRENDING_GEO_SYNTAX = re.compile(
+    r"(?:[A-Z]{2}(?:-[A-Z0-9]{1,3})?|[0-9]{3})"
+)
+
+
+def normalize_trending_geo(geo: str) -> str:
+    """Validate Trending Now geography syntax before spending a provider call.
+
+    Empty means worldwide; two-letter countries, ISO subdivision suffixes,
+    and three-digit DMA strings are supported by the public MCP contract.
+    Syntax validation is not a claim that every geographic code exists.
+    """
+    if not isinstance(geo, str):
+        raise ValueError("Invalid Google Trends geo selector")
+    normalized = geo.strip().upper()
+    if normalized and _TRENDING_GEO_SYNTAX.fullmatch(normalized) is None:
+        raise ValueError(
+            "Invalid Google Trends geo: use two-letter country, CC-subdivision, "
+            "three-digit DMA, or empty worldwide"
+        )
+    return normalized
 _ALLOWED_GOOGLE_PROPERTIES = frozenset(_SEARCH_SOURCE_MAP.values())
 _ALLOWED_REGION_RESOLUTIONS = frozenset({"COUNTRY", "REGION", "CITY", "DMA"})
 
@@ -1510,6 +1531,7 @@ async def get_trending_terms(geo: str = "US", full_data: bool = False) -> list[d
     """
     Returns google trends for a specific geo location.
     """
+    geo = normalize_trending_geo(geo)
     trends = cast(
         list[TrendKeywordLite],
         await _call_trends_async("trending_now_by_rss", lambda: tr.trending_now_by_rss(geo=geo)),
@@ -2041,6 +2063,7 @@ async def get_top_trends(
     Get top trends from Google Trends realtime or 24-hour Trending Now feeds.
     """
     limit = _validated_trend_result_limit(limit)
+    geo = normalize_trending_geo(geo)
     normalized_type = type.strip().lower()
     if normalized_type not in _ALLOWED_TOP_TREND_TYPES:
         raise ValueError(
