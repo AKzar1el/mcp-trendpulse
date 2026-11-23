@@ -1,6 +1,6 @@
 """Measure source-only MJAU v3 cold Python imports without provider queries.
 
-The combined 35-tool app preserves V1 and V2 and necessarily imports their
+The combined 36-tool app preserves V1 and V2 and necessarily imports their
 startup dependencies. The separate two-tool V3 app avoids them. Benchmark
 these modes on the same machine rather than attributing shared import costs
 to V3 or claiming setup time is end-user research productivity.
@@ -116,7 +116,7 @@ def _parent(rounds: int) -> None:
     print("COLD_IMPORT_SUMMARY=" + json.dumps({
         "comparison_limit": (
             "Two-tool V3-only mode is not feature-equivalent to the unified "
-            "35-tool mode; these are startup attribution diagnostics, not "
+            "36-tool mode; these are startup attribution diagnostics, not "
             "research productivity or task-result A/B measurements."
         ),
         "results": aggregate,

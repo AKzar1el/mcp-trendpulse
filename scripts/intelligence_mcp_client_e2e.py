@@ -38,6 +38,7 @@ TOOLS = {
     "intelligence_repository_star_history",
     "intelligence_release_lifecycle",
     "intelligence_hf_catalog",
+    "intelligence_review_devpost_candidates",
 }
 FAKE_TOKEN = "SYNTHETIC_OFFLINE_E2E_TOKEN_NOT_A_PROVIDER_KEY"
 
@@ -115,7 +116,30 @@ async def exercise(mode: str, result_path: Path) -> int:
                     schema = json.dumps(tool.inputSchema).lower()
                     if '"api_key"' in schema or '"secret"' in schema or '"token"' in schema:
                         raise AssertionError("Secret-bearing MCP argument schema exposed")
-                checked.append({"case": "initialize_discover_seventeen_read_only_tools", "ok": True})
+                checked.append({"case": "initialize_discover_eighteen_read_only_tools", "ok": True})
+
+                # Exercise the stdio dispatcher with the four real project
+                # examples rather than only a FastMCP in-process invocation.
+                fixture_path = (
+                    Path(__file__).resolve().parent.parent / "docs" / "examples"
+                    / "devpost-four-candidate-evidence-2026-11-23.json.example"
+                )
+                supplied = json.loads(fixture_path.read_text(encoding="utf-8"))
+                reviewed = await _call(session, "intelligence_review_devpost_candidates", {
+                    "candidates": supplied["candidates"],
+                    "evidence": supplied["evidence"],
+                    "as_of": supplied["as_of"],
+                })
+                by_id = {row["id"]: row for row in reviewed["results"]}
+                if (reviewed.get("candidate_count") != 4
+                        or reviewed.get("evidence_count") != 15
+                        or reviewed.get("network_performed") is not False
+                        or reviewed.get("ranked_business_predictions") is not False
+                        or by_id["fire-drill"]["evidence_status"]["reuse_rights"]
+                            != "source_unavailable_unknown"
+                        or by_id["shadow-mcp"]["success_probability"] is not None):
+                    raise AssertionError("Devpost source-reviewer stdio contract regressed")
+                checked.append({"case": "devpost_review_four_candidates_no_demand_claim", "ok": True})
                 a03 = await _call(session, "intelligence_dependency_graph", {
                     "ecosystem": "npm", "package": "is-odd", "version": "3.0.1",
                     "execute": False,

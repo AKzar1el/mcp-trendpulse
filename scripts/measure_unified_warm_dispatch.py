@@ -1,7 +1,7 @@
 """Local no-provider A/B: does mounting V3 regress existing V1/V2 dispatch?
 
 Both arms use exactly the same original V1 and V2 server objects.
-Baseline mounts 33 tools; comparison is actual source-only 35-tool unified.
+Baseline mounts 34 tools; comparison is actual source-only 36-tool unified.
 No network, no worker mutation; timings are warm process RPC time only.
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ from mcp_trendpulse.intelligence_mcp import intel_mcp
 from mcp_trendpulse.mjau_v3.unified_mcp import unified_mcp
 
 
-baseline = FastMCP(name="test-only-v1-v2-33", lifespan=v1_lifespan)
+baseline = FastMCP(name="test-only-v1-v2-34", lifespan=v1_lifespan)
 baseline.mount(v1)
 baseline.mount(intel_mcp)
 
@@ -45,7 +45,7 @@ async def exercise(server):
         for i in range(14):
             tools2 = await client.list_tools()
             assert len(tools2) == n
-        if n == 35:
+        if n == 36:
             for i in range(5):
                 r = await client.call_tool(
                     "mjau_v3_osv_advisory_ids", {
@@ -70,13 +70,13 @@ async def main():
     trials = []
     for i in range(5):
         order = (
-            (("baseline33", baseline), ("unified35", unified_mcp))
+            (("baseline34", baseline), ("unified36", unified_mcp))
             if i % 2 == 0 else
-            (("unified35", unified_mcp), ("baseline33", baseline))
+            (("unified36", unified_mcp), ("baseline34", baseline))
         )
         for label, server in order:
             row = await exercise(server)
-            assert row["tools"] == (33 if label == "baseline33" else 35)
+            assert row["tools"] == (34 if label == "baseline34" else 36)
             assert row["catalog_consistent"]
             trials.append((i+1, label, row))
             print("WARM_CALL_TRIAL=" + json.dumps({
@@ -86,8 +86,8 @@ async def main():
                 "median_catalog_ms": round(row["median_warm_catalog_call_ms"], 3),
             }, sort_keys=True), flush=True)
 
-    baselines = [r for _, label, r in trials if label == "baseline33"]
-    unified = [r for _, label, r in trials if label == "unified35"]
+    baselines = [r for _, label, r in trials if label == "baseline34"]
+    unified = [r for _, label, r in trials if label == "unified36"]
     assert all(
         x["catalog_fingerprint"] == baselines[0]["catalog_fingerprint"]
         for x in baselines + unified
@@ -96,8 +96,8 @@ async def main():
     b = statistics.median(r["median_warm_catalog_call_ms"] for r in unified)
     print("WARM_CALL_SUMMARY=" + json.dumps({
         "trials": 5,
-        "baseline_tool_count": 33,
-        "unified_tool_count": 35,
+        "baseline_tool_count": 34,
+        "unified_tool_count": 36,
         "unchanged_source_catalog": True,
         "baseline_median_ms": round(a, 3),
         "unified_median_ms": round(b, 3),
