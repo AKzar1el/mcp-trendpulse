@@ -46,7 +46,7 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
     if source == "federal_register":
         if not isinstance(payload, dict):
             raise UnexpectedSourceShape("Expected Federal Register document-search JSON")
-        if (payload.get("count") == 0
+        if (type(payload.get("count")) is int and payload["count"] == 0
                 and "results" not in payload):
             rows = []
         else:
@@ -69,6 +69,14 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
                 if date.fromisoformat(published) > date.today():
                     continue
             except ValueError:
+                continue
+            try:
+                title.encode("utf-8", "strict")
+                url.encode("utf-8", "strict")
+                if isinstance(row.get("type"), str):
+                    row["type"].encode("utf-8", "strict")
+            except UnicodeEncodeError:
+                # Unpaired JSON surrogate is not a valid portable text record.
                 continue
             if not url.startswith("https://www.federalregister.gov/documents/"):
                 continue
