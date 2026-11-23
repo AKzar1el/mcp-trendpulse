@@ -1494,6 +1494,8 @@ def discover_current(
             lookback_days=lookback_days, limit=limit, cache=cache, env=env,
         )
         result["regulatory_context"] = context
+        if context["status"] not in {"observed", "no_supported_topic"}:
+            result["source_health_degraded"] = True
         result["queries_budgeted"] += context["source_requests_budgeted"]
         result["limits"] += (
             " Federal Register matches are topical publication evidence, not"
