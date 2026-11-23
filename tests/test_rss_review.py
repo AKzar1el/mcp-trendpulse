@@ -92,6 +92,19 @@ def test_rss_review_rejects_unpaired_unicode_surrogates_before_export(
     assert "RSS headline review failed: Invalid saved RSS headline" in result.output
 
 
+@pytest.mark.parametrize("field", ["title", "publisher"])
+@pytest.mark.parametrize("codepoint", [0x85, 0x2028, 0x2029])
+@pytest.mark.parametrize("output_format", ["json", "markdown", "csv"])
+def test_rss_review_rejects_unicode_line_separators_in_labels(
+    tmp_path, field, codepoint, output_format
+):
+    # These JSON-valid characters are line breaks in rendered reports.
+    capture = _capture([_headline(**{field: "First" + chr(codepoint) + "Second"})])
+    result = _run(tmp_path, capture, "--format", output_format)
+    assert result.exit_code == 1
+    assert "RSS headline review failed: Invalid saved RSS headline" in result.output
+
+
 def test_rss_review_preserves_valid_supplementary_unicode(tmp_path):
     title = "Valid " + chr(0x1F600)
     result = _run(tmp_path, _capture([_headline(title=title)]), "--format", "json")
