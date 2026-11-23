@@ -538,6 +538,25 @@ and per-original-feed
 [OSV distribution-rights review (#427)](https://github.com/AKzar1el/mcp-trendpulse/issues/427)
 remain open; passing automated tests does not satisfy either gate.
 
+For repeated local research, **keep the one client-managed stdio process
+connected** rather than launching a new 35-tool Python server for every
+question. Cold startup is dominated by shared FastMCP and V1 community
+imports, not by registering the two V3 tools. This is a workflow improvement,
+not a claim that V3 accelerates a direct first-time provider API lookup.
+To reproduce a bounded, network-free import attribution test:
+
+```bash
+python scripts/measure_unified_cold_start.py --rounds 3
+python scripts/measure_unified_warm_dispatch.py
+```
+
+The diagnostic alternates the full 35-tool import with the separate
+`python -m mcp_trendpulse.mjau_v3.mcp` **V3-only** two-tool import.
+Those modes have different capabilities and must not be called equivalent
+A/B research workflows. For actual integrated tasks, continue using the
+35-tool entrypoint above. The [startup attribution report](docs/qa/v3-startup-attribution-20261123.md)
+records the observed bounds and remaining limits.
+
 ChatGPT web needs a separately authenticated remote MCP connection or secure
 tunnel; the local stdio process is **not** a public plugin endpoint.
 No API secret should be provided in chat or committed into the repository.
