@@ -208,6 +208,60 @@ def test_provider_429_is_reported_without_retry_or_false_zero(monkeypatch):
     assert len(calls) == 1
 
 
+def test_real_collector_cache_and_bounded_projection_end_to_end(monkeypatch, tmp_path):
+    import json
+    from mcp_trendpulse import intelligence_core as core
+    calls = []
+    class Response:
+        headers = {"Content-Type": "application/json"}
+        def __enter__(self):
+            return self
+        def __exit__(self, *_a):
+            return False
+        def read(self, _limit):
+            return json.dumps({"results": [_doc()], "count": 1}).encode("utf-8")
+    class Opener:
+        def open(self, request, timeout=None):
+            calls.append((request.full_url, timeout))
+            return Response()
+    monkeypatch.setattr(core, "build_opener", lambda *_a: Opener())
+    store = core.BudgetCache(tmp_path)
+    plan = core.plan_source(
+        "federal_register", keyword="artificial intelligence", limit=2, env={},
+    )
+    first = core.collect(plan, fetch=True, cache=store, env={})
+    second = core.collect(plan, fetch=True, cache=store, env={})
+    assert first["status"] == "observed"
+    assert first["cache_hit"] is False
+    assert second["status"] == "observed" and second["cache_hit"] is True
+    assert first["observations"]["record_count"] == 1
+    assert first["data"]["results"] == first["observations"]["sample"]
+    assert not any("abstract" in row or "email" in row for row in first["data"]["results"])
+    assert len(calls) == 1
+    assert first["source"] == second["source"] == "federal_register"
+
+
+def test_real_collector_429_cooldown_and_no_automatic_retry(monkeypatch, tmp_path):
+    from urllib.error import HTTPError
+    from mcp_trendpulse import intelligence_core as core
+    calls = []
+    class Opener:
+        def open(self, request, timeout=None):
+            calls.append(request.full_url)
+            raise HTTPError(request.full_url, 429, "rate limited", {
+                "Retry-After": "60",
+            }, None)
+    monkeypatch.setattr(core, "build_opener", lambda *_a: Opener())
+    store = core.BudgetCache(tmp_path)
+    plan = core.plan_source("federal_register", keyword="privacy", env={})
+    one = core.collect(plan, fetch=True, cache=store, env={})
+    two = core.collect(plan, fetch=True, cache=store, env={})
+    assert one["status"] == "unavailable" and one["http_status"] == 429
+    assert two["status"] == "unavailable" and two["cache_hit"] is True
+    assert store.blocked("federal_register") is True
+    assert len(calls) == 1
+
+
 def test_discovery_baseline_unchanged_without_opt_in():
     plan = discovery.discover_current(execute=False, env={})
     assert plan["request_count"] == 3
