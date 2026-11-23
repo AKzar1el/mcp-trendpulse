@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from datetime import date
+import random
+import string
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -98,10 +100,31 @@ def test_empty_collection_is_bounded_observation_not_a_no_regulation_claim():
     {"results": [{**_doc(), "html_url": "https://evil.example/documents/abc"}]},
     {"results": [{**_doc(), "publication_date": "not-a-date"}]},
     {"results": [{**_doc(), "html_url": "https://www.federalregister.gov.evil.example/documents/abc"}]},
+    {"results": [{**_doc(), "html_url": "https://[::1/documents/bad"}]},
 ])
 def test_malformed_and_untrusted_records_are_not_valid_evidence(payload):
     with pytest.raises(UnexpectedSourceShape):
         evidence_projection("federal_register", payload)
+
+
+def test_seeded_offline_input_fuzz_never_escapes_fixed_host():
+    rng = random.Random(20261123)
+    alphabet = string.ascii_letters + string.digits + " &?=/#<>\\n\\t%'()"
+    safe = 0
+    for _ in range(300):
+        term = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 100)))
+        try:
+            plan = plan_source("federal_register", keyword=term, env={})
+        except IntelligenceError:
+            continue
+        parsed = urlsplit(plan.url)
+        params = parse_qs(parsed.query)
+        assert parsed.scheme == "https" and parsed.netloc == "www.federalregister.gov"
+        assert parsed.path == "/api/v1/documents.json"
+        assert params["conditions[term]"] == [" ".join(term.split())]
+        assert params["order"] == ["newest"]
+        safe += 1
+    assert safe > 0
 
 
 def test_optional_context_without_sourced_topic_never_calls_external_source(monkeypatch):
