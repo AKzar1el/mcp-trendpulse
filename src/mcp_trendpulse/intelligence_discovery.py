@@ -1211,6 +1211,9 @@ def discover_current(
             if ted_related_notices:
                 planned_total += 2
                 planned["max_requests_with_ted_related_notices"] = planned_total
+        if regulatory_context:
+            # Include all other opted-in enrichments in the same bound.
+            planned["max_requests_with_regulatory_context"] = planned_total + 1
         return planned
 
     sources: list[dict[str, Any]] = []
