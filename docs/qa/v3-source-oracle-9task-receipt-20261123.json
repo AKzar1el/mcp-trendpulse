@@ -1,0 +1,279 @@
+﻿{
+    "date":  "2026-11-23",
+    "run":  "frozen_9task_original_source_oracle",
+    "implementer":  "assistant_operated_no_human_signoff",
+    "method":  "Actual source-only unified stdio MCP vs independently written Python-stdlib HTTP oracle on identical official requests",
+    "human_reviewer_signed":  false,
+    "public_release_approved":  false,
+    "total_tasks":  9,
+    "verifiable_tasks":  9,
+    "passed":  9,
+    "failed":  0,
+    "direct_http_median_ms":  438.23,
+    "v3_mcp_first_call_median_ms":  999.15,
+    "v3_mcp_cold_start_ms":  57987.97,
+    "cached_replay":  [
+                          {
+                              "error":  false,
+                              "hit":  true,
+                              "ms":  98.07,
+                              "network":  false,
+                              "tool":  "mjau_v3_wikidata_names"
+                          },
+                          {
+                              "error":  false,
+                              "hit":  true,
+                              "ms":  81.27,
+                              "network":  false,
+                              "tool":  "mjau_v3_osv_advisory_ids"
+                          }
+                      ],
+    "cases":  [
+                  {
+                      "task":  "W01_apple_vs_company",
+                      "family":  "Wikidata",
+                      "result":  "pass",
+                      "source_http_sha256":  "c0015c7bd0b3db66555de41e7a38ecd05490a8ddd281d0cd082c78ec53a90e31",
+                      "source_http_bytes":  785,
+                      "source_status":  "source_entities_observed",
+                      "v3_mcp_wall_ms":  1464.69,
+                      "direct_original_http_wall_ms":  1525.54,
+                      "network_performed":  true,
+                      "source_cache_hit":  false,
+                      "osv_ids":  {
+
+                                  },
+                      "candidate_qids":  "Q89"
+                  },
+                  {
+                      "task":  "W02_mercury_ambiguity",
+                      "family":  "Wikidata",
+                      "result":  "pass",
+                      "source_http_sha256":  "fb2020c4e9659d038bbcee05ab958695061322bc2561adb73d06b7e52af636a3",
+                      "source_http_bytes":  1133,
+                      "source_status":  "source_entities_observed",
+                      "v3_mcp_wall_ms":  989.56,
+                      "direct_original_http_wall_ms":  383.51,
+                      "network_performed":  true,
+                      "source_cache_hit":  false,
+                      "osv_ids":  {
+
+                                  },
+                      "candidate_qids":  [
+                                             "Q1150",
+                                             "Q308"
+                                         ]
+                  },
+                  {
+                      "task":  "W03_berlin_vs_country",
+                      "family":  "Wikidata",
+                      "result":  "pass",
+                      "source_http_sha256":  "9c82c33b9daa0d44a6290a34bd21e409db2acb90375be9cd5b47897a344984a1",
+                      "source_http_bytes":  2919,
+                      "source_status":  "source_entities_observed",
+                      "v3_mcp_wall_ms":  1248.98,
+                      "direct_original_http_wall_ms":  438.23,
+                      "network_performed":  true,
+                      "source_cache_hit":  false,
+                      "osv_ids":  {
+
+                                  },
+                      "candidate_qids":  "Q64"
+                  },
+                  {
+                      "task":  "W04_google_missing",
+                      "family":  "Wikidata",
+                      "result":  "pass",
+                      "source_http_sha256":  "0d20a7c9c3ad24d81f969fab357d92c3e597ed9989d2b2f4dfb4b64f222d8165",
+                      "source_http_bytes":  412,
+                      "source_status":  "source_entities_observed",
+                      "v3_mcp_wall_ms":  745.11,
+                      "direct_original_http_wall_ms":  388.68,
+                      "network_performed":  true,
+                      "source_cache_hit":  false,
+                      "osv_ids":  {
+
+                                  },
+                      "candidate_qids":  "Q95"
+                  },
+                  {
+                      "task":  "O01_npm_minimist",
+                      "family":  "OSV",
+                      "result":  "pass",
+                      "source_http_sha256":  "0d4a8c63a66b4cc68cc268a09c521c79610c336d3ec4fcb64f657b0b4934f120",
+                      "source_http_bytes":  165,
+                      "source_status":  "source_advisories_returned",
+                      "v3_mcp_wall_ms":  999.15,
+                      "direct_original_http_wall_ms":  406.86,
+                      "network_performed":  true,
+                      "source_cache_hit":  false,
+                      "osv_ids":  [
+                                      "GHSA-vh95-rmgr-6w4m",
+                                      "GHSA-xvch-5gv4-984h"
+                                  ],
+                      "candidate_qids":  {
+
+                                         }
+                  },
+                  {
+                      "task":  "O02_pypi_six_zero",
+                      "family":  "OSV",
+                      "result":  "pass",
+                      "source_http_sha256":  "a0460b2895f6918d679db4ec8ceaa94dc85b501d9060c02839d05e919aac5e31",
+                      "source_http_bytes":  16,
+                      "source_status":  "no_returned_advisories",
+                      "v3_mcp_wall_ms":  753.48,
+                      "direct_original_http_wall_ms":  319.5,
+                      "network_performed":  true,
+                      "source_cache_hit":  false,
+                      "osv_ids":  {
+
+                                  },
+                      "candidate_qids":  {
+
+                                         }
+                  },
+                  {
+                      "task":  "O03_pypi_django_many",
+                      "family":  "OSV",
+                      "result":  "pass",
+                      "source_http_sha256":  "19d2191ff0de4edfaf12af148a0acc91012e9770001557562d08429006627010",
+                      "source_http_bytes":  5086,
+                      "source_status":  "source_advisories_returned",
+                      "v3_mcp_wall_ms":  1058.82,
+                      "direct_original_http_wall_ms":  827.83,
+                      "network_performed":  true,
+                      "source_cache_hit":  false,
+                      "osv_ids":  [
+                                      "GHSA-2gwj-7jmv-h26r",
+                                      "GHSA-2m34-jcjv-45xf",
+                                      "GHSA-3gh2-xw74-jmcw",
+                                      "GHSA-3h9f-r86x-qvjx",
+                                      "GHSA-53qw-q765-4fww",
+                                      "GHSA-68w8-qjq3-2gfm",
+                                      "GHSA-6c3j-c64m-qhgq",
+                                      "GHSA-6c7v-2f49-8h26",
+                                      "GHSA-6cw3-g6wv-c2xv",
+                                      "GHSA-6r97-cj55-9hrq",
+                                      "GHSA-6w2r-r2m5-xq5w",
+                                      "GHSA-7rp2-fm2h-wchj",
+                                      "GHSA-7xr5-9hcq-chf9",
+                                      "GHSA-8c5j-9r9f-c6w8",
+                                      "GHSA-8cjm-8mp7-r2xf",
+                                      "GHSA-8qcx-xf44-272x",
+                                      "GHSA-8x94-hmjh-97hq",
+                                      "GHSA-923m-gv2p-w5qp",
+                                      "GHSA-95rw-fx8r-36v6",
+                                      "GHSA-c4qh-4vgv-qc6g",
+                                      "GHSA-crhf-3pfg-w68w",
+                                      "GHSA-fr28-569j-53c4",
+                                      "GHSA-frmv-pr5f-9mcr",
+                                      "GHSA-fvgf-6h6h-3322",
+                                      "GHSA-h5jv-4p7w-64jg",
+                                      "GHSA-h7pc-vwp9-298g",
+                                      "GHSA-hmr4-m2h5-33qx",
+                                      "GHSA-hvmf-r92r-27hr",
+                                      "GHSA-jrh2-hc4r-7jwx",
+                                      "GHSA-m6gj-h9gm-gw44",
+                                      "GHSA-p99v-5w3c-jqq9",
+                                      "GHSA-q238-5cxm-5c9h",
+                                      "GHSA-qm57-vhq3-3fwf",
+                                      "GHSA-qw25-v68c-qjf3",
+                                      "GHSA-rrqc-c2jx-6jgv",
+                                      "GHSA-rxjp-mfm9-w4wr",
+                                      "GHSA-v6rh-hp5x-86rv",
+                                      "GHSA-v9qg-3j8p-r63v",
+                                      "GHSA-vfq6-hq5r-27r6",
+                                      "GHSA-w24h-v9qh-8gxj",
+                                      "GHSA-wpjr-j57x-wxfw",
+                                      "GHSA-wvqv-fj8w-qmhm",
+                                      "GHSA-xgxc-v2qg-chmh",
+                                      "PYSEC-2019-10",
+                                      "PYSEC-2019-11",
+                                      "PYSEC-2019-12",
+                                      "PYSEC-2019-13",
+                                      "PYSEC-2019-14",
+                                      "PYSEC-2019-15",
+                                      "PYSEC-2019-16",
+                                      "PYSEC-2019-79",
+                                      "PYSEC-2020-31",
+                                      "PYSEC-2020-32",
+                                      "PYSEC-2020-33",
+                                      "PYSEC-2020-34",
+                                      "PYSEC-2020-35",
+                                      "PYSEC-2020-36",
+                                      "PYSEC-2021-439",
+                                      "PYSEC-2021-6",
+                                      "PYSEC-2021-7",
+                                      "PYSEC-2021-8",
+                                      "PYSEC-2021-9",
+                                      "PYSEC-2021-98",
+                                      "PYSEC-2021-99",
+                                      "PYSEC-2022-1",
+                                      "PYSEC-2022-19",
+                                      "PYSEC-2022-190",
+                                      "PYSEC-2022-191",
+                                      "PYSEC-2022-2",
+                                      "PYSEC-2022-20",
+                                      "PYSEC-2022-3",
+                                      "PYSEC-2026-1297",
+                                      "PYSEC-2026-3717",
+                                      "PYSEC-2026-4035",
+                                      "PYSEC-2026-628"
+                                  ],
+                      "candidate_qids":  {
+
+                                         }
+                  },
+                  {
+                      "task":  "O04_npm_lodash",
+                      "family":  "OSV",
+                      "result":  "pass",
+                      "source_http_sha256":  "9c197455461ad513eba031a0dd3886bc271da3acd5a3cec372541b122f234386",
+                      "source_http_bytes":  445,
+                      "source_status":  "source_advisories_returned",
+                      "v3_mcp_wall_ms":  839.72,
+                      "direct_original_http_wall_ms":  511.54,
+                      "network_performed":  true,
+                      "source_cache_hit":  false,
+                      "osv_ids":  [
+                                      "GHSA-29mw-wpgm-hmr9",
+                                      "GHSA-35jh-r3h4-6jhm",
+                                      "GHSA-jf85-cpcp-j695",
+                                      "GHSA-p6mc-m468-83gw",
+                                      "GHSA-r5fr-rjxr-66jc",
+                                      "GHSA-xxjr-mmjv-4gpg"
+                                  ],
+                      "candidate_qids":  {
+
+                                         }
+                  },
+                  {
+                      "task":  "O05_pypi_jinja2",
+                      "family":  "OSV",
+                      "result":  "pass",
+                      "source_http_sha256":  "c71d71cad2f0c87e8a6b34b10428ee76f4d012b7594c634d58f3773cd347977b",
+                      "source_http_bytes":  703,
+                      "source_status":  "source_advisories_returned",
+                      "v3_mcp_wall_ms":  1234.18,
+                      "direct_original_http_wall_ms":  511.16,
+                      "network_performed":  true,
+                      "source_cache_hit":  false,
+                      "osv_ids":  [
+                                      "GHSA-cpwx-vrp4-4pq7",
+                                      "GHSA-g3rq-g295-4j3m",
+                                      "GHSA-h5c8-rqwp-cp95",
+                                      "GHSA-h75v-3vvj-5mfj",
+                                      "GHSA-q2x7-8rv6-6q7h",
+                                      "PYSEC-2021-66",
+                                      "PYSEC-2026-1471",
+                                      "PYSEC-2026-1473",
+                                      "PYSEC-2026-1474",
+                                      "PYSEC-2026-1475"
+                                  ],
+                      "candidate_qids":  {
+
+                                         }
+                  }
+              ]
+}
