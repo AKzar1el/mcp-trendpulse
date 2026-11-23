@@ -33,6 +33,8 @@ _TOPIC = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .,/()'\-]{0,79}\Z")
 def validate_topic(topic: str) -> str:
     if not isinstance(topic, str):
         raise IntelligenceError("Federal Register topic must be text")
+    if len(topic) > 80:
+        raise IntelligenceError("Federal Register topic exceeds 80 characters")
     if any(ord(ch) < 32 or ord(ch) == 127 for ch in topic):
         raise IntelligenceError("Federal Register topic contains control characters")
     clean = " ".join(topic.split())
