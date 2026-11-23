@@ -1,6 +1,10 @@
 """Strict, provider-shaped URL validation for Google News RSS evidence."""
 
+import re
 from urllib.parse import urlsplit
+
+
+_ARTICLE_PATH = re.compile(r"/rss/articles/[A-Za-z0-9_-]{1,4096}={0,2}/?")
 
 
 def is_google_news_rss_url(value: object) -> bool:
@@ -23,7 +27,6 @@ def is_google_news_rss_url(value: object) -> bool:
         and parsed.username is None
         and parsed.password is None
         and port in (None, 443)
-        and parsed.path.startswith("/rss/articles/")
-        and parsed.path != "/rss/articles/"
+        and _ARTICLE_PATH.fullmatch(parsed.path) is not None
         and not parsed.fragment
     )
