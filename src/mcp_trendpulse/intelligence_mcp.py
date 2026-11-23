@@ -158,7 +158,10 @@ def intelligence_observe_source_snapshots(
         "baseline source requests. Explicit optional flags can compare OpenAlex "
         "research-share history, scan more topics, check public GitHub issue "
         "counts and reuse the existing CORDIS/USAspending hunter on derived "
-        "topics. Never implies market growth, paying buyers or adoption."
+        "topics. Optional compact=True returns a shorter baseline decision "
+        "brief with source coverage, candidate evidence and safety caveats, "
+        "omitting detailed notice/research samples; enrichment options require "
+        "the full view. Never implies market growth, paying buyers or adoption."
     ),
     annotations=READ_ONLY,
 )
@@ -170,15 +173,51 @@ def intelligence_discover_current(
     broad_topic_scan: bool = False,
     corroborate_issues: bool = False,
     cross_source_hunt: bool = False,
+    compact: bool = False,
 ) -> dict[str, Any]:
     from mcp_trendpulse.intelligence_discovery import discover_current
 
-    return discover_current(
+    if type(compact) is not bool:
+        raise ValueError("compact must be a boolean")
+    if compact and (measure_trends or broad_topic_scan or corroborate_issues
+                    or cross_source_hunt):
+        raise ValueError("compact baseline view cannot omit requested enrichments")
+
+    result = discover_current(
         lookback_days=lookback_days, limit=limit, execute=execute,
         measure_trends=measure_trends, broad_topic_scan=broad_topic_scan,
         corroborate_issues=corroborate_issues,
         cross_source_hunt=cross_source_hunt,
     )
+    if not compact or result.get("mode") != "seedless_public_source_discovery_not_market_growth":
+        return result
+
+    # Deliberately omit only the large source-sample sections. Keep exact
+    # candidates, their links, source coverage, source health and all
+    # uncertainty/paid-buyer flags; full details remain available separately.
+    brief_keys = (
+        "mode", "as_of", "lookback_days", "discovery_query_mode",
+        "source_coverage", "recent_observations", "candidate_count",
+        "candidates", "procurement_review", "ted_sampling_audit",
+        "source_health_degraded", "population_coverage_verified",
+        "growth_rate_verified", "paid_buyers_verified", "no_paid_apis",
+        "limits", "network_performed", "queries_budgeted",
+        "ted_date_slices", "sample_limit", "user_credentials_exposed",
+    )
+    return {
+        **{key: result[key] for key in brief_keys if key in result},
+        "response_view": "compact_decision_brief",
+        "details_omitted": [
+            "procurement_observations", "procurement_estimate_examples",
+            "coarse_cpv_repeats_not_candidates",
+            "same_published_identity_repeats_not_candidates",
+            "research_observations", "sample_examples_by_source",
+        ],
+        "full_view": (
+            "Repeat with compact=False for detailed source samples; "
+            "a new provider request may be needed if cache has expired."
+        ),
+    }
 
 
 @intel_mcp.tool(

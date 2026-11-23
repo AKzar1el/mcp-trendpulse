@@ -507,6 +507,14 @@ The separate MCP also provides 18 opportunity investigation lanes, deterministic
 buyer/evidence triage, bounded trend checks, and a time-aware outcome backtest.
 These rank research priorities, **not** startup success probabilities. See
 [opportunity evaluation and chaos test matrix](docs/intelligence-opportunity-evaluation.md).
+In source checkouts containing this change, baseline `intelligence_discover_current`
+accepts `compact=True` for a smaller MCP decision brief containing candidates,
+source coverage and buyer/coverage cautions while omitting detailed
+research/notice samples. This option does **not** exist in the currently
+installed v0.3.1 runtime until a later authorized release and source reload.
+The default `compact=False` response remains unchanged; requesting optional
+discovery enrichments requires the full view. The compact view does not make
+the evidence more conclusive or change provider request quotas.
 
 ChatGPT web needs a separately authenticated remote MCP connection or secure
 tunnel; the local stdio process is **not** a public plugin endpoint.
