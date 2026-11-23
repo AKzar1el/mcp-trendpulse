@@ -8,6 +8,7 @@ only source-validated metadata before storing anything.
 
 from __future__ import annotations
 
+from contextlib import closing
 import hashlib
 import json
 from datetime import datetime, timezone
@@ -176,7 +177,7 @@ def _checked_cache(
         # Distinguish an absent entry from a present but JSON-null entry.
         # BudgetCache.cached() intentionally returns None for both; V3 must
         # never treat a corrupted entry as permission for another request.
-        with store._connect() as conn:
+        with closing(store._connect()) as conn, conn:
             row = conn.execute(
                 "SELECT body FROM cache WHERE id=? AND until>?",
                 (identity, time.time()),
