@@ -86,12 +86,18 @@ def enrich_regulatory_context(
             "source_requests_budgeted": 1, "documents": [],
         }
     if outcome.get("status") != "observed":
+        reason = outcome.get("reason")
+        if reason not in {
+            "HTTPError", "URLError", "TimeoutError", "provider_cooldown",
+            "invalid_source_shape", "collection_failed", "JSONDecodeError",
+        }:
+            reason = outcome.get("status") if outcome.get("status") in {
+                "unavailable", "invalid_source_shape", "rate_limited",
+            } else "unrecognized_source_status"
         return {
-            **common, "status": "unavailable",
-            "reason_code": outcome.get("status", "source_unavailable")
-            if outcome.get("status") in ("unavailable", "invalid_source_shape", "rate_limited")
-            else "unrecognized_source_status",
-            "http_status": outcome.get("http_status") if isinstance(outcome.get("http_status"), int) else None,
+            **common, "status": "unavailable", "reason_code": reason,
+            "http_status": outcome.get("http_status")
+            if type(outcome.get("http_status")) is int else None,
             "source_requests_budgeted": 1, "documents": [],
         }
     observations = outcome.get("observations", {})
