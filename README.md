@@ -44,6 +44,8 @@ The paid brief is optional. The Community MCP remains free and unchanged, and th
 - Explore related queries, related topics, suggestions, and category IDs.
 - Compare Google Search, YouTube Search, News Search, Image Search, and Google Shopping trend properties where supported by the underlying provider.
 
+> **Known Google Trends limitation:** The unofficial provider is best-effort and often throttled or temporarily unavailable. A working Trending Now RSS feed does not guarantee that the separate ranked/Explore/interest endpoints will work. Correctly classified provider failures are expected limitations, not automatically product bugs; quotas and reset timing are not guaranteed. See [standing operator guidance](docs/operations.md#standing-google-trends-availability-expectation-community-and-hosted).
+
 ## Community and hosted architecture
 
 TrendPulse is being developed with two deliberate surfaces:

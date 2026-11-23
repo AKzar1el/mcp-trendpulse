@@ -134,6 +134,18 @@ Group `provider_failure` by provider, operation, and code. A spike across many r
 
 TrendPulse currently marks these failures retryable for clients but does not perform an unbounded automatic retry loop.
 
+### Standing Google Trends availability expectation (Community and hosted)
+
+**Known, expected limitation — record once and apply in future audits.** The Community Google Trends integration uses unofficial TrendSpy-backed endpoints with externally controlled, unpublished effective quotas. Frequent or intermittent `provider_rate_limited`, `provider_cooldown`, `provider_timeout`, or `provider_unavailable` outcomes may be normal. They are **not automatically evidence of a bug in TrendPulse, broken Codexify tool registration, an unsuccessful release, or zero user search interest**. No stable upstream uptime or quota-reset time is promised.
+
+- `get_trending_terms` and the RSS-backed `get_top_trends` path can work while the separate 24-hour `get_ranked_trends` / `trending_now` endpoint is unavailable. TrendSpy Explore, interest-over-time, related-query, and category operations have their own provider failure modes. Do not treat a working RSS result as proof the other endpoints must work, and do not treat them as interchangeable metrics.
+- On **2026-11-22/23**, the 24-hour ranking endpoint returned a provider-side JSON/NoneType failure while Slovenia's Trending Now RSS worked. The local error-handling defect was subsequently fixed: the user-facing result is now a sanitized `provider_unavailable` rather than a raw Python exception. Recurrence of a properly classified upstream error alone does not re-open that resolved code defect. See `tests/test_trends_provider_failure_classification_20261122.py`.
+- Continue to enforce bounded retries, cooling, caching, and existing budgets; allow repeated queries to use an already valid cache when permitted. Never solve availability complaints by adding more automated requests, rotating proxies, bypassing protections or switching to paid access without separate review. The 24-hour local lockout described in `docs/google-trends-explore.md` is a project safeguard, **not** Google's published quota-reset schedule.
+- **Escalate with reproducible evidence** if the MCP itself fails to initialize, inputs are forwarded before validation, raw upstream exceptions or sensitive content leak, classified rate limits fail to open the intended cooldown, caches return incorrect data, deterministic provider-injection tests regress, or an upstream API format change demonstrably breaks the adapter. A transient, correctly classified upstream failure by itself calls for an availability note, not code changes.
+- For a research workflow blocked by Google, explicitly mark Google evidence unavailable and continue with suitable independent public sources or verified existing RSS/cache observations where useful. Preserve source provenance, sampling scope and normalized-index caveats; do not claim substitution is equivalent or invent search volumes.
+
+**Default triage:** check MCP health and the error classification once; distinguish the requested endpoint from RSS; inspect aggregate cooldown/cache metrics and a bounded control case; record "expected upstream limitation" when local contracts pass. Avoid repeated probe storms. This applies to both future engineering agents and user-facing incident reports; escalate only new supporting evidence.
+
 ### Latency
 
 Track `duration_ms` percentiles for `/mcp` requests by status. Do not set an aggressive latency SLO before the final hosted provider is selected.
