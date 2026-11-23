@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import os
 from itertools import combinations
 
 from fastmcp import Client
@@ -67,6 +68,10 @@ async def test_each_tool_rejects_unknown_parameter_without_provider():
             assert result.is_error, f"{tool.name} accepted unrecognized args"
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRENDPULSE_QA_FULL_PAIRWISE") != "1",
+    reason="Heavy 1,190-call pairwise MCP stress: explicit local opt-in only",
+)
 @pytest.mark.asyncio
 async def test_all_595_unique_pairs_reject_unknown_parameters_independently():
     async with Client(unified_mcp) as client:
@@ -81,6 +86,26 @@ async def test_all_595_unique_pairs_reject_unknown_parameters_independently():
             assert b.is_error, (first, second)
             seen += 1
         assert seen == 595
+
+
+@pytest.mark.asyncio
+async def test_default_ci_cross_family_pairs_route_independently():
+    # Real concurrent RPC coverage of every family pairing without forcing
+    # shared CI runners to repeat 1,190 known-invalid calls.
+    pairs = (
+        ("get_news_by_keyword", "intelligence_plan"),
+        ("get_top_trends", "mjau_v3_osv_advisory_ids"),
+        ("intelligence_collect", "mjau_v3_wikidata_names"),
+        ("intelligence_release_lifecycle", "mjau_v3_osv_advisory_ids"),
+        ("get_news_by_site", "mjau_v3_wikidata_names"),
+    )
+    async with Client(unified_mcp) as client:
+        for first, second in pairs:
+            a, b = await asyncio.gather(
+                client.call_tool(first, INVALID_ARGS, raise_on_error=False),
+                client.call_tool(second, INVALID_ARGS, raise_on_error=False),
+            )
+            assert a.is_error and b.is_error, (first, second)
 
 
 @pytest.mark.asyncio
