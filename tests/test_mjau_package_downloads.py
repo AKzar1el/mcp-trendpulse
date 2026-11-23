@@ -114,6 +114,9 @@ def test_offline_preview_never_opens_sqlite_or_fetches(
     ("pypi", "x/y"),
     ("pypi", "%2F"),
     ("pypi", "some\nbad"),
+    ("pypi", "pydantic."),
+    ("pypi", "pydantic-"),
+    ("pypi", "pydantic_"),
     ("pypi", ""),
     ("unknown", "zod"),
 ])
@@ -133,6 +136,7 @@ def test_unsupported_day_windows_refused(days):
 
 
 def test_scoped_npm_package_path_and_pypi_pep503_identity():
+    assert packages._package("a", "pypi") == "a"
     assert packages._package("@babel/core", "npm") == "@babel/core"
     assert packages._url("@babel/core", "npm", 7) == (
         "https://api.npmjs.org/downloads/range/last-week/@babel%2Fcore"
