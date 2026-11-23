@@ -531,6 +531,12 @@ not replace the default 16/33-tool servers or deploy V3. V3 remains plan-only
 unless a user explicitly chooses `execute=True`, and source-rights and
 independent evaluation gates remain open. See the
 [combined MCP acceptance protocol](docs/qa/trendpulse-unified-v123-acceptance-20261123.md).
+The [current source-rights, real-source accuracy and conformance review](docs/qa/v3-release-gate-and-real-source-benchmark-20261123.md)
+is deliberately **not** a public release certificate. Independent outside-human
+[accuracy/usability review (#426)](https://github.com/AKzar1el/mcp-trendpulse/issues/426)
+and per-original-feed
+[OSV distribution-rights review (#427)](https://github.com/AKzar1el/mcp-trendpulse/issues/427)
+remain open; passing automated tests does not satisfy either gate.
 
 ChatGPT web needs a separately authenticated remote MCP connection or secure
 tunnel; the local stdio process is **not** a public plugin endpoint.
