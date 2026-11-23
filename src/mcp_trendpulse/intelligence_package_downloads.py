@@ -38,7 +38,7 @@ CACHE_TTL_SECONDS = 24 * 3600
 _NPM_PACKAGE = re.compile(
     r"(?:@[a-z0-9][a-z0-9._~-]{0,99}/)?[a-z0-9][a-z0-9._~-]{0,119}\Z"
 )
-_PYPI_PACKAGE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,119}\Z")
+_PYPI_PACKAGE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,118}[A-Za-z0-9])?\Z")
 _DAY = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
 _VALID_STATES = frozenset(("observed", "observed_partial", "no_data"))
 
