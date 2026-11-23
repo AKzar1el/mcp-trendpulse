@@ -54,9 +54,15 @@ explicit collection and job-posting-analysis tools. The existing 16-tool
 TrendPulse community surface and hosted surface are intentionally unchanged.
 Do not expose the standalone MCP as an unauthenticated public HTTP server.
 
+See [Federal Register regulatory context](federal-register-regulatory-context.md)
+for the optional source planner and discover enrichment (including local
+20-per-day safety limit and test/run gates). The integration uses existing
+read-only MCP tools and requires no paid API, key, login or extra runtime
+package. It adds no Bluesky source.
+
 ## Source status and measured reality
 
-There are 25 distinct source families, including a dedicated one-job detail
+There are 26 distinct source families, including a dedicated one-job detail
 adapter. A request builder alone is **not** proof of live provider support.
 Only the current GitHub Actions "Free intelligence live contract smoke" run
 can establish which representative public requests returned valid data.
@@ -65,6 +71,7 @@ can establish which representative public requests returned valid data.
 |---|---|---|
 | 1 | gdelt_latest | Keyless GDELT raw 15-minute event manifest; **not** DOC keyword search or news article data |
 | 1 | eurostat, ted, cellar, github_issues, worldbank | Keyless official indicators, notices, laws, public issues |
+| 1 | federal_register | Keyless, bounded U.S. regulatory publication search; not evidence of binding laws or buyers |
 | 2 | greenhouse, greenhouse_job, lever, ashby, smartrecruiters | Public job indices; `greenhouse_job` fetches one detailed description by ID |
 | 2 | sec_companyfacts, sec_companyconcept | Public, requires an attributable descriptive SEC User-Agent |
 | 2 | openalex | **Keyless basic queries supported**, 20 local queries/day; optional registered free key ($1/day allowance), 300 local searches/day; no paid fallback |
