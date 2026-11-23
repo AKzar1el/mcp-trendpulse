@@ -200,8 +200,8 @@ async def exercise(mode: str, result_path: Path) -> int:
                 checked.append({"case": "offline_company_observation_no_false_demand", "ok": True})
 
                 catalogue = await _call(session, "intelligence_source_catalog", {})
-                if not isinstance(catalogue, list) or len(catalogue) != 25:
-                    raise AssertionError("Expected exactly 25 global-source records")
+                if not isinstance(catalogue, list) or len(catalogue) != 26:
+                    raise AssertionError("Expected exactly 26 global-source records")
                 if {row["wave"] for row in catalogue} != {1, 2, 3}:
                     raise AssertionError("One or more waves not registered")
                 if any(row["id"] == "opsi_slovenia" for row in catalogue):
