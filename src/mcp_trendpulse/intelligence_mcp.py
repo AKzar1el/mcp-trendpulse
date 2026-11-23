@@ -282,6 +282,26 @@ def intelligence_evaluate_opportunities(
 
 @intel_mcp.tool(
     description=(
+        "Offline, source-linked due-diligence gap review for 1-20 Devpost-winning "
+        "SaaS, platform, or GitHub repository ideas. Accepts caller-supplied "
+        "awards, competitor, license, buyer and test evidence; never crawls a "
+        "website or treats supplied links as proof of revenue or working code. "
+        "Missing and unavailable provider signals remain unknown."
+    ),
+    annotations=READ_ONLY,
+)
+def intelligence_review_devpost_candidates(
+    candidates: list[dict[str, Any]],
+    evidence: list[dict[str, Any]],
+    as_of: str | None = None,
+) -> dict[str, Any]:
+    from mcp_trendpulse.intelligence_hackathon import review_devpost_candidates
+
+    return review_devpost_candidates(candidates, evidence, as_of=as_of)
+
+
+@intel_mcp.tool(
+    description=(
         "Offline forward-only evaluation of externally provided dated pilot/no-purchase "
         "labels. Requires dated outcome URLs and >=8 outcomes across 2 cutoffs to "
         "show descriptive precision. Does not fit a model or claim prediction accuracy."
