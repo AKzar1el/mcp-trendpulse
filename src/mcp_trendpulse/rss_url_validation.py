@@ -28,5 +28,5 @@ def is_google_news_rss_url(value: object) -> bool:
         and parsed.password is None
         and port in (None, 443)
         and _ARTICLE_PATH.fullmatch(parsed.path) is not None
-        and not parsed.fragment
+        and "#" not in value
     )
