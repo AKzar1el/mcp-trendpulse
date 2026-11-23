@@ -20,3 +20,7 @@ def test_accepts_google_news_article_token_with_query_and_443():
 
 def test_rejects_empty_fragment_delimiter_on_article_url():
     assert not is_google_news_rss_url("https://news.google.com/rss/articles/ABC123#")
+
+
+def test_rejects_empty_query_delimiter_on_article_url():
+    assert not is_google_news_rss_url("https://news.google.com/rss/articles/ABC123?")
