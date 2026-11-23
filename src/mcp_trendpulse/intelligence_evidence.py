@@ -66,6 +66,8 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
                     continue
             except ValueError:
                 continue
+            if not url.startswith("https://www.federalregister.gov/documents/"):
+                continue
             parsed = urlsplit(url)
             if (parsed.scheme != "https" or parsed.netloc != "www.federalregister.gov"
                     or not parsed.path.startswith("/documents/")
