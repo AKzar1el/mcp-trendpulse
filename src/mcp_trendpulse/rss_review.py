@@ -18,8 +18,10 @@ def _text(value, field, *, max_length, optional=False):
         return None
     if not isinstance(value, str) or not value.strip() or len(value) > max_length:
         raise ValueError(f"Invalid saved RSS headline {field}")
-    # Escaped lone UTF-16 surrogates are valid JSON syntax but cannot be emitted as UTF-8.
+    # JSON also permits line separators that would split rendered report rows.
+    # Escaped lone UTF-16 surrogates cannot be emitted as UTF-8.
     if any(ord(character) < 32 or ord(character) == 127
+           or ord(character) in (0x85, 0x2028, 0x2029)
            or 0xD800 <= ord(character) <= 0xDFFF for character in value):
         raise ValueError(f"Invalid saved RSS headline {field}")
     return value
