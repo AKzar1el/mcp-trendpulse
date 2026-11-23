@@ -1,4 +1,4 @@
-"""Prevent regressions in the frozen 33-tool offline description-search proxy.
+"""Prevent regressions in the frozen 34-tool offline description-search proxy.
 
 This is not an in-product Codexify search result; actual live index/agent
 selection must be independently checked after a future connector refresh.
@@ -23,7 +23,7 @@ def test_frozen_natural_language_retrieval_improves_prior_quality():
     assert len(benchmark.TASKS) == 24
     assert sum(item[2] == "baseline" for item in benchmark.TASKS) == 12
     report = benchmark.evaluate(asyncio.run(benchmark.collect()))
-    assert report["tool_count"] == 33
+    assert report["tool_count"] == 34
     assert report["totals"]["all"]["top1"] >= 21
     assert report["totals"]["all"]["top3"] == 24
     assert report["totals"]["holdout"]["top1"] >= 12

@@ -7,7 +7,7 @@ tools and all scheduled agents remain unchanged.
 
 ## Exact scope and interfaces
 
-The separate opt-in stdio MCP exposes thirteen read-only tools, including:
+The separate opt-in stdio MCP exposes eighteen read-only tools, including:
 - `intelligence_opportunity_lanes`: inspect each combination and its question;
 - `intelligence_evaluate_opportunities`: evaluate caller-supplied, dated evidence;
 - `intelligence_walk_forward_backtest`: grade historical triage only when later customer outcomes exist.
