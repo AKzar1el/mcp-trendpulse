@@ -7,7 +7,10 @@ All projections are observational; no record is treated as purchasing intent.
 
 from __future__ import annotations
 
+import re
+from datetime import date
 from typing import Any
+from urllib.parse import urlsplit
 
 
 class UnexpectedSourceShape(ValueError):
@@ -40,6 +43,57 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
         rows = [{k: v.get("value") for k, v in row.items()
                  if isinstance(v, dict) and "value" in v} for row in bindings]
         return {"record_count": len(rows), "sample": rows, "unit": "SPARQL bindings"}
+    if source == "federal_register":
+        if not isinstance(payload, dict):
+            raise UnexpectedSourceShape("Expected Federal Register document-search JSON")
+        rows = _objects(payload.get("results"))
+        projected = []
+        seen = set()
+        for row in rows:
+            number = row.get("document_number")
+            title = row.get("title")
+            published = row.get("publication_date")
+            url = row.get("html_url")
+            if not (isinstance(number, str)
+                    and re.fullmatch(r"[0-9]{4}-[0-9]{5,6}", number)
+                    and isinstance(title, str) and title.strip()
+                    and isinstance(published, str)
+                    and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", published)
+                    and isinstance(url, str) and len(url) <= 300):
+                continue
+            try:
+                if date.fromisoformat(published) > date.today():
+                    continue
+            except ValueError:
+                continue
+            parsed = urlsplit(url)
+            if (parsed.scheme != "https" or parsed.hostname != "www.federalregister.gov"
+                    or not parsed.path.startswith("/documents/")
+                    or parsed.username or parsed.password or parsed.fragment
+                    or parsed.query or parsed.port not in (None, 443)):
+                continue
+            if number in seen:
+                continue
+            seen.add(number)
+            kind = row.get("type")
+            projected.append({
+                "document_number": number,
+                "title": " ".join(title.split())[:240],
+                "publication_date": published,
+                "type": kind[:48] if isinstance(kind, str) else "",
+                "html_url": url,
+                "legal_effect_verified": False,
+                "proposed_rule_not_effective_rule": (
+                    isinstance(kind, str)
+                    and kind.strip().casefold() in {"proposed rule", "prorule"}
+                ),
+            })
+        if rows and not projected:
+            raise UnexpectedSourceShape("Federal Register rows lack valid published document identities")
+        return {
+            "record_count": len(projected), "sample": projected,
+            "unit": "U.S. Federal Register published document references, not current legal obligations",
+        }
     if source == "cfpb":
         if not isinstance(payload, dict) or not isinstance(payload.get("hits"), dict):
             raise UnexpectedSourceShape("Expected CFPB OpenSearch hits")
