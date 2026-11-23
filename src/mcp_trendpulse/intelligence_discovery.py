@@ -1523,7 +1523,7 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             tag += " | partial date-window coverage"
         lines.append("Source: " + tag)
     # Catalog availability is not collection. Make that boundary explicit
-    # so the 25 adapters are never mistaken for 25 live source observations.
+    # so the source catalogue is never mistaken for live source observations.
     from mcp_trendpulse.intelligence_core import source_catalog
 
     lines.append(
@@ -1533,6 +1533,24 @@ def format_discovery_report(result: dict[str, Any]) -> str:
         "hunt/query workflows are explicitly executed."
     )
     lines.append("")
+    if result.get("regulatory_context") is not None:
+        us = result["regulatory_context"]
+        lines.append(
+            "US FEDERAL REGISTER CONTEXT: "
+            + us.get("status", "unknown")
+            + " | topic: " + us.get("topic", "no verified source topic")
+            + " | sampled documents: " + str(us.get("sampled_documents", 0))
+        )
+        for doc in us.get("documents", [])[:5]:
+            lines.append(
+                "  " + doc["publication_date"] + " [" + doc.get("type", "") + "] "
+                + doc["title"] + " | " + doc["html_url"]
+            )
+        lines.append(
+            "Federal Register publications are context, not verified binding"
+            " obligations or customer demand; verify the official edition and eCFR."
+        )
+        lines.append("")
     if result.get("trend_evidence") is not None:
         from mcp_trendpulse.intelligence_trends import format_research_trends
 
