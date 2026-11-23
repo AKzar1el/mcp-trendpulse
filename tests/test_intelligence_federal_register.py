@@ -122,6 +122,8 @@ def test_empty_collection_is_bounded_observation_not_a_no_regulation_claim():
     {"results": [{"title": "No document identity"}]},
     {"results": [{**_doc(), "html_url": "https://evil.example/documents/abc"}]},
     {"results": [{**_doc(), "publication_date": "not-a-date"}]},
+    {"results": [{**_doc(), "title": "Broken \\ud800 Unicode"}]},
+    {"count": False},
     {"results": [{**_doc(), "html_url": "https://www.federalregister.gov.evil.example/documents/abc"}]},
     {"results": [{**_doc(), "html_url": "https://[::1/documents/bad"}]},
 ])
