@@ -46,7 +46,11 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
     if source == "federal_register":
         if not isinstance(payload, dict):
             raise UnexpectedSourceShape("Expected Federal Register document-search JSON")
-        rows = _objects(payload.get("results"))
+        if (payload.get("count") == 0
+                and "results" not in payload):
+            rows = []
+        else:
+            rows = _objects(payload.get("results"))
         projected = []
         seen = set()
         for row in rows:
@@ -55,7 +59,7 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
             published = row.get("publication_date")
             url = row.get("html_url")
             if not (isinstance(number, str)
-                    and re.fullmatch(r"[0-9]{4}-[0-9]{5,6}", number)
+                    and re.fullmatch(r"(?:C[0-9]{1,2}-)?[0-9]{4}-[0-9]{5,6}", number)
                     and isinstance(title, str) and title.strip()
                     and isinstance(published, str)
                     and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", published)
