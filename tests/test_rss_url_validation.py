@@ -16,3 +16,7 @@ def test_rejects_non_article_google_news_path_suffixes():
 def test_accepts_google_news_article_token_with_query_and_443():
     assert is_google_news_rss_url("https://news.google.com/rss/articles/CBMiABC_-==?oc=5")
     assert is_google_news_rss_url("https://news.google.com:443/rss/articles/ABC123/")
+
+
+def test_rejects_empty_fragment_delimiter_on_article_url():
+    assert not is_google_news_rss_url("https://news.google.com/rss/articles/ABC123#")
