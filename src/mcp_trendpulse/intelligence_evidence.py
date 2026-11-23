@@ -97,6 +97,37 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
             raise UnexpectedSourceShape("Expected [pagination, values] from World Bank")
         rows = _objects(payload[1])
         return {"record_count": len(rows), "sample": rows, "unit": "official indicator observations"}
+    if source == "github_repositories":
+        if not isinstance(payload, dict):
+            raise UnexpectedSourceShape("Expected public GitHub repository search JSON")
+        repos = _objects(payload.get("items"))
+        rows = [
+            {k: r[k] for k in (
+                "id", "full_name", "html_url", "description", "updated_at",
+                "stargazers_count", "fork", "archived",
+            ) if k in r}
+            for r in repos[:10]
+        ]
+        return {
+            "record_count": len(repos), "sample": rows,
+            "unit": "public repository metadata; feature equivalence unverified",
+        }
+    if source == "hf_dataset_details":
+        if not isinstance(payload, dict) or not isinstance(payload.get("id"), str):
+            raise UnexpectedSourceShape("Expected Hugging Face dataset metadata")
+        card = payload.get("cardData")
+        data = {
+            k: payload.get(k) for k in (
+                "id", "createdAt", "lastModified", "private", "gated",
+                "downloads", "likes",
+            )
+        }
+        if isinstance(card, dict) and isinstance(card.get("license"), str):
+            data["license"] = card["license"]
+        return {
+            "record_count": 1, "sample": [data],
+            "unit": "dataset metadata only; no data rows or rights granted",
+        }
     if source == "github_issues":
         if not isinstance(payload, dict):
             raise UnexpectedSourceShape("Expected GitHub issue search JSON")
