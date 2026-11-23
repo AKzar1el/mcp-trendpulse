@@ -227,6 +227,33 @@ def test_explicit_discovery_plan_remains_offline_and_counts_extra_request():
     assert plan["regulatory_context"]["request_plan"]["source"] == "federal_register"
 
 
+@pytest.mark.parametrize("params", [
+    {},
+    {"regulatory_context": True},
+    {"regulatory_context": True, "regulatory_term": "data privacy"},
+    {"regulatory_context": True, "regulatory_term": "data privacy", "workflow_briefs": True},
+    {"regulatory_context": True, "regulatory_term": "data privacy", "measure_trends": True},
+    {"regulatory_context": True, "regulatory_term": "data privacy", "ted_date_slices": 3},
+    {"regulatory_context": True, "regulatory_term": "data privacy", "workflow_briefs": True,
+     "ted_software_scan": True, "idea_map": True},
+    {"regulatory_context": True, "regulatory_term": "data privacy", "measure_trends": True,
+     "corroborate_issues": True, "cross_source_hunt": True},
+])
+def test_discovery_plan_combinations_are_offline_and_budget_correct(params):
+    plan = discovery.discover_current(execute=False, limit=10, env={}, **params)
+    assert plan["status"] == "planned"
+    assert plan["network_performed"] is False
+    assert plan["request_count"] in (3, 5)
+    assert len(plan["plans"]) == plan["request_count"]
+    if params.get("regulatory_context"):
+        assert plan["regulatory_context"]["source"] == "federal_register"
+        assert plan["max_requests_with_regulatory_context"] > plan["request_count"]
+        if params.get("regulatory_term"):
+            assert plan["regulatory_context"]["request_plan"]["network_performed"] is False
+    else:
+        assert "regulatory_context" not in plan
+
+
 def test_regulatory_term_rejected_without_opt_in():
     with pytest.raises(ValueError, match="requires regulatory_context"):
         discovery.discover_current(execute=False, regulatory_term="privacy")
