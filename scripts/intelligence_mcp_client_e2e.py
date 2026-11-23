@@ -163,6 +163,33 @@ async def exercise(mode: str, result_path: Path) -> int:
                     raise AssertionError("Seedless discovery planning contacted an API")
                 checked.append({"case": "seedless_discovery_three_provider_plan_only", "ok": True})
 
+                regulatory_source = await _call(session, "intelligence_plan", {
+                    "source": "federal_register", "keyword": "artificial intelligence",
+                    "limit": 3,
+                })
+                if (regulatory_source.get("source") != "federal_register"
+                        or regulatory_source.get("network_performed") is not False
+                        or regulatory_source.get("budget_per_day") != 20
+                        or regulatory_source.get("host") != "www.federalregister.gov"
+                        or regulatory_source.get("headers")):
+                    raise AssertionError("Federal Register plan unexpectedly used credentials or network")
+                regulatory_plan = await _call(
+                    session, "intelligence_discover_current", {
+                        "execute": False, "regulatory_context": True,
+                        "regulatory_term": "artificial intelligence",
+                    },
+                )
+                if (regulatory_plan.get("network_performed") is not False
+                        or regulatory_plan.get("request_count") != 3
+                        or regulatory_plan.get("max_requests_with_regulatory_context") != 4
+                        or regulatory_plan.get("regulatory_context", {}).get(
+                            "request_plan", {}).get("source") != "federal_register"):
+                    raise AssertionError("Regulatory plan changed baseline or contacted providers")
+                await _call(session, "intelligence_discover_current", {
+                    "execute": False, "regulatory_term": "privacy",
+                }, error=True)
+                checked.append({"case": "regulatory_context_stdio_plan_and_invalid_combination", "ok": True})
+
                 current_plan = await _call(
                     session, "intelligence_hunt_current", {
                         "topics": ["battery recycling"],
