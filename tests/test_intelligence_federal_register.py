@@ -87,6 +87,29 @@ def test_valid_official_proposal_is_not_an_enacted_regulation():
     assert row["html_url"].startswith("https://www.federalregister.gov/documents/")
 
 
+def test_correction_doc_prefix_is_valid_original_official_identity():
+    row = _doc(number="C1-2026-15326")
+    row["html_url"] = (
+        "https://www.federalregister.gov/documents/2026/08/19/"
+        "C1-2026-15326/agency-information-collection-activities"
+    )
+    result = evidence_projection("federal_register", {"results": [row], "count": 1})
+    assert result["record_count"] == 1
+    assert result["sample"][0]["document_number"] == "C1-2026-15326"
+    assert result["sample"][0]["legal_effect_verified"] is False
+
+
+def test_zero_count_without_results_is_valid_empty_response_not_source_failure():
+    result = evidence_projection("federal_register", {"count": 0})
+    assert result["record_count"] == 0
+    assert result["sample"] == []
+
+
+def test_invalid_zero_count_envelope_does_not_silently_pass():
+    with pytest.raises(UnexpectedSourceShape):
+        evidence_projection("federal_register", {"count": 5})
+
+
 def test_empty_collection_is_bounded_observation_not_a_no_regulation_claim():
     result = evidence_projection("federal_register", {"results": [], "count": 0})
     assert result["record_count"] == 0
