@@ -79,6 +79,26 @@ def test_rss_review_rejects_malformed_source_without_report(tmp_path, change):
     assert '"summary"' not in result.output
 
 
+@pytest.mark.parametrize("field", ["title", "publisher"])
+@pytest.mark.parametrize("codepoint", [0xD800, 0xDFFF])
+@pytest.mark.parametrize("output_format", ["json", "markdown", "csv"])
+def test_rss_review_rejects_unpaired_unicode_surrogates_before_export(
+    tmp_path, field, codepoint, output_format
+):
+    # json.dumps escapes the lone surrogate, so the input file is valid UTF-8 JSON.
+    capture = _capture([_headline(**{field: chr(codepoint)})])
+    result = _run(tmp_path, capture, "--format", output_format)
+    assert result.exit_code == 1
+    assert "RSS headline review failed: Invalid saved RSS headline" in result.output
+
+
+def test_rss_review_preserves_valid_supplementary_unicode(tmp_path):
+    title = "Valid " + chr(0x1F600)
+    result = _run(tmp_path, _capture([_headline(title=title)]), "--format", "json")
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["headlines"][0]["title"] == title
+
+
 def test_rss_review_accepts_canonical_google_news_443_and_keeps_source_unauthenticated(tmp_path):
     result = _run(
         tmp_path,

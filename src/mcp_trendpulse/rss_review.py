@@ -18,7 +18,9 @@ def _text(value, field, *, max_length, optional=False):
         return None
     if not isinstance(value, str) or not value.strip() or len(value) > max_length:
         raise ValueError(f"Invalid saved RSS headline {field}")
-    if any(ord(character) < 32 or ord(character) == 127 for character in value):
+    # Escaped lone UTF-16 surrogates are valid JSON syntax but cannot be emitted as UTF-8.
+    if any(ord(character) < 32 or ord(character) == 127
+           or 0xD800 <= ord(character) <= 0xDFFF for character in value):
         raise ValueError(f"Invalid saved RSS headline {field}")
     return value
 
