@@ -516,6 +516,22 @@ The default `compact=False` response remains unchanged; requesting optional
 discovery enrichments requires the full view. The compact view does not make
 the evidence more conclusive or change provider request quotas.
 
+### Local V1/V2/V3 unified testing (source checkout only)
+
+For **supervised local evaluation** of all 16 community + 17 intelligence +
+2 MJAU V3 tools through a **single** stdio MCP client, explicitly run:
+
+```bash
+python -m mcp_trendpulse.mjau_v3.unified_mcp
+```
+
+This is deliberately **excluded from the public package** and must not be
+registered, automatically started, or exposed on a public endpoint. It does
+not replace the default 16/33-tool servers or deploy V3. V3 remains plan-only
+unless a user explicitly chooses `execute=True`, and source-rights and
+independent evaluation gates remain open. See the
+[combined MCP acceptance protocol](docs/qa/trendpulse-unified-v123-acceptance-20261123.md).
+
 ChatGPT web needs a separately authenticated remote MCP connection or secure
 tunnel; the local stdio process is **not** a public plugin endpoint.
 No API secret should be provided in chat or committed into the repository.
