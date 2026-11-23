@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parent.parent
 def test_public_version_and_python_floor():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     manifest = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
-    assert project["project"]["version"] == "0.3.0"
-    assert manifest["version"] == manifest["packages"][0]["version"] == "0.3.0"
+    assert project["project"]["version"] == "0.3.1"
+    assert manifest["version"] == manifest["packages"][0]["version"] == "0.3.1"
     assert project["project"]["requires-python"] == ">=3.11.5"
     for manifest_path in (
         "manifest.json",
