@@ -3,6 +3,7 @@ import errno
 import io
 import json
 import sys
+from contextlib import redirect_stdout
 from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -31,6 +32,69 @@ class MockArticle:
     publish_date = "2026-08-20"
     top_image = "https://example.com/image.jpg"
     summary = "CLI summary"
+
+
+class _SimulatedTTY(io.StringIO):
+    def isatty(self):
+        return True
+
+
+@pytest.mark.parametrize("tty", [False, True])
+@pytest.mark.parametrize("field", ["title", "url", "meta_site_name", "publish_date"])
+def test_rss_text_cannot_emit_terminal_controls_or_forged_labels(field, tty):
+    injected = "safe\x1b[2J\r\b\nPublisher: forged\x9b31m\x1b]0;fake\x07"
+    item = {
+        "title": "Headline", "url": "https://news.google.com/rss/articles/valid",
+        "meta_site_name": "Publisher", "publish_date": "2026-11-23",
+        "meta_data": {"source": "google_news_rss", "content_level": "rss_headline_only"},
+    }
+    item[field] = injected
+    output = _SimulatedTTY() if tty else io.StringIO()
+    with redirect_stdout(output):
+        cli_module.print_rss_headlines([item], output_format="text")
+    rendered = output.getvalue()
+
+    assert all(char not in rendered for char in ("\x1b", "\r", "\b", "\x9b", "\x07"))
+    assert "\\x1b[2J" in rendered
+    assert "\\nPublisher: forged" in rendered
+    assert not any(line == "Publisher: forged" for line in rendered.splitlines())
+    assert "Content level: rss_headline_only" in rendered
+
+
+@pytest.mark.parametrize("tty", [False, True])
+@pytest.mark.parametrize("field", ["title", "original_url", "authors", "publish_date", "top_image", "summary"])
+def test_article_text_cannot_emit_terminal_controls_or_forged_labels(field, tty):
+    injected = "safe\x1b[2J\r\b\nTitle: forged\x9b31m\x1b]0;fake\x07"
+    article = SimpleNamespace(
+        title="Headline", original_url="https://example.com/article", authors=["Example"],
+        publish_date="2026-11-23", top_image="https://example.com/image", summary="Summary",
+    )
+    setattr(article, field, injected)
+    output = _SimulatedTTY() if tty else io.StringIO()
+    with redirect_stdout(output):
+        cli_module.print_articles([article])
+    rendered = output.getvalue()
+
+    assert all(char not in rendered for char in ("\x1b", "\r", "\b", "\x9b", "\x07"))
+    assert "\\x1b[2J" in rendered
+    assert not any(line == "Title: forged" for line in rendered.splitlines())
+    if field == "summary":
+        assert "\n    Title: forged" in rendered
+    else:
+        assert "\\nTitle: forged" in rendered
+
+
+def test_rss_json_preserves_raw_evidence_when_text_display_is_escaped():
+    raw_title = "Headline\x1b[2J\nAnother line"
+    item = {
+        "title": raw_title, "url": "https://news.google.com/rss/articles/valid",
+        "meta_site_name": "Publisher", "publish_date": "2026-11-23",
+        "meta_data": {"source": "google_news_rss", "content_level": "rss_headline_only"},
+    }
+    output = io.StringIO()
+    with redirect_stdout(output):
+        cli_module.print_rss_headlines([item], output_format="json")
+    assert json.loads(output.getvalue())["headlines"][0]["title"] == raw_title
 
 
 def test_keyword_command_emits_article_fields_and_result_count():

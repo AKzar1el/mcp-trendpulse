@@ -1454,6 +1454,19 @@ def _require_rss_headline_mode(output_format, headlines_only, output_file=None):
             raise click.ClickException("RSS headline destination must be a new file in an existing directory.")
 
 
+def _safe_terminal_text(value, *, multiline=False):
+    """Render untrusted metadata as inert text in both TTY and redirected output."""
+    rendered = []
+    for char in str(value):
+        if char == "\n" and multiline:
+            rendered.append("\n    ")
+        elif not char.isprintable():
+            rendered.append(char.encode("unicode_escape").decode("ascii"))
+        else:
+            rendered.append(char)
+    return "".join(rendered)
+
+
 def print_rss_headlines(items, *, output_format="text", output_file=None):
     """Emit genuine RSS metadata without treating headlines as full articles."""
     headlines = []
@@ -1498,10 +1511,10 @@ def print_rss_headlines(items, *, output_format="text", output_file=None):
             _save_new_brief_report(output_file, out.getvalue(), kind="CSV", label="RSS headlines")
         return
     for headline in headlines:
-        click.echo(f"Title: {headline['title']}")
-        click.echo(f"Google News URL: {headline['url']}")
-        click.echo(f"Publisher: {headline['publisher'] or 'Unknown'}")
-        click.echo(f"Publish Date: {headline['publish_date']}")
+        click.echo(f"Title: {_safe_terminal_text(headline['title'])}")
+        click.echo(f"Google News URL: {_safe_terminal_text(headline['url'])}")
+        click.echo(f"Publisher: {_safe_terminal_text(headline['publisher'] or 'Unknown')}")
+        click.echo(f"Publish Date: {_safe_terminal_text(headline['publish_date'])}")
         click.echo("Content level: rss_headline_only (metadata, not article text)\n")
 
 
@@ -1524,12 +1537,12 @@ def print_articles(articles, *, export_dir=None):
                 raise click.ClickException(f"Article JSON already exists; refusing to overwrite: {path}")
 
     for index, article in enumerate(articles):
-        click.echo(f"Title: {article.title}")
-        click.echo(f"URL: {article.original_url}")
-        click.echo(f"Authors: {article.authors}")
-        click.echo(f"Publish Date: {article.publish_date}")
-        click.echo(f"Top Image: {article.top_image}")
-        click.echo(f"Summary: {article.summary}\n")
+        click.echo(f"Title: {_safe_terminal_text(article.title)}")
+        click.echo(f"URL: {_safe_terminal_text(article.original_url)}")
+        click.echo(f"Authors: {_safe_terminal_text(article.authors)}")
+        click.echo(f"Publish Date: {_safe_terminal_text(article.publish_date)}")
+        click.echo(f"Top Image: {_safe_terminal_text(article.top_image)}")
+        click.echo(f"Summary: {_safe_terminal_text(article.summary, multiline=True)}\n")
         if export_dir is not None:
             path = paths[index]
             try:
