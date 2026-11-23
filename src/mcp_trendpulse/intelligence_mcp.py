@@ -161,7 +161,11 @@ def intelligence_observe_source_snapshots(
         "topics. Optional compact=True returns a shorter baseline decision "
         "brief with source coverage, candidate evidence and safety caveats, "
         "omitting detailed notice/research samples; enrichment options require "
-        "the full view. Never implies market growth, paying buyers or adoption."
+        "the full view. Optional regulatory_context=True adds at most one free "
+        "keyless U.S. Federal Register context search using an explicit "
+        "regulatory_term or a source-derived topic; this is publication context "
+        "only, not verified current law. Never implies market growth, "
+        "paying buyers or adoption."
     ),
     annotations=READ_ONLY,
 )
