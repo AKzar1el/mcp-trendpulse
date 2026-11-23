@@ -141,6 +141,25 @@ def test_topic_derived_from_source_candidate_uses_at_most_one_new_request(monkey
     assert result["legal_effect_verified"] is False
 
 
+def test_provider_429_is_reported_without_retry_or_false_zero(monkeypatch):
+    calls = []
+    def unavailable(plan, **kwargs):
+        calls.append(plan.url)
+        return {"status": "unavailable", "reason": "HTTPError",
+                "http_status": 429, "retry_automatically": False}
+    monkeypatch.setattr(regulatory, "collect", unavailable)
+    result = regulatory.enrich_regulatory_context(
+        {"candidates": [], "research_observations": []},
+        regulatory_term="data privacy", env={},
+    )
+    assert result["status"] == "unavailable"
+    assert result["reason_code"] == "HTTPError"
+    assert result["http_status"] == 429
+    assert result["documents"] == []
+    assert result["source_requests_budgeted"] == 1
+    assert len(calls) == 1
+
+
 def test_discovery_baseline_unchanged_without_opt_in():
     plan = discovery.discover_current(execute=False, env={})
     assert plan["request_count"] == 3
