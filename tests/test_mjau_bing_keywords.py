@@ -102,7 +102,7 @@ def test_preview_never_opens_budget_reads_key_or_uses_network(monkeypatch):
 ])
 def test_invalid_scope_and_unbounded_inputs_refused_before_network(kwargs):
     with pytest.raises(ValueError):
-        bing.discover_bing_keyword(**kwargs, execute=False)
+        bing.discover_bing_keyword(**kwargs, execute=False, observed_at=NOW)
 
 
 def test_missing_credentials_never_consumes_quota(tmp_path, monkeypatch):
