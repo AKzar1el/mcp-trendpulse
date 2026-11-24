@@ -53,6 +53,12 @@ def test_zero_width_space_does_not_fuse_distinct_keyword_tokens():
     assert normalize_keyword("AI\u200btools") != normalize_keyword("AItools")
 
 
+@pytest.mark.parametrize("separator", ["\v", "\f", "\u0085"])
+def test_unicode_whitespace_does_not_fuse_distinct_keyword_tokens(separator):
+    assert normalize_keyword(f"AI{separator}tools") == "ai tools"
+    assert normalize_keyword(f"AI{separator}tools") != normalize_keyword("AItools")
+
+
 @pytest.mark.parametrize("broken", ["", "   ", "...", "\u200d"])
 def test_bad_keywords_cannot_silently_enter_an_unnamed_cluster(broken):
     with pytest.raises(ValueError):
