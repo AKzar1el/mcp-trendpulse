@@ -188,6 +188,16 @@ def test_answered_is_distinct_from_accepted_answer(tmp_path):
     assert out["summary"]["with_accepted_answer_first_page"] == 0
 
 
+def test_unanswered_flag_cannot_conflict_with_positive_answer_count(tmp_path):
+    inconsistent = question()
+    inconsistent["accepted_answer_id"] = None
+    inconsistent["is_answered"] = False
+    out = run(tmp_path, Fetcher(envelope(inconsistent)))
+    assert out["status"] == "invalid_source_shape"
+    assert out["questions"] == []
+    assert out["signals"] == []
+
+
 def test_source_title_is_unescaped_but_not_html_executed(tmp_path):
     a = question(title="How do I fix &lt;async&gt; timeout?")
     out = run(tmp_path, Fetcher(envelope(a)))

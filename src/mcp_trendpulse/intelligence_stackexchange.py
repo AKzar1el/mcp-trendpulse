@@ -153,7 +153,7 @@ def _record(raw: Any, *, tag: str, term: str, window: dict[str, Any]) -> dict[st
         return None
     if views is not None and _integer(views) is None:
         return None
-    if answered and answers == 0:
+    if answered != (answers > 0):
         return None
     dt = datetime.fromtimestamp(created, tz=timezone.utc)
     return {
