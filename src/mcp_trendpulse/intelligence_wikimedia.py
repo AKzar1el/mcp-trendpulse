@@ -318,7 +318,7 @@ def _cached(
             return None
         days.add(dt)
         checked.append({"date": dt.isoformat(), "views": count})
-    if len(checked) + rejected > original:
+    if len(checked) + rejected != original:
         return None
     expected = int(window["days_each"]) * 2
     if (

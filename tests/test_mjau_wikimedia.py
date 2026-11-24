@@ -395,6 +395,27 @@ def test_corrupted_cache_records_are_not_echoed_and_cannot_bypass_quota(tmp_path
     assert "DONT_ECHO" not in repr(blocked)
 
 
+def test_cached_partial_rows_must_account_for_every_source_row(tmp_path):
+    client = Fetcher(view=series(count=13))
+    first = run(tmp_path, client)
+    assert first["status"] == "observed_partial"
+    assert first["source_rows_received"] == 13
+    assert run(tmp_path, client)["cache_hit"] is True
+
+    store = BudgetCache(tmp_path)
+    window = wiki._window(7, END, NOW)
+    key = wiki._cache_key(project=PROJECT, title=TITLE, window=window)
+    prior = store.cached(key)
+    assert isinstance(prior, dict)
+    store.save(key, {**prior, "source_rows_received": 14}, wiki.CACHE_TTL_SECONDS)
+
+    result = run(tmp_path, client)
+    assert result["cache_hit"] is False
+    assert result["status"] == "observed_partial"
+    assert result["source_rows_received"] == 13
+    assert len(client.calls) == 4
+
+
 def test_http_client_identifying_header_fixed_hosts_no_redirects_no_proxies(monkeypatch):
     import requests
 
