@@ -76,10 +76,11 @@ def _window(
         raise ValueError("Compare 1-30 daily samples in each equal-length period")
     latest_safe = observed.date() - timedelta(days=2)
     end = latest_safe if end_date is None else _date(end_date)
+    earliest_end = MIN_DATE + timedelta(days=2 * days - 1)
+    if end > latest_safe or end < earliest_end:
+        raise ValueError("Dates require two complete, historical equal-length windows")
     start = end - timedelta(days=days - 1)
     prior_start = start - timedelta(days=days)
-    if end > latest_safe or prior_start < MIN_DATE:
-        raise ValueError("Dates require two complete, historical equal-length windows")
     return {
         "days_each": days,
         "start_date": start.isoformat(),

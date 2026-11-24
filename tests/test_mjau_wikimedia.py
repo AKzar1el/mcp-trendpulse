@@ -111,6 +111,8 @@ def test_pure_preview_never_opens_sqlite_or_contact_transport(monkeypatch):
     {"article_title": "Python", "project": PROJECT, "days": 31},
     {"article_title": "Python", "project": PROJECT, "days": True},
     {"article_title": "Python", "project": PROJECT, "end_date": "2026-11-19"},
+    {"article_title": "Python", "project": PROJECT, "end_date": "0001-01-01", "days": 1},
+    {"article_title": "Python", "project": PROJECT, "end_date": "0001-01-01", "days": 7},
     {"article_title": "Python", "project": PROJECT, "end_date": "2015-07-02", "days": 7},
 ])
 def test_invalid_project_title_and_dates_refused_before_network(options):
@@ -118,6 +120,18 @@ def test_invalid_project_title_and_dates_refused_before_network(options):
     kwargs.update(options)
     with pytest.raises(ValueError):
         wiki.discover_pageviews(**kwargs)
+
+
+def test_earliest_complete_two_period_window_is_accepted():
+    assert wiki._window(7, "2015-07-14", NOW) == {
+        "days_each": 7,
+        "previous_start_date": "2015-07-01",
+        "previous_end_date": "2015-07-07",
+        "start_date": "2015-07-08",
+        "end_date": "2015-07-14",
+    }
+    with pytest.raises(ValueError, match="two complete, historical equal-length windows"):
+        wiki._window(7, "2015-07-13", NOW)
 
 
 def test_title_encoding_and_language_project_are_exact_not_inferred():
