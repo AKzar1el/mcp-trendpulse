@@ -229,7 +229,11 @@ def intelligence_discover_current(
         "credentials where configured. Lookback is 7-90 days; sample_limit "
         "requests 1-10 records per source (maximum 40 per topic). Optional "
         "relevance_first uses provider-native relevance ordering for GitHub "
-        "issues and OpenAlex without changing dates or quotas. Ranking is "
+        "issues and OpenAlex without changing dates or quotas. Optional adaptive "
+        "passes (one objective only) use distinct bounded search strategies, "
+        "skip unavailable providers and stop on insufficient new evidence. "
+        "A session ID enables local fingerprint-only checkpoints; resume "
+        "requires the same date and research configuration. Ranking is "
         "topical recent activity, never a growth forecast, paid-buyer proof, "
         "or success probability."
     ),
@@ -242,9 +246,28 @@ def intelligence_hunt_current(
     execute: bool = False,
     sample_limit: Annotated[int, Field(strict=True, ge=1, le=10)] = 5,
     relevance_first: bool = False,
+    adaptive_passes: Annotated[int, Field(strict=True, ge=1, le=3)] = 1,
+    request_budget: Annotated[int, Field(strict=True, ge=1, le=15)] | None = None,
+    alternate_queries: list[str] | None = None,
+    exclude_terms: list[str] | None = None,
+    session_id: str | None = None,
+    resume: bool = False,
 ) -> dict[str, Any]:
     from mcp_trendpulse.intelligence_hunter import hunt_current
 
+    if (adaptive_passes != 1 or request_budget is not None or alternate_queries is not None
+            or exclude_terms is not None or session_id is not None or resume):
+        from mcp_trendpulse.intelligence_adaptive import adaptive_hunt
+
+        if not isinstance(topics, list) or len(topics) != 1:
+            raise ValueError("Adaptive research requires exactly one explicit objective")
+        return adaptive_hunt(
+            topics[0], sources, lookback_days=lookback_days, execute=execute,
+            sample_limit=sample_limit, relevance_first=relevance_first,
+            max_passes=adaptive_passes, request_budget=request_budget,
+            alternate_queries=alternate_queries, exclude_terms=exclude_terms,
+            session_id=session_id, resume=resume,
+        )
     return hunt_current(
         topics, sources, lookback_days=lookback_days, execute=execute,
         sample_limit=sample_limit, relevance_first=relevance_first,

@@ -176,6 +176,25 @@ async def exercise(mode: str, result_path: Path) -> int:
                     raise AssertionError("Current hunter did not fail closed in plan mode")
                 checked.append({"case": "current_hunter_plan_no_network", "ok": True})
 
+                adaptive = await _call(session, "intelligence_hunt_current", {
+                    "topics": ["battery recycling"], "sources": ["openalex"],
+                    "adaptive_passes": 2, "request_budget": 2,
+                    "alternate_queries": ["battery recovery"],
+                    "session_id": "offline-e2e", "execute": False,
+                })
+                if (adaptive.get("status") != "planned"
+                        or adaptive.get("network_performed") is not False
+                        or adaptive.get("session_written") is not False
+                        or adaptive.get("maximum_request_slots") != 2):
+                    raise AssertionError("Adaptive hunter did not preserve plan-only bounds")
+                doi_plan = await _call(session, "intelligence_collect", {
+                    "source": "crossref", "identifier": "10.1002/adma.201404892",
+                    "execute": False,
+                })
+                if doi_plan.get("status") != "planned" or doi_plan.get("network_performed") is not False:
+                    raise AssertionError("DOI lookup did not preserve plan-only bounds")
+                checked.append({"case": "adaptive_and_exact_doi_plan_no_network", "ok": True})
+
                 observation = await _call(
                     session, "intelligence_observe_source_snapshots", {
                         "topic": "battery",
@@ -200,8 +219,10 @@ async def exercise(mode: str, result_path: Path) -> int:
                 checked.append({"case": "offline_company_observation_no_false_demand", "ok": True})
 
                 catalogue = await _call(session, "intelligence_source_catalog", {})
-                if not isinstance(catalogue, list) or len(catalogue) != 25:
-                    raise AssertionError("Expected exactly 25 global-source records")
+                if (not isinstance(catalogue, list) or len(catalogue) != 26
+                        or len({row["id"] for row in catalogue}) != 26
+                        or not any(row["id"] == "crossref" for row in catalogue)):
+                    raise AssertionError("Expected 26 unique global-source records, including Crossref")
                 if {row["wave"] for row in catalogue} != {1, 2, 3}:
                     raise AssertionError("One or more waves not registered")
                 if any(row["id"] == "opsi_slovenia" for row in catalogue):
