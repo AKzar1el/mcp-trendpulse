@@ -77,3 +77,74 @@ execution; do not mark the gate passed.
 
 CORDIS is an upstream outage and is excluded from additional live probes by
 owner direction. Existing strict live-provider gates are not weakened.
+
+## Executed blinded AI assessment — 2026-11-25
+
+Evaluated code: `7b51e7b8a970b88412924c6e7690c099bb35c9e7`.
+Original hunter logic: `d513d4fb00ca2f4c7dcd244986945228fb03139a`.
+Both arms used the current hardened public-only transport, evidence projection,
+and existing quota/cache controls. This isolates a workflow comparison rather
+than reproducing all historical version behavior. The original arm used a
+primary and fixed alternate query; the integrated arm used concept validation
+and relevance-first academic retrieval. Eight randomized, arm-anonymous
+packets were given to a fresh AI reviewer in a separate anonymous conversation.
+The reviewer received public metadata, not the arm mapping or code. The raw
+scoring response was recorded before deriving the unblinded summary. Source
+identities remained visible; the reviewer did not independently open links.
+
+The planned cap was five request slots per task and arm, five sampled records
+per source and a 30-day window where supported. Actual reservations were 27
+of 40 planned slots; no budget reset, paid API, or CORDIS request was used.
+Provider exhaustion and unavailability were retained, not replaced by zero
+demand. At most 12 observations were displayed per packet.
+
+| Task | Original score /10 | Integrated score /10 | Original requests | Integrated requests | Original displayed | Integrated displayed |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Browser-agent prompt injection | 3 | 7 | 5 | 5 | 0 | 12 |
+| Embedded software testing | 3 | 6 | 5 | 4 | 0 | 11 |
+| Invoice-fraud automation | 3 | 7 | 2 | 3 | 0 | 6 |
+| Municipal electrical permits | 3 | 3 | 1 | 2 | 0 | 0 |
+| Total | 12/40 | 23/40 | 13 | 14 | 0 | 29 |
+
+| Dimension (maximum 8 per arm) | Original | Integrated |
+| --- | ---: | ---: |
+| Relevance | 0 | 5 |
+| Independent corroboration | 0 | 3 |
+| Concrete feature/workflow evidence | 0 | 3 |
+| Decision usefulness | 4 | 4 |
+| Unsupported-claim control | 8 | 8 |
+
+The reviewer preferred the integrated packet in three pairs; the fourth was
+inconclusive. No unsupported claims were flagged, and no buyer validation or
+working feature equivalence was established. The raw score improved from 30%
+to 57.5% (+27.5 percentage points). Conservative sensitivity: the invoice-fraud
+packet's corroboration score of 1 may be too generous because its relevant
+evidence is repository-only. Scoring that dimension 0 gives 22/40 (55%).
+Preserve the original reviewer score rather than silently altering it.
+
+### Verification and limits
+
+- Reviewer input SHA-256: `cc882669ef8b24b8d59305dec23bfaf7588e86cbeab86f2e15ac479d633d87ee`.
+- Reviewer result SHA-256: `be8ea073e96cc71760352122329991ee578bff08b31708caf9f7e271a254d172`.
+- All eight score IDs, five integer dimensions, four paired preferences, and
+  citation membership in the supplied packets were checked programmatically.
+- The raw packets, mapping and reviewer response remain local QA artifacts.
+  This repository receipt intentionally excludes raw third-party metadata
+  and private filesystem paths; redistribution rights have not been cleared.
+- Review receipt: https://github.com/AKzar1el/mcp-trendpulse/pull/446#issuecomment-7172069253
+
+This completes the initial separate-context blinded AI assessment, not an
+independent human or source-verification audit. The sample has four tasks,
+one AI reviewer, different source choices, unequal realized provider coverage,
+and a common transport layer. Repository metadata and update dates do not
+establish actual functionality, adoption or purchase intent. The equal
+decision-usefulness scores do not support a claim of improved commercial
+decisions. No release gate is cleared by this receipt alone. Preserve the
+strict live-provider checks and outstanding source-verification and applicable
+redistribution/attribution requirements before production promotion.
+
+The evaluated code previously passed 3,342 offline tests, with one skipped and
+17 deselected, independent MCP stdio 14/14, offline cross-source 7/7, Ruff,
+package build and V3 public-wheel exclusion checks. Consolidated CI recorded
+22 successful checks, two live-provider failures and two publication skips.
+These results apply to the pinned code, not to an untested runtime deployment.
