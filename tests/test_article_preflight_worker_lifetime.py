@@ -32,7 +32,9 @@ async def test_article_dns_timeout_retains_physical_worker_slot(monkeypatch):
     monkeypatch.setattr(news, "ArticleTargetValidator", SlowValidator)
     monkeypatch.setattr(news, "_download_article_with_worker_slot", no_scraper)
     monkeypatch.setattr(news, "_ARTICLE_PREFLIGHT_WORKER_SLOTS", threading.BoundedSemaphore(1), raising=False)
-    monkeypatch.setattr(news, "ARTICLE_PREFLIGHT_TIMEOUT_SECONDS", 0.03, raising=False)
+    # Leave enough margin for Windows thread-pool startup under the full suite;
+    # a 200 ms preflight deadline still times out the 2 s blocked worker.
+    monkeypatch.setattr(news, "ARTICLE_PREFLIGHT_TIMEOUT_SECONDS", 0.2, raising=False)
 
     try:
         with pytest.raises(ValueError, match="preflight.*deadline"):
@@ -117,7 +119,8 @@ async def test_rss_decoder_timeout_retains_slot_and_returns_no_article(monkeypat
     monkeypatch.setattr(news, "decode_url", slow_decoder)
     monkeypatch.setattr(news, "_download_article_with_worker_slot", no_scraper)
     monkeypatch.setattr(news, "_ARTICLE_PREFLIGHT_WORKER_SLOTS", threading.BoundedSemaphore(1), raising=False)
-    monkeypatch.setattr(news, "ARTICLE_PREFLIGHT_TIMEOUT_SECONDS", 0.03, raising=False)
+    # Avoid false validator timeouts before the mocked slow decoder starts.
+    monkeypatch.setattr(news, "ARTICLE_PREFLIGHT_TIMEOUT_SECONDS", 0.2, raising=False)
 
     url = "https://news.google.com/rss/articles/test"
     try:

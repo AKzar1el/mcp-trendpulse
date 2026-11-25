@@ -118,6 +118,9 @@ async def test_google_news_timeout_keeps_blocking_worker_slot_occupied(monkeypat
         await asyncio.sleep(0.01)
     else:
         pytest.fail("The finished Google News worker did not release its capacity")
+    # The earlier 50 ms deadline tests timeout semantics; do not let thread
+    # scheduling jitter make the unrelated post-release success check flaky.
+    monkeypatch.setattr(news, "GOOGLE_NEWS_OPERATION_TIMEOUT_SECONDS", 1.0)
     assert await news._call_google_news_async(client, "get_news", "after") == []
 
 

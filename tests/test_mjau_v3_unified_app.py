@@ -1,6 +1,6 @@
-"""Cross-version 36-tool registry, pairwise routing, isolation and failure QA.
+"""Cross-version 37-tool registry, pairwise routing, isolation and failure QA.
 
-The 630 pairwise negative-input interactions exercise real MCP dispatch and
+The 666 pairwise negative-input interactions exercise real MCP dispatch and
 validation without contacting Google Trends or external providers. These do
 NOT claim exhaustive combinations of argument values, tool result content,
 or network availability.
@@ -21,7 +21,7 @@ from mcp_trendpulse.mjau_v3.mcp import mjau_v3_mcp
 from mcp_trendpulse.mjau_v3.unified_mcp import unified_mcp
 
 
-EXPECTED = (16, 18, 2)
+EXPECTED = (16, 19, 2)
 INVALID_ARGS = {"__trendpulse_unknown_no_provider_call__": True}
 
 
@@ -70,10 +70,10 @@ async def test_each_tool_rejects_unknown_parameter_without_provider():
 
 @pytest.mark.skipif(
     os.environ.get("TRENDPULSE_QA_FULL_PAIRWISE") != "1",
-    reason="Heavy 1,260-call pairwise MCP stress: explicit local opt-in only",
+    reason="Heavy 1,332-call pairwise MCP stress: explicit local opt-in only",
 )
 @pytest.mark.asyncio
-async def test_all_630_unique_pairs_reject_unknown_parameters_independently():
+async def test_all_666_unique_pairs_reject_unknown_parameters_independently():
     async with Client(unified_mcp) as client:
         names = sorted(t.name for t in await client.list_tools())
         seen = 0
@@ -85,7 +85,7 @@ async def test_all_630_unique_pairs_reject_unknown_parameters_independently():
             assert a.is_error, (first, second)
             assert b.is_error, (first, second)
             seen += 1
-        assert seen == 630
+        assert seen == 666
 
 
 @pytest.mark.asyncio
@@ -109,13 +109,13 @@ async def test_default_ci_cross_family_pairs_route_independently():
 
 
 @pytest.mark.asyncio
-async def test_all_7140_tool_triples_coexist_without_names_or_schema_conflicts():
+async def test_all_7770_tool_triples_coexist_without_names_or_schema_conflicts():
     async with Client(unified_mcp) as client:
         tools = await client.list_tools()
         names = sorted(t.name for t in tools)
-        assert len(tools) == 36
-        assert len(list(combinations(names, 3))) == 7140
-        assert len({n for trio in combinations(names, 3) for n in trio}) == 36
+        assert len(tools) == 37
+        assert len(list(combinations(names, 3))) == 7770
+        assert len({n for trio in combinations(names, 3) for n in trio}) == 37
         assert all(t.inputSchema.get("additionalProperties") is False for t in tools)
 
 

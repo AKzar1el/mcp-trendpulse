@@ -20,7 +20,7 @@ from mcp.client.stdio import stdio_client
 ROOT = Path(__file__).resolve().parent.parent
 PROBES = (
     ("standard", ["-m", "mcp_trendpulse"], 16),
-    ("intelligence_v2", ["-m", "mcp_trendpulse.intelligence_mcp"], 17),
+    ("intelligence_v2", ["-m", "mcp_trendpulse.intelligence_mcp"], 19),
     ("hosted", ["-c", "from mcp_trendpulse.hosted import hosted_mcp; hosted_mcp.run(transport='stdio')"], 6),
     ("v3_isolated_unreleased", ["-m", "mcp_trendpulse.mjau_v3.mcp"], 2),
 )

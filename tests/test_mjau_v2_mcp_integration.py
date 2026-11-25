@@ -23,7 +23,7 @@ def test_five_new_tools_registered_only_in_opt_in_intelligence_mcp():
     assert "intelligence_repository_star_history" in names
     assert "intelligence_release_lifecycle" in names
     assert "intelligence_hf_catalog" in names
-    assert len(names) == 17
+    assert len(names) == 19
     for tool in tools:
         if tool.name in {"intelligence_dependency_graph",
                          "intelligence_repository_scorecard",

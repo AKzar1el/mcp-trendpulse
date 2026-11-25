@@ -1,6 +1,7 @@
 """Offline checks for the isolated intelligence CLI/MCP entry points."""
 
 import json
+from pathlib import Path
 
 from click.testing import CliRunner
 from fastmcp import Client
@@ -41,7 +42,7 @@ def test_intel_cli_offline_ats_file(tmp_path):
 async def test_intel_mcp_is_separate_and_readonly():
     async with Client(intel_mcp) as client:
         tools = {tool.name: tool for tool in await client.list_tools()}
-        assert len(tools) == 18
+        assert len(tools) == 19
         assert set(tools) == {
             "intelligence_source_catalog", "intelligence_plan",
             "intelligence_collect", "intelligence_analyze_job_postings",
@@ -53,6 +54,7 @@ async def test_intel_mcp_is_separate_and_readonly():
             "intelligence_repository_star_history",
             "intelligence_release_lifecycle",
             "intelligence_hf_catalog", "intelligence_validate_concept",
+            "intelligence_review_devpost_candidates",
         }
         for tool in tools.values():
             assert tool.annotations.readOnlyHint is True
@@ -60,6 +62,26 @@ async def test_intel_mcp_is_separate_and_readonly():
         response = await client.call_tool("intelligence_plan", {
             "source": "gleif", "keyword": "Example AG"})
         assert response.structured_content["network_performed"] is False
+
+
+async def test_devpost_diligence_mcp_live_contract_offline_fixture():
+    sample = Path(__file__).parents[1] / "docs/examples/devpost-four-candidate-evidence-2026-11-23.json.example"
+    supplied = json.loads(sample.read_text(encoding="utf-8"))
+    async with Client(intel_mcp) as client:
+        response = await client.call_tool("intelligence_review_devpost_candidates", {
+            "candidates": supplied["candidates"],
+            "evidence": supplied["evidence"],
+            "as_of": supplied["as_of"],
+        })
+    data = response.structured_content
+    assert data["candidate_count"] == 4
+    assert data["evidence_count"] == 15
+    assert data["network_performed"] is False
+    assert data["ranked_business_predictions"] is False
+    by_id = {row["id"]: row for row in data["results"]}
+    assert by_id["fire-drill"]["evidence_status"]["reuse_rights"] == "source_unavailable_unknown"
+    assert by_id["shadow-mcp"]["evidence_status"]["search_or_news_attention"] == "source_unavailable_unknown"
+    assert all(row["success_probability"] is None for row in data["results"])
 
 
 async def test_optional_discovery_mcp_propagates_bounded_source_flags_without_network():

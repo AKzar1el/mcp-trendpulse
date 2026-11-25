@@ -7,10 +7,11 @@ tools and all scheduled agents remain unchanged.
 
 ## Exact scope and interfaces
 
-The separate opt-in stdio MCP exposes twelve read-only tools, including:
+The separate opt-in stdio MCP exposes eighteen read-only tools, including:
 - `intelligence_opportunity_lanes`: inspect each combination and its question;
 - `intelligence_evaluate_opportunities`: evaluate caller-supplied, dated evidence;
 - `intelligence_walk_forward_backtest`: grade historical triage only when later customer outcomes exist.
+- `intelligence_review_devpost_candidates`: offline, bounded due-diligence checks for Devpost software ideas, covering award, repository license, competitor, customer and test evidence. This is not a buyer-demand validator or automated source ingester; see [Devpost opportunity validation](devpost-opportunity-validation.md).
 - `intelligence_observe_source_snapshots`: convert bounded public collector snapshots into dated evidence trails, provider coverage diagnostics and exact corporate-registry links.
 - `intelligence_hunt_current`: query recent public evidence with bounded topical seeds; rank present-day research activity without requiring historic records.
 - `intelligence_discover_current`: no topic seeds; discover candidate themes from recent scholarly publications, public consumer complaints, and European procurement notices.

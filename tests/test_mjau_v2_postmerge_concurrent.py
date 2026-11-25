@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import threading
 import time
+import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from multiprocessing import get_all_start_methods, get_context
@@ -20,6 +21,10 @@ from mcp_trendpulse.mjau_v2.endoflife_release import observe_release_support
 from mcp_trendpulse.mjau_v2.github_stars import github_star_history
 from mcp_trendpulse.mjau_v2.hf_catalog import discover_hf_catalog
 from mcp_trendpulse.mjau_v2.openssf_scorecard import inspect_openssf_scorecard
+
+# Windows spawn re-imports the package in each worker; account for CI load while
+# keeping both rendezvous and result collection bounded.
+PROCESS_SYNC_TIMEOUT_SECONDS = 45 if os.name == "nt" else 20
 
 
 @pytest.mark.parametrize("source", ["stars", "dependencies", "scorecard", "lifecycle", "hub"])
@@ -117,7 +122,7 @@ def test_concurrent_identical_source_misses_use_only_one_quota(source, tmp_path)
 def _multi_process_hub_probe(root, ready, start, results, fetch_count):
     cache = BudgetCache(Path(root))
     ready.put(True)
-    if not start.wait(timeout=15):
+    if not start.wait(timeout=PROCESS_SYNC_TIMEOUT_SECONDS):
         results.put(("timeout", False, -1))
         return
 
@@ -156,9 +161,9 @@ def test_singleflight_works_between_separate_processes(tmp_path):
         for worker in workers:
             worker.start()
         for _ in workers:
-            assert ready.get(timeout=20) is True
+            assert ready.get(timeout=PROCESS_SYNC_TIMEOUT_SECONDS) is True
         go.set()
-        outputs = [responses.get(timeout=20) for _ in workers]
+        outputs = [responses.get(timeout=PROCESS_SYNC_TIMEOUT_SECONDS) for _ in workers]
         for worker in workers:
             worker.join(timeout=12)
             assert worker.exitcode == 0

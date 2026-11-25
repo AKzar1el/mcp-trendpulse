@@ -67,7 +67,7 @@ def rank(query: str, docs: dict[str, str]) -> list[str]:
 
 async def collect():
     tools = list(await mcp.list_tools()) + list(await intel_mcp.list_tools())
-    assert len(tools) == 33 and len({t.name for t in tools}) == 33
+    assert len(tools) == 35 and len({t.name for t in tools}) == 35
     return {t.name: t.name.replace("_", " ") + " " + t.description for t in tools}
 
 
