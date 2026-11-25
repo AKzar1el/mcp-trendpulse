@@ -116,8 +116,22 @@ def offline_safety_tests() -> int:
         pass
     else:
         raise AssertionError("Unsupported evidence class was accepted")
+    unavailable = unavailable_observation(
+        "cordis", "funded_research",
+        {"source": "cordis", "status": "unavailable", "reason": "HTTPError",
+         "http_status": 302}, 1,
+    )
+    third = {**example, "source": "usaspending", "source_class": "public_awards"}
+    partial = assess([unavailable, second, third])
+    assert partial["sources_observed"] == 2
+    assert partial["technical_cross_source_compatible"]
+    assert not strict_pass(partial)
+    assert not assess([unavailable])["technical_cross_source_compatible"]
+    assert strict_pass(assess([example, second, third]))
+    assert unavailable["http_status"] == 302
+    assert not unavailable["cache_replayed"]
     print(json.dumps({"mode": "offline", "status": "passed",
-                      "cases": 6, "spurious_opportunity_scores": 0}), flush=True)
+                      "cases": 7, "spurious_opportunity_scores": 0}), flush=True)
     return 0
 
 
@@ -143,13 +157,50 @@ async def call(session: ClientSession, args: dict[str, Any]) -> dict[str, Any]:
     ))
 
 
+def unavailable_observation(
+    source: str, signal_class: str, response: dict[str, Any], cold_ms: int,
+) -> dict[str, Any]:
+    status = response.get("status")
+    if status not in ("unavailable", "rate_limited", "invalid_source_shape", "no_data"):
+        status = "unavailable"
+    code = response.get("http_status")
+    reason = response.get("reason")
+    if reason not in (
+        "HTTPError", "URLError", "TimeoutError", "OSError", "provider_cooldown",
+        "provider_rate_limited", "local_daily_budget_exhausted", "invalid_source_shape",
+    ):
+        reason = "source_not_observed"
+    return {
+        "source": source, "source_class": signal_class, "status": status,
+        "record_count": 0, "topic_seen_in_sample": False, "cache_replayed": False,
+        "source_url": None, "retrieved_at": None, "cold_ms": cold_ms,
+        "cached_ms": None,
+        "reason": reason,
+        "http_status": code if type(code) is int and 100 <= code <= 599 else None,
+    }
+
+
+def strict_pass(result: dict[str, Any]) -> bool:
+    return (
+        result["sources_observed"] == len(CASES)
+        and result["technical_cross_source_compatible"]
+        and result["semantic_topic_overlap_observed"]
+        and not result["customer_purchasing_intent_validated"]
+        and not result["opportunity_rankable"]
+        and all(row["cache_replayed"] for row in result["sources"])
+    )
+
+
 async def live(report: Path) -> int:
     output = []
     with tempfile.TemporaryDirectory(prefix="trendpulse-combine-") as root:
         param = StdioServerParameters(
             command=sys.executable,
             args=["-m", "mcp_trendpulse.intelligence_mcp"],
-            env={"TRENDPULSE_INTEL_CACHE_DIR": str(Path(root) / "cache")},
+            env={
+                "TRENDPULSE_INTEL_CACHE_DIR": str(Path(root) / "cache"),
+                "PYTHONPATH": str(Path(__file__).resolve().parent.parent / "src"),
+            },
         )
         async with stdio_client(param) as (reader, writer):
             async with ClientSession(reader, writer) as session:
@@ -163,10 +214,17 @@ async def live(report: Path) -> int:
                     now = time.perf_counter()
                     first = await call(session, {**arguments, "execute": True})
                     cold_ms = round((time.perf_counter() - now) * 1000)
-                    if first.get("status") != "observed":
-                        raise AssertionError(f"{source}: no valid response ({first.get('status')})")
                     if first.get("source") != source:
                         raise AssertionError("Source identity mismatch")
+                    if first.get("status") != "observed":
+                        row = unavailable_observation(source, signal_class, first, cold_ms)
+                        output.append(row)
+                        print(json.dumps({
+                            "source": source, "status": row["status"],
+                            "reason": row["reason"],
+                            "http_status": row["http_status"], "cold_ms": cold_ms,
+                        }), flush=True)
+                        continue
                     if first.get("evidence_level") != "public_source_snapshot_not_purchasing_validation":
                         raise AssertionError("Source was incorrectly promoted to purchasing proof")
                     if not first.get("source_documentation") or not first.get("retrieved_at"):
@@ -201,12 +259,13 @@ async def live(report: Path) -> int:
                         "cache_hit": True, "cold_ms": cold_ms, "cached_ms": warm_ms,
                     }), flush=True)
     result = assess(output)
-    if not result["technical_cross_source_compatible"]:
-        raise AssertionError("Multiple evidence classes were not retrieved")
-    if not result["semantic_topic_overlap_observed"]:
-        raise AssertionError("Battery topic not actually visible in two source classes")
-    if result["customer_purchasing_intent_validated"] or result["opportunity_rankable"]:
-        raise AssertionError("Observational sources falsely imply validated demand")
+    passed = strict_pass(result)
+    result["status"] = "passed" if passed else "failed"
+    result["source_failures"] = [
+        {"source": x["source"], "status": x["status"], "reason": x["reason"],
+         "http_status": x["http_status"]}
+        for x in output if x["status"] != "observed"
+    ]
     result["checked_at"] = datetime.now(timezone.utc).isoformat()
     result["mode"] = "live_mcp_cross_source"
     result["cache_replay_all"] = all(x["cache_replayed"] for x in output)
@@ -214,13 +273,13 @@ async def live(report: Path) -> int:
     result["cached_request_ms"] = {x["source"]: x["cached_ms"] for x in output}
     report.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps({
-        "mode": "live_mcp_cross_source", "status": "passed",
+        "mode": "live_mcp_cross_source", "status": result["status"],
         "sources": result["sources_observed"],
         "independent_classes": result["distinct_evidence_classes"],
         "topic_overlap_classes": result["classes_with_topic_in_sample"],
         "commercial_validation": False,
     }), flush=True)
-    return 0
+    return 0 if passed else 1
 
 
 def main() -> int:
