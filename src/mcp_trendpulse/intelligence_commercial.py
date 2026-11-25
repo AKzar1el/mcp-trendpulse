@@ -12,8 +12,15 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote, urlencode
 
 from mcp_trendpulse.intelligence_core import IntelligenceError, Plan, _required
+from mcp_trendpulse.intelligence_identity import canonical_doi
 
 SOURCES = {
+    "crossref": {
+        "wave": 2, "access": "public/no-key",
+        "signal": "exact DOI bibliographic metadata verification",
+        "docs": "https://www.crossref.org/documentation/retrieve-metadata/rest-api/",
+        "notes": "One DOI only, factual metadata; absent records do not invalidate a DOI or prove no retractions."
+    },
     "greenhouse": {
         "wave": 2, "access": "public/no-key", "signal": "company-specific job index",
         "docs": "https://developers.greenhouse.io/job-board.html",
@@ -135,6 +142,15 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
             url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{int(cik):010d}.json"
         return Plan(method="GET", url=url, headers={"User-Agent": agent},
                     budget_per_day=8, **common)
+    if source == "crossref":
+        doi = canonical_doi(p["identifier"])
+        if not doi or keyword or p["discover"] or p["lookback_days"] is not None:
+            raise IntelligenceError("Crossref requires one supported DOI identifier, not a topical or date query")
+        url = "https://api.crossref.org/v1/works?" + urlencode({
+            "filter": "doi:" + doi, "rows": 1,
+            "select": "DOI,title,published,type,container-title",
+        })
+        return Plan(method="GET", url=url, budget_per_day=5, **common)
     if source == "openalex":
         if p.get("discover"):
             if keyword:
@@ -169,6 +185,7 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
                 query["sort"] = "publication_date:desc"
             if p.get("relevance_first"):
                 query["sort"] = "relevance_score:desc"
+                query["select"] += ",primary_topic,keywords"
         url = "https://api.openalex.org/works?" + urlencode(query)
         key = env.get("TRENDPULSE_INTEL_OPENALEX_KEY", "").strip()
         # OpenAlex permits keyless basic queries; registered free keys are

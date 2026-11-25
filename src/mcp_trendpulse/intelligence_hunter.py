@@ -55,6 +55,15 @@ NOISE = {
 }
 WORD = re.compile(r"[a-z0-9]+", re.ASCII)
 TOPIC = re.compile(r"[A-Za-z0-9][A-Za-z0-9 -]{2,79}\Z")
+ACRONYMS = {
+    "ai": ("artificial", "intelligence"),
+    "ml": ("machine", "learning"),
+    "llm": ("large", "language"),
+    "llms": ("large", "language"),
+    "mcp": ("context", "protocol"),
+    "api": ("application", "programming", "interface"),
+    "apis": ("application", "programming", "interface"),
+}
 
 
 def _topics(topics: list[str] | None, today: date) -> list[str]:
@@ -90,6 +99,9 @@ def _sources(sources: list[str] | None) -> list[str]:
 def _words(value: str) -> list[str]:
     tokens = []
     for word in WORD.findall(value.lower()):
+        if word in ACRONYMS:
+            tokens.extend(ACRONYMS[word])
+            continue
         # Limited plural normalization for cost/costs and study/studies.
         # This is lexical matching, never semantic proof of the same demand.
         if word.endswith("ies") and len(word) >= 6:
@@ -150,6 +162,14 @@ def summarize_current_hunt(
         report = observe_source_snapshots(term, snapshots, as_of=now.isoformat())
         matches = [row for row in report["sample_records"]
                    if _relevant(term, str(row.get("title") or ""))]
+        # OpenAlex's assigned labels are useful discovery context when a
+        # title alone is vague. Never promote these labels to dated activity.
+        label_matches = [
+            row for row in report["sample_records"] if row["source"] == "openalex"
+            and row not in matches and any(
+                _relevant(term, label) for label in row.get("provider_research_labels", [])
+            )
+        ]
         excluded = [
             row for row in matches
             if row["source"] == "github_issues"
@@ -204,11 +224,16 @@ def summarize_current_hunt(
             provider["unmatched_sample_records"] = max(
                 0, provider["records_accepted"] - len(topical)
             )
+            if key == "openalex":
+                provider["provider_label_only_matches"] = len(label_matches)
             if provider["status"] == "observed":
                 if not provider["records_accepted"]:
                     provider["topical_coverage_note"] = "empty_bounded_sample"
                 elif not topical:
-                    provider["topical_coverage_note"] = "no_title_match_in_bounded_sample"
+                    provider["topical_coverage_note"] = (
+                        "provider_label_context_only" if key == "openalex" and label_matches
+                        else "no_title_match_in_bounded_sample"
+                    )
                 elif not fresh:
                     provider["topical_coverage_note"] = "context_or_noise_only"
                 else:
@@ -242,6 +267,12 @@ def summarize_current_hunt(
             "recent_source_classes": sorted(classes),
             "recent_independent_provider_types": source_count,
             "topical_context_records": len(context),
+            "provider_label_context_examples": [
+                {"source": row["source"], "title": row["title"], "reference": row["reference"],
+                 "event_date": row["event_date"], "labels": row["provider_research_labels"]}
+                for row in label_matches[:4]
+            ],
+            "provider_label_context_omitted": max(0, len(label_matches) - 4),
             "context_examples": context_examples,
             "title_overlap_is_not_semantic_or_buyer_validation": True,
             "quality_screened_issue_records": len(excluded),
@@ -251,6 +282,7 @@ def summarize_current_hunt(
                 "classification": row["issue_evidence_type"],
             } for row in excluded[:3]],
             "quality_screen_is_heuristic": True,
+            "evidence_preview_omitted": max(0, len(current) - 12),
             "provider_coverage_degraded": report["coverage_degraded"],
             "source_coverage": coverage,
             "evidence": [
@@ -260,6 +292,7 @@ def summarize_current_hunt(
                     "event_date": row["event_date"],
                     "date_semantics": row["date_semantics"],
                     "reference": row["reference"],
+                    **({"doi": row["doi"]} if row.get("doi") else {}),
                     **({"issue_evidence_type": row["issue_evidence_type"]}
                        if row["source"] == "github_issues" else {}),
                 }

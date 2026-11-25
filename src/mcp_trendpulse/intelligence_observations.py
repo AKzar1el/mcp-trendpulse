@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from mcp_trendpulse.intelligence_opportunities import LANES, SOURCE_KIND, _day, _string
+from mcp_trendpulse.intelligence_identity import canonical_doi
 
 # GLEIF's published Registration Authorities list for the three Companies
 # House registries. Name similarity alone is NEVER a verified entity join.
@@ -190,6 +191,19 @@ def _entry(source: str, raw: dict[str, Any], asof: date) -> dict[str, Any] | Non
             "event_date": _date(raw.get("publication_date"), asof),
             "date_semantics": "research_publication_not_purchase",
         })
+        doi = canonical_doi(raw.get("doi"))
+        if doi:
+            result["doi"] = doi
+        labels = []
+        primary = raw.get("primary_topic")
+        if isinstance(primary, dict):
+            labels.append(_text(primary.get("display_name"), 100))
+        keywords = raw.get("keywords")
+        if isinstance(keywords, list):
+            labels.extend(_text(item.get("display_name"), 100)
+                          for item in keywords[:8] if isinstance(item, dict))
+        if any(labels):
+            result["provider_research_labels"] = list(dict.fromkeys(x for x in labels if x))
     elif source == "usaspending":
         award_id = _key(raw.get("Award ID"))
         if not award_id:

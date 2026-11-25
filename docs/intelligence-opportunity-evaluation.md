@@ -1312,7 +1312,8 @@ The OpenAlex portion remains capped at 19 of its locally
 budgeted 20/day keyless calls; other sources use independent
 provider caps. Plan-only mode never uses the network.
 
-Reports now explicitly state **25 adapters catalogued** versus the
+Reports now explicitly state **26 adapters catalogued** (including the opt-in
+Crossref bibliographic-context adapter) versus the
 three baseline queried sources and include a separate
 `ADDITIONAL EXISTING SOURCES` section when this option is used.
 No claim of automatic full 25-source coverage is ever made.

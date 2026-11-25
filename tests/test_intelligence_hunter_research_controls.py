@@ -98,6 +98,28 @@ def test_deeper_sample_finds_later_match_and_clamps_provider_overreturn(monkeypa
     assert deep["source_request_budget"] == base["source_request_budget"] == 1
 
 
+def test_provider_label_context_not_ranked_as_title_evidence(monkeypatch):
+    work = _work(1, "A methodological evaluation")
+    work["primary_topic"] = {"display_name": "Battery recycling"}
+    work["doi"] = "https://doi.org/10.1002/ADMA.201404892"
+    monkeypatch.setattr(hunter, "collect", lambda plan, **kw: _observed(plan.source, [work]))
+    result = hunter.hunt_current(["battery recycling"], ["openalex"], env={},
+                                 execute=True, relevance_first=True)
+    topic = result["topics"][0]
+    assert topic["recent_dated_records_in_sample"] == 0
+    assert topic["source_coverage"][0]["provider_label_only_matches"] == 1
+    assert topic["provider_label_context_examples"][0]["title"] == work["display_name"]
+    assert "primary_topic" in _plan_query(plan_source(
+        "openalex", keyword="battery recycling", relevance_first=True, env={},
+    ))["select"][0]
+
+
+def test_explicit_acronym_expansion_not_fuzzy_entity_matching():
+    assert hunter._relevant("MCP reliability", "Model Context Protocol reliability")
+    assert hunter._relevant("machine learning reliability", "ML reliability")
+    assert not hunter._relevant("MCP reliability", "Cloud reliability")
+
+
 def test_quota_exhaustion_does_not_erase_healthy_source(monkeypatch):
     def fake_collect(plan, **kwargs):
         if plan.source == "github_issues":

@@ -197,6 +197,7 @@ _HOSTS = frozenset({
     "api.gleif.org", "data-api.ecb.europa.eu", "web-api.tp.entsoe.eu",
     "ops.epo.org", "cordis.europa.eu",
     "data.gdeltproject.org",
+    "api.crossref.org",
     "stac.opensearch.dataspace.copernicus.eu",
 })
 
@@ -356,6 +357,18 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
         raise IntelligenceError("Request lock file may not be a symlink")
     try:
         with FileLock(str(lock_path), timeout=timeout + 5):
+            if plan.source == "crossref":
+                source_lock = lock_root / "crossref-source.lock"
+                if source_lock.is_symlink():
+                    raise IntelligenceError("Crossref source lock may not be a symlink")
+                try:
+                    with FileLock(str(source_lock), timeout=0):
+                        return _collect_under_lock(plan, store, identity, timeout, env)
+                except FileLockTimeout:
+                    return {"source": plan.source, "status": "unavailable",
+                            "reason": "provider_local_concurrency_limit",
+                            "failure_class": "provider_local_concurrency_limit",
+                            "retry_automatically": False, "cache_hit": False}
             return _collect_under_lock(plan, store, identity, timeout, env)
     except FileLockTimeout as exc:
         raise IntelligenceError("Another identical free-source request is still running") from exc
@@ -389,6 +402,10 @@ def _collect_under_lock(
         return {"source": plan.source, "status": "unavailable",
                 "reason": "provider_cooldown", "retry_automatically": False,
                 "failure_class": "provider_cooldown", "cache_hit": False}
+    if plan.source == "crossref":
+        # The public list-query pool permits one request per second and one
+        # concurrent request. Never wait/retry to force through a busy source.
+        store._extend_cooldown(plan.source, 1)
     accepted = {
         "json": "application/json",
         "csv": "text/csv",
@@ -490,10 +507,18 @@ def _collect_under_lock(
             }
         else:
             observations = evidence_projection(plan.source, payload)
+            if plan.source == "crossref":
+                requested = parse_qs(urlsplit(plan.url).query).get("filter", [""])[0]
+                if not requested.startswith("doi:") or any(
+                    row["doi"] != requested[4:] for row in observations["sample"]
+                ):
+                    raise UnexpectedSourceShape("Crossref returned a different DOI")
             # OpenAlex 100-group requests have a dedicated safe projection.
             reduced = (
                 _bounded_github_issues_data(payload)
                 if plan.source == "github_issues"
+                else {"metadata": observations["sample"]}
+                if plan.source == "crossref"
                 else _bounded_openalex_topic_groups(payload)
                 if _is_openalex_topic_group_plan(plan)
                 else _bound_payload(payload)
@@ -519,6 +544,11 @@ def _collect_under_lock(
         "data": reduced,
         "cache_hit": False,
     }
+    if plan.source == "crossref":
+        output["doi_match_status"] = (
+            "exact_metadata_match" if observations["record_count"] else "not_observed_in_crossref"
+        )
+        output["retraction_status_verified"] = False
     store.save(identity, output, 3600)
     return output
 

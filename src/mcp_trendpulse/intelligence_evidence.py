@@ -8,6 +8,9 @@ All projections are observational; no record is treated as purchasing intent.
 from __future__ import annotations
 
 from typing import Any
+from datetime import date
+
+from mcp_trendpulse.intelligence_identity import canonical_doi
 
 
 class UnexpectedSourceShape(ValueError):
@@ -33,6 +36,46 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
         }
         if failed_status or any(payload.get(key) for key in ("error", "errors", "fault")):
             raise UnexpectedSourceShape("Provider returned an error envelope")
+    if source == "crossref":
+        if not isinstance(payload, dict) or payload.get("status") != "ok":
+            raise UnexpectedSourceShape("Expected Crossref success envelope")
+        message = payload.get("message")
+        if not isinstance(message, dict):
+            raise UnexpectedSourceShape("Expected Crossref metadata list")
+        items = message.get("items")
+        total = message.get("total-results")
+        if (not isinstance(items, list) or len(items) > 1 or type(total) is not int
+                or total != len(items) or any(not isinstance(row, dict) for row in items)):
+            raise UnexpectedSourceShape("Crossref exact DOI returned ambiguous or malformed results")
+        rows = []
+        for item in items:
+            doi = canonical_doi(item.get("DOI"))
+            if doi is None:
+                raise UnexpectedSourceShape("Crossref record lacks a supported DOI")
+            def first_text(field: str) -> str:
+                value = item.get(field)
+                if isinstance(value, list) and value and isinstance(value[0], str):
+                    return " ".join(value[0].split())[:240]
+                return ""
+            published = item.get("published")
+            parts = published.get("date-parts") if isinstance(published, dict) else None
+            stamp = None
+            if (isinstance(parts, list) and parts and isinstance(parts[0], list)
+                    and 1 <= len(parts[0]) <= 3 and all(type(x) is int for x in parts[0])):
+                try:
+                    values = parts[0]
+                    date(*(values + [1] * (3 - len(values))))
+                    stamp = "-".join(f"{v:04d}" if i == 0 else f"{v:02d}" for i, v in enumerate(values))
+                except ValueError:
+                    pass
+            kind = item.get("type")
+            rows.append({
+                "doi": doi, "title": first_text("title"),
+                "container_title": first_text("container-title"), "published": stamp,
+                "type": kind[:60] if isinstance(kind, str) else None,
+                "reference": "https://doi.org/" + doi,
+            })
+        return {"record_count": len(rows), "sample": rows, "unit": "exact bibliographic metadata only"}
     if source in {"cordis", "cellar"}:
         if not isinstance(payload, dict) or not isinstance(payload.get("results"), dict):
             raise UnexpectedSourceShape("Expected SPARQL results object")

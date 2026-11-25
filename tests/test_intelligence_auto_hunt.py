@@ -310,7 +310,7 @@ def test_default_discovery_remains_only_three_primary_sources(monkeypatch):
     assert result["queries_budgeted"] == 3
     assert "trend_evidence" not in result
     rendered = discovery.format_discovery_report(result)
-    assert "AVAILABLE INTELLIGENCE ADAPTERS: 25 catalogued" in rendered
+    assert "AVAILABLE INTELLIGENCE ADAPTERS: 26 catalogued" in rendered
     assert "baseline queries only OpenAlex, CFPB and TED" in rendered
 
 
@@ -371,4 +371,4 @@ def test_integrated_dynamic_research_workflows_use_extra_sources_only_opt_in(
     assert result["paid_buyers_verified"] is False
     report = discovery.format_discovery_report(result)
     assert "ADDITIONAL EXISTING SOURCES" in report
-    assert "25 catalogued" in report
+    assert "26 catalogued" in report
