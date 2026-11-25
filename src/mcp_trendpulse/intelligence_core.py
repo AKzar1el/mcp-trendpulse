@@ -11,6 +11,7 @@ import csv
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import sqlite3
@@ -18,6 +19,7 @@ import time
 from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -50,6 +52,10 @@ class DailyBudgetExceeded(IntelligenceError):
 
 class SourceCoolingDown(IntelligenceError):
     """Source is blocked by a persisted cooldown; not exhausted quota."""
+
+
+class ProviderResponseError(IntelligenceError):
+    """A bounded provider response violated the expected transport contract."""
 
 
 @dataclass(frozen=True)
@@ -252,6 +258,10 @@ class BudgetCache:
         """Short-lived source cooldown for transient errors."""
         self._extend_cooldown(source, max(30, min(seconds, 300)))
 
+    def respect_retry_after(self, source: str, seconds: int) -> None:
+        """Do not shorten an explicit provider-supplied retry window."""
+        self._extend_cooldown(source, max(30, seconds))
+
     def stop_after_rate_limit(self, source: str) -> None:
         """Persist a 24-hour no-retry circuit after a Google Trends 429."""
         self._extend_cooldown(source, 24 * 3600)
@@ -351,6 +361,20 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
         raise IntelligenceError("Another identical free-source request is still running") from exc
 
 
+def _retry_after_seconds(value: str, now: datetime | None = None) -> int:
+    if isinstance(value, str) and len(value) <= 128:
+        value = value.strip()
+        if value.isascii() and value.isdigit() and len(value) <= 9:
+            return int(value)
+        try:
+            until = parsedate_to_datetime(value)
+            if until.tzinfo is not None:
+                return max(0, math.ceil((until - (now or datetime.now(timezone.utc))).total_seconds()))
+        except (TypeError, ValueError, OverflowError):
+            pass
+    return 90
+
+
 def _collect_under_lock(
     plan: Plan, store: BudgetCache, identity: str, timeout: int,
     env: dict[str, str] | None,
@@ -359,11 +383,12 @@ def _collect_under_lock(
     previously = store.cached(identity)
     if previously is not None:
         return {**previously, "cache_hit": True}
-    if store.blocked(plan.source):
+    try:
+        store.reserve(plan.source, plan.budget_per_day, guard_cooldown=True)
+    except SourceCoolingDown:
         return {"source": plan.source, "status": "unavailable",
                 "reason": "provider_cooldown", "retry_automatically": False,
-                "cache_hit": False}
-    store.reserve(plan.source, plan.budget_per_day)
+                "failure_class": "provider_cooldown", "cache_hit": False}
     accepted = {
         "json": "application/json",
         "csv": "text/csv",
@@ -397,18 +422,18 @@ def _collect_under_lock(
             kind = res.headers.get("Content-Type", "").lower()
             raw = res.read(MAX_RESPONSE_BYTES + 1)
             if len(raw) > MAX_RESPONSE_BYTES:
-                raise IntelligenceError("Response exceeded 256 KiB; narrow your source query")
+                raise ProviderResponseError("response_too_large")
             if plan.content_type == "json":
                 if "json" not in kind:
-                    raise IntelligenceError("Source did not return JSON; status cannot be treated as evidence")
+                    raise ProviderResponseError("unexpected_content_type")
                 payload = json.loads(raw)
             elif plan.content_type == "csv":
                 if "csv" not in kind and "text/plain" not in kind:
-                    raise IntelligenceError("Expected CSV response")
+                    raise ProviderResponseError("unexpected_content_type")
                 payload = _parse_csv(raw)
             elif plan.content_type == "xml":
                 if not any(marker in kind for marker in ("xml", "rss", "atom")):
-                    raise IntelligenceError("Expected XML response")
+                    raise ProviderResponseError("unexpected_content_type")
                 payload = _parse_xml(raw)
             elif plan.content_type == "text":
                 payload = {"lines": raw.decode("utf-8", "strict").splitlines()[:20]}
@@ -417,16 +442,37 @@ def _collect_under_lock(
     except HTTPError as exc:
         failure = {"source": plan.source, "status": "unavailable", "reason": "HTTPError",
                    "http_status": exc.code, "retry_automatically": False, "cache_hit": False}
+        failure["failure_class"] = (
+            "provider_rate_limited" if exc.code == 429 else
+            "provider_redirect" if 300 <= exc.code < 400 else
+            "provider_access_denied" if exc.code in (401, 403) else
+            "provider_unavailable"
+        )
         if exc.code in (429, 503):
             retry_header = exc.headers.get("Retry-After", "") if exc.headers else ""
-            delay = int(retry_header) if retry_header.isdigit() and len(retry_header) <= 6 else 90
-            store.cool_down(plan.source, delay)
+            delay = _retry_after_seconds(retry_header)
+            store.respect_retry_after(plan.source, delay)
+            failure["retry_after_seconds"] = max(30, delay)
         store.save(identity, failure, 60)
         return failure
-    except (URLError, TimeoutError, OSError, UnicodeError, json.JSONDecodeError,
+    except (ProviderResponseError, UnicodeError, json.JSONDecodeError,
             ElementTree.ParseError, csv.Error) as exc:
+        failure = {
+            "source": plan.source, "status": "invalid_source_shape",
+            "reason": "invalid_source_shape",
+            "failure_class": str(exc) if isinstance(exc, ProviderResponseError) else "malformed_response",
+            "retry_automatically": False, "cache_hit": False,
+        }
+        store.save(identity, failure, 120)
+        return failure
+    except (URLError, TimeoutError, OSError) as exc:
         failure = {"source": plan.source, "status": "unavailable",
                    "reason": type(exc).__name__, "retry_automatically": False,
+                   "failure_class": (
+                       "provider_timeout"
+                       if isinstance(exc, TimeoutError) or isinstance(getattr(exc, "reason", None), TimeoutError)
+                       else "provider_unavailable"
+                   ),
                    "cache_hit": False}
         store.save(identity, failure, 45)
         return failure
@@ -455,6 +501,7 @@ def _collect_under_lock(
     except UnexpectedSourceShape as exc:
         failure = {
             "source": plan.source, "status": "invalid_source_shape",
+            "failure_class": "invalid_source_shape",
             "reason": str(exc), "retry_automatically": False, "cache_hit": False,
         }
         store.save(identity, failure, 120)

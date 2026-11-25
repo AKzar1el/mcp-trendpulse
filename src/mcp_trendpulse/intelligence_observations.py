@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from mcp_trendpulse.intelligence_opportunities import LANES, SOURCE_KIND, _day, _string
@@ -390,6 +390,25 @@ def observe_source_snapshots(
             "collection_failed", "invalid_source_shape", "local_daily_budget_exhausted",
         }:
             report["reason"] = reason
+        failure_class = row.get("failure_class")
+        if isinstance(failure_class, str) and failure_class in {
+            "provider_rate_limited", "provider_redirect", "provider_access_denied",
+            "provider_unavailable", "provider_timeout", "provider_cooldown",
+            "response_too_large", "unexpected_content_type", "malformed_response",
+            "invalid_source_shape",
+        }:
+            report["failure_class"] = failure_class
+        retry_after = row.get("retry_after_seconds")
+        if type(retry_after) is int and 0 <= retry_after <= 999999999:
+            report["retry_after_seconds"] = retry_after
+        retrieved_at = row.get("retrieved_at")
+        if isinstance(retrieved_at, str) and len(retrieved_at) <= 40:
+            try:
+                timestamp = datetime.fromisoformat(retrieved_at)
+                if timestamp.tzinfo is not None:
+                    report["retrieved_at"] = timestamp.isoformat()
+            except ValueError:
+                pass
         if status != "observed":
             report["caveat"] = "Source unavailable or invalid; not evidence of zero interest"
             sources.append(report)
