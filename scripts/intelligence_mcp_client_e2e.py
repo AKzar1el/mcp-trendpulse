@@ -38,6 +38,7 @@ TOOLS = {
     "intelligence_repository_star_history",
     "intelligence_release_lifecycle",
     "intelligence_hf_catalog",
+    "intelligence_validate_concept",
 }
 FAKE_TOKEN = "SYNTHETIC_OFFLINE_E2E_TOKEN_NOT_A_PROVIDER_KEY"
 
@@ -115,7 +116,7 @@ async def exercise(mode: str, result_path: Path) -> int:
                     schema = json.dumps(tool.inputSchema).lower()
                     if '"api_key"' in schema or '"secret"' in schema or '"token"' in schema:
                         raise AssertionError("Secret-bearing MCP argument schema exposed")
-                checked.append({"case": "initialize_discover_seventeen_read_only_tools", "ok": True})
+                checked.append({"case": "initialize_discover_eighteen_read_only_tools", "ok": True})
                 a03 = await _call(session, "intelligence_dependency_graph", {
                     "ecosystem": "npm", "package": "is-odd", "version": "3.0.1",
                     "execute": False,
@@ -194,6 +195,28 @@ async def exercise(mode: str, result_path: Path) -> int:
                 if doi_plan.get("status") != "planned" or doi_plan.get("network_performed") is not False:
                     raise AssertionError("DOI lookup did not preserve plan-only bounds")
                 checked.append({"case": "adaptive_and_exact_doi_plan_no_network", "ok": True})
+                concept_plan = await _call(
+                    session, "intelligence_validate_concept", {
+                        "concept": "browser agent prompt injection",
+                        "dataset_id": "leolee99/NotInject",
+                        "limit": 5, "execute": False,
+                    },
+                )
+                if (concept_plan.get("status") != "planned"
+                        or concept_plan.get("network_performed") is not False
+                        or concept_plan.get("source_count") != 5
+                        or concept_plan.get("community_sources_always_considered") is not True):
+                    raise AssertionError("Concept validator plan contacted a public source")
+                members = {row["source"]: row for row in concept_plan.get("sources", [])}
+                if not {
+                    "github_hybrid_issues", "github_repositories",
+                    "hacker_news_algolia", "stackexchange_question_mentions",
+                    "hf_dataset_details",
+                } <= members.keys():
+                    raise AssertionError("A required concept evidence source was omitted")
+                if members["github_hybrid_issues"]["status"] != "planned":
+                    raise AssertionError("Hybrid GitHub plan not disclosed")
+                checked.append({"case": "concept_four_sources_hf_metadata_plan_only", "ok": True})
 
                 observation = await _call(
                     session, "intelligence_observe_source_snapshots", {
@@ -219,10 +242,10 @@ async def exercise(mode: str, result_path: Path) -> int:
                 checked.append({"case": "offline_company_observation_no_false_demand", "ok": True})
 
                 catalogue = await _call(session, "intelligence_source_catalog", {})
-                if (not isinstance(catalogue, list) or len(catalogue) != 26
-                        or len({row["id"] for row in catalogue}) != 26
-                        or not any(row["id"] == "crossref" for row in catalogue)):
-                    raise AssertionError("Expected 26 unique global-source records, including Crossref")
+                if (not isinstance(catalogue, list) or len(catalogue) != 28
+                        or len({row["id"] for row in catalogue}) != 28
+                        or not {"crossref", "github_repositories", "hf_dataset_details"} <= {row["id"] for row in catalogue}):
+                    raise AssertionError("Expected 28 unique global-source records")
                 if {row["wave"] for row in catalogue} != {1, 2, 3}:
                     raise AssertionError("One or more waves not registered")
                 if any(row["id"] == "opsi_slovenia" for row in catalogue):

@@ -1,4 +1,4 @@
-"""Opt-in full 35-tool MCP localhost contract and safe rollback check.
+"""Opt-in full 36-tool MCP localhost contract and safe rollback check.
 
 Starts a single explicitly owned, guarded localhost server. Never contacts
 external providers, modifies production source registration or leaves daemons.
@@ -53,7 +53,7 @@ def _initialize_status(endpoint: str, extra: dict[str, str] | None = None) -> in
 
 
 @pytest.mark.integration
-def test_unified_35_tool_guarded_http_stops_without_production_side_effects(tmp_path):
+def test_unified_36_tool_guarded_http_stops_without_production_side_effects(tmp_path):
     root = Path(__file__).resolve().parents[1]
     port = _free_local_port()
     endpoint = f"http://127.0.0.1:{port}/mcp"
@@ -102,7 +102,7 @@ def test_unified_35_tool_guarded_http_stops_without_production_side_effects(tmp_
                 async with Client(endpoint, timeout=60) as client:
                     tools = await client.list_tools()
                     names = {t.name for t in tools}
-                    assert len(names) == len(tools) == 35
+                    assert len(names) == len(tools) == 36
                     assert {
                         "get_news_by_keyword",
                         "intelligence_source_catalog",
@@ -131,7 +131,7 @@ def test_unified_35_tool_guarded_http_stops_without_production_side_effects(tmp_
                             raise_on_error=False,
                         )
                         assert error.is_error
-                    assert len(await client.list_tools()) == 35
+                    assert len(await client.list_tools()) == 36
 
             asyncio.run(exercise())
             assert not (tmp_path / "isolated_budget").exists()

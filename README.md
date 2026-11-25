@@ -588,3 +588,15 @@ The optional intelligence extension includes `mcp-trendpulse-cli intelligence hu
 ### Seedless, free current-theme discovery
 
 The optional intelligence MCP/CLI now offers `intelligence discover --execute --format text`. It collects bounded **recent OpenAlex research, CFPB public complaint categories and TED procurement notices**, and identifies repeated original-source themes without any preset industry keywords. It requires no historical database and never infers growth, verified buyers or revenue from source popularity. To accumulate optional hashed candidate history, add `--record-history`. The normal 16-tool community MCP and scheduled worker are unchanged. See [opportunity evaluation](docs/intelligence-opportunity-evaluation.md).
+
+
+### Optional concept-validation research (GitHub hybrid + developer communities)
+
+For bounded, free, source-linked software/hackathon idea research, run
+mcp-trendpulse-cli intelligence concept-validate --concept "browser agent prompt injection"
+(preview) and add --execute for real source requests. The separate
+intelligence_validate_concept MCP tool always considers HN and Stack Overflow
+alongside GitHub hybrid issues and open-source repository alternatives;
+optional Hugging Face metadata and caller-supplied Devpost project links
+never grant reuse rights or prove demand. See
+[concept validation](docs/concept-validation.md).

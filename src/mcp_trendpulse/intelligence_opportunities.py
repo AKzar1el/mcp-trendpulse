@@ -34,6 +34,8 @@ SOURCE_KIND: dict[str, str] = {
     "sec_companyconcept": "financial_context",
     "openalex": "research",
     "crossref": "research",
+    "github_repositories": "research",
+    "hf_dataset_details": "research",
     "companies_house": "corporate_registry",
     "usaspending": "public_award",
     "cfpb": "reported_problem",
@@ -47,7 +49,7 @@ SOURCE_KIND: dict[str, str] = {
     "epo": "patent_publication",
 }
 
-# All mapped sources exist in the current 26-source opt-in extension. A
+# All mapped sources exist in the current 28-source opt-in extension. A
 # combination is an investigation recipe, not an automatic proof of demand.
 LANES: dict[str, dict[str, Any]] = {
     "agent_safety": {"sources": ("github_issues", "greenhouse", "cellar", "ted"),

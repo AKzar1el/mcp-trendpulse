@@ -195,6 +195,7 @@ _HOSTS = frozenset({
     "api.smartrecruiters.com", "data.sec.gov", "api.openalex.org",
     "api.company-information.service.gov.uk", "www.consumerfinance.gov",
     "api.gleif.org", "data-api.ecb.europa.eu", "web-api.tp.entsoe.eu",
+    "huggingface.co",
     "ops.epo.org", "cordis.europa.eu",
     "data.gdeltproject.org",
     "api.crossref.org",
@@ -333,14 +334,20 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
             env: dict[str, str] | None = None) -> dict[str, Any]:
     """Explicit fetching only. Never retry, follow redirects, or exceed a source cap."""
     _safe_origin(plan)
+    if plan.source in {"github_issues", "github_repositories"}:
+        query = parse_qs(urlsplit(plan.url).query).get("q", [])
+        if (any(key.lower() == "authorization" for key in plan.headers)
+                and (len(query) != 1 or "is:public" not in query[0].split())):
+            raise IntelligenceError("Authenticated GitHub searches require public-only scope")
     if not fetch:
         return {"status": "planned", **plan.public()}
     if not isinstance(timeout, int) or not 2 <= timeout <= 30:
         raise IntelligenceError("timeout must be between 2 and 30 seconds")
     store = cache if cache is not None else BudgetCache()
-    identity = hashlib.sha256(json.dumps(
-        [plan.source, plan.method, plan.url, plan.body, plan.headers],
-        sort_keys=True).encode()).hexdigest()
+    identity_parts = [plan.source, plan.method, plan.url, plan.body, plan.headers]
+    if plan.source in {"github_issues", "github_repositories"}:
+        identity_parts.append("public-only-v1")
+    identity = hashlib.sha256(json.dumps(identity_parts, sort_keys=True).encode()).hexdigest()
     # Fast path: repeated requests avoid filesystem lock overhead entirely.
     previously = store.cached(identity)
     if previously is not None:
@@ -494,9 +501,13 @@ def _collect_under_lock(
         store.save(identity, failure, 45)
         return failure
     from mcp_trendpulse.intelligence_evidence import (
-        UnexpectedSourceShape, evidence_projection,
+        UnexpectedSourceShape, evidence_projection, require_public_github_rows,
     )
     try:
+        require_public_github_rows(
+            plan.source, payload,
+            authenticated=any(key.lower() == "authorization" for key in headers),
+        )
         if _is_github_issue_count_plan(plan):
             # Count-only corroboration must NEVER persist issue bodies,
             # usernames, titles, labels or authors in the source cache.
@@ -519,6 +530,8 @@ def _collect_under_lock(
                 if plan.source == "github_issues"
                 else {"metadata": observations["sample"]}
                 if plan.source == "crossref"
+                else _bounded_public_metadata(plan.source, payload)
+                if plan.source in {"github_repositories", "hf_dataset_details"}
                 else _bounded_openalex_topic_groups(payload)
                 if _is_openalex_topic_group_plan(plan)
                 else _bound_payload(payload)
@@ -571,10 +584,45 @@ def _bounded_github_issues_data(payload: Any) -> dict[str, Any]:
         raise UnexpectedSourceShape("Invalid public GitHub issues total count")
     if incomplete is not None and type(incomplete) is not bool:
         raise UnexpectedSourceShape("Invalid GitHub search completeness flag")
+    kind = payload.get("search_type")
+    fallback = payload.get("fallback_reason")
     return {
         "total_count": total, "incomplete_results": incomplete,
         "page_items_received": min(len(payload["items"]), 20),
+        "search_type": kind if kind in {"hybrid", "semantic", "lexical"} else None,
+        "fallback_reason": fallback if isinstance(fallback, str) and len(fallback) <= 160 else None,
     }
+
+
+def _bounded_public_metadata(source: str, payload: Any) -> dict[str, Any]:
+    from mcp_trendpulse.intelligence_evidence import UnexpectedSourceShape
+
+    if not isinstance(payload, dict):
+        raise UnexpectedSourceShape("Expected public metadata object")
+    if source == "github_repositories":
+        rows = payload.get("items")
+        if not isinstance(rows, list):
+            raise UnexpectedSourceShape("Expected public repository search results")
+        count = payload.get("total_count")
+        incomplete = payload.get("incomplete_results")
+        if type(count) is not int or count < 0 or type(incomplete) is not bool:
+            raise UnexpectedSourceShape("Invalid repository search metadata")
+        return {
+            "total_count": count, "incomplete_results": incomplete,
+            "page_items_received": min(len(rows), 10),
+        }
+    if source == "hf_dataset_details":
+        details = payload.get("cardData")
+        return {
+            "id": payload.get("id") if isinstance(payload.get("id"), str) else None,
+            "lastModified": payload.get("lastModified") if isinstance(payload.get("lastModified"), str) else None,
+            "createdAt": payload.get("createdAt") if isinstance(payload.get("createdAt"), str) else None,
+            "gated": payload.get("gated"),
+            "private": payload.get("private"),
+            "license": details.get("license") if isinstance(details, dict)
+            and isinstance(details.get("license"), str) else None,
+        }
+    raise UnexpectedSourceShape("Unsupported metadata source")
 
 
 def _is_github_issue_count_plan(plan: Plan) -> bool:

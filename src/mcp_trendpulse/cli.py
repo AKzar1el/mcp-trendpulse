@@ -2233,6 +2233,34 @@ def intelligence_hunt(topics, sources, lookback_days, execute, record_history,
         click.echo(json.dumps(result, ensure_ascii=False, sort_keys=True))
 
 
+
+@intelligence.command("concept-validate")
+@click.option("--concept", required=True, help="3-80 character research concept.")
+@click.option("--tag", "stack_tag", default=None,
+              help="Exact Stack Overflow tag; otherwise inferred.")
+@click.option("--dataset", "dataset_id", default="",
+              help="Optional HF public owner/dataset metadata ID.")
+@click.option("--devpost-url", "devpost_urls", multiple=True,
+              help="Up to eight canonical public Devpost software project links for manual comparison.")
+@click.option("--lookback-days", type=click.IntRange(7, 90), default=30, show_default=True)
+@click.option("--limit", type=click.IntRange(1, 10), default=8, show_default=True)
+@click.option("--execute", is_flag=True,
+              help="Use free bounded public requests under existing quota guards.")
+def intelligence_concept_validate(concept, stack_tag, dataset_id, devpost_urls, lookback_days, limit, execute):
+    """Compare evidence and incumbent alternatives; always consider HN and SO."""
+    from mcp_trendpulse.intelligence_concepts import validate_concept
+
+    try:
+        response = validate_concept(
+            concept, stack_tag=stack_tag, dataset_id=dataset_id,
+            devpost_urls=list(devpost_urls),
+            limit=limit, lookback_days=lookback_days, execute=execute,
+        )
+    except (OSError, TypeError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(response, ensure_ascii=False, sort_keys=True))
+
+
 @intelligence.command("observe")
 @click.option("--input-json", "input_path", required=True,
               type=click.Path(exists=True, dir_okay=False, path_type=Path))
