@@ -97,6 +97,10 @@ def test_preview_never_opens_budget_reads_key_or_uses_network(monkeypatch):
      "start_date": "2026-11-22", "end_date": "2026-11-24"},
     {"query": "something", "country": "US", "language": "en-US", "kind": "related",
      "start_date": "2026-04-01", "end_date": "2026-11-20"},
+    {"query": "something", "country": "US", "language": "en-US", "kind": "related",
+     "end_date": "0001-01-01"},
+    {"query": "something", "country": "US", "language": "en-US", "kind": "related",
+     "end_date": "0001-01-29"},
     {"query": "something", "country": "US", "language": "en-US", "limit": 0},
     {"query": "something", "country": "US", "language": "en-US", "limit": 21},
 ])

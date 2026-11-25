@@ -82,6 +82,8 @@ def _period(
     if kind != "related":
         raise ValueError("Bing method must be stats or related")
     end = today if end_date is None else _date(end_date)
+    if start_date is None and end < date.min + timedelta(days=29):
+        raise ValueError("Related keyword window must be 1–90 days, current/past year")
     start = end - timedelta(days=29) if start_date is None else _date(start_date)
     days = (end - start).days + 1
     if end > today or not 1 <= days <= 90 or start < today - timedelta(days=365):
