@@ -167,6 +167,8 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
                 # OpenAlex's paid updated/created sync filters.
                 query["filter"] = f"from_publication_date:{cutoff.isoformat()}"
                 query["sort"] = "publication_date:desc"
+            if p.get("relevance_first"):
+                query["sort"] = "relevance_score:desc"
         url = "https://api.openalex.org/works?" + urlencode(query)
         key = env.get("TRENDPULSE_INTEL_OPENALEX_KEY", "").strip()
         # OpenAlex permits keyless basic queries; registered free keys are

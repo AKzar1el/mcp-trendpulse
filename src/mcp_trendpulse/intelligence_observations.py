@@ -28,6 +28,7 @@ ALLOWED = {
 MAX_INPUT_BYTES = 220_000
 MAX_SNAPSHOTS = 12
 MAX_ROWS = 160
+MAX_SAMPLE_RECORDS = 40
 
 
 def _text(value: Any, size: int = 130) -> str:
@@ -386,7 +387,7 @@ def observe_source_snapshots(
         if isinstance(reason, str) and reason in {
             "HTTPError", "URLError", "TimeoutError", "provider_cooldown",
             "not_configured", "source_setup_required_or_invalid_plan",
-            "collection_failed", "invalid_source_shape",
+            "collection_failed", "invalid_source_shape", "local_daily_budget_exhausted",
         }:
             report["reason"] = reason
         if status != "observed":
@@ -551,7 +552,7 @@ def observe_source_snapshots(
         "name_only_matches_promoted": 0,
         "dated_recent_sample_records": len(recent),
         "dated_recent_sample_by_class": dict(sorted(Counter(x["kind"] for x in recent).items())),
-        "sample_records": records[:40],
+        "sample_records": records[:MAX_SAMPLE_RECORDS],
         "literal_topic_matches_in_sample": len(literal_matches),
         "literal_matching_is_not_semantic_relevance": True,
         "eighteen_lane_coverage": lane_coverage,

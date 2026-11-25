@@ -109,7 +109,7 @@ def plan_source(source: str, *, keyword: str = "", company: str = "",
                 dataset: str = "", country: str = "", identifier: str = "",
                 limit: int = 10, env: dict[str, str] | None = None,
                 lookback_days: int | None = None,
-                discover: bool = False) -> Plan:
+                discover: bool = False, relevance_first: bool = False) -> Plan:
     """Build one bounded request from trusted templates, never an arbitrary URL."""
     if not isinstance(source, str):
         raise IntelligenceError("Source ID must be a string")
@@ -124,7 +124,12 @@ def plan_source(source: str, *, keyword: str = "", company: str = "",
         raise IntelligenceError("Seedless discovery is supported only for OpenAlex works")
     if discover and lookback_days is None:
         raise IntelligenceError("Discovery requires a bounded 7-90 day lookback")
+    if type(relevance_first) is not bool or (
+        relevance_first and (source not in {"openalex", "github_issues"} or discover)
+    ):
+        raise IntelligenceError("Relevance-first ordering requires a seeded OpenAlex or GitHub issue search")
     params = {
+        "relevance_first": relevance_first,
         "discover": discover,
         "lookback_days": lookback_days,
         "keyword": _short(keyword, "keyword", 160, optional=True),

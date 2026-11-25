@@ -7,9 +7,10 @@ No browser manager, paid API, scheduler, or user-secret exposure.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 from fastmcp import FastMCP
+from pydantic import Field
 
 from mcp_trendpulse.intelligence_core import collect, plan_source, source_catalog
 from mcp_trendpulse.intelligence_jobs import normalize_jobs, extract_job_pains
@@ -225,21 +226,28 @@ def intelligence_discover_current(
         "Current free-source activity hunter across 1-4 safe topic seeds and 1-5 "
         "fixed providers. Plan-only by default. execute=True fetches bounded "
         "read-only snapshots from public origins using securely stored local "
-        "credentials where configured. Ranking is topical recent activity, "
-        "never a growth forecast, paid-buyer proof, or success probability."
+        "credentials where configured. Lookback is 7-90 days; sample_limit "
+        "requests 1-10 records per source (maximum 40 per topic). Optional "
+        "relevance_first uses provider-native relevance ordering for GitHub "
+        "issues and OpenAlex without changing dates or quotas. Ranking is "
+        "topical recent activity, never a growth forecast, paid-buyer proof, "
+        "or success probability."
     ),
     annotations=READ_ONLY,
 )
 def intelligence_hunt_current(
     topics: list[str] | None = None,
     sources: list[str] | None = None,
-    lookback_days: int = 30,
+    lookback_days: Annotated[int, Field(strict=True, ge=7, le=90)] = 30,
     execute: bool = False,
+    sample_limit: Annotated[int, Field(strict=True, ge=1, le=10)] = 5,
+    relevance_first: bool = False,
 ) -> dict[str, Any]:
     from mcp_trendpulse.intelligence_hunter import hunt_current
 
     return hunt_current(
         topics, sources, lookback_days=lookback_days, execute=execute,
+        sample_limit=sample_limit, relevance_first=relevance_first,
     )
 
 

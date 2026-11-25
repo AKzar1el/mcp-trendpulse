@@ -118,10 +118,14 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
                     re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}", owner_repo) is None):
                 raise IntelligenceError("GitHub repo selector must be owner/repo")
             query += f" repo:{owner_repo}"
-        url = "https://api.github.com/search/issues?" + urlencode(
-            {"q": query, "per_page": limit,
-             "sort": "created" if p["lookback_days"] is not None else "updated",
-             "order": "desc"})
+        params = {"q": query, "per_page": limit}
+        # GitHub defaults to best match when sort is omitted.
+        if not p.get("relevance_first"):
+            params.update({
+                "sort": "created" if p["lookback_days"] is not None else "updated",
+                "order": "desc",
+            })
+        url = "https://api.github.com/search/issues?" + urlencode(params)
         return Plan(method="GET", url=url, budget_per_day=12, **common)
     if source == "worldbank":
         country = _required(p["country"], "country")
