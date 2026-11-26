@@ -80,6 +80,8 @@ markers = [
 [project.urls]
 Homepage = "https://github.com/AKzar1el/mcp-trendpulse"
 Repository = "https://github.com/AKzar1el/mcp-trendpulse"
+"Project overview" = "https://tomiseregi.si/projects/digestseo-mcp-suite#digestseo-system-trendpulse"
+"DigestSEO ecosystem" = "https://digestseo.com/"
 Issues = "https://github.com/AKzar1el/mcp-trendpulse/issues"
 "Demand Brief" = "https://akzar1el.github.io/mcp-trendpulse/#demand-brief"
 
