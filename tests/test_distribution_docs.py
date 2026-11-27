@@ -8,6 +8,14 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_package_metadata_links_to_project_overview_and_ecosystem():
+    project = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    urls = project["urls"]
+    assert urls["Homepage"] == "https://github.com/AKzar1el/mcp-trendpulse"
+    assert urls["Project overview"] == "https://tomiseregi.si/projects/digestseo-mcp-suite#digestseo-system-trendpulse"
+    assert urls["DigestSEO ecosystem"] == "https://digestseo.com/"
+
+
 def test_install_docs_use_published_pypi_package():
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     agent_guide = (PROJECT_ROOT / "llms-install.md").read_text(encoding="utf-8")
