@@ -270,3 +270,69 @@ def test_topic_comparison_markdown_and_exclusive_save(tmp_path):
     assert "Energy" not in report and "Sports" not in report
     assert _compare(tmp_path, older, newer, *args).exit_code == 1
     assert destination.read_text(encoding="utf-8") == report
+
+
+@pytest.mark.parametrize("format_name", ["json", "csv", "markdown"])
+@pytest.mark.parametrize("topic", [False, True])
+def test_sort_url_is_opt_in_and_stable_across_permutations(tmp_path, format_name, topic):
+    older = [_item("AI old Z", "z"), _item("AI old A", "A"),
+             _item("AI before D", "d"), _item("Before B", "b")]
+    newer = [_item("AI new Y", "y"), _item("AI new C", "c"),
+             _item("Retitled D", "d"), _item("AI after B", "b")]
+    args = ["--format", format_name]
+    if topic:
+        args += ["--contains", "AI"]
+    default = _compare(tmp_path, _capture(*older), _capture(*newer), *args)
+    reversed_default = _compare(tmp_path, _capture(*reversed(older)),
+                                _capture(*reversed(newer)), *args)
+    assert default.exit_code == reversed_default.exit_code == 0
+    assert default.output != reversed_default.output
+    sorted_report = _compare(tmp_path, _capture(*older), _capture(*newer), *args, "--sort-url")
+    reversed_sorted = _compare(tmp_path, _capture(*reversed(older)),
+                               _capture(*reversed(newer)), *args, "--sort-url")
+    assert sorted_report.exit_code == reversed_sorted.exit_code == 0, sorted_report.output
+    assert sorted_report.output == reversed_sorted.output
+    assert "first" in sorted_report.output.lower()
+    assert "chronolog" in sorted_report.output.lower()
+    if format_name == "json":
+        report = json.loads(sorted_report.output)
+        assert report["row_order"] == "exact_url_ascending_within_status"
+        assert report["summary"] == json.loads(default.output)["summary"]
+        for group, slugs in (("newly_seen", ["c", "y"]), ("still_seen", ["b", "d"]),
+                             ("not_seen_in_newer", ["A", "z"])):
+            assert [row["url"].rsplit("/", 1)[-1] for row in report[group]] == slugs
+        assert "row_order" not in json.loads(default.output)
+    elif format_name == "csv":
+        rows = list(csv.DictReader(io.StringIO(sorted_report.output)))
+        assert all(row["row_order"] == "exact_url_ascending_within_status" for row in rows)
+        assert [row["url"].rsplit("/", 1)[-1] for row in rows[1:]] == ["c", "y", "b", "d", "A", "z"]
+        assert "row_order" not in next(csv.DictReader(io.StringIO(default.output)))
+    else:
+        assert "exact URL" in sorted_report.output
+        assert "URL order:" not in default.output
+
+
+def test_sort_url_keeps_first_duplicate_and_csv_safety(tmp_path):
+    older = _capture(_item("=AI first", "b"), _item("AI second", "b"),
+                     _item("AI other", "a"))
+    newer = _capture(_item("AI retitle", "b"), _item("AI other", "a"))
+    result = _compare(tmp_path, older, newer, "--contains", "AI", "--sort-url", "--format", "csv")
+    assert result.exit_code == 2, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert rows[0]["older_duplicate_urls"] == "1"
+    assert rows[0]["retitled_same_url"] == "1"
+    assert rows[2]["old_title"] == "'=AI first"
+    assert rows[2]["title_changed"] == "true"
+
+
+def test_sort_url_empty_and_exclusive_output(tmp_path):
+    destination = tmp_path / "sorted.json"
+    args = ("--sort-url", "--format", "json", "--output-file", str(destination))
+    result = _compare(tmp_path, _capture(), _capture(), *args)
+    assert result.exit_code == 2, result.output
+    report = destination.read_bytes()
+    data = json.loads(report)
+    assert data["row_order"] == "exact_url_ascending_within_status"
+    assert data["summary"]["older_empty"] and data["summary"]["newer_empty"]
+    assert _compare(tmp_path, _capture(), _capture(), *args).exit_code == 1
+    assert destination.read_bytes() == report
