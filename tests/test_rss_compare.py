@@ -5,9 +5,11 @@ import io
 import json
 from unittest.mock import patch
 
+import pytest
 from click.testing import CliRunner
 
 from mcp_trendpulse.cli import cli
+from mcp_trendpulse.rss_compare import compare_saved_rss_headlines
 
 
 def _item(name, slug, **overrides):
@@ -39,6 +41,7 @@ def test_rss_compare_exact_url_delta_is_not_a_demand_claim(tmp_path):
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
     assert report["comparison_method"] == "exact_url_membership"
+    assert "filter" not in report
     assert report["summary"]["newly_seen"] == 1
     assert report["summary"]["still_seen"] == 1
     assert report["summary"]["not_seen_in_newer"] == 1
@@ -180,3 +183,90 @@ def test_rss_compare_csv_empty_has_visible_limitations_and_save_new_only(tmp_pat
                      _capture(_item("B", "b")), "--format", "csv",
                      "--output-file", str(destination))
     assert again.exit_code != 0
+
+
+def test_topic_comparison_preserves_retitle_membership_and_source_quality(tmp_path):
+    older = _capture(_item("AI old", "a"), _item("Energy", "b", publisher=None),
+                     _item("AI before", "c"), _item("Unrelated", "c"),
+                     _item("Before", "f"))
+    newer = _capture(_item("Sports", "d"), _item("Rebranded", "c"),
+                     _item("ai new", "e"), _item("AI after", "f"))
+    result = _compare(tmp_path, older, newer, "--contains", " aI ", "--format", "json")
+    assert result.exit_code == 2, result.output
+    report = json.loads(result.output)
+    assert report["filter"] == {
+        "contains": "aI", "method": "casefold_literal_substring_url_union",
+        "older_matched_urls": 2, "newer_matched_urls": 2, "selected_unique_urls": 4,
+    }
+    assert report["summary"] == {
+        "older_unique_urls": 3, "newer_unique_urls": 3, "newly_seen": 1,
+        "still_seen": 2, "not_seen_in_newer": 1, "retitled_same_url": 2,
+        "older_duplicate_urls": 1, "newer_duplicate_urls": 0,
+        "older_missing_metadata": 1, "newer_missing_metadata": 0,
+        "older_empty": False, "newer_empty": False,
+    }
+    assert report["source_capture_quality"]["older"]["unique_urls"] == 4
+    assert report["source_capture_quality"]["older"]["missing_publishers"] == 1
+    assert report["source_capture_quality"]["newer"]["unique_urls"] == 4
+    assert [row["title"] for row in report["still_seen"]] == ["Rebranded", "AI after"]
+    assert report["source_authenticated"] is False
+
+
+def test_topic_comparison_no_matches_requires_review_without_fake_empty_capture(tmp_path):
+    result = _compare(tmp_path, _capture(_item("Energy", "a")),
+                      _capture(_item("Sports", "b")), "--contains", "AI", "--format", "json")
+    assert result.exit_code == 2, result.output
+    report = json.loads(result.output)
+    assert report["filter"]["selected_unique_urls"] == 0
+    assert report["summary"]["older_unique_urls"] == report["summary"]["newer_unique_urls"] == 0
+    assert report["summary"]["older_empty"] is report["summary"]["newer_empty"] is False
+    assert "not evidence of absent" in " ".join(report["caveats"])
+
+
+@pytest.mark.parametrize("value", ["", "   ", "a\nb", "x" * 121, 123])
+def test_topic_comparison_rejects_invalid_filter(value):
+    raw = json.dumps(_capture(_item("AI", "a"))).encode()
+    with pytest.raises(ValueError, match="1-120 printable"):
+        compare_saved_rss_headlines(raw, raw, contains=value)
+
+
+def test_topic_comparison_validates_nonmatching_records(tmp_path):
+    result = _compare(tmp_path, _capture(_item("AI", "a")),
+                      _capture(_item("Sports", "b", url="https://example.invalid/rss/articles/b")),
+                      "--contains", "AI", "--format", "json")
+    assert result.exit_code == 1, result.output
+    assert "comparison failed" in result.output.lower()
+    assert '"newly_seen"' not in result.output
+
+
+def test_topic_comparison_csv_escapes_filter_and_preserves_scope(tmp_path):
+    result = _compare(tmp_path, _capture(_item("=AI before", "a"), _item("Energy", "b")),
+                      _capture(_item("Rebranded", "a"), _item("Sports", "c")),
+                      "--contains", "=AI", "--format", "csv")
+    assert result.exit_code == 0, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    assert len(rows) == 2
+    assert rows[0]["filter_contains"] == "'=AI"
+    assert rows[0]["filter_method"] == "casefold_literal_substring_url_union"
+    assert rows[0]["older_source_unique_urls"] == "2"
+    assert rows[0]["newer_source_unique_urls"] == "2"
+    assert rows[0]["selected_unique_urls"] == "1"
+    assert rows[1]["status"] == "still_seen"
+    assert rows[1]["old_title"] == "'=AI before"
+    assert rows[1]["title_changed"] == "true"
+
+
+def test_topic_comparison_markdown_and_exclusive_save(tmp_path):
+    destination = tmp_path / "topic.md"
+    args = ("--contains", "[AI]", "--output-file", str(destination))
+    older = _capture(_item("[AI] before", "a"), _item("Energy", "b"))
+    newer = _capture(_item("Rebranded", "a"), _item("Sports", "c"))
+    result = _compare(tmp_path, older, newer, *args)
+    assert result.exit_code == 0, result.output
+    report = destination.read_text(encoding="utf-8")
+    assert "\\[AI\\]" in report
+    assert "source-wide" in report.lower()
+    assert "retitled URL:** 1" in report
+    assert "Energy" not in report and "Sports" not in report
+    assert _compare(tmp_path, older, newer, *args).exit_code == 1
+    assert destination.read_text(encoding="utf-8") == report

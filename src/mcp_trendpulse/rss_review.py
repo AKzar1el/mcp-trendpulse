@@ -66,15 +66,20 @@ def _publisher_breakdown(headlines, *, scope):
     }
 
 
+def _validate_headline_filter(contains):
+    if contains is not None:
+        if not isinstance(contains, str) or not contains.strip() or len(contains) > 120 or not contains.isprintable():
+            raise ValueError("RSS headline filter must be 1-120 printable characters")
+        return contains.strip()
+    return None
+
+
 def review_saved_rss_headlines(raw, *, output_format="markdown", contains=None,
                                publisher_breakdown=False):
     """Return a validated offline report and whether manual review is needed."""
     if output_format not in ("markdown", "json", "csv"):
         raise ValueError("Unsupported RSS review format")
-    if contains is not None:
-        if not isinstance(contains, str) or not contains.strip() or len(contains) > 120 or not contains.isprintable():
-            raise ValueError("RSS headline filter must be 1-120 printable characters")
-        contains = contains.strip()
+    contains = _validate_headline_filter(contains)
     if len(raw) > MAX_RSS_EVIDENCE_BYTES:
         raise ValueError("Saved RSS evidence exceeds 1 MiB")
     try:
