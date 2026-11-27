@@ -6,19 +6,35 @@ import json
 
 from mcp_trendpulse.brief_audit import _csv_safe
 from mcp_trendpulse.brief_review import _markdown_safe
-from mcp_trendpulse.rss_review import review_saved_rss_headlines
+from mcp_trendpulse.rss_review import _validate_headline_filter, review_saved_rss_headlines
 
 
-def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown"):
+def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown", contains=None):
     """Compare declared old/new capture membership, not article or demand changes."""
     if output_format not in ("markdown", "json", "csv"):
         raise ValueError("Unsupported RSS comparison format")
+    contains = _validate_headline_filter(contains)
     older_text, older_attention = review_saved_rss_headlines(older_raw, output_format="json")
     newer_text, newer_attention = review_saved_rss_headlines(newer_raw, output_format="json")
     older = json.loads(older_text)
     newer = json.loads(newer_text)
     old_rows = {row["url"]: row for row in older["headlines"]}
     new_rows = {row["url"]: row for row in newer["headlines"]}
+    source_quality = {"older": older["summary"], "newer": newer["summary"]}
+    filter_info = None
+    if contains is not None:
+        needle = contains.casefold()
+        old_matches = {url for url, row in old_rows.items() if needle in row["title"].casefold()}
+        new_matches = {url for url, row in new_rows.items() if needle in row["title"].casefold()}
+        selected = old_matches | new_matches
+        filter_info = {
+            "contains": contains, "method": "casefold_literal_substring_url_union",
+            "older_matched_urls": len(old_matches), "newer_matched_urls": len(new_matches),
+            "selected_unique_urls": len(selected),
+        }
+        # Select membership by either capture's title, then retain both sides of a matching URL.
+        old_rows = {url: row for url, row in old_rows.items() if url in selected}
+        new_rows = {url: row for url, row in new_rows.items() if url in selected}
 
     newly_seen = [row for url, row in new_rows.items() if url not in old_rows]
     still_seen = [row for url, row in new_rows.items() if url in old_rows]
@@ -37,8 +53,8 @@ def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown
                                    + older["summary"]["missing_dates"]),
         "newer_missing_metadata": (newer["summary"]["missing_publishers"]
                                    + newer["summary"]["missing_dates"]),
-        "older_empty": not old_rows,
-        "newer_empty": not new_rows,
+        "older_empty": not older["headlines"],
+        "newer_empty": not newer["headlines"],
     }
     result = {
         "schema_version": 1,
@@ -59,6 +75,15 @@ def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown
         ],
     }
     needs_attention = older_attention or newer_attention
+    if filter_info is not None:
+        result["filter"] = filter_info
+        result["source_capture_quality"] = source_quality
+        result["caveats"].extend([
+            "Membership counts are for the union of URLs with a literal title match in either capture; "
+            "duplicate and missing metadata counts and empty flags describe the original captures.",
+            "No matching saved headline is not evidence of absent articles or market demand.",
+        ])
+        needs_attention = needs_attention or not filter_info["selected_unique_urls"]
     if output_format == "json":
         return json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n", needs_attention
 
@@ -69,11 +94,23 @@ def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown
             "new_publisher", "old_publish_date", "new_publish_date", "title_changed",
             *summary.keys(), "comparison_method", "source_authenticated", "limitations",
         ]
+        filter_fields = {}
+        source_fields = {}
+        if filter_info is not None:
+            filter_fields = {
+                "filter_contains": _csv_safe(contains), "filter_method": filter_info["method"],
+                **{key: filter_info[key] for key in (
+                    "older_matched_urls", "newer_matched_urls", "selected_unique_urls")},
+            }
+            source_fields = {f"{capture}_source_{key}": value
+                             for capture, quality in source_quality.items() for key, value in quality.items()}
+            fields.extend([*filter_fields, *source_fields])
         writer = csv.DictWriter(buffer, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         common = {"comparison_method": "exact_url_membership", "source_authenticated": "false"}
         writer.writerow({
             "record_type": "summary", **summary, **common,
+            **filter_fields, **source_fields,
             "limitations": " ".join(result["caveats"]),
         })
         for status, rows in (("newly_seen", newly_seen), ("still_seen", still_seen),
@@ -104,6 +141,16 @@ def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown
               f"**newer duplicate URLs:** {summary['newer_duplicate_urls']}; "
               f"**older missing fields:** {summary['older_missing_metadata']}; "
               f"**newer missing fields:** {summary['newer_missing_metadata']}"), ""]
+    if filter_info is not None:
+        lines[4:4] = [
+            f"**Literal headline filter:** {_markdown_safe(contains)} (case-insensitive; either capture)",
+            (f"**Older title matches:** {filter_info['older_matched_urls']}; "
+             f"**newer title matches:** {filter_info['newer_matched_urls']}; "
+             f"**selected unique URLs:** {filter_info['selected_unique_urls']}"),
+            (f"**Source-wide unique URLs:** older {source_quality['older']['unique_urls']}; "
+             f"newer {source_quality['newer']['unique_urls']}. "
+             "Membership totals below are selected-scope; quality warnings remain source-wide."), "",
+        ]
     for heading, rows in (("Newly seen", newly_seen), ("Still seen (newer metadata)", still_seen),
                           ("Not seen in newer feed window", not_seen)):
         lines.extend([f"## {heading}", "", "| Headline | Publisher | Saved date | Google News URL |",

@@ -818,11 +818,13 @@ def rss_review(evidence, review_format, output_file, contains, publisher_breakdo
               help="User-designated earlier schema-v1 RSS headline JSON file.")
 @click.option("--newer", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True,
               help="User-designated later schema-v1 RSS headline JSON file.")
+@click.option("--contains", type=str, default=None,
+              help="Select URLs whose saved title contains this literal text in either capture (case-insensitive).")
 @click.option("--format", "comparison_format", type=click.Choice(["markdown", "json", "csv"]),
               default="markdown", show_default=True)
 @click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
               help="Save report as a new UTF-8 file without overwriting.")
-def rss_compare(older, newer, comparison_format, output_file):
+def rss_compare(older, newer, comparison_format, output_file, contains):
     """Compare exact saved Google News URLs without a network or provider request."""
     from mcp_trendpulse.rss_compare import compare_saved_rss_headlines
     from mcp_trendpulse.rss_review import MAX_RSS_EVIDENCE_BYTES
@@ -839,7 +841,7 @@ def rss_compare(older, newer, comparison_format, output_file):
         with newer.open("rb") as handle:
             newer_raw = handle.read(MAX_RSS_EVIDENCE_BYTES + 1)
         report, needs_attention = compare_saved_rss_headlines(
-            older_raw, newer_raw, output_format=comparison_format)
+            older_raw, newer_raw, output_format=comparison_format, contains=contains)
     except (OSError, ValueError) as exc:
         raise click.ClickException(f"RSS headline comparison failed: {exc}") from exc
     if output_file is None:
