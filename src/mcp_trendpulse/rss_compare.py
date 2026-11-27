@@ -6,11 +6,12 @@ import json
 
 from mcp_trendpulse.brief_audit import _csv_safe
 from mcp_trendpulse.brief_review import _markdown_safe
-from mcp_trendpulse.rss_review import _validate_headline_filter, review_saved_rss_headlines
+from mcp_trendpulse.rss_review import _publisher_breakdown, _validate_headline_filter, review_saved_rss_headlines
 
 
 def compare_saved_rss_headlines(
-    older_raw, newer_raw, *, output_format="markdown", contains=None, sort_url=False, show_retitles=False
+    older_raw, newer_raw, *, output_format="markdown", contains=None, sort_url=False, show_retitles=False,
+    publisher_breakdown=False,
 ):
     """Compare declared old/new capture membership, not article or demand changes."""
     if output_format not in ("markdown", "json", "csv"):
@@ -101,6 +102,16 @@ def compare_saved_rss_headlines(
             {"url": row["url"], "older_title": old_rows[row["url"]]["title"], "newer_title": row["title"]}
             for row in still_seen if old_rows[row["url"]]["title"] != row["title"]
         ]
+    if publisher_breakdown:
+        scope = "selected_url_union" if filter_info is not None else "all_unique_urls"
+        result["publisher_breakdown"] = {
+            capture: _publisher_breakdown(list(rows.values()), scope=scope)
+            for capture, rows in (("older", old_rows), ("newer", new_rows))
+        }
+        result["caveats"].append(
+            "Saved publisher labels are unverified and not independent corroboration or demand evidence. "
+            "Each capture counts its own deduplicated URLs in scope, including both sides of selected retained URLs."
+        )
     if output_format == "json":
         return json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n", needs_attention
 
@@ -124,6 +135,12 @@ def compare_saved_rss_headlines(
             fields.extend([*filter_fields, *source_fields])
         if sort_url:
             fields.append("row_order")
+        if publisher_breakdown:
+            fields.extend([
+                "publisher_capture", "publisher_scope", "publisher_label", "publisher_headline_count",
+                "publisher_unique_urls", "publisher_unknown_count", "publisher_distinct_named_labels",
+                "publisher_largest_named_label_share_pct",
+            ])
         writer = csv.DictWriter(buffer, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         common = {"comparison_method": "exact_url_membership", "source_authenticated": "false"}
@@ -151,6 +168,24 @@ def compare_saved_rss_headlines(
                     "title_changed": str(bool(old and new and old["title"] != new["title"])).lower(),
                     **common,
                 })
+        if publisher_breakdown:
+            for capture, breakdown in result["publisher_breakdown"].items():
+                publisher_context = {
+                    **common, "publisher_capture": capture, "publisher_scope": breakdown["scope"],
+                }
+                writer.writerow({
+                    **publisher_context, "record_type": "publisher_summary",
+                    "publisher_unique_urls": breakdown["total_unique_urls"],
+                    "publisher_unknown_count": breakdown["unknown_publisher_count"],
+                    "publisher_distinct_named_labels": breakdown["distinct_named_publisher_labels"],
+                    "publisher_largest_named_label_share_pct": breakdown["largest_named_label_share_pct"],
+                })
+                for entry in breakdown["publishers"]:
+                    writer.writerow({
+                        **publisher_context, "record_type": "publisher",
+                        "publisher_label": _csv_safe(entry["publisher"]),
+                        "publisher_headline_count": entry["headlines"],
+                    })
         return buffer.getvalue(), needs_attention
 
     lines = ["# Saved Google News RSS headline comparison (offline)", "",
@@ -192,5 +227,21 @@ def compare_saved_rss_headlines(
         if not result["retitled_urls"]:
             lines.append("| none | - | - |")
         lines.append("")
+    if publisher_breakdown:
+        for capture, breakdown in result["publisher_breakdown"].items():
+            share = breakdown["largest_named_label_share_pct"]
+            share_text = f"{share}%" if share is not None else "unavailable (no headlines)"
+            lines.extend([
+                f"## {capture.capitalize()} saved publisher labels", "",
+                f"**Scope:** {breakdown['scope']}; **unique URLs:** {breakdown['total_unique_urls']}; "
+                f"**unknown labels:** {breakdown['unknown_publisher_count']}",
+                f"**Largest named label share of all URLs in scope:** {share_text}", "",
+                "| Unverified publisher label | Headlines |", "| --- | ---: |",
+            ])
+            for entry in breakdown["publishers"]:
+                lines.append(f"| {_markdown_safe(entry['publisher'])} | {entry['headlines']} |")
+            if not breakdown["publishers"]:
+                lines.append("| none | - |")
+            lines.append("")
     lines.extend(["## Evidence limitations", "", *[f"- {caveat}" for caveat in result["caveats"]]])
     return "\n".join(lines) + "\n", needs_attention

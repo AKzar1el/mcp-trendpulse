@@ -60,6 +60,79 @@ def test_rss_compare_empty_newer_is_not_article_disappearance(tmp_path):
     assert "feed window" in " ".join(report["caveats"]).lower()
 
 
+def test_rss_compare_publisher_breakdown_selected_union(tmp_path):
+    older = _capture(_item("AI before", "a", publisher=" Example "),
+                     _item("Other before", "b", publisher="example"),
+                     _item("Ignore duplicate", "a", publisher="Ignored"),
+                     _item("Unrelated", "c", publisher="Outside"))
+    newer = _capture(_item("Other after", "a", publisher="New label"),
+                     _item("AI after", "b", publisher=None),
+                     _item("Unrelated", "c", publisher="Outside"))
+    result = _compare(tmp_path, older, newer, "--contains", "ai", "--sort-url",
+                      "--publisher-breakdown", "--format", "json")
+    assert result.exit_code == 2, result.output
+    report = json.loads(result.output)
+    breakdown = report["publisher_breakdown"]
+    assert breakdown["older"] == {
+        "scope": "selected_url_union", "total_unique_urls": 2,
+        "unknown_publisher_count": 0, "distinct_named_publisher_labels": 1,
+        "largest_named_label_share_pct": 100.0,
+        "publishers": [{"publisher": "Example", "headlines": 2}],
+    }
+    assert breakdown["newer"]["publishers"] == [{"publisher": "New label", "headlines": 1}]
+    assert breakdown["newer"]["unknown_publisher_count"] == 1
+    assert breakdown["newer"]["largest_named_label_share_pct"] == 50.0
+    assert report["source_capture_quality"]["older"]["unique_urls"] == 3
+    assert "not independent corroboration" in " ".join(report["caveats"])
+
+
+def test_rss_compare_publisher_breakdown_empty_selection(tmp_path):
+    result = _compare(tmp_path, _capture(_item("A", "a")), _capture(_item("B", "b")),
+                      "--contains", "missing", "--publisher-breakdown", "--format", "json")
+    assert result.exit_code == 2, result.output
+    for breakdown in json.loads(result.output)["publisher_breakdown"].values():
+        assert breakdown["total_unique_urls"] == 0
+        assert breakdown["largest_named_label_share_pct"] is None
+        assert breakdown["publishers"] == []
+
+
+def test_rss_compare_publisher_breakdown_csv_scope_and_formula_escaping(tmp_path):
+    result = _compare(tmp_path, _capture(_item("A", "a", publisher="=1+1")),
+                      _capture(_item("B", "a", publisher=None)),
+                      "--publisher-breakdown", "--format", "csv")
+    assert result.exit_code == 2, result.output
+    rows = list(csv.DictReader(io.StringIO(result.output)))
+    summaries = {row["publisher_capture"]: row for row in rows
+                 if row["record_type"] == "publisher_summary"}
+    assert summaries["older"]["publisher_scope"] == "all_unique_urls"
+    assert summaries["newer"]["publisher_unknown_count"] == "1"
+    publishers = [row for row in rows if row["record_type"] == "publisher"]
+    assert len(publishers) == 1
+    assert publishers[0]["publisher_capture"] == "older"
+    assert publishers[0]["publisher_label"] == "'=1+1"
+    assert publishers[0]["publisher_headline_count"] == "1"
+
+
+def test_rss_compare_publisher_breakdown_markdown_escapes_labels(tmp_path):
+    result = _compare(tmp_path, _capture(_item("A", "a", publisher="A | [label]")),
+                      _capture(), "--publisher-breakdown")
+    assert result.exit_code == 2, result.output
+    assert "## Older saved publisher labels" in result.output
+    assert "## Newer saved publisher labels" in result.output
+    assert r"A \| \[label\]" in result.output
+    assert "unavailable (no headlines)" in result.output
+
+
+@pytest.mark.parametrize("output_format", ["json", "csv", "markdown"])
+def test_rss_compare_publisher_breakdown_is_opt_in(tmp_path, output_format):
+    result = _compare(tmp_path, _capture(_item("A", "a")), _capture(_item("B", "a")),
+                      "--format", output_format)
+    assert result.exit_code == 0, result.output
+    assert "publisher_breakdown" not in result.output
+    assert "publisher_capture" not in result.output
+    assert "saved publisher labels" not in result.output
+
+
 @pytest.mark.parametrize("sort_url", [False, True])
 def test_rss_compare_opt_in_retitles_respects_topic_and_order(tmp_path, sort_url):
     older = _capture(_item("AI before Z", "z"), _item("Before A", "a"),
