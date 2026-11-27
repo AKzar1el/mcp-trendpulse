@@ -359,6 +359,8 @@ Add `--contains "AI"` to `rss-compare` for an opt-in topic comparison in any of 
 
 Add `--sort-url` to make JSON, CSV or Markdown evidence diffs easier to review: exact URL strings are sorted ascending within each membership status, including when `--contains` is used. Default capture ordering is unchanged. Sorting is not chronology or RSS rank and happens after validation and first-record deduplication; conflicting duplicate records can still affect results and require review.
 
+Add `--show-retitles` to include older and newer saved headline pairs for retained exact URLs whose titles differ in JSON or Markdown. The details respect `--contains`, `--sort-url` and first-record deduplication; CSV already includes both titles and is unchanged. An empty detail list does not establish that a publisher made no edits. Omitting the option preserves the existing report format.
+
 **Source checkout (not yet in the published PyPI version):** Extracted-article CLI commands print results without creating JSON files. To opt into file export, pass `--save-json-dir` with an existing directory, for example `uv run mcp-trendpulse-cli keyword "OpenAI" --save-json-dir ./exports`. Output filenames include a short URL hash to distinguish similarly titled articles; existing files are never overwritten, and duplicate destinations or export failures produce errors. The `--headlines-only` mode only exports RSS metadata, not extracted article JSON.
 
 The operator-only `bigquery-sql` command generates a fixed-table, partition-filtered SQL preview for Google's official public Top 25 / Rising datasets. It never submits a job or incurs API usage automatically. See `docs/bigquery-trends.md` for sandbox, query-cost guardrails, and market-coverage limitations.
