@@ -36,6 +36,27 @@ def test_cli_docs_include_brief_pack_fulfillment_command():
     assert "human-produced brief" in cli_section
 
 
+def test_offline_rss_and_watch_docs_distinguish_published_and_source_options():
+    lines = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").splitlines()
+    published = "**Published in PyPI 0.3.1:**"
+    source = "**Source checkout (not in PyPI 0.3.1):**"
+    for snippet in (
+        "Saved headline-only JSON can be reviewed",
+        "To prepare a narrower offline research reading list",
+        "Add `--publisher-breakdown` to `rss-review`",
+        "rss-review --evidence rss-headlines.json --format csv",
+        "Compare two explicitly saved headline-only captures",
+        "For multiple local Watch rules",
+    ):
+        line = next(line for line in lines if snippet in line)
+        assert line.startswith(published), snippet
+    for command in ("rss-review --evidence", "rss-compare --older", "watch preview-all --evidence"):
+        assert any(f"uvx --from mcp-trendpulse==0.3.1 mcp-trendpulse-cli {command}" in line for line in lines)
+    for snippet in ('Add `--contains "AI"` to `rss-compare`', "Add `--sort-url`", "Add `--show-retitles`"):
+        line = next(line for line in lines if snippet in line)
+        assert line.startswith(source), snippet
+
+
 def test_windows_brief_pack_capture_instructions_are_source_only_and_safe():
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     cli_section = readme.split("## CLI", 1)[1].split("## Development", 1)[0]
