@@ -821,11 +821,12 @@ def rss_review(evidence, review_format, output_file, contains, publisher_breakdo
 @click.option("--contains", type=str, default=None,
               help="Select URLs whose saved title contains this literal text in either capture (case-insensitive).")
 @click.option("--sort-url", is_flag=True, help="Order exact URLs within each status instead of capture order.")
+@click.option("--show-retitles", is_flag=True, help="Include older/newer saved headline pairs in JSON or Markdown.")
 @click.option("--format", "comparison_format", type=click.Choice(["markdown", "json", "csv"]),
               default="markdown", show_default=True)
 @click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), default=None,
               help="Save report as a new UTF-8 file without overwriting.")
-def rss_compare(older, newer, comparison_format, output_file, contains, sort_url):
+def rss_compare(older, newer, comparison_format, output_file, contains, sort_url, show_retitles):
     """Compare exact saved Google News URLs without a network or provider request."""
     from mcp_trendpulse.rss_compare import compare_saved_rss_headlines
     from mcp_trendpulse.rss_review import MAX_RSS_EVIDENCE_BYTES
@@ -842,7 +843,8 @@ def rss_compare(older, newer, comparison_format, output_file, contains, sort_url
         with newer.open("rb") as handle:
             newer_raw = handle.read(MAX_RSS_EVIDENCE_BYTES + 1)
         report, needs_attention = compare_saved_rss_headlines(
-            older_raw, newer_raw, output_format=comparison_format, contains=contains, sort_url=sort_url)
+            older_raw, newer_raw, output_format=comparison_format, contains=contains,
+            sort_url=sort_url, show_retitles=show_retitles)
     except (OSError, ValueError) as exc:
         raise click.ClickException(f"RSS headline comparison failed: {exc}") from exc
     if output_file is None:

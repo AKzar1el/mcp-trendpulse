@@ -9,7 +9,9 @@ from mcp_trendpulse.brief_review import _markdown_safe
 from mcp_trendpulse.rss_review import _validate_headline_filter, review_saved_rss_headlines
 
 
-def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown", contains=None, sort_url=False):
+def compare_saved_rss_headlines(
+    older_raw, newer_raw, *, output_format="markdown", contains=None, sort_url=False, show_retitles=False
+):
     """Compare declared old/new capture membership, not article or demand changes."""
     if output_format not in ("markdown", "json", "csv"):
         raise ValueError("Unsupported RSS comparison format")
@@ -94,6 +96,11 @@ def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown
             "No matching saved headline is not evidence of absent articles or market demand.",
         ])
         needs_attention = needs_attention or not filter_info["selected_unique_urls"]
+    if show_retitles and output_format != "csv":
+        result["retitled_urls"] = [
+            {"url": row["url"], "older_title": old_rows[row["url"]]["title"], "newer_title": row["title"]}
+            for row in still_seen if old_rows[row["url"]]["title"] != row["title"]
+        ]
     if output_format == "json":
         return json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n", needs_attention
 
@@ -175,6 +182,15 @@ def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown
             lines.append("| " + " | ".join(_markdown_safe(cell) for cell in cells) + " |")
         if not rows:
             lines.append("| none | - | - | - |")
+        lines.append("")
+    if show_retitles:
+        lines.extend(["## Retitled URLs", "", "| Older saved headline | Newer saved headline | Google News URL |",
+                      "| --- | --- | --- |"])
+        for row in result["retitled_urls"]:
+            cells = (row["older_title"], row["newer_title"], row["url"])
+            lines.append("| " + " | ".join(_markdown_safe(cell) for cell in cells) + " |")
+        if not result["retitled_urls"]:
+            lines.append("| none | - | - |")
         lines.append("")
     lines.extend(["## Evidence limitations", "", *[f"- {caveat}" for caveat in result["caveats"]]])
     return "\n".join(lines) + "\n", needs_attention

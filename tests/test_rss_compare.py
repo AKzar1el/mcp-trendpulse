@@ -60,6 +60,66 @@ def test_rss_compare_empty_newer_is_not_article_disappearance(tmp_path):
     assert "feed window" in " ".join(report["caveats"]).lower()
 
 
+@pytest.mark.parametrize("sort_url", [False, True])
+def test_rss_compare_opt_in_retitles_respects_topic_and_order(tmp_path, sort_url):
+    older = _capture(_item("AI before Z", "z"), _item("Before A", "a"),
+                     _item("AI unchanged", "same"), _item("Other", "other"))
+    newer = _capture(_item("After Z", "z"), _item("AI after A", "a"),
+                     _item("AI unchanged", "same"), _item("Other new", "other"))
+    args = ["--format", "json", "--contains", "ai"]
+    if sort_url:
+        args.append("--sort-url")
+    baseline = _compare(tmp_path, older, newer, *args)
+    result = _compare(tmp_path, older, newer, *args, "--show-retitles")
+    assert result.exit_code == baseline.exit_code == 0, result.output
+    report = json.loads(result.output)
+    expected = [
+        {"url": "https://news.google.com/rss/articles/z", "older_title": "AI before Z", "newer_title": "After Z"},
+        {"url": "https://news.google.com/rss/articles/a", "older_title": "Before A", "newer_title": "AI after A"},
+    ]
+    if sort_url:
+        expected.reverse()
+    assert report.pop("retitled_urls") == expected
+    assert report == json.loads(baseline.output)
+
+
+def test_rss_compare_retitles_uses_first_record_and_escapes_markdown(tmp_path):
+    older = _capture(_item("Old | [link]", "a"), _item("Ignore duplicate", "a"))
+    newer = _capture(_item("New *headline*", "a", publisher=None))
+    result = _compare(tmp_path, older, newer, "--show-retitles")
+    assert result.exit_code == 2, result.output
+    assert "## Retitled URLs" in result.output
+    assert r"Old \| \[link\]" in result.output
+    assert r"New \*headline\*" in result.output
+    assert "Ignore duplicate" not in result.output
+    assert "not prove editorial" in result.output
+
+
+@pytest.mark.parametrize("sort_url", [False, True])
+def test_rss_compare_show_retitles_leaves_csv_unchanged(tmp_path, sort_url):
+    older = _capture(_item("=AI old", "a"))
+    newer = _capture(_item("+AI new", "a"))
+    args = ["--format", "csv", "--contains", "AI"]
+    if sort_url:
+        args.append("--sort-url")
+    baseline = _compare(tmp_path, older, newer, *args)
+    result = _compare(tmp_path, older, newer, *args, "--show-retitles")
+    assert result.exit_code == baseline.exit_code == 0, result.output
+    assert result.output == baseline.output
+
+
+def test_rss_compare_opt_in_empty_retitles_and_no_overwrite(tmp_path):
+    capture = _capture(_item("Same", "a"))
+    result = _compare(tmp_path, capture, capture, "--format", "json", "--show-retitles")
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["retitled_urls"] == []
+    destination = tmp_path / "existing.json"
+    destination.write_text("preserve", encoding="utf-8")
+    result = _compare(tmp_path, capture, capture, "--show-retitles", "--output-file", str(destination))
+    assert result.exit_code != 0
+    assert destination.read_text(encoding="utf-8") == "preserve"
+
+
 def test_rss_compare_duplicate_capture_marks_review_needed(tmp_path):
     result = _compare(tmp_path, _capture(_item("First", "a"), _item("Duplicate", "a")),
                       _capture(_item("First", "a")), "--format", "json")
