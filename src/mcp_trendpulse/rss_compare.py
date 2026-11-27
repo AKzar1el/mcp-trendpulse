@@ -9,7 +9,7 @@ from mcp_trendpulse.brief_review import _markdown_safe
 from mcp_trendpulse.rss_review import _validate_headline_filter, review_saved_rss_headlines
 
 
-def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown", contains=None):
+def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown", contains=None, sort_url=False):
     """Compare declared old/new capture membership, not article or demand changes."""
     if output_format not in ("markdown", "json", "csv"):
         raise ValueError("Unsupported RSS comparison format")
@@ -39,6 +39,10 @@ def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown
     newly_seen = [row for url, row in new_rows.items() if url not in old_rows]
     still_seen = [row for url, row in new_rows.items() if url in old_rows]
     not_seen = [row for url, row in old_rows.items() if url not in new_rows]
+    if sort_url:
+        # Order only after first-record deduplication, membership and topic selection.
+        for rows in (newly_seen, still_seen, not_seen):
+            rows.sort(key=lambda row: row["url"])
     changed_titles = sum(old_rows[row["url"]]["title"] != row["title"] for row in still_seen)
     summary = {
         "older_unique_urls": len(old_rows),
@@ -75,6 +79,12 @@ def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown
         ],
     }
     needs_attention = older_attention or newer_attention
+    if sort_url:
+        result["row_order"] = "exact_url_ascending_within_status"
+        result["caveats"].append(
+            "URL order: exact URL ascending within each status, not chronology or RSS rank. "
+            "Conflicting duplicate URLs still use the first validated record."
+        )
     if filter_info is not None:
         result["filter"] = filter_info
         result["source_capture_quality"] = source_quality
@@ -105,9 +115,13 @@ def compare_saved_rss_headlines(older_raw, newer_raw, *, output_format="markdown
             source_fields = {f"{capture}_source_{key}": value
                              for capture, quality in source_quality.items() for key, value in quality.items()}
             fields.extend([*filter_fields, *source_fields])
+        if sort_url:
+            fields.append("row_order")
         writer = csv.DictWriter(buffer, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         common = {"comparison_method": "exact_url_membership", "source_authenticated": "false"}
+        if sort_url:
+            common["row_order"] = result["row_order"]
         writer.writerow({
             "record_type": "summary", **summary, **common,
             **filter_fields, **source_fields,
