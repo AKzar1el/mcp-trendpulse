@@ -42,8 +42,8 @@ def make_graph():
     return g,claim,old,notice,new,supporting,change
 
 
-def prior_graph(g, claim, old, supporting):
-    return build_claim_graph(as_of="2026-11-27T12:00:00Z",sources=[old[0],supporting[0]],
+def prior_graph(g, claim, old, supporting, as_of="2026-11-27T12:00:00Z"):
+    return build_claim_graph(as_of=as_of,sources=[old[0],supporting[0]],
                              evidence=[old[1],supporting[1]],claims=[claim],relations=g.relations,
                              document_texts={old[0].source_revision_id:old[2],
                                              supporting[0].source_revision_id:supporting[2]})
@@ -82,7 +82,7 @@ def test_revision_kinds_and_required_successors(kind,successor):
 
 
 def test_no_notice_or_future_event_or_missing_claim():
-    g,c,old,notice,new,change = make_graph()
+    g,c,old,notice,new,supporting,change = make_graph()
     bad = SourceChange(**{**change.model_dump(),"change_id":None,"notice_anchor_id":old[1].evidence_id})
     with pytest.raises(ValueError,match="checked, captured"):
         track_source_changes(g,as_of=CUT,changes=[bad])
@@ -95,7 +95,7 @@ def test_no_notice_or_future_event_or_missing_claim():
 
 
 def test_locator_must_match_exact_notice_and_successor():
-    g,c,old,notice,new,change = make_graph()
+    g,c,old,notice,new,supporting,change = make_graph()
     bad = SourceChange(**{**change.model_dump(),"change_id":None,"target_locator_text":"Invented source"})
     with pytest.raises(ValueError,match="exact revision reference"):
         track_source_changes(g,as_of=CUT,changes=[bad])
@@ -105,15 +105,15 @@ def test_locator_must_match_exact_notice_and_successor():
 
 
 def test_claim_must_really_reference_target_revision():
-    g,c,old,notice,new,change = make_graph()
+    g,c,old,notice,new,supporting,change = make_graph()
     bad = SourceChange(**{**change.model_dump(),"change_id":None,"target_revision_id":notice[0].source_revision_id})
     with pytest.raises(ValueError,match="not linked to target"):
         track_source_changes(g,as_of=CUT,changes=[bad])
 
 
 def test_assessment_temporal_order_is_not_inferred():
-    g,c,old,notice,new,change = make_graph()
-    prior = assess_claim_evidence(prior_graph(g,c,old,supporting),as_of="2026-11-27T12:00:00Z")
+    g,c,old,notice,new,supporting,change = make_graph()
+    prior = assess_claim_evidence(prior_graph(g,c,old,supporting,as_of=CUT),as_of=CUT)
     result = track_source_changes(g,as_of=CUT,changes=[change],previous_assessment=prior)
     state = result["affected_claims"][0]["changes"][0]["reassessment_state"]
     assert state == "temporal_order_does_not_establish_inclusion"
@@ -143,7 +143,7 @@ def test_change_cycle_rejected():
 
 
 def test_prior_assessment_fingerprint_scope_and_immutability():
-    g,c,old,notice,new,change = make_graph()
+    g,c,old,notice,new,supporting,change = make_graph()
     prior = assess_claim_evidence(prior_graph(g,c,old,supporting),as_of="2026-11-27T12:00:00Z")
     tampered = {**prior,"assessments":[]}
     tampered["report_id"] = _digest({k:v for k,v in tampered.items() if k!="report_id"})
