@@ -7,7 +7,6 @@ annotations. No network, model sampling, persistence, or tool invocation.
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from datetime import date, datetime
 from typing import Literal
@@ -17,6 +16,7 @@ from pydantic import Field, field_validator, model_validator
 from mcp_trendpulse.news_intelligence_schema import (
     Digest, FrozenModel, NewsArticle, _digest, _text, _url, _utc,
 )
+from mcp_trendpulse.rss_url_validation import is_google_news_rss_url
 
 MAX_SOURCES = 80
 MAX_CLAIMS = 80
@@ -97,6 +97,8 @@ class SourceRevision(FrozenModel):
                 raise ValueError("News source must preserve the original headline observation")
         elif self.observation is not None or not self.revision_label:
             raise ValueError("Document needs an explicit caller revision label")
+        elif is_google_news_rss_url(self.url):
+            raise ValueError("RSS discovery URL is not a document revision citation")
         has_digest = self.text_sha256 is not None and self.text_character_count is not None
         if self.retention == "metadata_only":
             if self.text_sha256 is not None or self.text_character_count is not None:
@@ -345,11 +347,19 @@ class ClaimEvidenceGraph(FrozenModel):
                     raise ValueError("Unsupported evaluative relation for noncheckable claim")
                 if claim.origin_evidence_id in edge.evidence_ids:
                     raise ValueError("Claim appearance itself cannot be verification evidence")
+                origin = evidence[claim.origin_evidence_id]
                 for eid in edge.evidence_ids:
-                    source = sources[evidence[eid].source_revision_id]
+                    anchor = evidence[eid]
+                    source = sources[anchor.source_revision_id]
                     if (checks[eid].status != "checked_against_supplied_text"
-                            or source.source_kind not in ("primary_document", "secondary_reporting")):
-                        raise ValueError("Support or contradiction needs checked document evidence")
+                            or source.source_kind not in ("primary_document", "secondary_reporting")
+                            or source.captured_at is None):
+                        raise ValueError("Support or contradiction needs checked document evidence with known capture")
+                    if anchor.source_revision_id == origin.source_revision_id:
+                        if origin.selector == "document_locator" or (
+                            anchor.start < origin.end and origin.start < anchor.end
+                        ):
+                            raise ValueError("Overlapping or unresolved claim appearance cannot be verification evidence")
         _identity(self, "graph_id", self.model_dump(mode="json", exclude={"graph_id"}))
         return self
 
