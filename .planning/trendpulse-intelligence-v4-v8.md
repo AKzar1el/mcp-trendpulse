@@ -137,7 +137,7 @@ Reviewed for planning (not a live provider contract/permission test):
 | Phase | State | Next evidence |
 | --- | --- | --- |
 | V4 | IN_PROGRESS | V4.07 integrated workflow, full offline CI and bounded Google/NASA smoke verified; implementation 7/7; live GDELT/publisher and held-out acceptance open; proceed V5.01 offline |
-| V5 | IN_PROGRESS | V5.02 deterministic numeric extraction baseline committed; final CI verification and broader held-out extraction acceptance pending |
+| V5 | IN_PROGRESS | V5.02 numeric extraction baseline and final CI verified; broader held-out extraction acceptance open; proceed V5.03 |
 | V6 | NOT_STARTED | Reuse map of M00–M14 and source comparability |
 | V7 | NOT_STARTED | V6 history and independently labeled outcome availability |
 | V8 | NOT_STARTED | Predeclare benchmark early; execute release review after core |
@@ -231,3 +231,5 @@ Live acceptance on Windows using five fingerprint-verified exact source blobs an
 - Synthetic regression fixtures include negation, attribution, quotation, projection, quantities, changed dates, ambiguous or adversarial source text, document rights/digests, forged/cropped evidence, deterministic replay and actual offline V4 investigation integration. No paid model, dependencies, network calls, sampling, raw body persistence, registry change or production deployment.
 - Research basis: https://aclanthology.org/2025.acl-long.348/ ; https://arxiv.org/abs/2502.04955 ; https://aclanthology.org/2025.naacl-long.320/ . These motivate faithful extraction, ambiguity handling and evaluation, not claims of comparable model performance.
 - Deliberate narrow grammar is an engineering decision: high abstention, no general multilingual or nonnumeric extraction, not comprehensive claim detection. Keep V5.02 acceptance open for broader independently labeled faithfulness/atomicity/coverage/modality evaluation. Prior V4 live GDELT and publisher smoke remain open. **Next after exact-head CI: V5.03 source lineage and independence**, preserving unknown origins and not treating shared copies as corroboration. No paid services, merge or outreach.
+
+**V5.02 final CI receipt:** Exact head `21c36aa34135347b16f97030437cad3e73881add`, [run 46178454604](https://github.com/AKzar1el/mcp-trendpulse/actions/runs/46178454604): all five jobs completed successfully (Python 3.11–3.14 and package validation). Python 3.13: **3,528 passed, 1 skipped, 17 deselected, 3 warnings**, Ruff passed; all 33 new extraction regression cases passed. Narrow deterministic implementation verified offline, broader independently labeled and multilingual/nonnumeric acceptance remains open. **Next independent task: V5.03 source lineage and independence.**
