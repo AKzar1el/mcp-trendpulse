@@ -188,7 +188,7 @@ class ClaimScope(FrozenModel):
 
 
 class AtomicClaim(FrozenModel):
-    """A caller-proposed decomposition, not proof of semantic atomicity."""
+    """A proposed decomposition, not proof of semantic atomicity or truth."""
 
     claim_id: Digest | None = None
     proposition_id: Digest | None = None
@@ -202,7 +202,7 @@ class AtomicClaim(FrozenModel):
     asserted_at: str | None = None
     asserted_at_precision: Literal["day", "timestamp", "unknown"] = "unknown"
     origin_evidence_id: Digest
-    extraction_method: Literal["caller_annotation"] = "caller_annotation"
+    extraction_method: Literal["caller_annotation", "deterministic_numeric_v1"] = "caller_annotation"
 
     @field_validator("subject", "predicate", "object", "attribution")
     @classmethod
@@ -334,6 +334,20 @@ class ClaimEvidenceGraph(FrozenModel):
         for claim in self.claims:
             if claim.origin_evidence_id not in evidence:
                 raise ValueError("Dangling claim origin reference")
+            if claim.extraction_method == "deterministic_numeric_v1":
+                from mcp_trendpulse.claim_intelligence_rules import parse_numeric_claim
+
+                origin = evidence[claim.origin_evidence_id]
+                source = sources[origin.source_revision_id]
+                whole = len(source.title) if source.basis == "news_observation" else source.text_character_count
+                if (origin.excerpt is None or origin.start != 0 or origin.end != whole
+                        or source.source_kind == "opinion"):
+                    raise ValueError("Rule claim requires a complete permitted source representation")
+                fields, _ = parse_numeric_claim(origin.excerpt)
+                if fields is None or any(claim.model_dump()[k] != v for k, v in fields.items()):
+                    raise ValueError("Rule claim does not match exact source representation")
+                if claim.asserted_at is not None or claim.scope != ClaimScope():
+                    raise ValueError("Rule claims cannot infer assertion dates or scope")
             if claim.asserted_at_precision == "timestamp" and datetime.fromisoformat(claim.asserted_at) > cutoff:
                 raise ValueError("Assertion timestamp after graph cutoff")
             if claim.asserted_at_precision == "day" and claim.asserted_at > cutoff.date().isoformat():
