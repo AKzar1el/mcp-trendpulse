@@ -11,8 +11,10 @@ import math
 import re
 import unicodedata
 from datetime import date, datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from typing import Annotated, Literal
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
+from xml.etree import ElementTree
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -21,10 +23,18 @@ from mcp_trendpulse.rss_url_validation import is_google_news_rss_url
 
 GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 GDELT_ATTRIBUTION = "The GDELT Project (https://www.gdeltproject.org/)"
+NASA_RSS_URL = "https://www.nasa.gov/feed/"
+NASA_ATTRIBUTION = "NASA (https://www.nasa.gov/)"
+_NASA_LINK_HOSTS = frozenset({"www.nasa.gov", "science.nasa.gov"})
+_SOURCE_ATTRIBUTION = {
+    "google_news_rss": "Google News RSS (https://news.google.com/)",
+    "gdelt_doc": GDELT_ATTRIBUTION,
+    "nasa_rss": NASA_ATTRIBUTION,
+}
 MAX_BYTES = 256 * 1024
 MAX_ARTICLES = 20
 MAX_POINTS = 500
-Provider = Literal["google_news_rss", "gdelt_doc"]
+Provider = Literal["google_news_rss", "gdelt_doc", "nasa_rss"]
 Status = Literal["observed", "partial", "empty", "invalid", "unavailable"]
 Digest = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
 Count = Annotated[int, Field(strict=True, ge=0, le=2**53 - 1)]
@@ -129,15 +139,20 @@ class NewsArticle(FrozenModel):
     @model_validator(mode="after")
     def _validate_identity(self) -> NewsArticle:
         rss = self.discovery_provider == "google_news_rss"
+        nasa = self.discovery_provider == "nasa_rss"
         if rss != (self.link_type == "google_news_rss") or rss != is_google_news_rss_url(self.reported_url):
             raise ValueError("Source/link type mismatch")
         if self.capture_mode == "live" and self.captured_at is None:
             raise ValueError("Live observation needs capture time")
-        if rss and (self.provider_seen_at is not None or self.reported_source_country is not None
-                    or self.reported_language is not None):
+        if (rss or nasa) and (self.provider_seen_at is not None or self.reported_source_country is not None
+                             or self.reported_language is not None):
             raise ValueError("RSS metadata does not establish provider seen time or original locale")
-        if self.published_at is not None and (not rss or self.published_at.basis != "legacy_normalized"):
-            raise ValueError("Unverified publication timestamp")
+        if nasa and (self.publisher_label != "NASA" or urlsplit(self.reported_url).hostname not in _NASA_LINK_HOSTS):
+            raise ValueError("NASA feed link is outside its supported publisher scope")
+        if self.published_at is not None:
+            expected_basis = "legacy_normalized" if rss else "feed" if nasa else None
+            if self.published_at.basis != expected_basis:
+                raise ValueError("Unverified publication timestamp")
         if (self.published_at is not None and self.captured_at is not None
                 and self.published_at.precision != "day"
                 and datetime.fromisoformat(_utc(self.published_at.value)) > datetime.fromisoformat(self.captured_at)):
@@ -176,7 +191,7 @@ class NewsBatch(FrozenModel):
     def _check(self) -> NewsBatch:
         if self.captured_at is not None:
             object.__setattr__(self, "captured_at", _utc(self.captured_at))
-        expected_attribution = GDELT_ATTRIBUTION if self.provider == "gdelt_doc" else "Google News RSS (https://news.google.com/)"
+        expected_attribution = _SOURCE_ATTRIBUTION[self.provider]
         if self.attribution != expected_attribution:
             raise ValueError("Missing source attribution")
         counts = (self.source_count, self.invalid_count, self.duplicate_count, self.truncated_count)
@@ -262,7 +277,41 @@ def _label(value: object) -> str | None:
     return _text(value, 160) if value is not None and value != "" else None
 
 
+def _element_text(parent: ElementTree.Element, name: str, *, optional: bool = False) -> str | None:
+    nodes = parent.findall(name)
+    if optional and not nodes:
+        return None
+    if len(nodes) != 1 or len(nodes[0]) != 0:
+        raise ValueError("Missing or ambiguous feed metadata")
+    return (nodes[0].text or "").strip()
+
+
+def _nasa_row(row: object, captured_at: str | None) -> NewsArticle:
+    if not isinstance(row, ElementTree.Element):
+        raise ValueError("Invalid RSS item")
+    published = _element_text(row, "pubDate", optional=True)
+    stamp = None
+    warnings = ("source_date_unknown",)
+    if published:
+        try:
+            value = parsedate_to_datetime(_text(published, 128))
+            if value.tzinfo is None or value.utcoffset() is None:
+                raise ValueError("RSS date has no explicit offset")
+            stamp = TimeEvidence(value=value.isoformat(), precision="second", basis="feed")
+            warnings = ()
+        except (ValueError, TypeError, OverflowError):
+            warnings = ("invalid_source_date",)
+    return NewsArticle(
+        discovery_provider="nasa_rss", reported_url=_element_text(row, "link"),
+        link_type="publisher_candidate", title=_element_text(row, "title"),
+        publisher_label="NASA", published_at=stamp, captured_at=captured_at,
+        capture_mode="legacy_import", warnings=warnings,
+    )
+
+
 def _map_row(row: object, provider: Provider, captured_at: str | None) -> NewsArticle:
+    if provider == "nasa_rss":
+        return _nasa_row(row, captured_at)
     if not isinstance(row, dict):
         raise ValueError("Invalid row")
     gdelt = provider == "gdelt_doc"
@@ -288,8 +337,7 @@ def parse_news_capture(raw: bytes, *, provider: Provider, captured_at: str | Non
         raise ValueError("Unsupported provider or limit")
     if captured_at is not None:
         captured_at = _utc(captured_at)
-    attribution = GDELT_ATTRIBUTION if provider == "gdelt_doc" else "Google News RSS (https://news.google.com/)"
-    common = dict(provider=provider, captured_at=captured_at, attribution=attribution)
+    common = dict(provider=provider, captured_at=captured_at, attribution=_SOURCE_ATTRIBUTION[provider])
     try:
         payload = _decode(raw)
         _reject_source_error(payload)
@@ -298,6 +346,11 @@ def parse_news_capture(raw: bytes, *, provider: Provider, captured_at: str | Non
             raise ValueError("Invalid source shape")
     except ValueError:
         return NewsBatch(**common, status="invalid", reason="invalid_payload")
+    return _project_rows(rows, provider=provider, captured_at=captured_at, limit=limit)
+
+
+def _project_rows(rows: list, *, provider: Provider, captured_at: str | None, limit: int) -> NewsBatch:
+    common = dict(provider=provider, captured_at=captured_at, attribution=_SOURCE_ATTRIBUTION[provider])
     articles = []
     seen = set()
     invalid = duplicates = 0
@@ -319,6 +372,43 @@ def parse_news_capture(raw: bytes, *, provider: Provider, captured_at: str | Non
         duplicate_count=duplicates, truncated_count=truncated, possibly_capped=len(rows) >= limit,
         articles=tuple(articles), reason="all_rows_invalid" if status == "invalid" else None,
     )
+
+
+def nasa_rss_request() -> dict:
+    """Plan the official NASA recent-content feed; no network I/O or user URL."""
+    return {
+        "url": NASA_RSS_URL, "method": "GET", "status": "planned",
+        "network_performed": False, "attribution": NASA_ATTRIBUTION,
+        "scope": "recent NASA-published content; not a complete news archive",
+    }
+
+
+def parse_nasa_rss_capture(raw: bytes, *, captured_at: str | None, limit: int = MAX_ARTICLES) -> NewsBatch:
+    """Project metadata from a supplied NASA RSS 2.0 capture, not publisher text."""
+    if type(limit) is not int or not 1 <= limit <= MAX_ARTICLES:
+        raise ValueError("Unsupported limit")
+    if captured_at is not None:
+        captured_at = _utc(captured_at)
+    common = dict(provider="nasa_rss", captured_at=captured_at, attribution=NASA_ATTRIBUTION)
+    try:
+        if not isinstance(raw, bytes) or not 0 < len(raw) <= MAX_BYTES:
+            raise ValueError("Invalid payload size")
+        text = raw.decode("utf-8-sig", "strict")
+        if "\x00" in text or "<!DOCTYPE" in text.upper() or "<!ENTITY" in text.upper():
+            raise ValueError("DTD and entity declarations are prohibited")
+        root = ElementTree.fromstring(text)
+        channels = root.findall("channel")
+        if root.tag != "rss" or root.attrib.get("version") != "2.0" or len(channels) != 1:
+            raise ValueError("Expected one RSS 2.0 channel")
+        channel = channels[0]
+        _text(_element_text(channel, "title"), 512)
+        link = _url(_element_text(channel, "link"))
+        if urlsplit(link).hostname not in _NASA_LINK_HOSTS:
+            raise ValueError("Unsupported feed channel")
+        rows = channel.findall("item")
+    except (ValueError, ElementTree.ParseError):
+        return NewsBatch(**common, status="invalid", reason="invalid_payload")
+    return _project_rows(rows, provider="nasa_rss", captured_at=captured_at, limit=limit)
 
 
 def gdelt_doc_request(phrase: str, *, as_of: str, days: int = 3, limit: int = 10,

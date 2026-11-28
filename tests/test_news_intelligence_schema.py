@@ -8,11 +8,14 @@ from pydantic import ValidationError
 from mcp_trendpulse.news_intelligence_schema import (
     GDELT_ATTRIBUTION,
     MAX_BYTES,
+    NASA_ATTRIBUTION,
     NewsArticle,
     NewsBatch,
     TimeEvidence,
     gdelt_doc_request,
+    nasa_rss_request,
     parse_gdelt_raw_timeline,
+    parse_nasa_rss_capture,
     parse_news_capture,
 )
 
@@ -178,3 +181,78 @@ def test_source_error_never_becomes_empty_evidence(error):
     assert batch.status == "invalid" and batch.source_count is None
     with pytest.raises(ValueError, match="error envelope"):
         parse_gdelt_raw_timeline(_json({"timeline": [], **error}))
+
+def _nasa_xml(*items):
+    return (
+        '<rss version="2.0"><channel><title>NASA</title>'
+        '<link>https://www.nasa.gov/</link><description>News</description>'
+        + "".join(items) + "</channel></rss>"
+    ).encode()
+
+
+def _nasa_item(link="https://www.nasa.gov/example", date="Fri, 27 Nov 2026 12:00:00 +0000"):
+    return (
+        "<item><title>Research update</title><link>" + link + "</link>"
+        "<pubDate>" + date + "</pubDate>"
+        "<description>Full body must never be persisted</description></item>"
+    )
+
+
+def test_nasa_feed_is_fixed_and_metadata_only():
+    plan = nasa_rss_request()
+    assert plan["url"] == "https://www.nasa.gov/feed/"
+    assert plan["network_performed"] is False
+    batch = parse_nasa_rss_capture(_nasa_xml(_nasa_item()), captured_at=CAPTURE)
+    assert batch.status == "observed" and batch.attribution == NASA_ATTRIBUTION
+    article = batch.articles[0]
+    assert article.publisher_label == "NASA" and article.published_at.basis == "feed"
+    assert article.content_level == "headline_only" and article.provider_seen_at is None
+    assert article.reported_language is None and article.reported_source_country is None
+    assert "Full body" not in batch.model_dump_json()
+    assert NewsBatch.model_validate_json(batch.model_dump_json()) == batch
+
+
+def test_nasa_feed_counts_and_publisher_scope():
+    batch = parse_nasa_rss_capture(
+        _nasa_xml(_nasa_item(), _nasa_item(), _nasa_item("https://example.org/"),
+                  _nasa_item("https://science.nasa.gov/example"), _nasa_item()),
+        captured_at=CAPTURE, limit=4,
+    )
+    assert batch.status == "partial"
+    assert (batch.source_count, batch.invalid_count, batch.duplicate_count, batch.truncated_count) == (5, 1, 1, 1)
+    assert len(batch.articles) == 2
+    assert batch.articles[1].reported_url == "https://science.nasa.gov/example"
+
+
+@pytest.mark.parametrize("date", ["Fri, 27 Nov 2026 12:00:00 -0000", "malformed"])
+def test_nasa_feed_unknown_dates_are_not_inferred(date):
+    batch = parse_nasa_rss_capture(_nasa_xml(_nasa_item(date=date)), captured_at=CAPTURE)
+    assert batch.articles[0].published_at is None
+    assert batch.articles[0].warnings == ("invalid_source_date",)
+
+
+def test_nasa_feed_future_and_ambiguous_items_rejected():
+    future = _nasa_item(date="Sun, 29 Nov 2026 12:00:00 +0000")
+    ambiguous = _nasa_item().replace("</item>", "<link>https://www.nasa.gov/other</link></item>")
+    batch = parse_nasa_rss_capture(_nasa_xml(future, ambiguous), captured_at=CAPTURE)
+    assert batch.status == "invalid" and batch.invalid_count == 2
+
+
+@pytest.mark.parametrize("raw", [
+    b"<rss/>",
+    b"<html>not a feed</html>",
+    b'<!DOCTYPE rss [<!ENTITY x SYSTEM "file:///etc/passwd">]><rss/>',
+    b" " * (MAX_BYTES + 1),
+    b"\xff\xfe<rss/>",
+    _nasa_xml().replace(b"https://www.nasa.gov/", b"https://example.org/"),
+])
+def test_nasa_invalid_capture_is_not_zero(raw):
+    batch = parse_nasa_rss_capture(raw, captured_at=CAPTURE)
+    assert batch.status == "invalid" and batch.source_count is None
+
+
+def test_nasa_explicit_empty_and_legacy_capture():
+    assert parse_nasa_rss_capture(_nasa_xml(), captured_at=CAPTURE).status == "empty"
+    batch = parse_nasa_rss_capture(_nasa_xml(_nasa_item()), captured_at=None)
+    assert batch.articles[0].captured_at is None
+    assert batch.articles[0].capture_mode == "legacy_import"
