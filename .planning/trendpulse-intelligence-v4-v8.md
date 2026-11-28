@@ -136,7 +136,7 @@ Reviewed for planning (not a live provider contract/permission test):
 
 | Phase | State | Next evidence |
 | --- | --- | --- |
-| V4 | IN_PROGRESS | V4.02 internal schema/adapters, free-source access and rights checks; V4.01 design VERIFIED |
+| V4 | IN_PROGRESS | V4.02 offline foundation verified; live access/direct feeds/full regression pending |
 | V5 | NOT_STARTED | V4 event contract; V5.01 evidence graph design |
 | V6 | NOT_STARTED | Reuse map of M00–M14 and source comparability |
 | V7 | NOT_STARTED | V6 history and independently labeled outcome availability |
@@ -149,3 +149,7 @@ Start with V4.01, then V4 and V5 as the highest-value joint workstream, in depen
 **Planning-only checkpoint (original 2026-11-28 plan):** No source code changes, new integrations, credentials, provider calls through TrendPulse, deployments, package releases or scheduler changes authorized or performed as part of this plan.
 
 **V4.01 checkpoint — 2026-11-28: VERIFIED (design scope only).** [Pinned-source inventory, selected contract, migration and regression matrix](trendpulse-v4-01-news-event-contract.md), commit `a6bc30e4068f71cfb9157ce8225dc28d215d27ff`. Inspected main `744fa81ff0376ce9bd9d8e6d726dcf924d53ea24`, existing schemas/provider contracts and open PR overlap, including #446 and #436. No runtime code or provider tests were run; dedicated local TrendPulse tunnel disconnected. Existing #426/#427 remain open, #428 closed. The contract is a specification, not a shipped implementation. All V4.02–V8 tasks remain unchecked; no source rights or live access were granted by reviewing documentation. Next: V4.02, implement bounded additive models/mappers and validate GDELT DOC/free source access under existing policy after checking current workspace and competing writers.
+
+**V4.02 checkpoint — 2026-11-28: IN_PROGRESS (offline foundation verified).** [Implementation receipt](https://github.com/AKzar1el/mcp-trendpulse/blob/feat/trendpulse-v4-02-news-foundation/.planning/trendpulse-v4-02-foundation-receipt.md). Isolated implementation branch `feat/trendpulse-v4-02-news-foundation` adds an internal metadata-only NewsArticle/NewsBatch/TimeEvidence contract, offline Google News and GDELT DOC article projections, a fixed-origin GDELT request planner and raw coverage count projection. 38 focused synthetic tests passed in an isolated Python environment using copies of the existing two citation validators; new source and test Git blob hashes matched the tested files exactly. Full repo suite and exact-branch CI not yet verified. GDELT official terms reviewed; live endpoint access remains unverified (web retrieval unavailable; not a measured HTTP 429). No new provider registration, HTTP execution, cache, MCP/CLI tool or production mutation. V4.02 remains unchecked. Next: review and finish contract hardening, establish bounded live GDELT access and independent direct RSS/official-feed adapter with rights and source coverage receipts, complete full regressions and exact-commit CI. Preserve #446 provider-core integration and current existing registry.
+
+Implementation commit: [`a9e89c3`](https://github.com/AKzar1el/mcp-trendpulse/commit/a9e89c3908070e2cff6095800fe5bed60db588b9); exact-head [CI run](https://github.com/AKzar1el/mcp-trendpulse/actions/runs/46172617736) was queued at checkpoint. Do not infer CI success from queueing.
