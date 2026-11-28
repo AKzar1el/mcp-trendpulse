@@ -6,10 +6,10 @@ verdicts. All results remain provisional evidence status, not fact certification
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from mcp_trendpulse.claim_intelligence_graph import ClaimEvidenceGraph
 from mcp_trendpulse.news_intelligence_schema import Digest, FrozenModel, _digest, _utc

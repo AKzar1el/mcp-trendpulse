@@ -194,7 +194,8 @@ def test_unknown_policy_duplicate_and_deterministic_fingerprint():
 
 
 def test_factcheck_rating_does_not_enter_evidence_assessment():
-    a=source("support");g,c=graph(supporting=[a])
+    a = source("support")
+    g, c = graph(supporting=[a])
     r=assess(g,c)
     assert r["status"]=="supported"
     assert r["numeric_confidence"] is None
