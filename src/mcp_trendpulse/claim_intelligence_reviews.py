@@ -87,18 +87,52 @@ def _google_row(claim, review, captured_at):
                 captured_at=captured_at)
 
 
+def _literal_references(value, item):
+    # Literal metadata references only; do not infer relationships from URLs
+    # or follow archive links. Omitted/malformed references are not evidence.
+    found = set()
+    rejected = 0
+    for kind, obj in (
+        ("claim_first_appearance", item.get("firstAppearance")),
+        ("claim_appearance", item.get("appearance")),
+        ("review_citation", value.get("citation")),
+        ("review_correction", value.get("correction")),
+        ("review_archived_at", value.get("archivedAt")),
+    ):
+        if obj is None:
+            continue
+        entries = obj if isinstance(obj, list) else [obj]
+        if len(entries) > 8:
+            raise ValueError("Reference list exceeds bound")
+        for entry in entries:
+            try:
+                if isinstance(entry, dict):
+                    entry = entry.get("url")
+                url = _url(entry)
+            except (ValueError, TypeError):
+                rejected += 1
+                continue
+            found.add((kind, url))
+    return [{"kind": kind, "url": url} for kind, url in sorted(found)], rejected
+
+
 def _jsonld_row(value, captured_at):
     value = _object(value)
     rating = _object(value.get("reviewRating"))
     author = _object(value.get("author"))
     item = _object(value.get("itemReviewed", {}))
     claimant = _object(item.get("author", {}))
-    return _row(claim=value.get("claimReviewed"), claimant=claimant.get("name"),
+    row = _row(claim=value.get("claimReviewed"), claimant=claimant.get("name"),
                 claim_date=item.get("datePublished"), url=value.get("url"), publisher=author.get("name"),
                 publisher_site=None, title=value.get("headline"), review_date=value.get("datePublished"),
                 language=value.get("inLanguage"), textual_rating=rating.get("alternateName"),
                 rating_value=rating.get("ratingValue"), worst_rating=rating.get("worstRating"),
                 best_rating=rating.get("bestRating"), captured_at=captured_at)
+    references, rejected = _literal_references(value, item)
+    row["literal_reference_candidates"] = references
+    row["rejected_reference_count"] = rejected
+    row["review_id"] = _digest({k: v for k, v in row.items() if k != "review_id"})
+    return row
 
 
 def _is_claimreview(value):
@@ -172,13 +206,15 @@ def parse_review_capture(raw, *, format: ReviewFormat, captured_at, permit_metad
             rejected += 1
             continue
         rows[row["review_id"]] = row
-    status = ("partial" if missing or rejected or has_more else "observed") if rows else (
+    rejected_refs = sum(row.get("rejected_reference_count", 0) for row in rows.values())
+    status = ("partial" if missing or rejected or has_more or rejected_refs else "observed") if rows else (
         "invalid" if rejected else "unavailable" if missing or has_more else "empty")
     report = {
         "schema_version": 1, "method": "saved_review_metadata_v1", "format": format,
         "captured_at": captured_at, "status": status, "review_count": len(rows),
         "supplied_review_rows": len(candidates), "missing_claim_or_review_groups": missing,
-        "rejected_rows": rejected, "exact_replays_removed": len(candidates) - rejected - len(rows),
+        "rejected_rows": rejected, "rejected_reference_count": rejected_refs,
+        "exact_replays_removed": len(candidates) - rejected - len(rows),
         "more_results_reported": has_more, "reviews": [rows[k] for k in sorted(rows)],
         "network_performed": False, "claim_verification": "not_performed",
         "limitations": [

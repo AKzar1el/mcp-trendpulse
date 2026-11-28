@@ -203,3 +203,30 @@ async def test_news_search_uses_existing_plan_first_and_does_not_promote_indepen
                      ("renewable energy",("google_news_rss",),True)]
     assert r["reporting_candidates"]["independence"] == "unknown"
     assert r["automatic_relations_created"] == 0
+
+def test_claimreview_archive_correction_and_appearance_refs_are_literal_candidates():
+    value = {"@type":"ClaimReview","claimReviewed":"Acme produced 100 units",
+             "url":"https://example.org/check","author":{"name":"Reviewer"},
+             "reviewRating":{"alternateName":"Revised"},
+             "archivedAt":"https://archive.example.org/review",
+             "correction":{"url":"https://example.org/correction"},
+             "citation":["https://example.org/source","https://127.0.0.1/private"],
+             "itemReviewed":{"firstAppearance":{"url":"https://example.org/original"},
+                             "appearance":["https://example.org/repost"]}}
+    result = parse(value,"claimreview_jsonld")
+    row = result["reviews"][0]
+    assert result["status"] == "partial" and result["rejected_reference_count"] == 1
+    assert {x["kind"] for x in row["literal_reference_candidates"]} == {
+        "claim_first_appearance","claim_appearance","review_citation","review_correction","review_archived_at"}
+    assert "127.0.0.1" not in json.dumps(result)
+    assert result["network_performed"] is False
+
+
+@pytest.mark.asyncio
+async def test_contradictory_http_status_cannot_be_observed(monkeypatch):
+    g,cid = graph()
+    monkeypatch.setattr(discovery,"collect",lambda plan,**kwargs: provider_receipt(plan,[wb_row()],http_status=429))
+    result = await discovery.discover_claim_evidence(g,claim_id=cid,execute=True,queries=[
+        discovery.RecordQuery(source="worldbank",country="SI",identifier="SP.POP.TOTL")])
+    assert result["official_record_receipts"][0]["status"] == "invalid"
+    assert result["official_record_receipts"][0]["records"] == []

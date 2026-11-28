@@ -129,8 +129,8 @@ def _project(query, plan, receipt, cutoff):
                 "http_status": status if type(status) is int and 100 <= status <= 599 else None,
                 "cache_hit": receipt.get("cache_hit") is True}
     try:
-        if receipt.get("source_url") != plan.url:
-            raise ValueError("Scope mismatch")
+        if receipt.get("source_url") != plan.url or receipt.get("http_status") not in (None, 200):
+            raise ValueError("Scope or transport mismatch")
         capture = _utc(receipt.get("retrieved_at"))
         if datetime.fromisoformat(capture) > cutoff:
             raise ValueError("Future receipt")
@@ -232,12 +232,14 @@ async def discover_claim_evidence(graph, *, claim_id, queries=(), news_phrase=No
         "semantic_verification": "not_performed", "claim_match": "not_assessed",
         "source_independence": "unknown", "automatic_relations_created": 0,
         "paid_services_used": False,
+        "network_performed": False if not execute else None,
         "limitations": [
             "Explicit query candidates are not verified matches to the claim or independent corroboration.",
             "Official adapter samples are bounded, may be revised or incomplete, and require exact metric/record scope review.",
             "Dataset-specific rights must be checked before redistribution; existing collector cache behavior is unchanged.",
             "Fact-check metadata is imported only with permission. Original review ratings are not TrendPulse verdicts.",
-            "No automatic archive retrieval, source authentication, correction matching, or claim verification.",
+            "Literal archive and correction references are candidates only; no retrieval, authentication, or claim verification.",
+            "Exact network request counts are not supplied by every legacy collector.",
         ],
     }
     report["report_id"] = _digest(report)
