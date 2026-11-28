@@ -144,9 +144,6 @@ def assess_claim_evidence(graph, *, as_of, policies=(), lineage_report=None):
         directional = role_sources["supports"] | role_sources["contradicts"]
         # A multi-source bundle is one caller-annotated joint evidence set;
         # don't present it as N separate independent witnesses.
-        directional_bundles = [
-            b for role in ("supports","contradicts") for b in role_bundles[role]
-        ]
         freshness = []
         age_by_source = {}
         for sid in sorted(directional):
