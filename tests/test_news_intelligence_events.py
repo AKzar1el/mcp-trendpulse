@@ -30,9 +30,9 @@ def prior(result):
     return [EventCandidate.model_validate_json(json.dumps(e)) for e in result["events"]]
 
 
-def hint(r, span=None, entities=(), locations=()):
+def hint(r, span=None, entities=(), locations=(), topics=()):
     return EventHint(observation_id=r.observation_id, span=span or r.title,
-                     entities=entities, locations=locations)
+                     entities=entities, locations=locations, topics=topics)
 
 
 def test_exact_headlines_group_with_direct_pairs_and_no_identity_claim():
@@ -85,10 +85,10 @@ def test_provider_seen_is_not_publication_or_occurrence():
 
 
 def test_anchored_multilingual_candidates_are_not_translated_identity():
-    a = row("a", "Acme announces a research facility in Ljubljana on 2026-11-28", language="English")
-    b = row("b", "Acme meldet ein neues Forschungszentrum in Ljubljana am 2026-11-28", language="German")
-    c = row("c", "Acme napoveduje novo raziskovalno središče v Ljubljana dne 2026-11-28", language="Slovenian")
-    hints = [hint(x, entities=("Acme",), locations=("Ljubljana",)) for x in (a, b, c)]
+    a = row("a", "Acme announces a research facility Orion in Ljubljana on 2026-11-28", language="English")
+    b = row("b", "Acme meldet ein neues Forschungszentrum Orion in Ljubljana am 2026-11-28", language="German")
+    c = row("c", "Acme napoveduje novo raziskovalno središče Orion v Ljubljana dne 2026-11-28", language="Slovenian")
+    hints = [hint(x, entities=("Acme",), locations=("Ljubljana",), topics=("Orion",)) for x in (a, b, c)]
     out = run([a, b, c], hints=hints)
     assert out["candidate_count"] == 1
     assert {p["basis"] for p in out["events"][0]["pair_evidence"]} == {"anchored_event_metadata"}
@@ -188,6 +188,28 @@ def test_complete_link_pairs_are_not_transitive():
     # A and C have conflicting annotations; B has neither.
     a, b, c = row("a"), row("b"), row("c")
     out = run([a, b, c], hints=[hint(a, entities=("Researchers",)), hint(c, entities=("communities",))])
-    assert out["candidate_count"] == 2
+    assert out["candidate_count"] in (2, 3)
+    assert not any({a.observation_id, c.observation_id}.issubset(
+        {m["observation_id"] for m in e["members"]}) for e in out["events"])
     assert all(len(e["pair_evidence"]) == len(e["members"]) * (len(e["members"]) - 1) // 2
                for e in out["events"])
+    assert run([c, b, a], hints=[hint(c, entities=("communities",)),
+                                hint(a, entities=("Researchers",))]) == out
+
+def test_same_actor_location_date_and_action_not_enough_for_different_stories():
+    a = row("a", "Acme announces a research facility Orion in Ljubljana on 2026-11-28")
+    b = row("b", "Acme meldet ein neues Forschungszentrum Vega in Ljubljana am 2026-11-28", language="German")
+    shared = dict(entities=("Acme",), locations=("Ljubljana",))
+    assert run([a, b], hints=[hint(a, **shared), hint(b, **shared)])["candidate_count"] == 2
+    assert run([a, b], hints=[hint(a, topics=("Orion",), **shared),
+                               hint(b, topics=("Vega",), **shared)])["candidate_count"] == 2
+    with pytest.raises(ValueError, match="separate"):
+        hint(a, topics=("Acme",), **shared)
+
+
+def test_identical_snapshot_replay_preserves_revision():
+    a, b = row("a"), row("b")
+    old = prior(run([a, b]))
+    replay = run([b, a], previous=old)
+    assert replay["events"][0]["revision_id"] == old[0].revision_id
+    assert replay["lineage"][0]["state"] == "continued"

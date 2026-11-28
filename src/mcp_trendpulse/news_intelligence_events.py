@@ -72,6 +72,14 @@ def _labels(values, span):
     return tuple(sorted(values, key=lambda x: (_fold(x), x)))
 
 
+def _topics(values, span, entities, locations):
+    values = _labels(values, span)
+    reserved = {_fold(x) for x in (*entities, *locations)}
+    if any(_fold(x) in reserved or _DATE.fullmatch(x) or _action(x) != "unknown" for x in values):
+        raise ValueError("Topic must be a separate source-anchored label")
+    return values
+
+
 class EventHint(FrozenModel):
     """Optional caller annotations grounded in one exact headline span."""
 
@@ -79,12 +87,14 @@ class EventHint(FrozenModel):
     span: str = Field(min_length=1, max_length=512)
     entities: tuple[str, ...] = Field(default=(), max_length=16)
     locations: tuple[str, ...] = Field(default=(), max_length=8)
+    topics: tuple[str, ...] = Field(default=(), max_length=8)
 
     @model_validator(mode="after")
     def _check(self):
         _text(self.span, 512)
         object.__setattr__(self, "entities", _labels(self.entities, self.span))
         object.__setattr__(self, "locations", _labels(self.locations, self.span))
+        object.__setattr__(self, "topics", _topics(self.topics, self.span, self.entities, self.locations))
         return self
 
 
@@ -95,6 +105,7 @@ class EventMention(FrozenModel):
     action: Action
     entities: tuple[str, ...] = Field(default=(), max_length=16)
     locations: tuple[str, ...] = Field(default=(), max_length=8)
+    topics: tuple[str, ...] = Field(default=(), max_length=8)
     annotation_basis: Literal["headline_rule", "caller_anchored_hint"]
     event_day_candidate: str | None = None
     captured_at: str | None = None
@@ -111,10 +122,11 @@ class EventMention(FrozenModel):
         _text(self.span, 512)
         if self.action != _action(self.span) or self.event_day_candidate != _event_day(self.span):
             raise ValueError("Mention features must match the source span")
-        if self.annotation_basis == "headline_rule" and (self.entities or self.locations):
+        if self.annotation_basis == "headline_rule" and (self.entities or self.locations or self.topics):
             raise ValueError("Automatic rules do not assert entity or location identity")
         object.__setattr__(self, "entities", _labels(self.entities, self.span))
         object.__setattr__(self, "locations", _labels(self.locations, self.span))
+        object.__setattr__(self, "topics", _topics(self.topics, self.span, self.entities, self.locations))
         expected = _digest([ALGORITHM, self.observation_id, self.span])
         if self.mention_id not in (None, expected):
             raise ValueError("Mention identity mismatch")
@@ -226,7 +238,7 @@ def _make_mentions(rows, hints):
         for hint in supplied:
             mentions.append(EventMention(
                 observation_id=oid, span=hint.span, action=_action(hint.span),
-                entities=hint.entities, locations=hint.locations,
+                entities=hint.entities, locations=hint.locations, topics=hint.topics,
                 annotation_basis="caller_anchored_hint" if oid in by_row else "headline_rule",
                 event_day_candidate=_event_day(hint.span), captured_at=row.captured_at,
                 reported_publication=row.published_at, provider_seen_at=row.provider_seen_at,
@@ -254,7 +266,10 @@ def _pair(a, b, rows):
         return None
     entities_a, entities_b = {_fold(x) for x in a.entities}, {_fold(x) for x in b.entities}
     places_a, places_b = {_fold(x) for x in a.locations}, {_fold(x) for x in b.locations}
-    if (entities_a and entities_b and entities_a != entities_b) or (places_a and places_b and places_a != places_b):
+    topics_a, topics_b = {_fold(x) for x in a.topics}, {_fold(x) for x in b.topics}
+    if ((entities_a and entities_b and entities_a != entities_b)
+            or (places_a and places_b and places_a != places_b)
+            or (topics_a and topics_b and topics_a != topics_b)):
         return None
     distance = _date_distance(left, right)
     if distance is not None and distance > 24 * 3600:
@@ -269,9 +284,10 @@ def _pair(a, b, rows):
     basis = None
     if ln == rn and not cross_language:
         basis = "exact_headline_and_report_time"
-    elif explicit_day and entities_a and entities_a == entities_b and places_a and places_a == places_b:
+    elif (explicit_day and entities_a and entities_a == entities_b and places_a and places_a == places_b
+          and topics_a and topics_a == topics_b):
         # Cross-language requires explicit matching literal entity/place anchors,
-        # date and action. No translated-name inference or unsupported language
+        # date, action and a separate literal topic. No translated-name inference or unsupported language
         # equivalence. A negative statement remains separate.
         if cross_language:
             if any(x in _NEGATIVE or x.endswith("n't") for x in lm[1] + rm[1]):
@@ -337,6 +353,8 @@ def cluster_news_events(observations, *, as_of, hints=(), previous=()):
             if member.mention_id in prior_members:
                 raise ValueError("Previous events must have disjoint mention membership")
             prior_members[member.mention_id] = event
+    if len(prior_members) > MAX_MENTIONS:
+        raise ValueError("Previous snapshot exceeds mention budget")
     mentions = _make_mentions(rows, hints)
     pairs = {}
     for a, b in combinations(mentions, 2):
@@ -374,12 +392,17 @@ def cluster_news_events(observations, *, as_of, hints=(), previous=()):
         old = predecessors[0] if len(predecessors) == 1 else None
         reuse = (old is not None and len(successors[old.event_id]) == 1
                  and {m.mention_id for m in old.members}.issubset(ids))
+        member_pairs = tuple(pairs[key] for key in combinations(ids, 2))
+        # Replaying an identical as-of snapshot must not manufacture a revision.
+        if reuse and old.as_of == cutoff and old.members == tuple(group) and old.pair_evidence == member_pairs:
+            events.append(old)
+            continue
         event = EventCandidate(
             seed_mention_ids=old.seed_mention_ids if reuse else ids,
             origin_revision_ids=old.origin_revision_ids if reuse else previous_revisions,
             previous_revision_ids=previous_revisions,
             as_of=cutoff, members=tuple(group),
-            pair_evidence=tuple(pairs[key] for key in combinations(ids, 2)),
+            pair_evidence=member_pairs,
         )
         events.append(event)
 
