@@ -1,6 +1,9 @@
 """Synthetic coverage, concentration, and provenance regressions."""
 import pytest
 
+from datetime import datetime, timezone
+
+from mcp_trendpulse import news_intelligence_collect as collector
 from mcp_trendpulse.news_intelligence_collect import collect_news
 from mcp_trendpulse.news_intelligence_coverage import summarize_gdelt_coverage, summarize_news_snapshot
 from mcp_trendpulse.news_intelligence_schema import (
@@ -9,6 +12,11 @@ from mcp_trendpulse.news_intelligence_schema import (
 
 CUT = "2026-11-28T12:00:00+00:00"
 HEAD = "Researchers announce a new renewable energy project for regional communities"
+
+
+@pytest.fixture(autouse=True)
+def fixed_clock(monkeypatch):
+    monkeypatch.setattr(collector, "_now", lambda: datetime(2026, 11, 28, 12, tzinfo=timezone.utc))
 
 
 def row(key, label="Publisher A", *, title=HEAD, host="example.org"):
@@ -196,3 +204,38 @@ def test_invalid_receipts_fail_closed(mutation):
 def test_invalid_cadence_rejected(cadence):
     with pytest.raises(ValueError, match="cadence"):
         summarize_gdelt_coverage(timeline(status="empty"), expected_interval_seconds=cadence)
+
+
+def test_observation_date_breakdowns_preserve_basis_and_precision():
+    a = row("a")
+    b = NewsArticle(
+        discovery_provider="google_news_rss", link_type="google_news_rss",
+        reported_url="https://news.google.com/rss/articles/day", title=HEAD,
+        published_at=TimeEvidence(value="2026-11-26", precision="day", basis="legacy_normalized"),
+        captured_at=CUT, capture_mode="legacy_import",
+    )
+    c = NewsArticle(
+        discovery_provider="google_news_rss", link_type="google_news_rss",
+        reported_url="https://news.google.com/rss/articles/offset", title=HEAD,
+        published_at=TimeEvidence(value="2026-11-28T00:30:00+02:00", precision="second",
+                                  basis="legacy_normalized"),
+        captured_at=CUT, capture_mode="legacy_import",
+    )
+    rss = NewsBatch(provider="google_news_rss", attribution="Google News RSS (https://news.google.com/)",
+                    captured_at=CUT, status="observed", source_count=2, invalid_count=0,
+                    duplicate_count=0, truncated_count=0, articles=(b, c))
+    result = summarize_news_snapshot([batch(a), rss], as_of=CUT)
+    dates = result["observation_date_breakdowns"]
+    assert dates["reported_publication_calendar_day"] == {"2026-11-26": 1}
+    assert dates["reported_publication_timestamp_utc_day"] == {"2026-11-27": 1}
+    assert dates["provider_seen_utc_day"] == {"2026-11-28": 1}
+    assert dates["capture_utc_day"] == {"2026-11-28": 3}
+
+
+def test_tiny_nonzero_share_and_http_conflict():
+    report = timeline(("2026-11-28T10:00:00Z", 1, 2**53 - 1))
+    result = summarize_gdelt_coverage(report)
+    assert result["weighted_coverage_pct"] > 0
+    report["http_status"] = 429
+    with pytest.raises(ValueError, match="HTTP status"):
+        summarize_gdelt_coverage(report)

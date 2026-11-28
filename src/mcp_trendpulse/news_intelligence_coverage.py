@@ -27,7 +27,8 @@ _TIMELINE_STATES = frozenset({"planned", "observed", "empty", "invalid", "unavai
 
 
 def _share(matched, monitored):
-    return round(100 * matched / monitored, 8) if monitored else None
+    # Avoid rounding a small nonzero measured share into a false zero.
+    return 100 * matched / monitored if monitored else None
 
 
 def _distribution(groups):
@@ -112,13 +113,25 @@ def summarize_news_snapshot(batches, *, as_of, hints=()):
     # but unavailable/no captures alone cannot establish even a sample zero.
     known = bool(successful)
     stamps = Counter()
+    publication_days = Counter()
+    publication_utc_days = Counter()
+    seen_utc_days = Counter()
+    capture_utc_days = Counter()
     for row in observations.values():
         if row.published_at is None:
             stamps["publication_unknown"] += 1
+        elif row.published_at.precision == "day":
+            publication_days[row.published_at.value] += 1
+        else:
+            publication_utc_days[_utc(row.published_at.value)[:10]] += 1
         if row.provider_seen_at is None:
             stamps["provider_seen_unknown"] += 1
+        else:
+            seen_utc_days[_utc(row.provider_seen_at.value)[:10]] += 1
         if row.captured_at is None:
             stamps["capture_unknown"] += 1
+        else:
+            capture_utc_days[row.captured_at[:10]] += 1
     batch_summaries = [
         {"provider": b.provider, "status": b.status, "captured_at": b.captured_at,
          "source_count": b.source_count, "accepted_records": len(b.articles) if b.source_count is not None else None,
@@ -149,6 +162,13 @@ def summarize_news_snapshot(batches, *, as_of, hints=()):
         "unknown_time_counts": {k: stamps[k] for k in (
             "publication_unknown", "provider_seen_unknown", "capture_unknown"
         )} if known else None,
+        "observation_date_breakdowns": {
+            "unit": "distinct_observations_not_unique_articles",
+            "reported_publication_calendar_day": dict(sorted(publication_days.items())),
+            "reported_publication_timestamp_utc_day": dict(sorted(publication_utc_days.items())),
+            "provider_seen_utc_day": dict(sorted(seen_utc_days.items())),
+            "capture_utc_day": dict(sorted(capture_utc_days.items())),
+        } if known else None,
         "event_report": event_report if known else None,
         "limitations": [
             "Only the supplied captures are described; successful feeds and capped article lists are not a monitored universe.",
@@ -196,12 +216,16 @@ def summarize_gdelt_coverage(report, *, expected_interval_seconds=None):
             raise ValueError("Declared grid requires aligned query boundaries")
 
     status = report.get("status")
-    if status not in _TIMELINE_STATES:
+    if not isinstance(status, str) or status not in _TIMELINE_STATES:
         raise ValueError("Unsupported timeline status")
     evidence = report.get("evidence")
     capture = report.get("captured_at")
     points = ()
     if status in ("observed", "empty"):
+        # Collector outcomes may be cache replays (no HTTP status), but an
+        # explicit contradictory HTTP status cannot establish a measurement.
+        if report.get("http_status") not in (None, 200):
+            raise ValueError("Timeline measurement conflicts with HTTP status")
         if not isinstance(evidence, dict) or not isinstance(evidence.get("points"), (list, tuple)):
             raise ValueError("Missing timeline evidence")
         if len(evidence["points"]) > 500:
