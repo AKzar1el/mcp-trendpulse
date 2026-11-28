@@ -256,3 +256,10 @@ def test_nasa_explicit_empty_and_legacy_capture():
     batch = parse_nasa_rss_capture(_nasa_xml(_nasa_item()), captured_at=None)
     assert batch.articles[0].captured_at is None
     assert batch.articles[0].capture_mode == "legacy_import"
+
+@pytest.mark.parametrize("url", [
+    "https://224.0.0.1/a", "https://[ff02::1]/a", "https://[fec0::1]/a",
+])
+def test_non_unicast_literal_addresses_are_not_citations(url):
+    batch = _gdelt(_row(url=url))
+    assert batch.status == "invalid" and batch.invalid_count == 1

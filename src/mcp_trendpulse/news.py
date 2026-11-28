@@ -952,7 +952,16 @@ def download_article_with_scraper(
                     html = _read_article_response(response, url, deadline=deadline)
                     if html is None:
                         return None
-                    return newspaper.article(url, input_html=html)
+                    article = newspaper.article(url, input_html=html)
+                    # Record transport metadata independently from newspaper's
+                    # canonical/original URL guesses. Legacy return shape is unchanged.
+                    response_url = getattr(response, "url", None)
+                    if article is not None and isinstance(response_url, str):
+                        try:
+                            article._trendpulse_transport_receipt = (response.status_code, response_url)
+                        except (AttributeError, TypeError):
+                            pass  # An extractor without receipt support remains usable by legacy callers.
+                    return article
 
                 logger.debug(f"Failed to download article with cloudscraper from {url}, status code: {response.status_code}")
                 return None

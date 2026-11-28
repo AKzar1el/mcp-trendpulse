@@ -6,6 +6,7 @@ No network client, tool registration, persistent cache, or article fetch is adde
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import math
 import re
@@ -53,6 +54,14 @@ def _url(value: str) -> str:
     if any(c.isspace() for c in value) or "\\" in value or re.search(r"%(?:00|0a|0d|5c)", value, re.I):
         raise ValueError("Unsafe citation URL")
     validate_public_source_url(value)
+    try:
+        address = ipaddress.ip_address(urlsplit(value).hostname or "")
+    except ValueError:
+        pass  # DNS names are only citations here; actual fetches require pinned egress.
+    else:
+        if (address.is_multicast or address.is_reserved or address.is_unspecified
+                or address.is_link_local or getattr(address, "is_site_local", False)):
+            raise ValueError("Unsafe literal citation address")
     return value
 
 
