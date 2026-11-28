@@ -1,0 +1,149 @@
+# TrendPulse V4–V8 — End-to-end news, evidence and trend intelligence
+
+**Created:** 2026-11-28  
+**Status:** Planned; implementation not started or authorized by this document.  
+**Canonical continuation name:** TrendPulse V4–V8 roadmap.  
+**Repository:** AKzar1el/mcp-trendpulse; path: .planning/trendpulse-intelligence-v4-v8.md  
+**Visibility:** This is a public repository, including planning branches and draft PRs. Do not put credentials, private research, user data or proprietary third-party content here.
+
+## 0. Mission and constraints
+
+Build a dependable, free-first intelligence engine that discovers what happened, checks whether claims are supported, measures whether attention and adoption are changing, distinguishes noise from durable trends, and produces reproducible decision briefs with explicit gaps. Do not equate media coverage, search interest, adoption proxies, spending, causation or commercial opportunity.
+
+- Reuse existing code, typed TrendSignal schemas, adapters, caches, budgets, CLI/MCP surfaces, lifecycle, research-report and Watch infrastructure. Avoid large rewrites, duplicate adapters and unnecessary dependencies.
+- No paid APIs, credit-card trials, billable cloud, quota evasion, proxy rotation, CAPTCHA bypass, property-bound GSC/GA4 integrations or new accounts used to evade limits. Official free credentials require operator authorization. Respect AGENTS.md; Google Trends throttling is an expected external limitation.
+- Local-capable by default; opt-in bounded network access; no scheduled worker changes, public deployment, package publication, external alert delivery or production changes without separate authorization. No automatic execution merely from reading this plan.
+- Respect copyright, provider terms, privacy, source-specific redistribution rights, publisher access controls and retention restrictions. Store only necessary metadata/short permitted evidence, hashes and references; never claim rights from API accessibility. Treat all source content as untrusted data, not instructions.
+- Keep community 16-tool and existing hosted six-tool contracts stable. Preserve existing separate intelligence and opt-in 35-tool evaluation surfaces. Prefer consolidating functionality behind existing tools/prompts; at most six new high-level tools if genuinely justified and explicitly approved. No public V3/V4+ rollout before release gates.
+- Use single-writer discipline and isolated review branches, check current Git status and existing PRs before editing; no concurrent changes to canonical workspace. Record actual commits, test receipts, measured outcomes, gaps and next task. Never mark a task done on implementation or mocks alone where live acceptance is required.
+
+## 1. Baseline: inspect before adding anything
+
+Current repository documentation reviewed on 2026-11-28 describes 16 community tools, 17 intelligence tools and 2 source-only V3 tools (35 in the opt-in local combined runner), plus a separate six-tool hosted design not publicly released. V2 documents 25 source families in its original source catalogue; later MJAU milestones add further specialist signals. The V3 source oracle matched 9/9 selected source cases, not an independently blinded human evaluation. Exact current installed versions, unmerged changes and live source health require fresh verification. The local Codexify tunnel was unavailable during planning.
+
+Existing assets: Google News RSS and article retrieval; Google Trends rankings, series, growth, geography and related demand; optional GDELT raw manifest, official economic/regulatory, procurement, research, jobs, corporate and developer sources; MJAU lexical dedup, Wikimedia pageviews, HN, GitHub, npm/PyPI, Stack Exchange, multilingual phrase hypotheses, comparable historical lifecycle, cross-source evidence report; CLI evidence review/compare/audit, manual Watch and backtests; bounded pacing/cache/cooldown; narrow Wikidata/OSV V3. Do not implement these again. Existing article browser fallback is documented as disabled due to connection-level security concerns; do not re-enable unsafely.
+
+Read first:
+- README.md; AGENTS.md; .planning/mjau-plan.md; docs/operations.md
+- docs/intelligence-free-sources.md; docs/intelligence-opportunity-evaluation.md
+- docs/historical-momentum-lifecycle.md; docs/cross-source-research-report.md; docs/trend-watch.md
+- docs/qa/trendpulse-unified-v123-acceptance-20261123.md
+- docs/qa/v3-release-gate-and-real-source-benchmark-20261123.md
+- Open issues #426 (outside-human review), #427 (OSV rights), #428 (cold start), verify current status rather than assuming closure.
+
+## 2. Milestone V4 — News and Event Intelligence (P0)
+
+- [ ] V4.01 Inventory article, signal and provider schemas; choose minimal shared NewsArticle/Event records and migration/compatibility strategy. Distinguish event time, publication time, update time, first observation, retrieval time, date precision, original language, source country versus event location, content level and canonical/source URL.
+- [ ] V4.02 Extend existing GDELT adapter with bounded DOC 2.0 article lists and coverage timelines if current access/terms pass. Keep raw event manifests distinct. Explore Media Cloud only after access and rights checks; add direct allowlisted publisher RSS/sitemaps and official press/agency feeds as independent discovery routes. Define country/language/source coverage and pagination; no hidden fallback or false completeness.
+- [ ] V4.03 Reuse hardened retrieval; normalize URLs carefully, retain original and canonical links, distinguish headline-only from extracted text, record extraction and date confidence. Preserve failed fetches and paywall/blocked states. Fix documentation inconsistencies without weakening SSRF/DNS-rebinding controls.
+- [ ] V4.04 Deduplicate exact URLs, canonical aliases, normalized title/body fingerprints and near-identical syndication. Calibrate deterministic matching using existing RapidFuzz, hashes and local methods before optional local embedding models. Do not merge different events, negations, follow-ups or repeated events merely because titles are similar.
+- [ ] V4.05 Event clustering: entity candidates, event time/place, action and topical similarity; multilingual scope (start with English, Slovenian and German; expand based on evidence). Use uncertainty/abstention, cluster membership rationale, stable IDs and reversible splits/merges. Produce event timelines, first-seen/updated coverage and original-reporting candidates; do not equate earliest discovered article with first reporting.
+- [ ] V4.06 Normalize coverage against monitored source universe when possible; distinguish articles, events, source families, publication dates and raw/relative coverage. Report incomplete sampling and source concentration.
+- [ ] V4.07 Deliver one end-to-end news discovery/investigation flow with bounded source budgets, structured JSON/Markdown and citations; regression, labeled duplicate and event-cluster evaluation, live smoke and no-network fixtures.
+
+**Acceptance:** Representative multi-provider discovery, clear source failures, no duplicate inflation, inspectable event clusters, multilingual/date/entity collision fixtures, safe article fetch behavior. Proposed held-out targets: duplicate precision >=95%, event clustering pairwise F1 >=90% (report precision, recall and coverage, language slices and uncertainty). A provider not accessible or licensed is BLOCKED, not simulated as live success.
+
+## 3. Milestone V5 — Evidence and Claim Intelligence (P0)
+
+- [ ] V5.01 Define claim/evidence graph: atomic claim ID, subject/predicate/object, scope, asserted date, attribution, evidence references and relation (supports/contradicts/context/insufficient), extraction method, locator and source revision. Preserve evidence spans or permitted hashes/locations; primary documents, secondary reporting and opinion are separate.
+- [ ] V5.02 Extract checkable claims without treating allegations, quotations, projections or headlines as facts. Use existing deterministic parsing and optional client sampling only within explicit capability and cost limits. Malicious source instructions cannot change tool behavior or invoke actions.
+- [ ] V5.03 Model source independence and provenance: common wire service, press release, quoted primary source, repost, shared dataset and ownership signals. Unknown lineage remains unknown. A cluster of syndicated copies is not independent corroboration.
+- [ ] V5.04 Search primary official records and independent sources through existing adapters; investigate candidate Google Fact Check Claim Search (only read-only and if free access/terms verified), ClaimReview and archival/correction references. Fact-check absence is not proof; third-party ratings retain original attribution and context.
+- [ ] V5.05 Claim statuses: supported, independently corroborated, unverified, disputed, contradicted, unknown; document reasoning, conflicts, freshness, scope and coverage. Separate source quality from evidence quality; no universal publisher trust score and no unjustified certainty.
+- [ ] V5.06 Track updates/corrections and evidence retractions; version event and claim states; distinguish revision from deletion/feed expiry. Support narrative/framing comparisons via sourced observations, not automatic accusations or ideological truth labels.
+- [ ] V5.07 Produce an evidence-backed event investigation with claim table, original links, timelines, contradictions and missing evidence. Ensure no fabricated citations, no invented facts from headline-only records, no secret/personal-data leakage, safe outputs.
+
+**Acceptance:** Independently labeled claims, syndication/press-release adversarial fixtures, misleading/headline-only and unavailable-source cases, citation audit with exact source support, correction and contradiction replay. Proposed targets: >=98% factual citation correctness, zero fabricated citations, explicit abstention when evidence is insufficient; report claim accuracy AND abstention/coverage rather than optimizing by refusing everything.
+
+## 4. Milestone V6 — Advanced Trend Intelligence (P0/P1)
+
+- [ ] V6.01 Inventory M00–M14 and existing research-report inputs/outputs; add a bounded orchestration layer that gathers approved existing independent signals and passes typed observations into current analysis. Preserve source, metric, unit, market, language, sampling basis, timestamps and normalization batches.
+- [ ] V6.02 Extend comparison methods only where needed: aligned windows, minimum history and coverage, robust baselines, outliers, change points, growth/acceleration, persistence, seasonality and geographical diffusion. Low bases and repeated sampling require explicit caution. No cross-batch normalized Google comparisons unless supported by comparable scaling and verified methodology.
+- [ ] V6.03 Keep separate evidence dimensions: search interest, media attention, actual adoption proxies, developer problems, verified purchasing/spending, research activity, evidence quality. Rank research priorities transparently; do not sum unlike units or invent a probability of success.
+- [ ] V6.04 Add an opt-in local history store (reuse SQLite with schema version, migrations, retention and bounded size): immutable observation/revision IDs, observed-at vs available-at vs ingested-at, source health, gaps, data rights and provenance. Export reproducible as-of snapshots; missing is never zero. Reuse caches without confusing cache age and publication age.
+- [ ] V6.05 Explain spikes using event timeline linkage, lead/lag, possible alternative explanations, seasonality, confounders and coverage changes. Association is not causation; report evidence for/against each hypothesis and conditions required for stronger causal inference.
+- [ ] V6.06 Evaluate official Google Trends API alpha as an optional access-gated adapter only after permission/free terms; compare scaling to existing provider and never rely on acceptance. Maintain honest degraded operation during 429/outage; no retries beyond approved budgets.
+- [ ] V6.07 Deliver validate_trend through existing or approved high-level surface; return lifecycle, signal-by-signal evidence, contradictory observations, reasons, uncertainty, unavailable sources, and next validation steps.
+
+**Acceptance:** Replay real dated multi-source observations, synthetic ground-truth step/spike/seasonal/flat/missing-data cases, temporal/market normalization checks and partial provider failure. No silent zero imputation, false equivalence, unsupported causal or buying claims, or data leakage.
+
+## 5. Milestone V7 — Predictive and Continuous Intelligence (P1)
+
+- [ ] V7.01 Define explicit forecast targets, horizons, units, available-at timestamps and meaningful baselines (last observation, seasonal naive, simple trend). No business-success probabilities without verified outcome labels and valid calibration.
+- [ ] V7.02 Implement simple transparent forecasts first; rolling-origin time-separated evaluation, honest intervals, calibration and baseline comparison with MAE/MASE or appropriate metric. Preserve forecast/model version, training cutoff and actual future outcomes. Refuse forecasts for short/incompatible data. Only claim predictive improvement on held-out tasks with sufficient coverage.
+- [ ] V7.03 Extend manual Watch with durable opt-in observation rules, thresholds, hysteresis/cooldown, idempotent evaluations, status changes and explicit source budgets. Design local polling separately; do not create or modify existing scheduled workers. No outbound alerts without operator approval.
+- [ ] V7.04 Add event/claim/trend updates, correction-aware alerts, digest previews and watch history. Prevent repeated alerts, report unavailable sources and stale observations, preserve source-specific retention rights.
+- [ ] V7.05 Deliver forecast and research orchestration with stopping rules, bounded network calls/time, partial outputs, explicit uncertainty and source receipts. Local-only/no paid inference defaults.
+- [ ] V7.06 Optional post-core multimedia evaluation: permitted image/video metadata, provenance/archival checks and original source links, no biometric identification or authenticity guarantee. Document unsupported content and privacy boundaries; do not promise verification from metadata alone.
+
+**Acceptance:** Rolling-origin held-out evaluation beats appropriate naive baselines before predictive claims; interval coverage reported; leak-free replay, missing history abstention, cooldown/idempotency, restart persistence and failure recovery tests. No operational automation until separately authorized.
+
+## 6. Milestone V8 — Production Excellence (release gate)
+
+- [ ] V8.01 Assemble >=500 independently labeled held-out examples across news retrieval, duplicates, multilingual event clusters, claim support/contradiction, temporal trends and source outages. Separate development/test sets, label disagreement, provenance, permission and difficult cases. Predeclare metrics and prevent test leakage.
+- [ ] V8.02 Run independent human review with fresh unfamiliar tasks and blinded or alternating baselines: time-to-verified-answer, accuracy, caveat comprehension, usability, real research utility. Record disagreements and actual signed evidence; never self-certify.
+- [ ] V8.03 Review every provider's access, license, attribution, retention and downstream use, including OSV per-original-feed rights and Wikidata limits. No bulk/public commercial redistribution without approval. Inspect dependencies and exact installed package manifests.
+- [ ] V8.04 Harden operations: bounded concurrency, cancellation, timeout, backpressure, persistent MCP session, privacy-safe provider telemetry, per-source health/freshness, resource limits, safe exports and restore/rollback. Test restart, rate limit, malformed/oversized payload, DNS rebinding, injection, cache failures and sustained load.
+- [ ] V8.05 Test existing CLI/community/hosted contracts, MCP Inspector, applicable official conformance scenarios; disclose unsupported/failed requirements and never claim certification without proof. Test packaged wheel/sdist, security floors, CI and compatibility on supported platforms.
+- [ ] V8.06 Review hosted deployment, authentication, transport, tenant isolation, quotas and incident procedures only after authorization; keep local free core usable without hosted service. No production deployment or registry/public release from this plan alone.
+- [ ] V8.07 Release candidate decision with exact version, test receipts, limitations, benchmark report, rights/independent review, changelog and rollback. Owner approval required before promotion.
+
+## 7. Proposed compact MCP surface
+
+These are conceptual endpoints, not instructions to register tools immediately. Reuse existing names/contracts where appropriate, avoid expanding the default tool list, and get approval before changing advertised tool surfaces.
+
+| High-level capability | Responsibility |
+| --- | --- |
+| discover_news_events | Collect, normalize, deduplicate and group news |
+| investigate_event | Timeline, entity candidates, source independence and context |
+| verify_claims | Source-backed support, contradiction and uncertainty |
+| validate_trend | Aligned independent signals, lifecycle, alternative explanations |
+| forecast_trend | Time-aware forecasts and intervals, baseline evaluation |
+| research_intelligence | Bounded end-to-end plan, execution, synthesis and evidence report |
+
+Unified response: schema version, run ID, question/scope/as-of time, plan and budget, provider outcomes, event/claim/signal references, coverage, observations, calculations, conclusions and status, contradictions, limitations, next validation action. Machine-readable plus concise human report; support plan-only, explicit execute, compact/full and offline replay where safe. No paid external language model requirement.
+
+## 8. Acceptance scorecard (proposed, not achieved)
+
+| Metric | Target / measurement |
+| --- | --- |
+| Labeled benchmark | >=500 distinct held-out cases, independently reviewed |
+| Duplicate precision | >=95%, also report recall and slices |
+| Event clustering | Pairwise F1 >=90%, report split/merge errors and multilingual slices |
+| Factual citation correctness | >=98%, denominator = factual claims requiring citation |
+| Fabricated citations | 0 in acceptance suite |
+| Missing-as-zero or incomparable-unit substitution | 0 in acceptance suite |
+| Defined provider failure cases | 100% handled honestly and safely |
+| Forecasting | Multiple time-separated holdouts; beat appropriate baseline before claims; interval calibration reported |
+| Operational reliability | Measured cold/warm latency, budgets, degradation, restart/soak and rollback; set SLO after baseline |
+| Independent human review and rights | Required for relevant release scope |
+| Required paid API dependencies | 0 |
+
+These are proposed targets, not evidence of present performance. Publish denominators, limitations, uncertainty, failure examples and exact dataset/version. Do not lower acceptance criteria to obtain a passing report.
+
+## 9. Reference sources and access gates
+
+Reviewed for planning (not a live provider contract/permission test):
+- GDELT DOC 2.0: https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/ — article lists, coverage timelines, source/language filters; verify current access, quotas and rights before integration.
+- IPTC EventsML-G2: https://iptc.org/standards/eventsml-g2/ ; NewsML-G2: https://iptc.org/standards/newsml-g2/ — event/news metadata reference, not a requirement to adopt XML wholesale.
+- Google Fact Check Tools API: https://developers.google.com/fact-check/tools/api/reference/rest — fact-checked claim search candidate, read-only; verify free quota, terms and credentials before use.
+- Google Trends API alpha: https://developers.google.com/search/apis/trends ; https://developers.google.com/search/blog/2025/07/trends-api — consistently scaled relative interest, rolling five-year history, limited access; not absolute counts or guaranteed free entitlement.
+- Media Cloud: https://www.mediacloud.org/ — candidate only, verify access/coverage/license.
+- Internet Archive: https://archive.org/ — historical reference candidate, verify endpoint/retention/rights.
+- Existing MJAU plan, provider docs and benchmark receipts are the source of truth for already implemented features. Any conflicting historical statement must be reconciled with exact code/runtime.
+
+## 10. Execution and continuation ledger
+
+| Phase | State | Next evidence |
+| --- | --- | --- |
+| V4 | NOT_STARTED | V4.01 exact baseline, schema and gap inventory |
+| V5 | NOT_STARTED | V4 event contract; V5.01 evidence graph design |
+| V6 | NOT_STARTED | Reuse map of M00–M14 and source comparability |
+| V7 | NOT_STARTED | V6 history and independently labeled outcome availability |
+| V8 | NOT_STARTED | Predeclare benchmark early; execute release review after core |
+
+Start with V4.01, then V4 and V5 as the highest-value joint workstream, in dependency order. Separate non-overlapping branches only when authorized and avoid competing writers. V8 benchmark design should begin before model tuning; release evaluation follows implementation. At each checkpoint write task ID, status (NOT_STARTED / IN_PROGRESS / VERIFIED / BLOCKED), commit/PR, actual tested scope, source rights, provider receipts, test results, remaining limitation and single next action. Preserve unfinished tasks and never claim completion based solely on a plan.
+
+**Resume prompt:** "Continue the TrendPulse V4–V8 roadmap in .planning/trendpulse-intelligence-v4-v8.md. Inspect current code/branch/PRs, read AGENTS.md and earlier MJAU plan, reuse existing functionality, start the first unverified dependency-ready task, implement and test only authorized scope, record evidence and next action. Free-only, no deployment or scheduler changes, no quota bypass, no fabricated findings."
+
+**Planning-only checkpoint:** No source code changes, new integrations, credentials, provider calls through TrendPulse, deployments, package releases or scheduler changes authorized or performed as part of this plan.
