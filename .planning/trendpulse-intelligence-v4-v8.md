@@ -136,7 +136,7 @@ Reviewed for planning (not a live provider contract/permission test):
 
 | Phase | State | Next evidence |
 | --- | --- | --- |
-| V4 | IN_PROGRESS | V4.06 coverage normalization implemented; initial CI green, final strengthened head verification pending; live/held-out gates open |
+| V4 | IN_PROGRESS | V4.06 coverage normalization implemented and final CI verified; proceed V4.07; live/held-out gates open |
 | V5 | NOT_STARTED | V4 event contract; V5.01 evidence graph design |
 | V6 | NOT_STARTED | Reuse map of M00–M14 and source comparability |
 | V7 | NOT_STARTED | V6 history and independently labeled outcome availability |
@@ -204,3 +204,5 @@ Live acceptance on Windows using five fingerprint-verified exact source blobs an
 - References: https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/ ; https://blog.gdeltproject.org/gdelt-2-0-api-now-supports-raw-result-counts/ ; https://www.justice.gov/atr/herfindahl-hirschman-index (arithmetic only; no market-concentration thresholds or ownership inference).
 - No dependencies, paid service, network requests from the new APIs, registry/production changes or outreach. Earlier successful live NASA collection/replay evidence remains separate; GDELT timeline/article collector and live publisher extraction acceptance, held-out duplicate/event evaluation, and real-world coverage calibration remain open.
 - **Next:** verify final exact-head CI, record result, then V4.07 bounded end-to-end news investigation flow and structured JSON/Markdown. No full V4 acceptance claim while real-world/live gates remain outstanding.
+
+**V4.06 final CI receipt:** Exact head `81150adc8879d314387fab8b13fc3b3d654ac06d`, [run 46176940403](https://github.com/AKzar1el/mcp-trendpulse/actions/runs/46176940403): all five jobs completed successfully. Python 3.13: **3,464 passed, 1 skipped, 17 deselected, 3 warnings**, Ruff passed. All 24 coverage regression cases passed, including timestamp-basis separation, tiny nonzero shares and contradictory HTTP-status rejection. V4.06 offline verification complete; live GDELT and real-world coverage acceptance remain open. **Next independent task: V4.07 bounded news investigation orchestration.**
