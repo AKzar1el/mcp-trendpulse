@@ -33,7 +33,7 @@ Read first:
 
 ## 2. Milestone V4 — News and Event Intelligence (P0)
 
-- [ ] V4.01 Inventory article, signal and provider schemas; choose minimal shared NewsArticle/Event records and migration/compatibility strategy. Distinguish event time, publication time, update time, first observation, retrieval time, date precision, original language, source country versus event location, content level and canonical/source URL.
+- [x] V4.01 Inventory article, signal and provider schemas; choose minimal shared NewsArticle/Event records and migration/compatibility strategy. Distinguish event time, publication time, update time, first observation, retrieval time, date precision, original language, source country versus event location, content level and canonical/source URL.
 - [ ] V4.02 Extend existing GDELT adapter with bounded DOC 2.0 article lists and coverage timelines if current access/terms pass. Keep raw event manifests distinct. Explore Media Cloud only after access and rights checks; add direct allowlisted publisher RSS/sitemaps and official press/agency feeds as independent discovery routes. Define country/language/source coverage and pagination; no hidden fallback or false completeness.
 - [ ] V4.03 Reuse hardened retrieval; normalize URLs carefully, retain original and canonical links, distinguish headline-only from extracted text, record extraction and date confidence. Preserve failed fetches and paywall/blocked states. Fix documentation inconsistencies without weakening SSRF/DNS-rebinding controls.
 - [ ] V4.04 Deduplicate exact URLs, canonical aliases, normalized title/body fingerprints and near-identical syndication. Calibrate deterministic matching using existing RapidFuzz, hashes and local methods before optional local embedding models. Do not merge different events, negations, follow-ups or repeated events merely because titles are similar.
@@ -136,7 +136,7 @@ Reviewed for planning (not a live provider contract/permission test):
 
 | Phase | State | Next evidence |
 | --- | --- | --- |
-| V4 | NOT_STARTED | V4.01 exact baseline, schema and gap inventory |
+| V4 | IN_PROGRESS | V4.02 internal schema/adapters, free-source access and rights checks; V4.01 design VERIFIED |
 | V5 | NOT_STARTED | V4 event contract; V5.01 evidence graph design |
 | V6 | NOT_STARTED | Reuse map of M00–M14 and source comparability |
 | V7 | NOT_STARTED | V6 history and independently labeled outcome availability |
@@ -146,4 +146,6 @@ Start with V4.01, then V4 and V5 as the highest-value joint workstream, in depen
 
 **Resume prompt:** "Continue the TrendPulse V4–V8 roadmap in .planning/trendpulse-intelligence-v4-v8.md. Inspect current code/branch/PRs, read AGENTS.md and earlier MJAU plan, reuse existing functionality, start the first unverified dependency-ready task, implement and test only authorized scope, record evidence and next action. Free-only, no deployment or scheduler changes, no quota bypass, no fabricated findings."
 
-**Planning-only checkpoint:** No source code changes, new integrations, credentials, provider calls through TrendPulse, deployments, package releases or scheduler changes authorized or performed as part of this plan.
+**Planning-only checkpoint (original 2026-11-28 plan):** No source code changes, new integrations, credentials, provider calls through TrendPulse, deployments, package releases or scheduler changes authorized or performed as part of this plan.
+
+**V4.01 checkpoint — 2026-11-28: VERIFIED (design scope only).** [Pinned-source inventory, selected contract, migration and regression matrix](trendpulse-v4-01-news-event-contract.md), commit `a6bc30e4068f71cfb9157ce8225dc28d215d27ff`. Inspected main `744fa81ff0376ce9bd9d8e6d726dcf924d53ea24`, existing schemas/provider contracts and open PR overlap, including #446 and #436. No runtime code or provider tests were run; dedicated local TrendPulse tunnel disconnected. Existing #426/#427 remain open, #428 closed. The contract is a specification, not a shipped implementation. All V4.02–V8 tasks remain unchecked; no source rights or live access were granted by reviewing documentation. Next: V4.02, implement bounded additive models/mappers and validate GDELT DOC/free source access under existing policy after checking current workspace and competing writers.
