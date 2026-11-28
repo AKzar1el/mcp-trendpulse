@@ -24,7 +24,7 @@ def source(key, *, kind="primary_document", capture=CUT, text=None):
     return s,a,text
 
 
-def graph(*, supporting=(), contradicting=(), context=(), claim_scope=None):
+def graph(*, supporting=(), contradicting=(), context=(), claim_scope=None, dual_direction_same=False):
     origin_text = "Acme claims output reached 100 units."
     import hashlib
     os = SourceRevision(basis="caller_document",source_kind="unknown",url="https://origin.example.org/report",
@@ -38,15 +38,19 @@ def graph(*, supporting=(), contradicting=(), context=(), claim_scope=None):
                         scope=claim_scope or __import__("mcp_trendpulse.claim_intelligence_graph",fromlist=["ClaimScope"]).ClaimScope())
     items=[(os,oa,origin_text)]
     items.extend(supporting);items.extend(contradicting);items.extend(context)
+    if dual_direction_same:
+        items = [items[0], supporting[0]]
     all_sources=[x[0] for x in items];all_anchors=[x[1] for x in items]
     relations=[]
     idx=1
     for group,kind in ((supporting,"supports"),(contradicting,"contradicts"),(context,"context")):
         for _ in group:
-            relations.append(EvidenceRelation(claim_id=claim.claim_id,evidence_ids=(all_anchors[idx].evidence_id,),
+            anchor_idx = 1 if dual_direction_same and kind == "contradicts" else idx
+            relations.append(EvidenceRelation(claim_id=claim.claim_id,evidence_ids=(all_anchors[anchor_idx].evidence_id,),
                                               relation=kind,scope_alignment="matched" if kind in ("supports","contradicts") else "unknown",
                                               rationale="Synthetic reviewer annotation"))
-            idx+=1
+            if not (dual_direction_same and kind == "contradicts"):
+                idx+=1
     g=build_claim_graph(as_of=CUT,sources=all_sources,evidence=all_anchors,claims=[claim],relations=relations,
                         document_texts={x[0].source_revision_id:x[2] for x in items if x[2] is not None})
     return g,claim
@@ -85,7 +89,7 @@ def test_opposing_sources_are_disputed_not_net_scored():
 
 def test_same_revision_on_both_sides_remains_disputed():
     a=source("shared")
-    g,c=graph(supporting=[a],contradicting=[a])
+    g,c=graph(supporting=[a],contradicting=[a],dual_direction_same=True)
     r=assess(g,c)
     assert r["status"]=="disputed"
     assert r["supporting_source_revision_ids"]==r["contradicting_source_revision_ids"]
@@ -106,12 +110,10 @@ def test_current_freshness_policy_downgrades_old_evidence():
     assert r["freshness_by_source"][0]["status"]=="stale"
 
 
-def test_unknown_capture_does_not_become_fresh():
+def test_unknown_capture_cannot_be_promoted_to_directional_verification():
     item=source("unknown",capture=None)
-    g,c=graph(supporting=[item])
-    p=AssessmentPolicy(claim_id=c.claim_id,temporal_relevance="current",max_evidence_age_days=2)
-    r=assess(g,c,policies=[p])
-    assert r["status"]=="unverified" and r["freshness_status"]=="unknown"
+    with pytest.raises(ValueError,match="known capture"):
+        graph(supporting=[item])
 
 
 def test_stable_claim_does_not_invent_staleness_threshold():
@@ -120,6 +122,7 @@ def test_stable_claim_does_not_invent_staleness_threshold():
     p=AssessmentPolicy(claim_id=c.claim_id,temporal_relevance="stable")
     r=assess(g,c,policies=[p])
     assert r["status"]=="supported" and r["freshness_status"]=="not_assessed"
+    assert r["freshness_by_source"][0]["status"]=="not_assessed"
 
 
 def test_specific_period_and_required_scope():

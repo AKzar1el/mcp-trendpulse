@@ -158,7 +158,8 @@ def assess_claim_evidence(graph, *, as_of, policies=(), lineage_report=None):
                 if age < 0:
                     raise ValueError("Evidence capture after assessment cutoff")
                 threshold = policy.max_evidence_age_days
-                state = ("stale" if threshold is not None and age > threshold else "within_policy")
+                state = ("not_assessed" if threshold is None else
+                         "stale" if age > threshold else "within_policy")
             age_by_source[sid] = state
             freshness.append({"source_revision_id":sid,"captured_at":captured,
                               "age_days":None if age is None else round(age,6),
@@ -201,7 +202,7 @@ def assess_claim_evidence(graph, *, as_of, policies=(), lineage_report=None):
             freshness_status = "unknown"
         elif any(x == "stale" for x in age_by_source.values()):
             freshness_status = "stale"
-        elif age_by_source:
+        elif "within_policy" in age_by_source.values():
             freshness_status = "within_policy"
         else:
             freshness_status = "not_assessed"
