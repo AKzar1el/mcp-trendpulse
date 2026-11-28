@@ -136,7 +136,7 @@ Reviewed for planning (not a live provider contract/permission test):
 
 | Phase | State | Next evidence |
 | --- | --- | --- |
-| V4 | IN_PROGRESS | V4.05 event candidate implementation committed; first CI green, final strengthened head pending verification; live/held-out gates open |
+| V4 | IN_PROGRESS | V4.05 event candidates implemented and final offline CI verified; proceed V4.06; live/held-out gates open |
 | V5 | NOT_STARTED | V4 event contract; V5.01 evidence graph design |
 | V6 | NOT_STARTED | Reuse map of M00–M14 and source comparability |
 | V7 | NOT_STARTED | V6 history and independently labeled outcome availability |
@@ -193,3 +193,5 @@ Live acceptance on Windows using five fingerprint-verified exact source blobs an
 - Original observations retained; timelines separate capture, reported publication, and provider-seen time. Event dates are source-span candidates, not verified occurrence dates. Earliest supplied capture is not first reporting; original reporting and source independence explicitly unknown. Known future captures/timestamps rejected. No external calls, new dependencies, persistent history, scheduler/registry changes or paid service.
 - Design reference: https://www.iptc.org/std/NewsML-G2/guidelines/ (event concepts, separate occurrence/status/coverage metadata). No claim of full standards conformance. Real-world held-out accuracy, richer automatic entity/location extraction, broader multilingual semantic evaluation, publisher extraction smoke and GDELT successful live gates remain open. Synthetic tests cannot establish F1 or commercial reliability.
 - **Next:** verify final exact-head CI and update receipt, then V4.06 offline coverage normalization and source concentration. Do not mark V4.05 fully accepted solely from synthetic tests. GDELT remains deferred after prior HTTP 429s; no new DOC calls in V4.05. No deployment, merge, paid services or outreach.
+
+**V4.05 final CI receipt:** Exact head `e0b76b3ef90714f6d2e949b32dc655655bbd1deb`, [run 46176555533](https://github.com/AKzar1el/mcp-trendpulse/actions/runs/46176555533), all five jobs completed successfully; Python 3.13: **3,440 passed, 1 skipped, 17 deselected, 3 warnings**, Ruff passed. All 22 event candidate regression cases passed, including strengthened topic-anchor rejection and idempotent revision replay. V4.05 offline verification complete; acceptance checkbox remains open for the previously identified real-world and live evaluation gaps. **Next independent task: V4.06 coverage normalization.**
