@@ -184,6 +184,9 @@ class NewsBatch(FrozenModel):
     duplicate_count: Count | None = None
     truncated_count: Count | None = None
     possibly_capped: bool = False
+    rejected_row_reasons: tuple[Literal[
+        "invalid_row_shape", "unsafe_or_unsupported_url", "invalid_article_metadata"
+    ], ...] = Field(default=(), max_length=MAX_ARTICLES)
     articles: tuple[NewsArticle, ...] = Field(default=(), max_length=MAX_ARTICLES)
     reason: Literal["invalid_payload", "all_rows_invalid", "provider_unavailable"] | None = None
 
@@ -201,6 +204,8 @@ class NewsBatch(FrozenModel):
         elif (any(c is None for c in counts)
               or self.source_count != len(self.articles) + sum(c for c in counts[1:] if c is not None)):
             raise ValueError("Inconsistent source counts")
+        if len(self.rejected_row_reasons) != (self.invalid_count or 0):
+            raise ValueError("Inconsistent rejected row diagnostics")
         if self.source_count is None:
             expected_status = "unavailable" if self.reason == "provider_unavailable" else "invalid"
             expected_reason = "provider_unavailable" if expected_status == "unavailable" else "invalid_payload"
@@ -354,11 +359,26 @@ def _project_rows(rows: list, *, provider: Provider, captured_at: str | None, li
     articles = []
     seen = set()
     invalid = duplicates = 0
+    rejected = []
     for row in rows[:limit]:
+        if not isinstance(row, ElementTree.Element if provider == "nasa_rss" else dict):
+            invalid += 1
+            rejected.append("invalid_row_shape")
+            continue
+        try:
+            link = _element_text(row, "link") if provider == "nasa_rss" else row.get("url")
+            _url(link)
+            if provider == "nasa_rss" and urlsplit(link).hostname not in _NASA_LINK_HOSTS:
+                raise ValueError("Unsupported NASA link")
+        except ValueError:
+            invalid += 1
+            rejected.append("unsafe_or_unsupported_url")
+            continue
         try:
             article = _map_row(row, provider, captured_at)
         except ValueError:
             invalid += 1
+            rejected.append("invalid_article_metadata")
             continue
         if article.observation_id in seen:
             duplicates += 1
@@ -370,7 +390,8 @@ def _project_rows(rows: list, *, provider: Provider, captured_at: str | None, li
     return NewsBatch(
         **common, status=status, source_count=len(rows), invalid_count=invalid,
         duplicate_count=duplicates, truncated_count=truncated, possibly_capped=len(rows) >= limit,
-        articles=tuple(articles), reason="all_rows_invalid" if status == "invalid" else None,
+        articles=tuple(articles), rejected_row_reasons=tuple(rejected),
+        reason="all_rows_invalid" if status == "invalid" else None,
     )
 
 
