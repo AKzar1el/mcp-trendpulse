@@ -2,7 +2,7 @@
 import pytest
 
 from mcp_trendpulse.claim_intelligence_graph import (
-    AtomicClaim, ClaimEvidenceGraph, EvidenceAnchor, EvidenceRelation, SourceRevision, build_claim_graph,
+    AtomicClaim, EvidenceAnchor, EvidenceRelation, SourceRevision, build_claim_graph,
 )
 from mcp_trendpulse.claim_intelligence_assess import AssessmentPolicy, assess_claim_evidence
 from mcp_trendpulse.claim_intelligence_lineage import analyze_source_lineage
@@ -36,11 +36,14 @@ def graph(*, supporting=(), contradicting=(), context=(), claim_scope=None, dual
     claim = AtomicClaim(subject="Acme",predicate="produced",object="100 units",polarity="affirmed",
                         modality="allegation",attribution="Acme",origin_evidence_id=oa.evidence_id,
                         scope=claim_scope or __import__("mcp_trendpulse.claim_intelligence_graph",fromlist=["ClaimScope"]).ClaimScope())
-    items=[(os,oa,origin_text)]
-    items.extend(supporting);items.extend(contradicting);items.extend(context)
+    items = [(os, oa, origin_text)]
+    items.extend(supporting)
+    items.extend(contradicting)
+    items.extend(context)
     if dual_direction_same:
         items = [items[0], supporting[0]]
-    all_sources=[x[0] for x in items];all_anchors=[x[1] for x in items]
+    all_sources = [x[0] for x in items]
+    all_anchors = [x[1] for x in items]
     relations=[]
     idx=1
     for group,kind in ((supporting,"supports"),(contradicting,"contradicts"),(context,"context")):
@@ -51,9 +54,9 @@ def graph(*, supporting=(), contradicting=(), context=(), claim_scope=None, dual
                                               rationale="Synthetic reviewer annotation"))
             if not (dual_direction_same and kind == "contradicts"):
                 idx+=1
-    g=build_claim_graph(as_of=CUT,sources=all_sources,evidence=all_anchors,claims=[claim],relations=relations,
-                        document_texts={x[0].source_revision_id:x[2] for x in items if x[2] is not None})
-    return g,claim
+    g = build_claim_graph(as_of=CUT, sources=all_sources, evidence=all_anchors, claims=[claim], relations=relations,
+                          document_texts={x[0].source_revision_id: x[2] for x in items if x[2] is not None})
+    return g, claim
 
 
 def assess(g, claim, **kwargs):
@@ -61,7 +64,7 @@ def assess(g, claim, **kwargs):
 
 
 def test_no_edges_is_unknown_not_false():
-    g,c=graph()
+    g, c = graph()
     r=assess(g,c)
     assert r["status"]=="unknown" and r["numeric_confidence"] is None
     assert r["source_independence"]=="unknown"
@@ -143,7 +146,7 @@ def test_future_capture_and_cutoff_rejected():
 
 
 def test_lineage_review_never_turns_pair_absence_into_independence():
-    a,b=source("a"),source("b")
+    a, b = source("a"), source("b")
     g,c=graph(supporting=[a,b])
     lineage=analyze_source_lineage(g)
     r=assess(g,c,lineage_report=lineage)
@@ -158,8 +161,6 @@ def test_lineage_dependency_pair_is_visible_in_assessment():
     g,c=graph(supporting=[a,b])
     # Two different source revisions with a common upstream root, all source
     # revisions are graph members; declaration anchors contain exact wording.
-    root=source("root")
-    from mcp_trendpulse.claim_intelligence_lineage import LineageLink
     # Existing generic source bodies do not contain literal attribution.
     # Exercise the pair-review interface by mutating a valid report below.
     lineage=analyze_source_lineage(g)
@@ -180,7 +181,8 @@ def test_invalid_policy(kwargs):
 
 
 def test_unknown_policy_duplicate_and_deterministic_fingerprint():
-    a=source("a");g,c=graph(supporting=[a])
+    a = source("a")
+    g, c = graph(supporting=[a])
     result=assess_claim_evidence(g,as_of=CUT)
     assert result==assess_claim_evidence(g,as_of=CUT)
     assert result["report_id"]==_digest({k:v for k,v in result.items() if k!="report_id"})
