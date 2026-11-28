@@ -75,7 +75,7 @@ def test_unsafe_or_misclassified_links(url):
 
 
 @pytest.mark.parametrize("raw", [b"{}", b"<html>provider error</html>", b'{"articles":[],"articles":[]}',
-                                b'{"articles":[],"x":NaN}', b'{"articles":[],"x":1e999}', b" " * (MAX_BYTES + 1)])
+                                b'{"articles":[],"x":NaN}', b'{"articles":[],"x":1e999}', pytest.param(b" " * (MAX_BYTES + 1), id="oversized-payload")])
 def test_invalid_payload_is_not_empty(raw):
     result = parse_news_capture(raw, provider="gdelt_doc", captured_at=CAPTURE)
     assert result.status == "invalid" and result.source_count is None
@@ -242,7 +242,7 @@ def test_nasa_feed_future_and_ambiguous_items_rejected():
     b"<rss/>",
     b"<html>not a feed</html>",
     b'<!DOCTYPE rss [<!ENTITY x SYSTEM "file:///etc/passwd">]><rss/>',
-    b" " * (MAX_BYTES + 1),
+    pytest.param(b" " * (MAX_BYTES + 1), id="oversized-payload"),
     b"\xff\xfe<rss/>",
     _nasa_xml().replace(b"https://www.nasa.gov/", b"https://example.org/"),
 ])
