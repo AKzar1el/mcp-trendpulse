@@ -2102,6 +2102,13 @@ def intelligence_sources(wave):
               exists=True, dir_okay=False, path_type=Path), default=None,
               help="Optional local normalized Google Trends-style series JSON "
                    "for an exact keyword+country match in --idea-map; never fetched.")
+@click.option("--regulatory-context", is_flag=True,
+              help="Opt in to one free U.S. Federal Register context search; uses an"
+                   " explicit term or an already published source-derived topic."
+                   " No legal-status or buyer-demand claims.")
+@click.option("--regulatory-term", default="",
+              help="Optional topic for --regulatory-context; otherwise derive one"
+                   " from existing published discovery evidence.")
 @click.option("--execute", is_flag=True,
               help="Explicitly fetch fixed public free sources; otherwise plan only.")
 @click.option("--record-history", is_flag=True,
@@ -2117,7 +2124,8 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
                           cross_source_hunt, workflow_briefs, ted_software_scan,
                           workflow_cross_check, ted_scope_details, ted_related_notices,
                           idea_map, keyword_probe,
-                          keyword_evidence_file, execute, record_history,
+                          keyword_evidence_file, regulatory_context,
+                           regulatory_term, execute, record_history,
                           record_idea_history, output_format):
     """Discover current source themes without any predefined topic keywords."""
     from mcp_trendpulse.intelligence_discovery import (
@@ -2154,6 +2162,7 @@ def intelligence_discover(lookback_days, limit, ted_date_slices, measure_trends,
             idea_map=idea_map,
             keyword_probe=keyword_probe,
             keyword_evidence=parsed_keyword_evidence,
+            regulatory_context=regulatory_context, regulatory_term=regulatory_term,
         )
         if record_history:
             response["history"] = record_discovery_history(response)

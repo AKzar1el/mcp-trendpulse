@@ -34,6 +34,7 @@ CASES = (
 # probes remain inconclusive rather than being labeled as a code regression.
 # Never claim an unavailable source is a passing source contract.
 OPTIONAL_CASES = (
+    ("federal_register", {"keyword": "artificial intelligence", "limit": 2}),
     ("ecb", {"identifier": "EXR/D.USD.EUR.SP00.A", "limit": 2}),
     ("lever", {"company": "jobgether", "limit": 2}),
     ("github_issues", {

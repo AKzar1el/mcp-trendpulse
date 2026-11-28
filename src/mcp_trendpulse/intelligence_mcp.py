@@ -174,6 +174,8 @@ def intelligence_discover_current(
     corroborate_issues: bool = False,
     cross_source_hunt: bool = False,
     compact: bool = False,
+    regulatory_context: bool = False,
+    regulatory_term: str = "",
 ) -> dict[str, Any]:
     from mcp_trendpulse.intelligence_discovery import discover_current
 
@@ -188,6 +190,7 @@ def intelligence_discover_current(
         measure_trends=measure_trends, broad_topic_scan=broad_topic_scan,
         corroborate_issues=corroborate_issues,
         cross_source_hunt=cross_source_hunt,
+        regulatory_context=regulatory_context, regulatory_term=regulatory_term,
     )
     if not compact or result.get("mode") != "seedless_public_source_discovery_not_market_growth":
         return result
@@ -203,6 +206,7 @@ def intelligence_discover_current(
         "growth_rate_verified", "paid_buyers_verified", "no_paid_apis",
         "limits", "network_performed", "queries_budgeted",
         "ted_date_slices", "sample_limit", "user_credentials_exposed",
+        "regulatory_context",
     )
     return {
         **{key: result[key] for key in brief_keys if key in result},

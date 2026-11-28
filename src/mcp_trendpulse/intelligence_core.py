@@ -91,8 +91,9 @@ def _modules():
     from mcp_trendpulse import intelligence_foundation as first
     from mcp_trendpulse import intelligence_commercial as second
     from mcp_trendpulse import intelligence_specialized as third
+    from mcp_trendpulse import intelligence_federal_register as regulatory
 
-    return verified, first, second, third
+    return verified, first, second, third, regulatory
 
 
 def source_catalog() -> list[dict[str, Any]]:
@@ -187,6 +188,7 @@ _HOSTS = frozenset({
     "ops.epo.org", "cordis.europa.eu",
     "data.gdeltproject.org",
     "stac.opensearch.dataspace.copernicus.eu",
+    "www.federalregister.gov",
 })
 
 
@@ -445,6 +447,8 @@ def _collect_under_lock(
                 if plan.source == "github_issues"
                 else _bounded_openalex_topic_groups(payload)
                 if _is_openalex_topic_group_plan(plan)
+                else {"results": observations["sample"]}
+                if plan.source == "federal_register"
                 else _bound_payload(payload)
             )
     except UnexpectedSourceShape as exc:

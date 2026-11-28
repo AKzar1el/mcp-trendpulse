@@ -1,0 +1,42 @@
+name: Federal Register real-task utility comparison
+
+on:
+  pull_request:
+    paths:
+      - "scripts/qa_federal_register_value_gate_20261123.py"
+      - ".github/workflows/federal-register-value-gate.yml"
+      - "src/mcp_trendpulse/intelligence_regulatory.py"
+      - "src/mcp_trendpulse/intelligence_federal_register.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  independent-comparison:
+    name: Six preregistered public-source research questions
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          version: "0.12.5"
+      - name: Install Python
+        run: uv python install 3.12
+      - name: Sync locked dependencies (no keys)
+        run: uv sync --locked --dev
+      - name: Compare baseline and optional official regulatory evidence
+        env:
+          UV_PYTHON: "3.12"
+          TRENDPULSE_FR_UTILITY_REPORT: federal-register-utility-20261123.json
+        run: uv run --locked python scripts/qa_federal_register_value_gate_20261123.py
+      - name: Preserve source-backed comparison for independent review
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: federal-register-utility-${{ github.run_id }}
+          path: federal-register-utility-20261123.json
+          if-no-files-found: warn
+          retention-days: 7

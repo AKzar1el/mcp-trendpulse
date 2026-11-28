@@ -980,6 +980,8 @@ def discover_current(
     idea_map: bool = False,
     keyword_probe: bool = False,
     keyword_evidence: dict[str, Any] | None = None,
+    regulatory_context: bool = False,
+    regulatory_term: str = "",
 ) -> dict[str, Any]:
     """Free, read-only discovery; optional source-count trend measurement."""
     if isinstance(lookback_days, bool) or not isinstance(lookback_days, int) or not 7 <= lookback_days <= 90:
@@ -1034,6 +1036,16 @@ def discover_current(
         raise ValueError("keyword_probe must be a boolean")
     if keyword_probe and not idea_map:
         raise ValueError("--keyword-probe requires --idea-map")
+    if not isinstance(regulatory_context, bool):
+        raise ValueError("regulatory_context must be a boolean")
+    if not isinstance(regulatory_term, str):
+        raise ValueError("regulatory_term must be a string")
+    if regulatory_term and not regulatory_context:
+        raise ValueError("regulatory_term requires regulatory_context")
+    if regulatory_context and regulatory_term:
+        from mcp_trendpulse.intelligence_federal_register import validate_topic
+
+        validate_topic(regulatory_term)
     now = date.today()
     first = now - timedelta(days=lookback_days - 1)
     plans = [
@@ -1064,6 +1076,20 @@ def discover_current(
             "plans": [p.public() for p in plans],
             "budget_excludes_paid_api_tiers": True,
         }
+        if regulatory_context:
+            planned["regulatory_context"] = {
+                "status": "planned_explicit_or_source_derived_topic",
+                "source": "federal_register", "max_additional_source_requests": 1,
+                "default_no_network": True,
+                "source_topic_required": not bool(regulatory_term),
+                "legal_effect_verified": False,
+            }
+            if regulatory_term:
+                planned["regulatory_context"]["request_plan"] = plan_source(
+                    "federal_register", keyword=regulatory_term,
+                    lookback_days=lookback_days, limit=min(limit, 10), env=env,
+                ).public()
+            planned["max_requests_with_regulatory_context"] = len(plans) + 1
         if workflow_briefs:
             planned["workflow_briefs"] = {
                 "status": "planned_offline_source_projection",
@@ -1185,6 +1211,9 @@ def discover_current(
             if ted_related_notices:
                 planned_total += 2
                 planned["max_requests_with_ted_related_notices"] = planned_total
+        if regulatory_context:
+            # Include all other opted-in enrichments in the same bound.
+            planned["max_requests_with_regulatory_context"] = planned_total + 1
         return planned
 
     sources: list[dict[str, Any]] = []
@@ -1457,6 +1486,22 @@ def discover_current(
                 " involve multiple actual upstream HTTP calls. Provider"
                 " relative search values are not absolute search volume."
             )
+    if regulatory_context:
+        from mcp_trendpulse.intelligence_regulatory import enrich_regulatory_context
+
+        context = enrich_regulatory_context(
+            result, regulatory_term=regulatory_term,
+            lookback_days=lookback_days, limit=limit, cache=cache, env=env,
+        )
+        result["regulatory_context"] = context
+        if context["status"] not in {"observed", "no_supported_topic"}:
+            result["source_health_degraded"] = True
+        result["queries_budgeted"] += context["source_requests_budgeted"]
+        result["limits"] += (
+            " Federal Register matches are topical publication evidence, not"
+            " verification of current legal obligations, compliance deadlines"
+            " or willing buyers. Verify on the official legal edition and eCFR."
+        )
     return result
 
 
@@ -1483,7 +1528,7 @@ def format_discovery_report(result: dict[str, Any]) -> str:
             tag += " | partial date-window coverage"
         lines.append("Source: " + tag)
     # Catalog availability is not collection. Make that boundary explicit
-    # so the 25 adapters are never mistaken for 25 live source observations.
+    # so the source catalogue is never mistaken for live source observations.
     from mcp_trendpulse.intelligence_core import source_catalog
 
     lines.append(
@@ -1493,6 +1538,24 @@ def format_discovery_report(result: dict[str, Any]) -> str:
         "hunt/query workflows are explicitly executed."
     )
     lines.append("")
+    if result.get("regulatory_context") is not None:
+        us = result["regulatory_context"]
+        lines.append(
+            "US FEDERAL REGISTER CONTEXT: "
+            + us.get("status", "unknown")
+            + " | topic: " + us.get("topic", "no verified source topic")
+            + " | sampled documents: " + str(us.get("sampled_documents", 0))
+        )
+        for doc in us.get("documents", [])[:5]:
+            lines.append(
+                "  " + doc["publication_date"] + " [" + doc.get("type", "") + "] "
+                + doc["title"] + " | " + doc["html_url"]
+            )
+        lines.append(
+            "Federal Register publications are context, not verified binding"
+            " obligations or customer demand; verify the official edition and eCFR."
+        )
+        lines.append("")
     if result.get("trend_evidence") is not None:
         from mcp_trendpulse.intelligence_trends import format_research_trends
 

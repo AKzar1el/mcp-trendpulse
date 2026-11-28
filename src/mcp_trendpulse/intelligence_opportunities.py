@@ -23,6 +23,7 @@ SOURCE_KIND: dict[str, str] = {
     "eurostat": "macro_context",
     "ted": "procurement_notice",
     "cellar": "legal_metadata",
+    "federal_register": "legal_metadata",
     "github_issues": "reported_problem",
     "worldbank": "macro_context",
     "greenhouse": "hiring",
@@ -46,7 +47,7 @@ SOURCE_KIND: dict[str, str] = {
     "epo": "patent_publication",
 }
 
-# All mapped sources exist in the current 25-source opt-in extension. A
+# All mapped sources exist in the opt-in source catalogue. A
 # combination is an investigation recipe, not an automatic proof of demand.
 LANES: dict[str, dict[str, Any]] = {
     "agent_safety": {"sources": ("github_issues", "greenhouse", "cellar", "ted"),
@@ -55,7 +56,7 @@ LANES: dict[str, dict[str, Any]] = {
                        "question": "Are merchants funding machine transaction and dispute workflows?"},
     "sme_margin": {"sources": ("eurostat", "greenhouse", "ted", "worldbank"),
                    "question": "Which reachable SME buyers have measured workflow costs?"},
-    "compliance": {"sources": ("cellar", "ted", "greenhouse", "usaspending"),
+    "compliance": {"sources": ("cellar", "federal_register", "ted", "greenhouse", "usaspending"),
                    "question": "Is a rule effective and is spend directed to a new obligation?"},
     "fraud_identity": {"sources": ("cfpb", "github_issues", "ted", "gleif"),
                        "question": "Is a specific purchaser paying to solve identifiable fraud?"},
@@ -69,7 +70,7 @@ LANES: dict[str, dict[str, Any]] = {
                               "question": "Which buyer funds costly reliability remediation?"},
     "research_to_product": {"sources": ("cordis", "openalex", "epo", "greenhouse"),
                             "question": "Has research moved beyond publication into budgets?"},
-    "procurement_regulation": {"sources": ("cellar", "ted", "usaspending"),
+    "procurement_regulation": {"sources": ("cellar", "federal_register", "ted", "usaspending"),
                                "question": "Can binding obligations be linked to procurement?"},
     "corporate_identity": {"sources": ("gleif", "companies_house", "cellar", "ted"),
                            "question": "Can an identified organization justify paid identity checks?"},

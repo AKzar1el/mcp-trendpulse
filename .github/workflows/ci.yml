@@ -63,6 +63,14 @@ jobs:
           UV_PYTHON: ${{ matrix.python-version }}
         run: uv run --locked pytest
 
+      - name: Run Federal Register Hypothesis property tests (test-only dependency)
+        if: matrix.python-version == '3.12'
+        env:
+          UV_PYTHON: ${{ matrix.python-version }}
+        run: >-
+          uv run --locked --with hypothesis==6.170.17 pytest -q
+          tests/test_intelligence_federal_register_properties.py
+
       - name: Run Ruff
         env:
           UV_PYTHON: ${{ matrix.python-version }}
