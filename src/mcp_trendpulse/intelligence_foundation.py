@@ -35,6 +35,18 @@ SOURCES = {
         "docs": "https://docs.github.com/en/rest/search/search",
         "notes": "GitHub issues skew toward technical users; public API has tight rate limits."
     },
+    "github_repositories": {
+        "wave": 1, "access": "public/keyless or existing GitHub auth",
+        "signal": "public open-source repository alternatives, not feature equivalence",
+        "docs": "https://docs.github.com/en/rest/search/search",
+        "notes": "First-page public repositories; descriptions and stars do not prove direct competition.",
+    },
+    "hf_dataset_details": {
+        "wave": 1, "access": "public/no-key",
+        "signal": "public dataset license, gating and maintenance metadata",
+        "docs": "https://huggingface.co/docs/hub/api",
+        "notes": "A public card is not permission to reuse contents; gated and license-unknown remain unverified.",
+    },
     "worldbank": {
         "wave": 1, "access": "public/no-key", "signal": "official cross-country macroeconomic indicators",
         "docs": "https://datahelpdesk.worldbank.org/knowledgebase/articles/889392",
@@ -101,7 +113,7 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
                     budget_per_day=5, **common)
     if source == "github_issues":
         terms = _required(keyword, "keyword")
-        query = f'"{terms}" is:issue is:open'
+        query = f'"{terms}" is:issue is:open is:public'
         # Created recently, not merely an old issue updated this week.
         if p["lookback_days"] is not None:
             from datetime import datetime, timedelta, timezone
@@ -118,11 +130,40 @@ def build(source: str, p: dict, env: dict[str, str]) -> Plan:
                     re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}", owner_repo) is None):
                 raise IntelligenceError("GitHub repo selector must be owner/repo")
             query += f" repo:{owner_repo}"
-        url = "https://api.github.com/search/issues?" + urlencode(
-            {"q": query, "per_page": limit,
-             "sort": "created" if p["lookback_days"] is not None else "updated",
-             "order": "desc"})
+        params = {"q": query, "per_page": limit}
+        # GitHub defaults to best match when sort is omitted.
+        if not p.get("relevance_first"):
+            params.update({
+                "sort": "created" if p["lookback_days"] is not None else "updated",
+                "order": "desc",
+            })
+        url = "https://api.github.com/search/issues?" + urlencode(params)
         return Plan(method="GET", url=url, budget_per_day=12, **common)
+    if source == "github_repositories":
+        term = _required(keyword, "repository research phrase")
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 .+_-]{2,79}", term) is None:
+            raise IntelligenceError("Repository search needs a plain 3-80 character phrase")
+        url = "https://api.github.com/search/repositories?" + urlencode({
+            "q": term + " in:name,description is:public", "per_page": min(limit, 10),
+        })
+        return Plan(method="GET", url=url, budget_per_day=12, **common)
+    if source == "hf_dataset_details":
+        dataset_id = _required(p["identifier"], "public HF dataset owner/name")
+        if re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9_.-]{0,95}/[A-Za-z0-9][A-Za-z0-9_.-]{0,95}",
+            dataset_id,
+        ) is None or ".." in dataset_id:
+            raise IntelligenceError("Dataset must use a public Hugging Face owner/name ID")
+        # Hugging Face's default dataset-info response may exceed the 256 KiB
+        # collector ceiling due to large file manifests; request metadata only.
+        fields = (
+            "cardData", "createdAt", "lastModified", "gated",
+            "private", "likes", "downloads",
+        )
+        url = "https://huggingface.co/api/datasets/" + dataset_id + "?" + urlencode(
+            [("expand[]", name) for name in fields],
+        )
+        return Plan(method="GET", url=url, budget_per_day=6, **common)
     if source == "worldbank":
         country = _required(p["country"], "country")
         indicator = _required(p["identifier"], "World Bank indicator ID")

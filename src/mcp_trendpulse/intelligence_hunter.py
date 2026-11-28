@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import Any
 
 from mcp_trendpulse.intelligence_core import (
-    BudgetCache, IntelligenceError, collect, plan_source,
+    BudgetCache, DailyBudgetExceeded, IntelligenceError, collect, plan_source,
 )
-from mcp_trendpulse.intelligence_observations import observe_source_snapshots
+from mcp_trendpulse.intelligence_observations import MAX_SAMPLE_RECORDS, observe_source_snapshots
 from mcp_trendpulse.intelligence_issue_quality import EXCLUDED_FROM_CURRENT_HUNT
 from mcp_trendpulse.intelligence_opportunities import _day
 
@@ -38,6 +38,9 @@ SEED_TOPICS = (
 )
 MAX_TOPICS = 4
 MAX_SOURCES = 5
+DEFAULT_SAMPLE_LIMIT = 5
+MAX_SAMPLE_LIMIT = 10
+RELEVANCE_SOURCES = frozenset({"openalex", "github_issues"})
 DATE_SEMANTICS = {
     "research_publication_not_purchase", "issue_creation_not_buyer_spend",
     "complaint_received_not_purchase", "notice_publication_not_confirmed_award",
@@ -52,6 +55,15 @@ NOISE = {
 }
 WORD = re.compile(r"[a-z0-9]+", re.ASCII)
 TOPIC = re.compile(r"[A-Za-z0-9][A-Za-z0-9 -]{2,79}\Z")
+ACRONYMS = {
+    "ai": ("artificial", "intelligence"),
+    "ml": ("machine", "learning"),
+    "llm": ("large", "language"),
+    "llms": ("large", "language"),
+    "mcp": ("context", "protocol"),
+    "api": ("application", "programming", "interface"),
+    "apis": ("application", "programming", "interface"),
+}
 
 
 def _topics(topics: list[str] | None, today: date) -> list[str]:
@@ -87,6 +99,9 @@ def _sources(sources: list[str] | None) -> list[str]:
 def _words(value: str) -> list[str]:
     tokens = []
     for word in WORD.findall(value.lower()):
+        if word in ACRONYMS:
+            tokens.extend(ACRONYMS[word])
+            continue
         # Limited plural normalization for cost/costs and study/studies.
         # This is lexical matching, never semantic proof of the same demand.
         if word.endswith("ies") and len(word) >= 6:
@@ -147,6 +162,14 @@ def summarize_current_hunt(
         report = observe_source_snapshots(term, snapshots, as_of=now.isoformat())
         matches = [row for row in report["sample_records"]
                    if _relevant(term, str(row.get("title") or ""))]
+        # OpenAlex's assigned labels are useful discovery context when a
+        # title alone is vague. Never promote these labels to dated activity.
+        label_matches = [
+            row for row in report["sample_records"] if row["source"] == "openalex"
+            and row not in matches and any(
+                _relevant(term, label) for label in row.get("provider_research_labels", [])
+            )
+        ]
         excluded = [
             row for row in matches
             if row["source"] == "github_issues"
@@ -201,11 +224,16 @@ def summarize_current_hunt(
             provider["unmatched_sample_records"] = max(
                 0, provider["records_accepted"] - len(topical)
             )
+            if key == "openalex":
+                provider["provider_label_only_matches"] = len(label_matches)
             if provider["status"] == "observed":
                 if not provider["records_accepted"]:
                     provider["topical_coverage_note"] = "empty_bounded_sample"
                 elif not topical:
-                    provider["topical_coverage_note"] = "no_title_match_in_bounded_sample"
+                    provider["topical_coverage_note"] = (
+                        "provider_label_context_only" if key == "openalex" and label_matches
+                        else "no_title_match_in_bounded_sample"
+                    )
                 elif not fresh:
                     provider["topical_coverage_note"] = "context_or_noise_only"
                 else:
@@ -239,6 +267,12 @@ def summarize_current_hunt(
             "recent_source_classes": sorted(classes),
             "recent_independent_provider_types": source_count,
             "topical_context_records": len(context),
+            "provider_label_context_examples": [
+                {"source": row["source"], "title": row["title"], "reference": row["reference"],
+                 "event_date": row["event_date"], "labels": row["provider_research_labels"]}
+                for row in label_matches[:4]
+            ],
+            "provider_label_context_omitted": max(0, len(label_matches) - 4),
             "context_examples": context_examples,
             "title_overlap_is_not_semantic_or_buyer_validation": True,
             "quality_screened_issue_records": len(excluded),
@@ -248,6 +282,7 @@ def summarize_current_hunt(
                 "classification": row["issue_evidence_type"],
             } for row in excluded[:3]],
             "quality_screen_is_heuristic": True,
+            "evidence_preview_omitted": max(0, len(current) - 12),
             "provider_coverage_degraded": report["coverage_degraded"],
             "source_coverage": coverage,
             "evidence": [
@@ -257,6 +292,7 @@ def summarize_current_hunt(
                     "event_date": row["event_date"],
                     "date_semantics": row["date_semantics"],
                     "reference": row["reference"],
+                    **({"doi": row["doi"]} if row.get("doi") else {}),
                     **({"issue_evidence_type": row["issue_evidence_type"]}
                        if row["source"] == "github_issues" else {}),
                 }
@@ -306,6 +342,7 @@ def hunt_current(
     *, as_of: str | None = None, lookback_days: int = 30,
     execute: bool = False, cache: BudgetCache | None = None,
     env: dict[str, str] | None = None,
+    sample_limit: int = DEFAULT_SAMPLE_LIMIT, relevance_first: bool = False,
 ) -> dict[str, Any]:
     """Explicit network opt-in; every provider uses the existing safe planner."""
     asof = _day(as_of, "as_of") if as_of else date.today()
@@ -316,6 +353,21 @@ def hunt_current(
         raise ValueError("lookback_days must be 7..90")
     if not isinstance(execute, bool):
         raise ValueError("execute must be a boolean")
+    if type(sample_limit) is not int or not 1 <= sample_limit <= MAX_SAMPLE_LIMIT:
+        raise ValueError("sample_limit must be an integer between 1 and 10")
+    if sample_limit * len(selected_sources) > MAX_SAMPLE_RECORDS:
+        raise ValueError("sample_limit times source count must not exceed 40 per topic")
+    if type(relevance_first) is not bool:
+        raise ValueError("relevance_first must be a boolean")
+    relevance_sources = [
+        source for source in selected_sources
+        if relevance_first and source in RELEVANCE_SOURCES
+    ]
+    controls = {
+        "requested_sample_limit_per_source": sample_limit,
+        "relevance_first_sources": relevance_sources,
+        "maximum_sample_records_per_topic": sample_limit * len(selected_sources),
+    }
     prepared = []
     for topic in selected_topics:
         calls = []
@@ -323,8 +375,9 @@ def hunt_current(
             keyword = f"FT = {topic}" if source == "ted" else topic
             try:
                 plan = plan_source(
-                    source, keyword=keyword, limit=5,
+                    source, keyword=keyword, limit=sample_limit,
                     env=env, lookback_days=lookback_days,
+                    relevance_first=source in relevance_sources,
                 )
             except (IntelligenceError, ValueError) as exc:
                 calls.append({
@@ -343,8 +396,31 @@ def hunt_current(
                     "observed", "unavailable", "invalid_source_shape", "rate_limited",
                 }:
                     raise IntelligenceError("Unexpected source status")
+                # Some providers return more rows than requested. Preserve
+                # the collector count, and never hide an invalid sample shape.
+                observations = response.get("observations")
+                if response["status"] == "observed" and isinstance(observations, dict):
+                    sample = observations.get("sample")
+                    count = observations.get("record_count")
+                    if (
+                        isinstance(sample, list) and sample_limit < len(sample) <= 20
+                        and type(count) is int and count >= len(sample)
+                    ):
+                        response = {
+                            **response,
+                            "observations": {**observations, "sample": sample[:sample_limit]},
+                        }
                 calls.append({"source": source, "status": response["status"],
                               "snapshot": response})
+            except DailyBudgetExceeded:
+                calls.append({
+                    "source": source, "status": "rate_limited",
+                    "snapshot": {
+                        "source": source, "status": "rate_limited",
+                        "reason": "local_daily_budget_exhausted",
+                        "cache_hit": False,
+                    },
+                })
             except (IntelligenceError, OSError, ValueError) as exc:
                 calls.append({"source": source, "status": "unavailable",
                               "reason": "collection_failed",
@@ -355,6 +431,7 @@ def hunt_current(
             "status": "planned", "execute_required_for_network": True,
             "network_performed": False, "topics": prepared,
             "request_count": len(selected_topics) * len(selected_sources),
+            **controls,
             "provider_credentials_disclosed": False,
         }
     batches = []
@@ -374,6 +451,7 @@ def hunt_current(
     result["requested_source_ids"] = selected_sources
     result["provider_credentials_disclosed"] = False
     result["source_request_budget"] = len(selected_topics) * len(selected_sources)
+    result.update(controls)
     return result
 
 
@@ -408,8 +486,15 @@ def record_hunt_history(
         sources = result.get("requested_source_ids", [])
         if not isinstance(sources, list) or len(sources) > MAX_SOURCES:
             raise ValueError("Missing safe query-source provenance")
+        signature_input = [sources, result.get("lookback_days")]
+        sample_limit = result.get("requested_sample_limit_per_source", DEFAULT_SAMPLE_LIMIT)
+        relevance_sources = result.get("relevance_first_sources", [])
+        if sample_limit != DEFAULT_SAMPLE_LIMIT or relevance_sources:
+            # Preserve the existing default history key; separate new
+            # research configurations so differently sampled runs do not collide.
+            signature_input.extend([sample_limit, relevance_sources])
         signature = hashlib.sha256(json.dumps(
-            [sources, result.get("lookback_days")], sort_keys=True
+            signature_input, sort_keys=True
         ).encode()).hexdigest()
         for item in result.get("topics", []):
             topic = item["topic"]

@@ -1,0 +1,203 @@
+{
+  "as_of": "2026-11-23",
+  "purpose": "Devpost-only, four real winner-submission opportunity due diligence. All source entries are user/agent observations, not independently authenticated by evaluator.",
+  "candidates": [
+    {
+      "id": "shadow-mcp",
+      "name": "ShadowMCP",
+      "problem": "Agent and MCP tool calls need per-action controls to prevent secret leaks and unsafe tool execution",
+      "product_type": "github_repo",
+      "devpost_url": "https://devpost.com/software/shadowmcp",
+      "repo_url": "https://github.com/XaiverTLN/ShadowMCP",
+      "buyer_hypothesis": "AI platform security and developer infrastructure teams",
+      "geography": "US",
+      "search_terms": [
+        "MCP security",
+        "AI agent permissions",
+        "prompt injection protection"
+      ]
+    },
+    {
+      "id": "fire-drill",
+      "name": "Fire Drill",
+      "problem": "Invoice-paying AI agents may be manipulated into fraudulent payment decisions and need repeatable adversarial tests",
+      "product_type": "hybrid",
+      "devpost_url": "https://devpost.com/software/fire-drill",
+      "repo_url": "https://github.com/shokhabbos-mukhammatov/calhacks13",
+      "buyer_hypothesis": "Enterprise finance automation security and QA teams",
+      "geography": "US",
+      "search_terms": [
+        "invoice fraud",
+        "accounts payable automation",
+        "AI agent security testing"
+      ]
+    },
+    {
+      "id": "accountable-ai",
+      "name": "AccountableAI",
+      "problem": "Property owners need source-backed evidence that intermediary managers are paying approved vendors correctly",
+      "product_type": "saas",
+      "devpost_url": "https://devpost.com/software/accountableai",
+      "repo_url": "https://github.com/ozr0013/AccountableAI",
+      "buyer_hypothesis": "Property investors and independent property-management auditors",
+      "geography": "US",
+      "search_terms": [
+        "property management accounting",
+        "vendor payment auditing",
+        "property manager fraud"
+      ]
+    },
+    {
+      "id": "permit-pike",
+      "name": "PermitPike",
+      "problem": "Electrical contractors must navigate fragmented municipal permit forms, review queues and local requirements",
+      "product_type": "saas",
+      "devpost_url": "https://devpost.com/software/permitpike",
+      "repo_url": "https://github.com/njsaxena/PermitPike",
+      "buyer_hypothesis": "Electrical contractors and municipal permitting offices",
+      "geography": "US",
+      "search_terms": [
+        "electrical permits",
+        "permit tracking software",
+        "building permit automation"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "observation-01",
+      "candidate": "shadow-mcp",
+      "kind": "project_award",
+      "status": "observed",
+      "source_url": "https://devpost.com/software/shadowmcp",
+      "observed_at": "2026-11-23",
+      "note": "Devpost currently identifies project as winning an award; awards judged for contest, not for buyer demand."
+    },
+    {
+      "id": "observation-02",
+      "candidate": "fire-drill",
+      "kind": "project_award",
+      "status": "observed",
+      "source_url": "https://devpost.com/software/fire-drill",
+      "observed_at": "2026-11-23",
+      "note": "Devpost currently identifies project as winning an award; awards judged for contest, not for buyer demand."
+    },
+    {
+      "id": "observation-03",
+      "candidate": "accountable-ai",
+      "kind": "project_award",
+      "status": "observed",
+      "source_url": "https://devpost.com/software/accountableai",
+      "observed_at": "2026-11-23",
+      "note": "Devpost currently identifies project as winning an award; awards judged for contest, not for buyer demand."
+    },
+    {
+      "id": "observation-04",
+      "candidate": "permit-pike",
+      "kind": "project_award",
+      "status": "observed",
+      "source_url": "https://devpost.com/software/permitpike",
+      "observed_at": "2026-11-23",
+      "note": "Devpost currently identifies project as winning an award; awards judged for contest, not for buyer demand."
+    },
+    {
+      "id": "observation-05",
+      "candidate": "shadow-mcp",
+      "kind": "repo_license",
+      "status": "observed",
+      "source_url": "https://github.com/XaiverTLN/ShadowMCP/blob/main/LICENSE",
+      "observed_at": "2026-11-23",
+      "note": "Root MIT license observed for submitted public repository. Verify downstream files and attribution obligations."
+    },
+    {
+      "id": "observation-06",
+      "candidate": "accountable-ai",
+      "kind": "repo_license",
+      "status": "observed",
+      "source_url": "https://github.com/ozr0013/AccountableAI/blob/main/LICENSE",
+      "observed_at": "2026-11-23",
+      "note": "Root MIT license observed. No confirmation of production readiness or permissions to source financial data."
+    },
+    {
+      "id": "observation-07",
+      "candidate": "permit-pike",
+      "kind": "repo_license",
+      "status": "observed",
+      "source_url": "https://github.com/njsaxena/PermitPike/blob/main/LICENSE",
+      "observed_at": "2026-11-23",
+      "note": "Root MIT license observed. Municipal rules and external datasets may have different permissions."
+    },
+    {
+      "id": "observation-08",
+      "candidate": "fire-drill",
+      "kind": "repo_license",
+      "status": "unavailable",
+      "source_url": "",
+      "observed_at": "2026-11-23",
+      "note": "No conventional root LICENSE or LICENSE.md found at initial review; legal reuse rights remain unknown."
+    },
+    {
+      "id": "observation-09",
+      "candidate": "shadow-mcp",
+      "kind": "competitor_product",
+      "status": "observed",
+      "source_url": "https://github.com/Alex2006boecboec/MCP_Gateway",
+      "observed_at": "2026-11-23",
+      "note": "MCP Shield has an open-source tool-call gateway with human approval and prompt-injection filtering, a significant competing capability."
+    },
+    {
+      "id": "observation-10",
+      "candidate": "fire-drill",
+      "kind": "competitor_product",
+      "status": "observed",
+      "source_url": "https://www.appzen.com/",
+      "observed_at": "2026-11-23",
+      "note": "AppZen markets an AI Trust program to test/monitor accounts-payable AI agents; narrow overlap with proposed invoice-agent adversarial tests."
+    },
+    {
+      "id": "observation-11",
+      "candidate": "accountable-ai",
+      "kind": "competitor_product",
+      "status": "observed",
+      "source_url": "https://www.appfolio.com/pricing",
+      "observed_at": "2026-11-23",
+      "note": "AppFolio offers property accounting, automated reconciliation, invoice processing, vendor and owner operations; feature overlap needs direct inspection."
+    },
+    {
+      "id": "observation-12",
+      "candidate": "accountable-ai",
+      "kind": "competitor_price",
+      "status": "observed",
+      "source_url": "https://www.appfolio.com/pricing",
+      "observed_at": "2026-11-23",
+      "note": "AppFolio Core advertises starting at $1.49 per unit per month with minimums. This is full property software pricing, NOT vendor-audit add-on willingness to pay."
+    },
+    {
+      "id": "observation-13",
+      "candidate": "permit-pike",
+      "kind": "competitor_product",
+      "status": "observed",
+      "source_url": "https://cloudpermit.com/products/building-permitting",
+      "observed_at": "2026-11-23",
+      "note": "Cloudpermit provides online building-permit workflows for applicants/contractors and municipalities, including API integrations."
+    },
+    {
+      "id": "observation-14",
+      "candidate": "shadow-mcp",
+      "kind": "search_interest",
+      "status": "unavailable",
+      "source_url": "",
+      "observed_at": "2026-11-23",
+      "note": "Google Trends US 12-month comparison returned provider_rate_limited; normalized search interest is unknown."
+    },
+    {
+      "id": "observation-15",
+      "candidate": "fire-drill",
+      "kind": "search_interest",
+      "status": "unavailable",
+      "source_url": "",
+      "observed_at": "2026-11-23",
+      "note": "Google Trends US 12-month comparison returned provider_rate_limited; normalized search interest is unknown."
+    }
+  ]
+}

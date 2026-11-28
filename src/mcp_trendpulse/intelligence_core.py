@@ -11,6 +11,7 @@ import csv
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import sqlite3
@@ -18,6 +19,7 @@ import time
 from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -50,6 +52,10 @@ class DailyBudgetExceeded(IntelligenceError):
 
 class SourceCoolingDown(IntelligenceError):
     """Source is blocked by a persisted cooldown; not exhausted quota."""
+
+
+class ProviderResponseError(IntelligenceError):
+    """A bounded provider response violated the expected transport contract."""
 
 
 @dataclass(frozen=True)
@@ -109,7 +115,7 @@ def plan_source(source: str, *, keyword: str = "", company: str = "",
                 dataset: str = "", country: str = "", identifier: str = "",
                 limit: int = 10, env: dict[str, str] | None = None,
                 lookback_days: int | None = None,
-                discover: bool = False) -> Plan:
+                discover: bool = False, relevance_first: bool = False) -> Plan:
     """Build one bounded request from trusted templates, never an arbitrary URL."""
     if not isinstance(source, str):
         raise IntelligenceError("Source ID must be a string")
@@ -124,7 +130,12 @@ def plan_source(source: str, *, keyword: str = "", company: str = "",
         raise IntelligenceError("Seedless discovery is supported only for OpenAlex works")
     if discover and lookback_days is None:
         raise IntelligenceError("Discovery requires a bounded 7-90 day lookback")
+    if type(relevance_first) is not bool or (
+        relevance_first and (source not in {"openalex", "github_issues"} or discover)
+    ):
+        raise IntelligenceError("Relevance-first ordering requires a seeded OpenAlex or GitHub issue search")
     params = {
+        "relevance_first": relevance_first,
         "discover": discover,
         "lookback_days": lookback_days,
         "keyword": _short(keyword, "keyword", 160, optional=True),
@@ -184,8 +195,10 @@ _HOSTS = frozenset({
     "api.smartrecruiters.com", "data.sec.gov", "api.openalex.org",
     "api.company-information.service.gov.uk", "www.consumerfinance.gov",
     "api.gleif.org", "data-api.ecb.europa.eu", "web-api.tp.entsoe.eu",
+    "huggingface.co",
     "ops.epo.org", "cordis.europa.eu",
     "data.gdeltproject.org",
+    "api.crossref.org",
     "stac.opensearch.dataspace.copernicus.eu",
 })
 
@@ -246,6 +259,10 @@ class BudgetCache:
     def cool_down(self, source: str, seconds: int = 90) -> None:
         """Short-lived source cooldown for transient errors."""
         self._extend_cooldown(source, max(30, min(seconds, 300)))
+
+    def respect_retry_after(self, source: str, seconds: int) -> None:
+        """Do not shorten an explicit provider-supplied retry window."""
+        self._extend_cooldown(source, max(30, seconds))
 
     def stop_after_rate_limit(self, source: str) -> None:
         """Persist a 24-hour no-retry circuit after a Google Trends 429."""
@@ -317,14 +334,20 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
             env: dict[str, str] | None = None) -> dict[str, Any]:
     """Explicit fetching only. Never retry, follow redirects, or exceed a source cap."""
     _safe_origin(plan)
+    if plan.source in {"github_issues", "github_repositories"}:
+        query = parse_qs(urlsplit(plan.url).query).get("q", [])
+        if (any(key.lower() == "authorization" for key in plan.headers)
+                and (len(query) != 1 or "is:public" not in query[0].split())):
+            raise IntelligenceError("Authenticated GitHub searches require public-only scope")
     if not fetch:
         return {"status": "planned", **plan.public()}
     if not isinstance(timeout, int) or not 2 <= timeout <= 30:
         raise IntelligenceError("timeout must be between 2 and 30 seconds")
     store = cache if cache is not None else BudgetCache()
-    identity = hashlib.sha256(json.dumps(
-        [plan.source, plan.method, plan.url, plan.body, plan.headers],
-        sort_keys=True).encode()).hexdigest()
+    identity_parts = [plan.source, plan.method, plan.url, plan.body, plan.headers]
+    if plan.source in {"github_issues", "github_repositories"}:
+        identity_parts.append("public-only-v1")
+    identity = hashlib.sha256(json.dumps(identity_parts, sort_keys=True).encode()).hexdigest()
     # Fast path: repeated requests avoid filesystem lock overhead entirely.
     previously = store.cached(identity)
     if previously is not None:
@@ -341,9 +364,35 @@ def collect(plan: Plan, *, cache: BudgetCache | None = None,
         raise IntelligenceError("Request lock file may not be a symlink")
     try:
         with FileLock(str(lock_path), timeout=timeout + 5):
+            if plan.source == "crossref":
+                source_lock = lock_root / "crossref-source.lock"
+                if source_lock.is_symlink():
+                    raise IntelligenceError("Crossref source lock may not be a symlink")
+                try:
+                    with FileLock(str(source_lock), timeout=0):
+                        return _collect_under_lock(plan, store, identity, timeout, env)
+                except FileLockTimeout:
+                    return {"source": plan.source, "status": "unavailable",
+                            "reason": "provider_local_concurrency_limit",
+                            "failure_class": "provider_local_concurrency_limit",
+                            "retry_automatically": False, "cache_hit": False}
             return _collect_under_lock(plan, store, identity, timeout, env)
     except FileLockTimeout as exc:
         raise IntelligenceError("Another identical free-source request is still running") from exc
+
+
+def _retry_after_seconds(value: str, now: datetime | None = None) -> int:
+    if isinstance(value, str) and len(value) <= 128:
+        value = value.strip()
+        if value.isascii() and value.isdigit() and len(value) <= 9:
+            return int(value)
+        try:
+            until = parsedate_to_datetime(value)
+            if until.tzinfo is not None:
+                return max(0, math.ceil((until - (now or datetime.now(timezone.utc))).total_seconds()))
+        except (TypeError, ValueError, OverflowError):
+            pass
+    return 90
 
 
 def _collect_under_lock(
@@ -354,11 +403,16 @@ def _collect_under_lock(
     previously = store.cached(identity)
     if previously is not None:
         return {**previously, "cache_hit": True}
-    if store.blocked(plan.source):
+    try:
+        store.reserve(plan.source, plan.budget_per_day, guard_cooldown=True)
+    except SourceCoolingDown:
         return {"source": plan.source, "status": "unavailable",
                 "reason": "provider_cooldown", "retry_automatically": False,
-                "cache_hit": False}
-    store.reserve(plan.source, plan.budget_per_day)
+                "failure_class": "provider_cooldown", "cache_hit": False}
+    if plan.source == "crossref":
+        # The public list-query pool permits one request per second and one
+        # concurrent request. Never wait/retry to force through a busy source.
+        store._extend_cooldown(plan.source, 1)
     accepted = {
         "json": "application/json",
         "csv": "text/csv",
@@ -392,18 +446,18 @@ def _collect_under_lock(
             kind = res.headers.get("Content-Type", "").lower()
             raw = res.read(MAX_RESPONSE_BYTES + 1)
             if len(raw) > MAX_RESPONSE_BYTES:
-                raise IntelligenceError("Response exceeded 256 KiB; narrow your source query")
+                raise ProviderResponseError("response_too_large")
             if plan.content_type == "json":
                 if "json" not in kind:
-                    raise IntelligenceError("Source did not return JSON; status cannot be treated as evidence")
+                    raise ProviderResponseError("unexpected_content_type")
                 payload = json.loads(raw)
             elif plan.content_type == "csv":
                 if "csv" not in kind and "text/plain" not in kind:
-                    raise IntelligenceError("Expected CSV response")
+                    raise ProviderResponseError("unexpected_content_type")
                 payload = _parse_csv(raw)
             elif plan.content_type == "xml":
                 if not any(marker in kind for marker in ("xml", "rss", "atom")):
-                    raise IntelligenceError("Expected XML response")
+                    raise ProviderResponseError("unexpected_content_type")
                 payload = _parse_xml(raw)
             elif plan.content_type == "text":
                 payload = {"lines": raw.decode("utf-8", "strict").splitlines()[:20]}
@@ -412,23 +466,48 @@ def _collect_under_lock(
     except HTTPError as exc:
         failure = {"source": plan.source, "status": "unavailable", "reason": "HTTPError",
                    "http_status": exc.code, "retry_automatically": False, "cache_hit": False}
+        failure["failure_class"] = (
+            "provider_rate_limited" if exc.code == 429 else
+            "provider_redirect" if 300 <= exc.code < 400 else
+            "provider_access_denied" if exc.code in (401, 403) else
+            "provider_unavailable"
+        )
         if exc.code in (429, 503):
             retry_header = exc.headers.get("Retry-After", "") if exc.headers else ""
-            delay = int(retry_header) if retry_header.isdigit() and len(retry_header) <= 6 else 90
-            store.cool_down(plan.source, delay)
+            delay = _retry_after_seconds(retry_header)
+            store.respect_retry_after(plan.source, delay)
+            failure["retry_after_seconds"] = max(30, delay)
         store.save(identity, failure, 60)
         return failure
-    except (URLError, TimeoutError, OSError, UnicodeError, json.JSONDecodeError,
+    except (ProviderResponseError, UnicodeError, json.JSONDecodeError,
             ElementTree.ParseError, csv.Error) as exc:
+        failure = {
+            "source": plan.source, "status": "invalid_source_shape",
+            "reason": "invalid_source_shape",
+            "failure_class": str(exc) if isinstance(exc, ProviderResponseError) else "malformed_response",
+            "retry_automatically": False, "cache_hit": False,
+        }
+        store.save(identity, failure, 120)
+        return failure
+    except (URLError, TimeoutError, OSError) as exc:
         failure = {"source": plan.source, "status": "unavailable",
                    "reason": type(exc).__name__, "retry_automatically": False,
+                   "failure_class": (
+                       "provider_timeout"
+                       if isinstance(exc, TimeoutError) or isinstance(getattr(exc, "reason", None), TimeoutError)
+                       else "provider_unavailable"
+                   ),
                    "cache_hit": False}
         store.save(identity, failure, 45)
         return failure
     from mcp_trendpulse.intelligence_evidence import (
-        UnexpectedSourceShape, evidence_projection,
+        UnexpectedSourceShape, evidence_projection, require_public_github_rows,
     )
     try:
+        require_public_github_rows(
+            plan.source, payload,
+            authenticated=any(key.lower() == "authorization" for key in headers),
+        )
         if _is_github_issue_count_plan(plan):
             # Count-only corroboration must NEVER persist issue bodies,
             # usernames, titles, labels or authors in the source cache.
@@ -439,10 +518,20 @@ def _collect_under_lock(
             }
         else:
             observations = evidence_projection(plan.source, payload)
+            if plan.source == "crossref":
+                requested = parse_qs(urlsplit(plan.url).query).get("filter", [""])[0]
+                if not requested.startswith("doi:") or any(
+                    row["doi"] != requested[4:] for row in observations["sample"]
+                ):
+                    raise UnexpectedSourceShape("Crossref returned a different DOI")
             # OpenAlex 100-group requests have a dedicated safe projection.
             reduced = (
                 _bounded_github_issues_data(payload)
                 if plan.source == "github_issues"
+                else {"metadata": observations["sample"]}
+                if plan.source == "crossref"
+                else _bounded_public_metadata(plan.source, payload)
+                if plan.source in {"github_repositories", "hf_dataset_details"}
                 else _bounded_openalex_topic_groups(payload)
                 if _is_openalex_topic_group_plan(plan)
                 else _bound_payload(payload)
@@ -450,6 +539,7 @@ def _collect_under_lock(
     except UnexpectedSourceShape as exc:
         failure = {
             "source": plan.source, "status": "invalid_source_shape",
+            "failure_class": "invalid_source_shape",
             "reason": str(exc), "retry_automatically": False, "cache_hit": False,
         }
         store.save(identity, failure, 120)
@@ -467,6 +557,11 @@ def _collect_under_lock(
         "data": reduced,
         "cache_hit": False,
     }
+    if plan.source == "crossref":
+        output["doi_match_status"] = (
+            "exact_metadata_match" if observations["record_count"] else "not_observed_in_crossref"
+        )
+        output["retraction_status_verified"] = False
     store.save(identity, output, 3600)
     return output
 
@@ -489,10 +584,45 @@ def _bounded_github_issues_data(payload: Any) -> dict[str, Any]:
         raise UnexpectedSourceShape("Invalid public GitHub issues total count")
     if incomplete is not None and type(incomplete) is not bool:
         raise UnexpectedSourceShape("Invalid GitHub search completeness flag")
+    kind = payload.get("search_type")
+    fallback = payload.get("fallback_reason")
     return {
         "total_count": total, "incomplete_results": incomplete,
         "page_items_received": min(len(payload["items"]), 20),
+        "search_type": kind if kind in {"hybrid", "semantic", "lexical"} else None,
+        "fallback_reason": fallback if isinstance(fallback, str) and len(fallback) <= 160 else None,
     }
+
+
+def _bounded_public_metadata(source: str, payload: Any) -> dict[str, Any]:
+    from mcp_trendpulse.intelligence_evidence import UnexpectedSourceShape
+
+    if not isinstance(payload, dict):
+        raise UnexpectedSourceShape("Expected public metadata object")
+    if source == "github_repositories":
+        rows = payload.get("items")
+        if not isinstance(rows, list):
+            raise UnexpectedSourceShape("Expected public repository search results")
+        count = payload.get("total_count")
+        incomplete = payload.get("incomplete_results")
+        if type(count) is not int or count < 0 or type(incomplete) is not bool:
+            raise UnexpectedSourceShape("Invalid repository search metadata")
+        return {
+            "total_count": count, "incomplete_results": incomplete,
+            "page_items_received": min(len(rows), 10),
+        }
+    if source == "hf_dataset_details":
+        details = payload.get("cardData")
+        return {
+            "id": payload.get("id") if isinstance(payload.get("id"), str) else None,
+            "lastModified": payload.get("lastModified") if isinstance(payload.get("lastModified"), str) else None,
+            "createdAt": payload.get("createdAt") if isinstance(payload.get("createdAt"), str) else None,
+            "gated": payload.get("gated"),
+            "private": payload.get("private"),
+            "license": details.get("license") if isinstance(details, dict)
+            and isinstance(details.get("license"), str) else None,
+        }
+    raise UnexpectedSourceShape("Unsupported metadata source")
 
 
 def _is_github_issue_count_plan(plan: Plan) -> bool:

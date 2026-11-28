@@ -8,6 +8,9 @@ All projections are observational; no record is treated as purchasing intent.
 from __future__ import annotations
 
 from typing import Any
+from datetime import date
+
+from mcp_trendpulse.intelligence_identity import canonical_doi
 
 
 class UnexpectedSourceShape(ValueError):
@@ -22,6 +25,26 @@ def _objects(rows: Any) -> list[dict[str, Any]]:
     return rows[:20]
 
 
+def require_public_github_rows(source: str, payload: Any, *, authenticated: bool = False) -> None:
+    """Reject non-public or unverified authenticated metadata before projection."""
+    if source not in {"github_issues", "github_repositories"}:
+        return
+    if not isinstance(payload, dict):
+        raise UnexpectedSourceShape("Expected GitHub search object")
+    rows = _objects(payload.get("items"))
+    for row in rows:
+        repository = row if source == "github_repositories" else row.get("repository")
+        repository = repository if isinstance(repository, dict) else {}
+        for obj in (row, repository):
+            if (("private" in obj and obj["private"] is not False)
+                    or ("visibility" in obj and obj["visibility"] != "public")):
+                raise UnexpectedSourceShape("GitHub result violates public-only visibility")
+        if authenticated and not (
+            repository.get("private") is False or repository.get("visibility") == "public"
+        ):
+            raise UnexpectedSourceShape("Authenticated GitHub result lacks public visibility proof")
+
+
 def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
     """Validate distinctive source envelopes, then extract a small source sample."""
     if isinstance(payload, dict):
@@ -33,6 +56,46 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
         }
         if failed_status or any(payload.get(key) for key in ("error", "errors", "fault")):
             raise UnexpectedSourceShape("Provider returned an error envelope")
+    if source == "crossref":
+        if not isinstance(payload, dict) or payload.get("status") != "ok":
+            raise UnexpectedSourceShape("Expected Crossref success envelope")
+        message = payload.get("message")
+        if not isinstance(message, dict):
+            raise UnexpectedSourceShape("Expected Crossref metadata list")
+        items = message.get("items")
+        total = message.get("total-results")
+        if (not isinstance(items, list) or len(items) > 1 or type(total) is not int
+                or total != len(items) or any(not isinstance(row, dict) for row in items)):
+            raise UnexpectedSourceShape("Crossref exact DOI returned ambiguous or malformed results")
+        rows = []
+        for item in items:
+            doi = canonical_doi(item.get("DOI"))
+            if doi is None:
+                raise UnexpectedSourceShape("Crossref record lacks a supported DOI")
+            def first_text(field: str) -> str:
+                value = item.get(field)
+                if isinstance(value, list) and value and isinstance(value[0], str):
+                    return " ".join(value[0].split())[:240]
+                return ""
+            published = item.get("published")
+            parts = published.get("date-parts") if isinstance(published, dict) else None
+            stamp = None
+            if (isinstance(parts, list) and parts and isinstance(parts[0], list)
+                    and 1 <= len(parts[0]) <= 3 and all(type(x) is int for x in parts[0])):
+                try:
+                    values = parts[0]
+                    date(*(values + [1] * (3 - len(values))))
+                    stamp = "-".join(f"{v:04d}" if i == 0 else f"{v:02d}" for i, v in enumerate(values))
+                except ValueError:
+                    pass
+            kind = item.get("type")
+            rows.append({
+                "doi": doi, "title": first_text("title"),
+                "container_title": first_text("container-title"), "published": stamp,
+                "type": kind[:60] if isinstance(kind, str) else None,
+                "reference": "https://doi.org/" + doi,
+            })
+        return {"record_count": len(rows), "sample": rows, "unit": "exact bibliographic metadata only"}
     if source in {"cordis", "cellar"}:
         if not isinstance(payload, dict) or not isinstance(payload.get("results"), dict):
             raise UnexpectedSourceShape("Expected SPARQL results object")
@@ -97,12 +160,45 @@ def evidence_projection(source: str, payload: Any) -> dict[str, Any]:
             raise UnexpectedSourceShape("Expected [pagination, values] from World Bank")
         rows = _objects(payload[1])
         return {"record_count": len(rows), "sample": rows, "unit": "official indicator observations"}
+    if source == "github_repositories":
+        if not isinstance(payload, dict):
+            raise UnexpectedSourceShape("Expected public GitHub repository search JSON")
+        repos = _objects(payload.get("items"))
+        require_public_github_rows(source, payload)
+        rows = [
+            {k: r[k] for k in (
+                "id", "full_name", "html_url", "description", "updated_at",
+                "stargazers_count", "fork", "archived",
+            ) if k in r}
+            for r in repos[:10]
+        ]
+        return {
+            "record_count": len(repos), "sample": rows,
+            "unit": "public repository metadata; feature equivalence unverified",
+        }
+    if source == "hf_dataset_details":
+        if not isinstance(payload, dict) or not isinstance(payload.get("id"), str):
+            raise UnexpectedSourceShape("Expected Hugging Face dataset metadata")
+        card = payload.get("cardData")
+        data = {
+            k: payload.get(k) for k in (
+                "id", "createdAt", "lastModified", "private", "gated",
+                "downloads", "likes",
+            )
+        }
+        if isinstance(card, dict) and isinstance(card.get("license"), str):
+            data["license"] = card["license"]
+        return {
+            "record_count": 1, "sample": [data],
+            "unit": "dataset metadata only; no data rows or rights granted",
+        }
     if source == "github_issues":
         if not isinstance(payload, dict):
             raise UnexpectedSourceShape("Expected GitHub issue search JSON")
         from mcp_trendpulse.intelligence_issue_quality import classify_github_issue
 
         issues = _objects(payload.get("items"))
+        require_public_github_rows(source, payload)
         projected = []
         for item in issues[:10]:
             # Deliberately do NOT emit issue body, author, email or labels.

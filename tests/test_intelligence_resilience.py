@@ -143,3 +143,69 @@ def test_failed_provider_does_not_poison_other_provider(tmp_path, monkeypatch):
     success = core.collect(gleif, cache=cache, fetch=True)
     assert success["status"] == "observed"
     assert len(calls) == 2
+
+
+def test_long_retry_after_preserved_and_classified(tmp_path, monkeypatch):
+    import time
+
+    def limited(req, timeout):
+        raise HTTPError(req.full_url, 429, "Limit", {"Retry-After": "900"}, io.BytesIO(b""))
+
+    _opener(monkeypatch, limited)
+    cache = core.BudgetCache(tmp_path)
+    plan = core.plan_source("cellar", keyword="battery", env={})
+    result = core.collect(plan, cache=cache, fetch=True)
+    assert result["status"] == "unavailable"
+    assert result["failure_class"] == "provider_rate_limited"
+    assert result["retry_after_seconds"] == 900
+    with sqlite3.connect(cache.db) as conn:
+        until = conn.execute("SELECT until FROM cooldown WHERE source='cellar'").fetchone()[0]
+    assert until - time.time() > 895
+
+
+def test_retry_after_http_date():
+    from datetime import datetime, timezone, timedelta
+    from email.utils import format_datetime
+
+    now = datetime(2026, 11, 25, tzinfo=timezone.utc)
+    assert core._retry_after_seconds(format_datetime(now + timedelta(minutes=20), usegmt=True), now) == 1200
+    assert core._retry_after_seconds("invalid", now) == 90
+
+
+def test_redirect_is_unavailable_without_location_or_following(tmp_path, monkeypatch):
+    calls = []
+
+    def redirect(req, timeout):
+        calls.append(req.full_url)
+        raise HTTPError(req.full_url, 302, "Redirect",
+                        {"Location": "https://example.com/private?secret=value"}, io.BytesIO(b""))
+
+    _opener(monkeypatch, redirect)
+    result = core.collect(core.plan_source("cordis", keyword="battery", env={}),
+                          cache=core.BudgetCache(tmp_path), fetch=True)
+    assert result["failure_class"] == "provider_redirect"
+    assert result["http_status"] == 302
+    assert result["status"] == "unavailable"
+    assert "secret=value" not in repr(result)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("payload,classification", [
+    (b"x" * (core.MAX_RESPONSE_BYTES + 1), "response_too_large"),
+    (b"{invalid", "malformed_response"),
+], ids=["oversized", "invalid-json"])
+def test_bad_response_is_structured_and_cached(tmp_path, monkeypatch, payload, classification):
+    calls = []
+
+    def responder(req, timeout):
+        calls.append(1)
+        return FakeResponse(payload)
+
+    _opener(monkeypatch, responder)
+    cache = core.BudgetCache(tmp_path)
+    plan = core.plan_source("cellar", keyword="battery", env={})
+    first = core.collect(plan, cache=cache, fetch=True)
+    assert first["status"] == "invalid_source_shape"
+    assert first["failure_class"] == classification
+    assert core.collect(plan, cache=cache, fetch=True)["cache_hit"] is True
+    assert len(calls) == 1

@@ -9,10 +9,11 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from mcp_trendpulse.intelligence_opportunities import LANES, SOURCE_KIND, _day, _string
+from mcp_trendpulse.intelligence_identity import canonical_doi
 
 # GLEIF's published Registration Authorities list for the three Companies
 # House registries. Name similarity alone is NEVER a verified entity join.
@@ -28,6 +29,7 @@ ALLOWED = {
 MAX_INPUT_BYTES = 220_000
 MAX_SNAPSHOTS = 12
 MAX_ROWS = 160
+MAX_SAMPLE_RECORDS = 40
 
 
 def _text(value: Any, size: int = 130) -> str:
@@ -189,6 +191,19 @@ def _entry(source: str, raw: dict[str, Any], asof: date) -> dict[str, Any] | Non
             "event_date": _date(raw.get("publication_date"), asof),
             "date_semantics": "research_publication_not_purchase",
         })
+        doi = canonical_doi(raw.get("doi"))
+        if doi:
+            result["doi"] = doi
+        labels = []
+        primary = raw.get("primary_topic")
+        if isinstance(primary, dict):
+            labels.append(_text(primary.get("display_name"), 100))
+        keywords = raw.get("keywords")
+        if isinstance(keywords, list):
+            labels.extend(_text(item.get("display_name"), 100)
+                          for item in keywords[:8] if isinstance(item, dict))
+        if any(labels):
+            result["provider_research_labels"] = list(dict.fromkeys(x for x in labels if x))
     elif source == "usaspending":
         award_id = _key(raw.get("Award ID"))
         if not award_id:
@@ -386,9 +401,28 @@ def observe_source_snapshots(
         if isinstance(reason, str) and reason in {
             "HTTPError", "URLError", "TimeoutError", "provider_cooldown",
             "not_configured", "source_setup_required_or_invalid_plan",
-            "collection_failed", "invalid_source_shape",
+            "collection_failed", "invalid_source_shape", "local_daily_budget_exhausted",
         }:
             report["reason"] = reason
+        failure_class = row.get("failure_class")
+        if isinstance(failure_class, str) and failure_class in {
+            "provider_rate_limited", "provider_redirect", "provider_access_denied",
+            "provider_unavailable", "provider_timeout", "provider_cooldown",
+            "response_too_large", "unexpected_content_type", "malformed_response",
+            "invalid_source_shape",
+        }:
+            report["failure_class"] = failure_class
+        retry_after = row.get("retry_after_seconds")
+        if type(retry_after) is int and 0 <= retry_after <= 999999999:
+            report["retry_after_seconds"] = retry_after
+        retrieved_at = row.get("retrieved_at")
+        if isinstance(retrieved_at, str) and len(retrieved_at) <= 40:
+            try:
+                timestamp = datetime.fromisoformat(retrieved_at)
+                if timestamp.tzinfo is not None:
+                    report["retrieved_at"] = timestamp.isoformat()
+            except ValueError:
+                pass
         if status != "observed":
             report["caveat"] = "Source unavailable or invalid; not evidence of zero interest"
             sources.append(report)
@@ -551,7 +585,7 @@ def observe_source_snapshots(
         "name_only_matches_promoted": 0,
         "dated_recent_sample_records": len(recent),
         "dated_recent_sample_by_class": dict(sorted(Counter(x["kind"] for x in recent).items())),
-        "sample_records": records[:40],
+        "sample_records": records[:MAX_SAMPLE_RECORDS],
         "literal_topic_matches_in_sample": len(literal_matches),
         "literal_matching_is_not_semantic_relevance": True,
         "eighteen_lane_coverage": lane_coverage,

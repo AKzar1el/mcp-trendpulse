@@ -55,6 +55,19 @@ def review(items, *, asof=ASOF):
     return observe_source_snapshots("battery recycling", items, as_of=asof)
 
 
+def test_safe_provider_diagnostics_and_retrieval_time():
+    result = review([
+        {"source": "cordis", "status": "unavailable", "reason": "HTTPError",
+         "http_status": 302, "failure_class": "provider_redirect",
+         "retrieved_at": "2026-11-19T10:00:00+00:00"},
+        {**observed("openalex", [research()]), "retrieved_at": "2026-11-19T11:00:00+00:00"},
+    ])
+    coverage = {row["source"]: row for row in result["source_coverage"]}
+    assert coverage["cordis"]["failure_class"] == "provider_redirect"
+    assert coverage["cordis"]["http_status"] == 302
+    assert coverage["openalex"]["retrieved_at"] == "2026-11-19T11:00:00+00:00"
+
+
 def test_exact_registry_identifier_links_without_claiming_purchasing_intent():
     result = review([
         observed("companies_house", [company()]),
