@@ -60,6 +60,7 @@ async def test_success_preserves_discovery_and_canonical_as_candidate(monkeypatc
     monkeypatch.setattr(news, "download_article", downloader)
     report = await extraction.extract_article(observation(), execute=True)
     assert report.status == "extracted" and report.content_level == "extracted_text"
+    assert report.http_status == 200
     assert report.discovery == observation()
     assert report.resolved_url == RESOLVED
     assert report.canonical_url_candidate == "https://example.org/news/story"
@@ -105,6 +106,7 @@ async def test_failed_extraction_preserves_headline_without_exception_leak(monke
     ((200, "http://example.org/story"), "unsafe_resolved_url"),
     ((200, "https://127.0.0.1/"), "unsafe_resolved_url"),
     ((200, "https://news.google.com/rss/articles/abc"), "unsafe_resolved_url"),
+    ((200, "https://NEWS.GOOGLE.COM:443/rss/articles/abc"), "unsafe_resolved_url"),
     ((200, "https://example.org/?token=SECRET"), "unsafe_resolved_url"),
 ])
 async def test_missing_or_unsafe_receipt_not_replaced_by_extractor_url(monkeypatch, receipt, reason):
@@ -191,3 +193,66 @@ def test_actual_transport_captures_response_url_not_parser_guess():
         assert news.download_article_with_scraper("https://example.org/original", validator) is parsed
     assert parsed._trendpulse_transport_receipt == (200, RESOLVED)
     response.close.assert_called_once()
+
+def direct_observation():
+    return NewsArticle(
+        discovery_provider="gdelt_doc", link_type="publisher_candidate",
+        reported_url="https://example.org/story", title="Source headline",
+        capture_mode="legacy_import", captured_at="2026-11-28T10:00:00Z",
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status,reason", [
+    (401, "http_access_denied"), (402, "http_payment_required"),
+    (403, "http_access_denied"), (429, "http_rate_limited"), (503, "http_error"),
+])
+async def test_real_downloader_preserves_explicit_http_failure(monkeypatch, status, reason):
+    # Actual async worker/legacy scraper path, but no DNS, network or paid services.
+    validator = MagicMock()
+    validator.validate_url.side_effect = lambda value: value
+    monkeypatch.setattr(news, "ArticleTargetValidator", lambda: validator)
+    response = MagicMock(status_code=status, url=RESOLVED)
+    response.headers = {"Content-Type": "text/html"}
+    scraper = MagicMock()
+    scraper.get.return_value = response
+    monkeypatch.setattr(news, "get_scraper", lambda: scraper)
+    report = await extraction.extract_article(direct_observation(), execute=True)
+    assert report.status == "unavailable" and report.reason == reason
+    assert report.http_status == status and report.content_level == "headline_only"
+    assert report.discovery == direct_observation()
+    assert scraper.get.call_count == 1
+    assert news._article_download_trace.get() is None
+
+
+@pytest.mark.asyncio
+async def test_non_html_is_not_an_empty_article(monkeypatch):
+    validator = MagicMock()
+    validator.validate_url.side_effect = lambda value: value
+    monkeypatch.setattr(news, "ArticleTargetValidator", lambda: validator)
+    response = MagicMock(status_code=200, url=RESOLVED)
+    response.headers = {"Content-Type": "application/pdf"}
+    scraper = MagicMock()
+    scraper.get.return_value = response
+    monkeypatch.setattr(news, "get_scraper", lambda: scraper)
+    report = await extraction.extract_article(direct_observation(), execute=True)
+    assert report.status == "rejected" and report.reason == "unsupported_content_type"
+    assert report.http_status == 200
+    response.iter_content.assert_not_called()
+
+
+def test_trace_is_closed_against_late_worker_result():
+    trace = news._ArticleDownloadTrace()
+    trace.record("download_timeout")
+    assert trace.close() == ("download_timeout", None)
+    trace.record("http_access_denied", 403, replace=True)
+    assert trace.close() == ("download_timeout", None)
+
+
+@pytest.mark.asyncio
+async def test_cancelled_attempt_releases_context(monkeypatch):
+    import asyncio
+    monkeypatch.setattr(news, "download_article", AsyncMock(side_effect=asyncio.CancelledError()))
+    with pytest.raises(asyncio.CancelledError):
+        await extraction.extract_article(observation(), execute=True)
+    assert news._article_download_trace.get() is None

@@ -32,6 +32,7 @@ from playwright.async_api import async_playwright, Browser, Playwright
 from trendspy import Trends, TrendKeywordLite
 from typing import Any, Optional, cast, overload, Literal, Awaitable
 from contextlib import asynccontextmanager, AsyncContextDecorator
+from contextvars import ContextVar
 import logging
 from collections.abc import Callable, Mapping
 from urllib.parse import quote, urljoin, urlsplit
@@ -854,6 +855,37 @@ async def download_article_with_playwright(
     raise ValueError("Article browser transport is disabled until pinned browser egress is available.")
 
 
+class _ArticleDownloadTrace:
+    """Optional per-attempt diagnostics, shared with the existing worker thread."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._closed = False
+        self._outcome = None
+
+    def record(self, reason: str, status: int | None = None, *, replace: bool = False):
+        with self._lock:
+            if not self._closed and (self._outcome is None or replace):
+                status = status if type(status) is int and 100 <= status <= 599 else None
+                self._outcome = (reason, status)
+
+    def close(self):
+        with self._lock:
+            self._closed = True
+            return self._outcome
+
+
+_article_download_trace: ContextVar[_ArticleDownloadTrace | None] = ContextVar(
+    "article_download_trace", default=None
+)
+
+
+def _record_article_failure(reason: str, status: int | None = None, *, replace: bool = False):
+    trace = _article_download_trace.get()
+    if trace is not None:
+        trace.record(reason, status, replace=replace)
+
+
 def _is_unsupported_article_response(response) -> bool:
     content_type = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
     return content_type in _UNSUPPORTED_ARTICLE_CONTENT_TYPES or content_type.startswith(
@@ -866,12 +898,14 @@ def _read_article_response(response, url: str, *, deadline: float) -> Optional[s
     try:
         if content_length is not None and int(content_length) > ARTICLE_MAX_HTML_BYTES:
             logger.warning("Rejected article response from %s because its declared size exceeds the HTML size limit", url)
+            _record_article_failure("response_too_large", response.status_code)
             return None
     except ValueError:
         pass
 
     if _is_unsupported_article_response(response):
         logger.warning("Rejected non-HTML article response from %s", url)
+        _record_article_failure("unsupported_content_type", response.status_code)
         return None
 
     body = bytearray()
@@ -894,16 +928,19 @@ def _read_article_response(response, url: str, *, deadline: float) -> Optional[s
         # A per-socket read timeout alone cannot stop a steady slow-drip stream.
         if perf_counter() >= deadline:
             logger.warning("Aborted article response after the total HTTP download deadline")
+            _record_article_failure("download_timeout", response.status_code)
             return None
         if not chunk:
             continue
         body.extend(chunk)
         if len(body) > ARTICLE_MAX_HTML_BYTES:
             logger.warning("Rejected article response from %s because it exceeds the HTML size limit", url)
+            _record_article_failure("response_too_large", response.status_code)
             return None
 
     if perf_counter() >= deadline:
         logger.warning("Aborted article response after the total HTTP download deadline")
+        _record_article_failure("download_timeout", response.status_code)
         return None
     try:
         return body.decode(response.encoding or "utf-8", errors="replace")
@@ -923,6 +960,7 @@ def download_article_with_scraper(
     try:
         scraper_inst = get_scraper()
         if scraper_inst is None:
+            _record_article_failure("download_unavailable")
             return None
 
         deadline = perf_counter() + ARTICLE_HTTP_DOWNLOAD_DEADLINE_SECONDS
@@ -930,6 +968,7 @@ def download_article_with_scraper(
             remaining = deadline - perf_counter()
             if remaining <= 0:
                 logger.warning("Aborted article download after the total HTTP deadline")
+                _record_article_failure("download_timeout")
                 return None
             response = scraper_inst.get(
                 url,
@@ -940,10 +979,12 @@ def download_article_with_scraper(
             try:
                 if perf_counter() >= deadline:
                     logger.warning("Aborted article download after the total HTTP deadline")
+                    _record_article_failure("download_timeout", response.status_code)
                     return None
                 if 300 <= response.status_code < 400:
                     location = response.headers.get("Location")
                     if not location:
+                        _record_article_failure("redirect_unavailable", response.status_code)
                         return None
                     url = target_validator.validate_url(urljoin(url, location))
                     continue
@@ -964,13 +1005,22 @@ def download_article_with_scraper(
                     return article
 
                 logger.debug(f"Failed to download article with cloudscraper from {url}, status code: {response.status_code}")
+                status = response.status_code
+                reason = (
+                    "http_payment_required" if status == 402 else
+                    "http_access_denied" if status in (401, 403, 451) else
+                    "http_rate_limited" if status == 429 else "http_error"
+                )
+                _record_article_failure(reason, status)
                 return None
             finally:
                 response.close()
+        _record_article_failure("redirect_unavailable")
     except Exception as e:
         if isinstance(e, ValueError):
             raise
         logger.debug(f"Error downloading article with cloudscraper from {url}\n {e.args}")
+        _record_article_failure("download_failed")
         return None
 
 
@@ -1067,6 +1117,7 @@ async def _download_article_with_worker_slot(
     if not slot.acquire(blocking=False):
         provider_metrics.count("article_scraper_saturation")
         logger.warning("Article scraper capacity exhausted; preserving worker limit")
+        _record_article_failure("worker_capacity")
         return None
     try:
         worker = asyncio.create_task(
@@ -1082,6 +1133,7 @@ async def _download_article_with_worker_slot(
     except (TimeoutError, asyncio.TimeoutError):
         provider_metrics.count("article_scraper_timeout")
         logger.warning("Article scraper exceeded caller deadline; still-running worker remains counted")
+        _record_article_failure("download_timeout", replace=True)
         return None
 
 
@@ -1096,14 +1148,17 @@ async def download_article(url: str) -> newspaper.Article | None:
             decoded = await _call_article_preflight(decode_url, url)
         except ValueError:
             # A timed-out or saturated decoder must not trigger an unsafe fetch.
+            _record_article_failure("decode_unavailable")
             return None
         if decoded is None:
+            _record_article_failure("decode_unavailable")
             return None
         url = await _call_article_preflight(target_validator.validate_url, decoded)
     article = await _download_article_with_worker_slot(url, target_validator)
     _strip_known_article_shell_prefix(article)
     if article is None or not article.text or _is_unusable_article_page(article):
         logger.debug("Article HTTP transport did not return usable text; unsafe browser fallback is disabled")
+        _record_article_failure("invalid_extracted_text" if article is not None else "download_unavailable")
         return None
     if article is not None and _is_unusable_article_page(article):
         logger.debug(f"Rejected unusable article page from {url}")

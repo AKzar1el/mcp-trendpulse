@@ -19,7 +19,10 @@ _MAX_BODY_BYTES = 5 * 1024 * 1024
 Reason = Literal[
     "download_unavailable", "download_rejected", "download_timeout",
     "download_failed", "invalid_extracted_text", "missing_transport_receipt",
-    "unsafe_resolved_url", "unexpected_http_status",
+    "unsafe_resolved_url", "unexpected_http_status", "invalid_extractor_metadata",
+    "http_payment_required", "http_access_denied", "http_rate_limited", "http_error",
+    "unsupported_content_type", "response_too_large", "redirect_unavailable",
+    "worker_capacity", "decode_unavailable",
 ]
 Warning = Literal[
     "invalid_canonical_candidate", "cross_host_canonical_candidate",
@@ -51,6 +54,13 @@ class ExtractorDate(FrozenModel):
         return self
 
 
+def _resolved_citation(value):
+    value = _url(value)
+    if urlsplit(value).hostname == "news.google.com":
+        raise ValueError("Aggregator response is not publisher extraction")
+    return value
+
+
 def _date_relation(discovery: NewsArticle, candidate: ExtractorDate | None):
     original = discovery.published_at
     if original is None or candidate is None:
@@ -72,6 +82,7 @@ class ArticleExtraction(FrozenModel):
     method: Literal["existing_pinned_article_downloader"] = "existing_pinned_article_downloader"
     status: Literal["planned", "extracted", "unavailable", "rejected"]
     reason: Reason | None = None
+    http_status: int | None = Field(default=None, strict=True, ge=100, le=599)
     started_at: str | None = None
     completed_at: str | None = None
     content_level: Literal["headline_only", "extracted_text"] = "headline_only"
@@ -96,8 +107,10 @@ class ArticleExtraction(FrozenModel):
 
     @field_validator("resolved_url", "canonical_url_candidate")
     @classmethod
-    def _citation(cls, value):
-        return _url(value) if value is not None else None
+    def _citation(cls, value, info):
+        if value is None:
+            return None
+        return _resolved_citation(value) if info.field_name == "resolved_url" else _url(value)
 
     @field_validator("extractor_title", "extractor_publisher", "extractor_language")
     @classmethod
@@ -111,7 +124,8 @@ class ArticleExtraction(FrozenModel):
             self.extractor_publisher, self.extractor_language, self.extractor_date, self.body_sha256,
         )
         if self.status == "planned":
-            if self.started_at is not None or self.completed_at is not None or self.reason is not None:
+            if (self.started_at is not None or self.completed_at is not None
+                    or self.reason is not None or self.http_status is not None):
                 raise ValueError("A plan has no execution evidence")
         else:
             if self.started_at is None or self.completed_at is None:
@@ -123,13 +137,20 @@ class ArticleExtraction(FrozenModel):
             ):
                 raise ValueError("Attempt precedes discovery capture")
         if self.status == "extracted":
-            if self.content_level != "extracted_text" or self.reason is not None or not self.resolved_url:
+            if (self.content_level != "extracted_text" or self.reason is not None
+                    or not self.resolved_url or self.http_status != 200):
                 raise ValueError("Extraction lacks safe transport evidence")
         else:
             if any(x is not None for x in derived) or self.content_level != "headline_only" or self.warnings:
                 raise ValueError("No extracted fields on a non-success outcome")
             if self.status != "planned" and self.reason is None:
                 raise ValueError("Failed extraction requires a controlled reason")
+        required_http = {
+            "http_payment_required": {402}, "http_access_denied": {401, 403, 451},
+            "http_rate_limited": {429},
+        }
+        if self.reason in required_http and self.http_status not in required_http[self.reason]:
+            raise ValueError("HTTP reason lacks matching transport status")
         if (self.body_sha256 is not None) != (self.body_digest_policy == "operator_permitted"):
             raise ValueError("Body digest retention requires explicit permission")
         if len(self.warnings) != len(set(self.warnings)):
@@ -201,27 +222,31 @@ def _candidate_date(value, completed_at, warnings):
         return None
 
 
-def _failed(discovery, started, completed, status, reason):
+def _failed(discovery, started, completed, status, reason, http_status=None):
     return ArticleExtraction(
-        discovery=discovery, status=status, reason=reason, started_at=started, completed_at=completed,
+        discovery=discovery, status=status, reason=reason, http_status=http_status,
+        started_at=started, completed_at=completed,
     )
 
 
-def _project(discovery, article, started, completed, permit_body_digest):
+def _project(discovery, article, started, completed, permit_body_digest, trace=None):
     if article is None:
-        return _failed(discovery, started, completed, "unavailable", "download_unavailable")
+        reason, http_status = trace or ("download_unavailable", None)
+        status = "rejected" if reason in {
+            "invalid_extracted_text", "unsupported_content_type", "response_too_large"
+        } else "unavailable"
+        return _failed(discovery, started, completed, status, reason, http_status)
     receipt = getattr(article, "_trendpulse_transport_receipt", None)
     if not isinstance(receipt, tuple) or len(receipt) != 2 or type(receipt[0]) is not int:
         return _failed(discovery, started, completed, "rejected", "missing_transport_receipt")
     status, resolved = receipt
     if status != 200:
-        return _failed(discovery, started, completed, "rejected", "unexpected_http_status")
+        return _failed(discovery, started, completed, "rejected", "unexpected_http_status",
+                       status if 100 <= status <= 599 else None)
     try:
-        resolved = _url(resolved)
-        if resolved.startswith("https://news.google.com/"):
-            raise ValueError("Aggregator response is not publisher extraction")
+        resolved = _resolved_citation(resolved)
     except ValueError:
-        return _failed(discovery, started, completed, "rejected", "unsafe_resolved_url")
+        return _failed(discovery, started, completed, "rejected", "unsafe_resolved_url", 200)
 
     from mcp_trendpulse import news
 
@@ -244,7 +269,7 @@ def _project(discovery, article, started, completed, permit_body_digest):
     language = _candidate_text(getattr(article, "meta_lang", None), 160, "invalid_extractor_language", warnings)
     published = _candidate_date(getattr(article, "publish_date", None), completed, warnings)
     return ArticleExtraction(
-        discovery=discovery, status="extracted", started_at=started, completed_at=completed,
+        discovery=discovery, status="extracted", started_at=started, completed_at=completed, http_status=200,
         content_level="extracted_text", resolved_url=resolved, canonical_url_candidate=canonical,
         extractor_title=title, extractor_publisher=publisher, extractor_language=language,
         extractor_date=published, date_relation=_date_relation(discovery, published),
@@ -274,14 +299,25 @@ async def extract_article(discovery: NewsArticle, *, execute: bool = False,
 
     from mcp_trendpulse import news
 
+    trace = news._ArticleDownloadTrace()
+    token = news._article_download_trace.set(trace)
     try:
-        article = await news.download_article(discovery.reported_url)
-    except TimeoutError:
-        return _failed(discovery, started, _now().isoformat(), "unavailable", "download_timeout")
-    except ValueError:
-        return _failed(discovery, started, _now().isoformat(), "rejected", "download_rejected")
-    except Exception:
-        # Preserve the original observation; never expose raw transport errors.
-        return _failed(discovery, started, _now().isoformat(), "unavailable", "download_failed")
-    completed = _now().isoformat()
-    return _project(discovery, article, started, completed, permit_body_digest)
+        try:
+            article = await news.download_article(discovery.reported_url)
+        except TimeoutError:
+            return _failed(discovery, started, _now().isoformat(), "unavailable", "download_timeout")
+        except ValueError:
+            return _failed(discovery, started, _now().isoformat(), "rejected", "download_rejected")
+        except Exception:
+            # Preserve the original observation; never expose raw transport errors.
+            return _failed(discovery, started, _now().isoformat(), "unavailable", "download_failed")
+        completed = _now().isoformat()
+        outcome = trace.close()
+        try:
+            return _project(discovery, article, started, completed, permit_body_digest, outcome)
+        except (AttributeError, ValueError, TypeError, OverflowError):
+            return _failed(discovery, started, completed, "rejected", "invalid_extractor_metadata")
+    finally:
+        # Late worker completions may never mutate a returned report or another attempt.
+        trace.close()
+        news._article_download_trace.reset(token)
