@@ -232,6 +232,16 @@ def _decode(raw: bytes) -> object:
         raise ValueError("Invalid JSON payload") from exc
 
 
+def _reject_source_error(payload: object) -> None:
+    """A successful HTTP status and an empty array can still hide a provider error."""
+    if not isinstance(payload, dict):
+        return
+    status = payload.get("status")
+    if ((isinstance(status, str) and status.strip().casefold() in {"error", "failed", "failure"})
+            or any(payload.get(key) for key in ("error", "errors", "fault"))):
+        raise ValueError("Provider returned an error envelope")
+
+
 def _date_evidence(value: object, *, gdelt: bool) -> tuple[TimeEvidence | None, tuple]:
     if value is None or value == "":
         return None, ("source_date_unknown",)
@@ -282,6 +292,7 @@ def parse_news_capture(raw: bytes, *, provider: Provider, captured_at: str | Non
     common = dict(provider=provider, captured_at=captured_at, attribution=attribution)
     try:
         payload = _decode(raw)
+        _reject_source_error(payload)
         rows = payload.get("articles") if provider == "gdelt_doc" and isinstance(payload, dict) else payload if provider == "google_news_rss" else None
         if not isinstance(rows, list):
             raise ValueError("Invalid source shape")
@@ -331,6 +342,9 @@ def gdelt_doc_request(phrase: str, *, as_of: str, days: int = 3, limit: int = 10
               "startdatetime": start.strftime("%Y%m%d%H%M%S"), "enddatetime": end.strftime("%Y%m%d%H%M%S")}
     if mode == "artlist":
         params.update(maxrecords=str(limit), sort="datedesc")
+    else:
+        # A moving average cannot be compared to GDELT's unsmoothed norm.
+        params["timelinesmooth"] = "1"
     return {"url": GDELT_URL + "?" + urlencode(params), "method": "GET", "status": "planned",
             "network_performed": False, "attribution": GDELT_ATTRIBUTION}
 
@@ -367,6 +381,7 @@ class GdeltCoverage(FrozenModel):
 def parse_gdelt_raw_timeline(raw: bytes) -> GdeltCoverage:
     """Strict unsmoothed count projection; absent/malformed timelines are not zeros."""
     payload = _decode(raw)
+    _reject_source_error(payload)
     if not isinstance(payload, dict) or not isinstance(payload.get("timeline"), list):
         raise ValueError("Missing timeline")
     series = payload["timeline"]

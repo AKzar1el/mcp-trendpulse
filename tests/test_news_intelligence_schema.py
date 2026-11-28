@@ -126,7 +126,9 @@ def test_request_is_fixed_origin_and_no_io():
     assert args["startdatetime"] == ["20261125130000"] and args["maxrecords"] == ["3"]
     assert plan["status"] == "planned" and plan["network_performed"] is False
     timeline = gdelt_doc_request("energy", as_of=CAPTURE, mode="timelinevolraw")
-    assert "maxrecords" not in parse_qs(urlsplit(timeline["url"]).query)
+    timeline_args = parse_qs(urlsplit(timeline["url"]).query)
+    assert "maxrecords" not in timeline_args
+    assert timeline_args["timelinesmooth"] == ["1"]
 
 
 @pytest.mark.parametrize("phrase", ['news" OR "x', "sourcecountry:US", "a\nheader", "1", "a&format=html"])
@@ -160,3 +162,19 @@ def test_duplicate_interval_and_missing_series_rejected():
         _timeline(row, row)
     with pytest.raises(ValueError):
         parse_gdelt_raw_timeline(b"{}")
+
+
+@pytest.mark.parametrize("error", [
+    {"status": "error"},
+    {"status": " FAILED "},
+    {"error": "temporarily unavailable"},
+    {"errors": ["provider failure"]},
+    {"fault": {"code": "upstream_error"}},
+])
+def test_source_error_never_becomes_empty_evidence(error):
+    batch = parse_news_capture(
+        _json({"articles": [], **error}), provider="gdelt_doc", captured_at=CAPTURE,
+    )
+    assert batch.status == "invalid" and batch.source_count is None
+    with pytest.raises(ValueError, match="error envelope"):
+        parse_gdelt_raw_timeline(_json({"timeline": [], **error}))

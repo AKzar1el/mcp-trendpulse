@@ -72,7 +72,19 @@ class Provider:
         return self.interest
 
 
-def test_explicit_manual_seed_and_verified_source_seed_must_keep_market():
+@pytest.fixture
+def fixed_seed_clock(monkeypatch):
+    """Keep source freshness tests independent of the CI calendar."""
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return NOW.astimezone(tz) if tz is not None else NOW.replace(tzinfo=None)
+
+    monkeypatch.setattr(explore, "datetime", FixedDateTime)
+
+
+def test_explicit_manual_seed_and_verified_source_seed_must_keep_market(fixed_seed_clock):
     manual = explore.select_seed(term="AI agents", country="SI")
     assert manual == {"term": "AI agents", "country": "SI", "origin": "operator_supplied",
                       "source_id": None, "language": None}
@@ -109,6 +121,12 @@ def test_explicit_manual_seed_and_verified_source_seed_must_keep_market():
     }]}
     with pytest.raises(ValueError):
         explore.select_seed(source=stale)
+    future = {**rss, "trends": [{
+        "signal": {**source_signal(), "observed_at": "2026-11-20T12:00:01Z"},
+        "related_news": [],
+    }]}
+    with pytest.raises(ValueError):
+        explore.select_seed(source=future)
 
 
 @pytest.mark.asyncio
@@ -508,7 +526,7 @@ async def test_cached_interest_does_not_echo_arbitrary_storage_metadata(tmp_path
     assert "DANGEROUS_CACHED_SECRET" not in repr(cached)
 
 
-def test_cli_preview_offline_and_source_file_input(tmp_path, monkeypatch):
+def test_cli_preview_offline_and_source_file_input(tmp_path, monkeypatch, fixed_seed_clock):
     from mcp_trendpulse import providers
     monkeypatch.setattr(providers, "get_provider_set", lambda: (
         (_ for _ in ()).throw(AssertionError("Preview must be offline"))
