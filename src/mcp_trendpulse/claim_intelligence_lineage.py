@@ -230,6 +230,10 @@ def analyze_source_lineage(graph, *, links=(), ownership_hints=(), extractions=(
             ha, hb = _publisher_host(sa), _publisher_host(sb)
             if ha and ha == hb:
                 signal.append("same_reported_publisher_host")
+            la = sa.observation.publisher_label if sa.observation else None
+            lb = sb.observation.publisher_label if sb.observation else None
+            if la and lb and la.casefold() == lb.casefold():
+                signal.append("same_reported_publisher_label")
             if sa.text_sha256 and sa.text_sha256 == sb.text_sha256:
                 signal.append("matching_document_text_digest")
             dp = duplicate_pairs.get((a, b))
@@ -254,7 +258,7 @@ def analyze_source_lineage(graph, *, links=(), ownership_hints=(), extractions=(
                 "left_source_id": a, "right_source_id": b,
                 "left_roles": sorted(attached[a]), "right_roles": sorted(attached[b]),
                 "signals": signal, "shared_upstream_revision_ids": common,
-                "lineage_link_ids": sorted(a_links | b_links) if common else [],
+                "reachable_lineage_link_ids": sorted(a_links | b_links) if common else [],
                 "shared_owner_labels": shared_owners,
                 "duplicate_evidence": dp,
                 "source_independence": "unknown",
@@ -265,7 +269,14 @@ def analyze_source_lineage(graph, *, links=(), ownership_hints=(), extractions=(
         contradict = sorted(s for s, r in attached.items() if "contradicts" in r)
         results.append({
             "claim_id": cid,
-            "source_roles": [{"source_revision_id": s, "roles": sorted(attached[s])} for s in sorted(attached)],
+            "source_roles": [
+                {"source_revision_id": s, "roles": sorted(attached[s]),
+                 "declared_upstream_revision_ids": sorted(reachable[s][0] - {s}),
+                 "reachable_lineage_link_ids": sorted(reachable[s][1]),
+                 "declared_owner_labels": sorted(owner_labels[s])}
+                for s in sorted(attached)
+            ],
+            "relation_ids": sorted(e.relation_id for e in graph.relations if e.claim_id == cid),
             "supporting_revision_ids": support, "contradicting_revision_ids": contradict,
             "sources_annotated_on_both_sides": sorted(set(support) & set(contradict)),
             "lineage_cycle_revision_ids": cyclic,

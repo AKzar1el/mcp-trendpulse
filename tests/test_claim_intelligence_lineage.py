@@ -74,7 +74,8 @@ def test_shared_upstream_is_not_independent_corroboration(kind):
     assert len(r["supporting_revision_ids"]) == 2
     pair = next(p for p in r["pairs_requiring_dependency_review"] if "declared_common_lineage" in p["signals"])
     assert pair["shared_upstream_revision_ids"] == [root[0].source_revision_id]
-    assert set(pair["lineage_link_ids"]) == {x.link_id for x in links}
+    assert set(pair["reachable_lineage_link_ids"]) == {x.link_id for x in links}
+    assert len(r["relation_ids"]) == 2
     assert r["independent_supporting_source_count"] is None
     assert report["source_independence"] == "unknown"
     assert not report["network_performed"] and not report["paid_services_used"]
@@ -111,7 +112,7 @@ def test_unknown_distinct_publishers_do_not_establish_independence():
 def test_weak_similarity_and_same_url_not_equivalence():
     title = "Researchers announce a new renewable energy project for regional communities"
     a = headline("a",title)
-    b = headline("b",title,url=a[0].url)
+    b = headline("b",title,label="Second reported publisher label",url=a[0].url)
     c = headline("c",title)
     g, _ = graph_of([a,b,c], context=(1,2))
     pairs = review(analyze_source_lineage(g))["pairs_requiring_dependency_review"]
@@ -213,3 +214,31 @@ def test_empty_graph_and_forged_graph():
     assert analyze_source_lineage(g)["claim_reviews"] == []
     with pytest.raises(ValueError,match="Invalid claim graph"):
         analyze_source_lineage(g.model_copy(update={"as_of":"2026-11-29T12:00:00Z"}))
+
+def test_transitive_upstream_paths_and_disconnected_unknown_roots():
+    a = headline("origin", "Acme produced 100 units")
+    b = document("b", "Wire A records 100 units.")
+    c = document("c", "Wire A reports 100 units.")
+    intermediate = document("intermediate", "Wire A obtained original data.")
+    root = document("root", "Original measurement record.")
+    g, claim = graph_of([a,b,c,intermediate,root], support=(1,2))
+    links = [link(claim,b,intermediate), link(claim,intermediate,root), link(claim,c,root)]
+    r = review(analyze_source_lineage(g,links=links))
+    pair = next(p for p in r["pairs_requiring_dependency_review"] if "declared_common_lineage" in p["signals"])
+    assert pair["shared_upstream_revision_ids"] == [root[0].source_revision_id]
+    assert not r["lineage_cycle_revision_ids"]
+    b_role = next(x for x in r["source_roles"] if x["source_revision_id"] == b[0].source_revision_id)
+    assert set(b_role["declared_upstream_revision_ids"]) == {intermediate[0].source_revision_id,root[0].source_revision_id}
+    assert r["source_independence"] == "unknown"
+
+
+def test_aggregator_host_does_not_become_publisher_host_signal():
+    a,b = [source_from_observation(NewsArticle(
+        discovery_provider="google_news_rss", link_type="google_news_rss",
+        reported_url=f"https://news.google.com/rss/articles/{key}", title=title,
+        captured_at=CUT, capture_mode="legacy_import"))
+        for key,title in (("a","First unrelated headline"),("b","Another unrelated headline"))]
+    items = [(s,EvidenceAnchor(source_revision_id=s.source_revision_id,selector="headline_span",
+                               start=0,end=len(s.title),excerpt=s.title),None) for s in (a,b)]
+    g,_ = graph_of(items,context=(1,))
+    assert review(analyze_source_lineage(g))["pairs_requiring_dependency_review"] == []
