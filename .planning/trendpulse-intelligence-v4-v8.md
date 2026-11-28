@@ -137,7 +137,7 @@ Reviewed for planning (not a live provider contract/permission test):
 | Phase | State | Next evidence |
 | --- | --- | --- |
 | V4 | IN_PROGRESS | V4.07 integrated workflow, full offline CI and bounded Google/NASA smoke verified; implementation 7/7; live GDELT/publisher and held-out acceptance open; proceed V5.01 offline |
-| V5 | IN_PROGRESS | V5.05 evidence-direction assessment implemented; final strengthened CI run pending; real-world adjudication remains open |
+| V5 | IN_PROGRESS | V5.05 evidence-direction assessment implemented and exact-head CI verified; real-world adjudication/calibration open; proceed V5.06 |
 | V6 | NOT_STARTED | Reuse map of M00–M14 and source comparability |
 | V7 | NOT_STARTED | V6 history and independently labeled outcome availability |
 | V8 | NOT_STARTED | Predeclare benchmark early; execute release review after core |
@@ -259,3 +259,5 @@ Live acceptance on Windows using five fingerprint-verified exact source blobs an
 - Initial synthetic suite and fixture corrections: same source on opposing sides uses one exact evidence anchor and two role edges; V5.01 graph forbids directional evidence with unknown capture; stable policy does not imply freshness. Initial run lint flagged unused imports/test formatting; cleanup committed. Final suite has 17 test cases, no measured real-world accuracy/calibration result.
 - Research basis: 2025 EMNLP survey of 198 claim verification studies (https://aclanthology.org/2025.findings-emnlp.1170/); claim-to-source-to-exact-evidence verification perspective (https://pmc.ncbi.nlm.nih.gov/articles/PMC13771472/); trustworthiness/uncertainty and warranted claims framework (https://pmc.ncbi.nlm.nih.gov/articles/PMC12890942/); empirical study of evidence types in European fact-checking (https://journals.sagepub.com/doi/full/10.1177/02673231251319145). These motivate provenance/scope/conflict handling; no empirical validation of this implementation.
 - No additional dependencies, network calls, paid services, database writes, registry change, deployment, merge or outreach. Earlier V4 live GDELT/publisher acceptance and V5 independent real-world evaluations remain open. **Next after final CI:** V5.06 correction/retraction traceability with revision-safe assessment history, then V5.07 integration. No production promotion.
+
+**V5.05 final CI receipt:** final exact head `ce472cf22e8df607cce98f129ff59a0fd5da6e69`, [run 46180395329](https://github.com/AKzar1el/mcp-trendpulse/actions/runs/46180395329): all five jobs completed successfully (Python 3.11–3.14 and package validation). Python 3.13: **3,576 passed, 1 skipped, 17 deselected, 3 warnings**, Ruff passed; all 17 new assessment cases passed. Earlier failed runs were retained; failures were unused imports/locals and test-fixture issues, now corrected. No real-world claim accuracy or probability calibration is asserted.
