@@ -12,9 +12,9 @@ from mcp_trendpulse.news_intelligence_schema import _digest
 CUT = "2026-11-28T12:00:00Z"
 
 
-def source(name,title,body,kind="primary_document",url=None):
+def source(name,title,body,kind="primary_document",url=None,capture=CUT):
     s = SourceRevision(basis="caller_document",source_kind=kind,url=url or f"https://{name}.example.org/doc",
-                       title=title,captured_at=CUT,revision_label=name,retention="permitted_excerpt",
+                       title=title,captured_at=capture,revision_label=name,retention="permitted_excerpt",
                        text_sha256=hashlib.sha256(body.encode()).hexdigest(),text_character_count=len(body))
     a = EvidenceAnchor(source_revision_id=s.source_revision_id,selector="document_span",start=0,end=len(body),
                        excerpt=body,span_sha256=hashlib.sha256(body.encode()).hexdigest())
@@ -22,11 +22,11 @@ def source(name,title,body,kind="primary_document",url=None):
 
 
 def make_graph():
-    old = source("old","Original report","Original report stated 100 units.")
+    old = source("old","Original report","Original report stated 100 units.",capture="2026-11-26T12:00:00Z")
     notice = source("notice","Correction notice",
                     "Correction notice: Original report at https://old.example.org/doc is superseded by Revised report at https://new.example.org/doc.")
     new = source("new","Revised report","Revised report states 80 units.")
-    supporting = source("supporting","Supporting record","Separate supporting record confirms a measurement.")
+    supporting = source("supporting","Supporting record","Separate supporting record confirms a measurement.",capture="2026-11-26T12:00:00Z")
     claim = AtomicClaim(subject="Acme",predicate="produced",object="100 units",polarity="affirmed",
                         modality="allegation",origin_evidence_id=old[1].evidence_id)
     edge = EvidenceRelation(claim_id=claim.claim_id,evidence_ids=(supporting[1].evidence_id,),
@@ -39,14 +39,19 @@ def make_graph():
                           notice_anchor_id=notice[1].evidence_id,affected_claim_ids=(claim.claim_id,),
                           announced_at=CUT,target_locator_text=old[0].url,successor_locator_text=new[0].url,
                           notice_reference_text="Correction notice")
-    return g,claim,old,notice,new,change
+    return g,claim,old,notice,new,supporting,change
+
+
+def prior_graph(g, claim, old, supporting):
+    return build_claim_graph(as_of="2026-11-27T12:00:00Z",sources=[old[0],supporting[0]],
+                             evidence=[old[1],supporting[1]],claims=[claim],relations=g.relations,
+                             document_texts={old[0].source_revision_id:old[2],
+                                             supporting[0].source_revision_id:supporting[2]})
 
 
 def test_correction_preserves_history_and_marks_prior_assessment_for_recheck():
-    g,c,old,notice,new,change = make_graph()
-    prior = assess_claim_evidence(g,as_of=CUT)
-    earlier = {**prior,"as_of":"2026-11-27T12:00:00Z"}
-    earlier["report_id"] = _digest({k:v for k,v in earlier.items() if k!="report_id"})
+    g,c,old,notice,new,supporting,change = make_graph()
+    earlier = assess_claim_evidence(prior_graph(g,c,old,supporting),as_of="2026-11-27T12:00:00Z")
     result = track_source_changes(g,as_of=CUT,changes=[change],previous_assessment=earlier)
     assert result["change_count"] == 1
     assert result["revision_edges"] == [{"from_revision_id":old[0].source_revision_id,
@@ -64,7 +69,7 @@ def test_correction_preserves_history_and_marks_prior_assessment_for_recheck():
     ("retraction",False),("withdrawal",False),("replacement",True),("clarification",True),
     ("archive_snapshot",True)])
 def test_revision_kinds_and_required_successors(kind,successor):
-    g,c,old,notice,new,base = make_graph()
+    g,c,old,notice,new,supporting,base = make_graph()
     change = SourceChange(change_type=kind,target_revision_id=old[0].source_revision_id,
                           successor_revision_id=new[0].source_revision_id if successor else None,
                           notice_revision_id=notice[0].source_revision_id,notice_anchor_id=notice[1].evidence_id,
@@ -108,7 +113,7 @@ def test_claim_must_really_reference_target_revision():
 
 def test_assessment_temporal_order_is_not_inferred():
     g,c,old,notice,new,change = make_graph()
-    prior = assess_claim_evidence(g,as_of=CUT)
+    prior = assess_claim_evidence(prior_graph(g,c,old,supporting),as_of="2026-11-27T12:00:00Z")
     result = track_source_changes(g,as_of=CUT,changes=[change],previous_assessment=prior)
     state = result["affected_claims"][0]["changes"][0]["reassessment_state"]
     assert state == "temporal_order_does_not_establish_inclusion"
@@ -139,7 +144,7 @@ def test_change_cycle_rejected():
 
 def test_prior_assessment_fingerprint_scope_and_immutability():
     g,c,old,notice,new,change = make_graph()
-    prior = assess_claim_evidence(g,as_of=CUT)
+    prior = assess_claim_evidence(prior_graph(g,c,old,supporting),as_of="2026-11-27T12:00:00Z")
     tampered = {**prior,"assessments":[]}
     tampered["report_id"] = _digest({k:v for k,v in tampered.items() if k!="report_id"})
     with pytest.raises(ValueError,match="coverage"):

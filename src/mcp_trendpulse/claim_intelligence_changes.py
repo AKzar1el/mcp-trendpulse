@@ -79,8 +79,12 @@ def _assessment(value, graph):
         raise ValueError("Invalid prior assessment report")
     if value.get("report_id") != _digest({k:v for k,v in value.items() if k != "report_id"}):
         raise ValueError("Prior assessment fingerprint mismatch")
-    if value.get("graph_id") != graph.graph_id or value.get("semantic_verification") != "not_performed":
-        raise ValueError("Prior assessment graph mismatch")
+    prior_graph_id = value.get("graph_id")
+    if (not isinstance(prior_graph_id, str) or len(prior_graph_id) != 64
+            or any(ch not in "0123456789abcdef" for ch in prior_graph_id)
+            or value.get("semantic_verification") != "not_performed"):
+        raise ValueError("Prior assessment graph identity is invalid")
+    # Prior assessment reports belong to earlier immutable graph revisions.
     assessed_at = _utc(value.get("as_of"))
     rows = value.get("assessments")
     if not isinstance(rows, list) or len(rows) > 80:
@@ -92,7 +96,7 @@ def _assessment(value, graph):
         ):
             raise ValueError("Invalid prior claim assessment")
         mapping[row["claim_id"]] = row["status"]
-    if set(mapping) != {c.claim_id for c in graph.claims}:
+    if not mapping or not set(mapping).issubset({c.claim_id for c in graph.claims}):
         raise ValueError("Prior assessment claim coverage mismatch")
     return datetime.fromisoformat(assessed_at), mapping, value["report_id"]
 
@@ -181,7 +185,8 @@ def track_source_changes(graph, *, as_of, changes=(), previous_assessment=None):
         })
         for cid in change.affected_claim_ids:
             prior_status = previous_status.get(cid) if previous else None
-            prior_precedes = bool(previous_at and previous_at < announced)
+            has_prior_claim = cid in previous_status if previous else False
+            prior_precedes = bool(has_prior_claim and previous_at and previous_at < announced)
             impacts.setdefault(cid,[]).append({
                 "change_id":change.change_id,"change_type":change.change_type,
                 "target_revision_id":change.target_revision_id,
@@ -190,7 +195,8 @@ def track_source_changes(graph, *, as_of, changes=(), previous_assessment=None):
                 "prior_assessment_as_of":previous_at.isoformat() if previous_at else None,
                 "reassessment_required":prior_precedes if previous else None,
                 "reassessment_state":"required" if prior_precedes else (
-                    "no_prior_assessment" if not previous else "temporal_order_does_not_establish_inclusion"),
+                    "no_prior_assessment" if not previous or not has_prior_claim
+                    else "temporal_order_does_not_establish_inclusion"),
             })
     result = {
         "schema_version":1,"method":"source_change_traceability_v1",

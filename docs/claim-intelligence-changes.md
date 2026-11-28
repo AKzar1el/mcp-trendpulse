@@ -13,3 +13,6 @@ Evaluation: synthetic tests cover corrections, retractions, withdrawal, replacem
 References: W3C PROV-O https://www.w3.org/TR/prov-o/ ; Schema.org ClaimReview https://schema.org/ClaimReview ; FEVER https://fever.ai/2018/task.html .
 
 Next: V5.07 integrated evidence investigation and report assembly.
+
+
+A prior assessment is bound to its own earlier graph revision. V5.06 checks the assessment report fingerprint and carries its statuses forward only for claim IDs that still exist in the newer graph; graph fingerprints are expected to differ after added correction/successor sources. Claims absent from the older assessment do not receive invented prior statuses.
