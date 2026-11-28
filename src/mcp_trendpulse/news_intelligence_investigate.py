@@ -249,6 +249,8 @@ async def investigate_news(phrase, *, sources=DEFAULT_SOURCES, days=3, limit=10,
         raise ValueError("Extraction requires explicit execution")
     plans = _plan_sources(phrase, sources, days, limit, timeline_as_of)
     imported = _safe_imports(imported_batches)
+    if execute and not plans:
+        raise ValueError("Execution requires a selected source")
     article_sources = sum(p["source"] != "gdelt_timeline" for p in plans)
     # Validate the worst-case analysis budget before any I/O, even if sources fail.
     if sum(len(b.articles) for b in imported) + article_sources * limit > MAX_OBSERVATIONS:
@@ -328,9 +330,9 @@ async def investigate_news(phrase, *, sources=DEFAULT_SOURCES, days=3, limit=10,
                  or (snapshot is not None and snapshot["status"] == "partial")
                  or any(e.status != "extracted" for e in extractions)
                  else "observed")
-    return {
+    report = {
         "schema_version": 1, "method": "news_investigation_v1",
-        "run_id": _digest([phrase, cutoff, receipts, sorted(observations)]),
+        "network_performed": True if any(r["network_performed"] for r in receipts) else None if extractions else False,
         "query": phrase, "as_of": cutoff, "status": state,
         "execute_requested": execute, "paid_services_used": False,
         "budget": {"selected_source_operations": len(plans), "article_limit_per_source": limit,
@@ -353,6 +355,10 @@ async def investigate_news(phrase, *, sources=DEFAULT_SOURCES, days=3, limit=10,
             "Candidate event and shared-text relations do not establish independent sources. No claim verification is performed.",
         ],
     }
+    # Fingerprint the actual complete structured report, not just IDs and
+    # receipt headers. Distinct timeline measurements must not share a run ID.
+    report["run_id"] = _digest(report)
+    return report
 
 
 def _md(value):
@@ -377,7 +383,10 @@ def format_investigation_markdown(report):
         if receipt["cache_hit"]:
             line += "; cached capture"
         lines.append(line)
-    lines.extend(["", "## Query-scoped sample", ""])
+    budget = report["budget"]
+    lines.extend(["", "Provider operations attempted: " + str(budget["provider_operations_attempted"]),
+                  "Extraction operations attempted: " + str(budget["extraction_operations_attempted"]),
+                  "", "## Query-scoped sample", ""])
     sample = report["topical_sample"]
     if sample is None:
         lines.append("No query-scoped sample was collected.")
@@ -385,6 +394,38 @@ def format_investigation_markdown(report):
         lines.extend(["- Provider-scoped article keys: " + _number(sample["provider_scoped_article_keys"]),
                       "- Candidate events (not verified): " + _number(sample["event_candidate_count"]),
                       "- Independent sources: unknown"])
+        concentration = sample["publisher_label_concentration"]
+        if concentration is not None:
+            lines.append("- Distinct reported publisher labels: " + str(concentration["distinct_known_labels"]))
+            lines.append("- Known-label coverage (%): " + _number(concentration["known_label_coverage_pct"]))
+    refs = {c["observation_id"]: c["citation_id"] for c in report["citations"]}
+    if sample is not None and sample["event_report"] is not None:
+        events = sample["event_report"]["events"]
+        lines.extend(["", "## Query-scoped event candidates (unverified)", ""])
+        for event in events[:10]:
+            members = event["members"]
+            cite = ", ".join(sorted({refs[m["observation_id"]] for m in members}))
+            lines.append("- " + _md(members[0]["span"]) + " (" + cite + ")")
+        if not events:
+            lines.append("No candidate events in the supplied query-scoped sample.")
+        elif len(events) > 10:
+            lines.append("Additional candidates are available in JSON.")
+    context_count = report["all_sample_and_context"]
+    if context_count is not None:
+        lines.extend(["", "Combined sample and context, not query volume: "
+                      + _number(context_count["distinct_observations"]) + " distinct observations."])
+    duplicate = report["duplicate_evidence"]
+    if duplicate is not None:
+        lines.extend(["", "## Duplicate evidence", "",
+                      "Direct related pairs (not merged articles): " + str(len(duplicate["pairs"])),
+                      "Cross-host shared-copy candidates: "
+                      + str(sum(p["cross_host_copy_candidate"] for p in duplicate["pairs"]))])
+    if report["extraction_receipts"]:
+        lines.extend(["", "## Optional extraction outcomes", ""])
+        for receipt in report["extraction_receipts"]:
+            lines.append("- " + refs[receipt["discovery"]["observation_id"]] + ": "
+                         + _md(receipt["status"]) + (
+                             " (" + _md(receipt["reason"]) + ")" if receipt["reason"] else ""))
     coverage = report["coverage_timeline"]
     if coverage is not None:
         lines.extend(["", "## GDELT monitored coverage", "",

@@ -44,6 +44,7 @@ async def test_plan_never_executes_or_constructs_budget(monkeypatch):
     assert report["budget"]["selected_source_operations"] == 4
     assert all(x["status"] == "planned" for x in report["source_receipts"])
     assert report["topical_sample"] is None and report["claim_verification"] == "not_performed"
+    assert report["network_performed"] is False
 
 
 @pytest.mark.asyncio
@@ -80,9 +81,14 @@ async def test_existing_google_provider_budget_and_metadata_cache(monkeypatch, t
     assert first["topical_sample"]["distinct_observations"] == 1
     assert first["budget"]["provider_operations_attempted"] == 1
     assert first["citations"][0]["scope"] == ["query_scoped_sample"]
+    markdown = inv.format_investigation_markdown(first)
+    assert "event candidates (unverified)" in markdown
+    assert "(N1)" in markdown and "Duplicate evidence" in markdown
+    assert first["run_id"] == inv._digest({k: v for k, v in first.items() if k != "run_id"})
     second = await inv.investigate_news("renewable energy", sources=("google_news_rss",), execute=True, cache=store)
     assert second["source_receipts"][0]["cache_hit"]
     assert second["budget"]["provider_operations_attempted"] == 0
+    assert second["network_performed"] is False
     assert first["citations"] == second["citations"]
     call.assert_awaited_once_with(keyword="renewable energy", period=3, max_results=10)
     blocked = await inv.investigate_news("different phrase", sources=("google_news_rss",), execute=True, cache=store)
@@ -137,6 +143,7 @@ async def test_invalid_selection_and_budget_before_io(monkeypatch):
     monkeypatch.setattr(inv, "_google_collect", AsyncMock(side_effect=AssertionError("Unexpected I/O")))
     for kwargs in ({"sources": ("nasa_rss", "nasa_rss")}, {"limit": True},
                    {"execute": "yes"}, {"extract_limit": 1}, {"days": 31},
+                   {"sources": (), "execute": True},
                    {"sources": ("nasa_rss",), "timeline_as_of": CUT}):
         with pytest.raises(ValueError):
             await inv.investigate_news("renewable energy", **kwargs)
@@ -188,3 +195,29 @@ async def test_forged_batch_rejected():
     batch = parse_news_capture(json.dumps(rss_rows()).encode(), provider="google_news_rss", captured_at=CUT)
     with pytest.raises(ValueError, match="Invalid saved"):
         await inv.investigate_news("test", sources=(), imported_batches=[batch.model_copy(update={"source_count": 50})])
+
+
+@pytest.mark.asyncio
+async def test_timeline_fingerprint_changes_with_evidence(monkeypatch):
+    original = collector.collect_news
+    counts = iter((1, 2))
+
+    def fake(source, *, execute=False, cache=None, **kwargs):
+        plan = original(source, **kwargs)
+        if not execute:
+            return plan
+        return {**plan, "status": "observed", "captured_at": CUT, "http_status": 200,
+                "network_performed": True, "provider_requests": 1,
+                "evidence": {"schema_version": 1, "provider": "gdelt_doc",
+                             "attribution": "The GDELT Project (https://www.gdeltproject.org/)",
+                             "metric": "matched_and_monitored_articles", "status": "observed",
+                             "points": [{"interval_at": "2026-11-28T10:00:00Z",
+                                         "matched": next(counts), "monitored": 100}]}}
+
+    monkeypatch.setattr(inv, "collect_news", fake)
+    opts = {"sources": ("gdelt_timeline",), "execute": True}
+    a = await inv.investigate_news("test", **opts)
+    b = await inv.investigate_news("test", **opts)
+    assert a["coverage_timeline"]["weighted_coverage_pct"] == 1
+    assert b["coverage_timeline"]["weighted_coverage_pct"] == 2
+    assert a["run_id"] != b["run_id"]
