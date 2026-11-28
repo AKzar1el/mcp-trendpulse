@@ -12,6 +12,7 @@ import re
 import unicodedata
 from datetime import date, datetime
 from itertools import combinations
+from urllib.parse import urlsplit
 
 from rapidfuzz import fuzz
 
@@ -54,8 +55,9 @@ def _normalized(value):
 def _markers(value):
     text = unicodedata.normalize("NFC", value).casefold()
     numbers = tuple(sorted(match.group().replace(" ", "") for match in _NUMBER.finditer(text)))
-    words = re.findall(r"\w+", text)
-    polarity = tuple(sorted(word for word in words if word in _POLARITY))
+    words = re.findall(r"\w+(?:['’]\w+)*", text)
+    polarity = tuple(sorted(word.replace("’", "'") for word in words
+                            if word in _POLARITY or word.replace("’", "'").endswith("n't")))
     # Preserve important symbols even where lexical normalization strips them.
     symbols = tuple(sorted(c for c in text if c in "+-−#%‰$€£¥<>="))
     return numbers, polarity, symbols
@@ -181,9 +183,12 @@ def _compare(left, right, receipts, bodies, headlines):
                 relations.append("near_body_match_candidate")
     if not relations:
         return None
-    body_match = any(r in relations for r in (
-        "matching_extracted_digest", "normalized_body_match", "near_body_match_candidate"
-    ))
+    # A matching digest alone can describe a short UI shell. Only verified,
+    # sufficiently substantial ephemeral bodies support a shared-copy candidate.
+    body_match = any(r in relations for r in ("normalized_body_match", "near_body_match_candidate"))
+    if "matching_extracted_digest" in relations and (lb is None or rb is None):
+        guards.append("body_substance_unverified")
+    cross_host = bool(body_match and lr and rr and urlsplit(lr).hostname != urlsplit(rr).hostname)
     return {
         "left_observation_id": li, "right_observation_id": ri,
         "relations": relations, "guards": guards,
@@ -191,6 +196,7 @@ def _compare(left, right, receipts, bodies, headlines):
         "body_shingle_jaccard": round(body_score, 6) if body_score is not None else None,
         "comparable_date_distance_seconds": distance,
         "shared_text_candidate": body_match,
+        "cross_host_copy_candidate": cross_host,
         "source_independence": "unknown",
         "automatic_merge": False,
     }
@@ -273,6 +279,7 @@ def analyze_news_duplicates(observations, *, extractions=(), ephemeral_bodies=No
         "limitations": [
             "Caller-supplied receipts are not authenticated origin evidence.",
             "Similar headlines, canonical hints and identical links do not establish shared copies.",
+            "Matching digests alone have unknown substance unless matching bodies were supplied.",
             "Shared text does not establish which publisher originated it or whether claims are true.",
             "Multilingual semantics, full lineage and event clustering are separate tasks.",
         ],

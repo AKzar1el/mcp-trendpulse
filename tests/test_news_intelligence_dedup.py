@@ -113,11 +113,18 @@ def test_language_and_time_guards():
 
 
 def body_text():
-    # Artificial text only; varied shingles and enough tokens to exercise matching.
-    return " ".join(
-        f"The regional research team discussed {word} in a public meeting and presented supporting evidence."
-        for word in ("storage", "transport", "schools", "water", "materials", "health",
-                     "science", "farming", "planning", "housing", "training", "forestry")
+    # Artificial text only. Distinct sentences avoid inflating overlap via boilerplate.
+    return (
+        "A regional research team presented a prototype battery during a public meeting. "
+        "Engineers described the testing procedure and explained the limitations of their measurements. "
+        "The project connects rural settlements through an experimental distribution network. "
+        "Independent laboratories examined the materials using several temperature and humidity settings. "
+        "Local residents contributed suggestions about safe installation and routine maintenance. "
+        "University staff recorded observations in an accessible repository for subsequent analysis. "
+        "The council discussed funding arrangements during its regularly scheduled planning session. "
+        "An industry partner demonstrated modular assembly and compared alternative packaging methods. "
+        "Participants identified unresolved questions about long term reliability and environmental impacts. "
+        "Future workshops will explore additional applications in farming and forestry."
     )
 
 
@@ -132,7 +139,8 @@ def test_exact_digest_is_shared_text_candidate_only():
     x = body_text()
     result = analyze_news_duplicates([a, b], extractions=[receipt(a, body=x), receipt(b, body=x)])
     assert "matching_extracted_digest" in relations(result)
-    assert result["pairs"][0]["shared_text_candidate"]
+    assert not result["pairs"][0]["shared_text_candidate"]
+    assert "body_substance_unverified" in result["pairs"][0]["guards"]
     assert result["pairs"][0]["source_independence"] == "unknown"
     assert not result["pairs"][0]["automatic_merge"]
 
@@ -165,6 +173,9 @@ def test_short_or_boilerplate_bodies_abstain():
     y = x.upper()
     result = with_bodies(a, b, x, y)
     assert result["body_inputs_with_sufficient_features"] == 0
+    assert not result["pairs"][0]["shared_text_candidate"]
+    result = with_bodies(a, b, x, x)
+    assert "matching_extracted_digest" in relations(result)
     assert not result["pairs"][0]["shared_text_candidate"]
 
 
@@ -209,3 +220,28 @@ def test_bounded_snapshot_and_forged_inputs():
     assert result["comparisons"] == MAX_OBSERVATIONS * (MAX_OBSERVATIONS - 1) // 2
     assert result["unique_observation_count"] == MAX_OBSERVATIONS
     assert not result["source_independence_established"] and not result["network_performed"]
+
+def test_cross_host_copy_candidate_requires_substantive_matching_text():
+    a, b = obs("a"), obs("b", url="https://other.org/story/b")
+    x = body_text()
+    result = with_bodies(a, b, x, x)
+    pair = result["pairs"][0]
+    assert pair["shared_text_candidate"] and pair["cross_host_copy_candidate"]
+    assert pair["source_independence"] == "unknown"
+    assert not pair["automatic_merge"]
+
+
+def test_contraction_and_word_order_do_not_create_shared_copy():
+    a = obs("a", "The government says the new national research facility can open in spring")
+    b = obs("b", "The government says the new national research facility can't open in spring")
+    result = analyze_news_duplicates([a, b])
+    assert not any("headline_near_candidate" in p["relations"] for p in result["pairs"])
+    a = obs("a", "The court ordered the company to pay the local authority for damages")
+    b = obs("b", "The court ordered the local authority to pay the company for damages")
+    assert not any("headline_near_candidate" in p["relations"] for p in analyze_news_duplicates([a, b])["pairs"])
+
+
+def test_empty_and_short_headline_snapshots():
+    assert analyze_news_duplicates([])["comparisons"] == 0
+    result = analyze_news_duplicates([obs("a", "Market update"), obs("b", "Market update")])
+    assert result["pairs"] == []
