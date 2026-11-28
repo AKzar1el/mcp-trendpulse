@@ -116,8 +116,50 @@ def offline_safety_tests() -> int:
         pass
     else:
         raise AssertionError("Unsupported evidence class was accepted")
+    # A failed first provider must not hide later healthy providers or pass CI.
+    from types import SimpleNamespace
+
+    class FakeSession:
+        def __init__(self, unavailable: bool):
+            self.unavailable = unavailable
+            self.calls: list[str] = []
+
+        async def call_tool(self, name, arguments, **kwargs):
+            source = arguments["source"]
+            replay = source in self.calls
+            self.calls.append(source)
+            payload = {
+                "source": source,
+                "status": "unavailable" if self.unavailable and source == "cordis" else "observed",
+                "evidence_level": "public_source_snapshot_not_purchasing_validation",
+                "source_documentation": "test-fixture",
+                "retrieved_at": example["retrieved_at"],
+                "observations": {"record_count": 1, "sample": [{"topic": TOPIC}]},
+                "source_url": "https://example.invalid",
+                "cache_hit": replay,
+            }
+            return SimpleNamespace(isError=False, structuredContent=payload)
+
+    with tempfile.TemporaryDirectory(prefix="cross-source-offline-") as root:
+        report = Path(root) / "report.json"
+        session = FakeSession(unavailable=True)
+        rows = asyncio.run(probe_sources(session))
+        assert session.calls == ["cordis", "cellar", "cellar", "usaspending", "usaspending"]
+        assert finish_live_report(rows, report) == 1
+        diagnostic = json.loads(report.read_text(encoding="utf-8"))
+        assert diagnostic["unavailable_sources"] == ["cordis"]
+        assert diagnostic["sources_observed"] == 2
+        assert diagnostic["status"] == "failed"
+        assert diagnostic["cache_replay_all"] is False
+        assert not diagnostic["customer_purchasing_intent_validated"]
+
+        session = FakeSession(unavailable=False)
+        rows = asyncio.run(probe_sources(session))
+        assert finish_live_report(rows, report) == 0
+        assert json.loads(report.read_text(encoding="utf-8"))["status"] == "passed"
+
     print(json.dumps({"mode": "offline", "status": "passed",
-                      "cases": 6, "spurious_opportunity_scores": 0}), flush=True)
+                      "cases": 8, "spurious_opportunity_scores": 0}), flush=True)
     return 0
 
 
@@ -159,54 +201,80 @@ async def live(report: Path) -> int:
                 names = {x.name for x in (await session.list_tools()).tools}
                 if "intelligence_collect" not in names:
                     raise AssertionError("Collector was not advertised")
-                for source, signal_class, arguments in CASES:
-                    now = time.perf_counter()
-                    first = await call(session, {**arguments, "execute": True})
-                    cold_ms = round((time.perf_counter() - now) * 1000)
-                    if first.get("status") != "observed":
-                        raise AssertionError(f"{source}: no valid response ({first.get('status')})")
-                    if first.get("source") != source:
-                        raise AssertionError("Source identity mismatch")
-                    if first.get("evidence_level") != "public_source_snapshot_not_purchasing_validation":
-                        raise AssertionError("Source was incorrectly promoted to purchasing proof")
-                    if not first.get("source_documentation") or not first.get("retrieved_at"):
-                        raise AssertionError("Provider provenance or observation date missing")
-                    projections = first.get("observations") or {}
-                    samples = projections.get("sample") or []
-                    count = projections.get("record_count")
-                    if not isinstance(count, int) or count < 1 or not samples:
-                        raise AssertionError(f"{source}: no usable evidence rows")
-                    now = time.perf_counter()
-                    second = await call(session, {**arguments, "execute": True})
-                    warm_ms = round((time.perf_counter() - now) * 1000)
-                    if second.get("cache_hit") is not True:
-                        raise AssertionError("Repeated source query did not use cache")
-                    if second.get("retrieved_at") != first.get("retrieved_at"):
-                        raise AssertionError("Replay unexpectedly changed retrieval time")
-                    sample_text = json.dumps(samples, ensure_ascii=False).lower()
-                    row = {
-                        "source": source, "source_class": signal_class,
-                        "record_count": count, "status": first["status"],
-                        "topic_seen_in_sample": TOPIC in sample_text,
-                        "cache_replayed": True,
-                        "source_url": first.get("source_url"),
-                        "retrieved_at": first["retrieved_at"],
-                        "cold_ms": cold_ms, "cached_ms": warm_ms,
-                    }
-                    output.append(row)
-                    print(json.dumps({
-                        "source": source, "status": "observed",
-                        "record_count": count,
-                        "topic_seen_in_sample": row["topic_seen_in_sample"],
-                        "cache_hit": True, "cold_ms": cold_ms, "cached_ms": warm_ms,
-                    }), flush=True)
+                output = await probe_sources(session)
+    return finish_live_report(output, report)
+
+
+async def probe_sources(session: ClientSession) -> list[dict[str, Any]]:
+    output = []
+    for source, signal_class, arguments in CASES:
+        now = time.perf_counter()
+        first = await call(session, {**arguments, "execute": True})
+        cold_ms = round((time.perf_counter() - now) * 1000)
+        if first.get("status") != "observed":
+            # Preserve a bounded failure record and continue independent probes.
+            # Never treat an unavailable source as positive evidence.
+            output.append({
+                "source": source, "source_class": signal_class,
+                "record_count": 0, "status": "unavailable",
+                "topic_seen_in_sample": False, "cache_replayed": False,
+                "source_url": None, "retrieved_at": None,
+                "cold_ms": cold_ms, "cached_ms": None,
+            })
+            print(json.dumps({"source": source, "status": "unavailable"}), flush=True)
+            continue
+        if first.get("source") != source:
+            raise AssertionError("Source identity mismatch")
+        if first.get("evidence_level") != "public_source_snapshot_not_purchasing_validation":
+            raise AssertionError("Source was incorrectly promoted to purchasing proof")
+        if not first.get("source_documentation") or not first.get("retrieved_at"):
+            raise AssertionError("Provider provenance or observation date missing")
+        projections = first.get("observations") or {}
+        samples = projections.get("sample") or []
+        count = projections.get("record_count")
+        if not isinstance(count, int) or count < 1 or not samples:
+            raise AssertionError(f"{source}: no usable evidence rows")
+        now = time.perf_counter()
+        second = await call(session, {**arguments, "execute": True})
+        warm_ms = round((time.perf_counter() - now) * 1000)
+        if second.get("cache_hit") is not True:
+            raise AssertionError("Repeated source query did not use cache")
+        if second.get("retrieved_at") != first.get("retrieved_at"):
+            raise AssertionError("Replay unexpectedly changed retrieval time")
+        sample_text = json.dumps(samples, ensure_ascii=False).lower()
+        row = {
+            "source": source, "source_class": signal_class,
+            "record_count": count, "status": first["status"],
+            "topic_seen_in_sample": TOPIC in sample_text,
+            "cache_replayed": True,
+            "source_url": first.get("source_url"),
+            "retrieved_at": first["retrieved_at"],
+            "cold_ms": cold_ms, "cached_ms": warm_ms,
+        }
+        output.append(row)
+        print(json.dumps({
+            "source": source, "status": "observed",
+            "record_count": count,
+            "topic_seen_in_sample": row["topic_seen_in_sample"],
+            "cache_hit": True, "cold_ms": cold_ms, "cached_ms": warm_ms,
+        }), flush=True)
+    return output
+
+
+def finish_live_report(output: list[dict[str, Any]], report: Path) -> int:
     result = assess(output)
-    if not result["technical_cross_source_compatible"]:
-        raise AssertionError("Multiple evidence classes were not retrieved")
-    if not result["semantic_topic_overlap_observed"]:
-        raise AssertionError("Battery topic not actually visible in two source classes")
-    if result["customer_purchasing_intent_validated"] or result["opportunity_rankable"]:
-        raise AssertionError("Observational sources falsely imply validated demand")
+    failures = [row["source"] for row in output if row["status"] != "observed"]
+    expected_sources = {source for source, _, _ in CASES}
+    passed = (
+        not failures
+        and {row["source"] for row in output} == expected_sources
+        and result["technical_cross_source_compatible"]
+        and result["semantic_topic_overlap_observed"]
+        and not result["customer_purchasing_intent_validated"]
+        and not result["opportunity_rankable"]
+    )
+    result["status"] = "passed" if passed else "failed"
+    result["unavailable_sources"] = failures
     result["checked_at"] = datetime.now(timezone.utc).isoformat()
     result["mode"] = "live_mcp_cross_source"
     result["cache_replay_all"] = all(x["cache_replayed"] for x in output)
@@ -214,13 +282,13 @@ async def live(report: Path) -> int:
     result["cached_request_ms"] = {x["source"]: x["cached_ms"] for x in output}
     report.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps({
-        "mode": "live_mcp_cross_source", "status": "passed",
+        "mode": "live_mcp_cross_source", "status": result["status"],
         "sources": result["sources_observed"],
         "independent_classes": result["distinct_evidence_classes"],
         "topic_overlap_classes": result["classes_with_topic_in_sample"],
         "commercial_validation": False,
     }), flush=True)
-    return 0
+    return 0 if passed else 1
 
 
 def main() -> int:
