@@ -26,13 +26,14 @@ def make_graph():
     notice = source("notice","Correction notice",
                     "Correction notice: Original report at https://old.example.org/doc is superseded by Revised report at https://new.example.org/doc.")
     new = source("new","Revised report","Revised report states 80 units.")
+    supporting = source("supporting","Supporting record","Separate supporting record confirms a measurement.")
     claim = AtomicClaim(subject="Acme",predicate="produced",object="100 units",polarity="affirmed",
                         modality="allegation",origin_evidence_id=old[1].evidence_id)
-    edge = EvidenceRelation(claim_id=claim.claim_id,evidence_ids=(old[1].evidence_id,),
-                            relation="supports",scope_alignment="matched",rationale="Original annotation")
-    g = build_claim_graph(as_of=CUT,sources=[old[0],notice[0],new[0]],
-                          evidence=[old[1],notice[1],new[1]],claims=[claim],relations=[edge],
-                          document_texts={x[0].source_revision_id:x[2] for x in (old,notice,new)})
+    edge = EvidenceRelation(claim_id=claim.claim_id,evidence_ids=(supporting[1].evidence_id,),
+                            relation="supports",scope_alignment="matched",rationale="Separate supporting record")
+    g = build_claim_graph(as_of=CUT,sources=[old[0],notice[0],new[0],supporting[0]],
+                          evidence=[old[1],notice[1],new[1],supporting[1]],claims=[claim],relations=[edge],
+                          document_texts={x[0].source_revision_id:x[2] for x in (old,notice,new,supporting)})
     change = SourceChange(change_type="correction",target_revision_id=old[0].source_revision_id,
                           successor_revision_id=new[0].source_revision_id,notice_revision_id=notice[0].source_revision_id,
                           notice_anchor_id=notice[1].evidence_id,affected_claim_ids=(claim.claim_id,),
@@ -100,7 +101,7 @@ def test_locator_must_match_exact_notice_and_successor():
 
 def test_claim_must_really_reference_target_revision():
     g,c,old,notice,new,change = make_graph()
-    bad = SourceChange(**{**change.model_dump(),"change_id":None,"target_revision_id":new[0].source_revision_id})
+    bad = SourceChange(**{**change.model_dump(),"change_id":None,"target_revision_id":notice[0].source_revision_id})
     with pytest.raises(ValueError,match="not linked to target"):
         track_source_changes(g,as_of=CUT,changes=[bad])
 
@@ -119,8 +120,10 @@ def test_change_cycle_rejected():
     new = source("new","Revised report","Revised report states 80 units.")
     claim = AtomicClaim(subject="Acme",predicate="produced",object="100 units",polarity="affirmed",
                         modality="allegation",origin_evidence_id=old[1].evidence_id)
+    context_edge = EvidenceRelation(claim_id=claim.claim_id,evidence_ids=(new[1].evidence_id,),
+                                    relation="context",scope_alignment="unknown",rationale="Revision context")
     g = build_claim_graph(as_of=CUT,sources=[old[0],notice[0],new[0]],
-                          evidence=[old[1],notice[1],new[1]],claims=[claim],
+                          evidence=[old[1],notice[1],new[1]],claims=[claim],relations=[context_edge],
                           document_texts={x[0].source_revision_id:x[2] for x in (old,notice,new)})
     a = SourceChange(change_type="correction",target_revision_id=old[0].source_revision_id,
                      successor_revision_id=new[0].source_revision_id,notice_revision_id=notice[0].source_revision_id,
